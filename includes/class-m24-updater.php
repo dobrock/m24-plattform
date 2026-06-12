@@ -48,29 +48,66 @@ class M24_Updater {
 			return;
 		}
 
-		$checker = call_user_func(
-			array( $factory, 'buildUpdateChecker' ),
-			self::repo(),
-			M24_PLATTFORM_FILE,
-			self::SLUG
-		);
+		// Der Updater darf das Backend NIEMALS fataln (kritischer Fehler). buildUpdateChecker()
+		// kann werfen (z.B. ungueltige Repo-URL), und setBranch()/setAuthentication() existieren
+		// NUR auf dem VCS-(GitHub-)Checker — erkennt PUC die URL nicht als GitHub, liefert es einen
+		// generischen Plugin\UpdateChecker OHNE diese Methoden → frueher: Fatal. Daher: try/catch
+		// + method_exists-Guard. self::repo() normalisiert ausserdem Bare-Slugs zu Voll-URLs.
+		try {
+			$checker = call_user_func(
+				array( $factory, 'buildUpdateChecker' ),
+				self::repo(),
+				M24_PLATTFORM_FILE,
+				self::SLUG
+			);
 
-		// Branch-Modus: Header-Version im Branch = Trigger.
-		$checker->setBranch( self::branch() );
+			if ( ! method_exists( $checker, 'setBranch' ) ) {
+				// Kein VCS-Checker → URL nicht als GitHub erkannt. Nicht weiter konfigurieren (Fatal-Schutz).
+				if ( class_exists( 'M24_Logger' ) ) {
+					M24_Logger::error( 'updater', 'PUC lieferte keinen GitHub-/VCS-Checker fuer "' . self::repo() . '" — Updater inaktiv. M24_UPDATER_REPO pruefen/entfernen.' );
+				}
+				return;
+			}
 
-		// Privates Repo: Token nur aus wp-config-Konstante.
-		if ( self::has_token() ) {
-			$checker->setAuthentication( (string) M24_GITHUB_TOKEN );
+			// Branch-Modus: Header-Version im Branch = Trigger.
+			$checker->setBranch( self::branch() );
+
+			// Privates Repo: Token nur aus wp-config-Konstante.
+			if ( self::has_token() && method_exists( $checker, 'setAuthentication' ) ) {
+				$checker->setAuthentication( (string) M24_GITHUB_TOKEN );
+			}
+
+			self::$checker = $checker;
+
+			// Force-Check-Button (Settings-Seite) → admin-post-Handler.
+			add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_force_check' ) );
+		} catch ( \Throwable $e ) {
+			if ( class_exists( 'M24_Logger' ) ) {
+				M24_Logger::error( 'updater', 'Updater-Init fehlgeschlagen (kein Fatal): ' . $e->getMessage() );
+			}
+			self::$checker = null;
 		}
-
-		self::$checker = $checker;
-
-		// Force-Check-Button (Settings-Seite) → admin-post-Handler.
-		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_force_check' ) );
 	}
 
+	/**
+	 * Repo-URL fuer PUC. Default = hartkodiertes GitHub-Repo. Optionaler Override via
+	 * M24_UPDATER_REPO — robust normalisiert: ein Bare-Slug „user/repo" wird zur Voll-URL
+	 * „https://github.com/user/repo/" (sonst erkennt PUC kein GitHub → Fatal). Unklare Werte
+	 * fallen auf den Default zurueck.
+	 */
 	public static function repo() {
-		return ( defined( 'M24_UPDATER_REPO' ) && M24_UPDATER_REPO ) ? (string) M24_UPDATER_REPO : self::DEFAULT_REPO;
+		$repo = ( defined( 'M24_UPDATER_REPO' ) && '' !== trim( (string) M24_UPDATER_REPO ) )
+			? trim( (string) M24_UPDATER_REPO )
+			: self::DEFAULT_REPO;
+
+		if ( false !== strpos( $repo, '://' ) ) {
+			return $repo; // bereits vollstaendige URL
+		}
+		$slug = trim( $repo, '/' );
+		if ( preg_match( '#^[\w.-]+/[\w.-]+$#', $slug ) ) {
+			return 'https://github.com/' . $slug . '/'; // Bare-Slug → Voll-URL
+		}
+		return self::DEFAULT_REPO; // unbrauchbar → sicher auf Default
 	}
 
 	public static function branch() {
