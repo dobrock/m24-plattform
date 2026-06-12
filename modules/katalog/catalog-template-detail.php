@@ -50,6 +50,13 @@ class M24_Catalog_Template_Detail {
 				padding-right:16px!important;
 			}
 		}
+		<?php if ( $is_detail ) : ?>
+		/* tagDiv-Wrapper .td-theme-wrap nutzt overflow:hidden → bricht position:sticky
+		   (.m24-right-inner scrollt weg, top wird negativ). overflow:clip clippt wie hidden
+		   (kein horizontaler Scroll), erzeugt aber KEINEN Scroll-Container → Sticky laeuft;
+		   die Boundary ueber .right bleibt unberuehrt. Nur Katalog-Detailseiten. */
+		.td-theme-wrap{overflow:clip!important}
+		<?php endif; ?>
 		</style>
 		<?php
 	}
