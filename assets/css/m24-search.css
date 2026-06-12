@@ -1,87 +1,78 @@
-/* M24 Plattform — Gruppierte Suche: Dropdown + Vollergebnis-Seite */
+/* M24 Plattform — Mega-Suche: Panel im Theme-Overlay + Vollergebnis-Seite */
 
-/* Eigenes Dropdown (an document.body, fixed positioniert per JS) */
-.m24-search-dd {
-	box-sizing: border-box;
-	max-height: 70vh;
+/* tagDiv-eigenes Live-Result ausblenden — unser Mega-Panel uebernimmt dessen Platz.
+   !important schlaegt tagDivs inline display:block. */
+.tdb-aj-search,
+.td-drop-down-search .td-aj-search-results,
+.td-drop-down-search .result-msg { display: none !important; }
+
+/* Mega-Panel: im Overlay in-flow, als Float-Fallback fixed positioniert. */
+.m24-mega { display: none; font-family: 'Saira', Arial, sans-serif; color: #14161a; }
+.m24-mega.m24-mega--on { display: block; }
+.m24-mega--float {
+	position: fixed;
+	z-index: 100000;
+	max-height: 80vh;
 	overflow-y: auto;
 	background: #fff;
 	border: 1px solid rgba(0, 0, 0, .12);
 	border-radius: 10px;
 	box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
-	z-index: 100000;
-	font-family: 'Saira', Arial, sans-serif;
-	color: #14161a;
-	padding: 6px 0;
 	-webkit-overflow-scrolling: touch;
 }
-.m24-search-dd * { box-sizing: border-box; }
 
-.m24-sr-group { padding: 6px 0 4px; }
-.m24-sr-group + .m24-sr-group { border-top: 1px solid rgba(0, 0, 0, .08); }
+.m24-mega-wrap {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px 36px;
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 16px 20px 18px;
+	background: #fff;
+	box-sizing: border-box;
+}
+.m24-mega--float .m24-mega-wrap { max-width: none; margin: 0; padding: 10px 12px; }
+.m24-mega-wrap * { box-sizing: border-box; }
+.m24-mega-col { min-width: 0; }
+
+.m24-sr-group { padding: 4px 0 10px; }
+.m24-sr-group + .m24-sr-group { border-top: 1px solid rgba(0, 0, 0, .08); margin-top: 4px; }
 .m24-sr-head {
 	font-size: 11px;
 	font-weight: 700;
 	letter-spacing: 1.2px;
 	text-transform: uppercase;
 	color: #9a6b25;
-	padding: 6px 16px 4px;
+	padding: 8px 4px 6px;
 }
 
 .m24-sr-item {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 8px 16px;
+	padding: 7px 6px;
 	text-decoration: none;
 	color: #14161a;
+	border-radius: 6px;
 }
 .m24-sr-item:hover { background: #f4f6f8; }
-.m24-sr-thumb {
-	flex: 0 0 auto;
-	width: 46px;
-	height: 32px;
-	border-radius: 4px;
-	overflow: hidden;
-	background: #f0f0ee;
-	display: block;
-}
+.m24-sr-thumb { flex: 0 0 auto; width: 52px; height: 36px; border-radius: 4px; overflow: hidden; background: #f0f0ee; display: block; }
 .m24-sr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .m24-sr-thumb--empty { background: repeating-linear-gradient(45deg, #f0f0ee, #f0f0ee 6px, #e8e8e4 6px, #e8e8e4 12px); }
 .m24-sr-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.m24-sr-title {
-	font-size: 14px;
-	font-weight: 600;
-	line-height: 1.25;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
+.m24-sr-title { font-size: 14px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m24-sr-sub { font-size: 12.5px; color: #6b7077; }
 .m24-sr-sub.m24-sr-price { color: #9a6b25; font-weight: 700; }
-.m24-sr-sub.m24-sr-sold { color: #9e2b2b; font-weight: 700; }
+.m24-sr-sub.m24-sr-sold { color: #9e2b2b; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; font-size: 11.5px; }
 
-.m24-sr-all {
-	display: block;
-	padding: 8px 16px 4px;
-	font-size: 12.5px;
-	font-weight: 700;
-	color: #1763ad;
-	text-decoration: none;
-}
+.m24-sr-all { display: inline-block; margin: 6px 4px 0; font-size: 12.5px; font-weight: 700; color: #1763ad; text-decoration: none; }
 .m24-sr-all:hover { text-decoration: underline; }
-.m24-sr-none { padding: 14px 16px; color: #6b7077; font-size: 13px; }
+.m24-sr-none { padding: 18px 8px; color: #6b7077; font-size: 13px; grid-column: 1 / -1; }
 
-/* tagDiv-eigenes Live-Such-Ergebnis unterdruecken (Eigenbau ersetzt es).
-   Nur die Ergebnis-Container, NICHT das Suchformular selbst. Bei Bedarf auf
-   Live per view-source verifizieren/ergaenzen. */
-.td-drop-down-search .td-aj-search-results,
-.td-drop-down-search .result-msg,
-.td-aj-search-results,
-.td_ajax_search_results { display: none !important; }
-
-@media (max-width: 600px) {
-	.m24-search-dd { max-height: 78vh; }
+/* Mobil/schmal: Spalten untereinander, volle Breite. */
+@media (max-width: 782px) {
+	.m24-mega-wrap { grid-template-columns: 1fr; gap: 0; padding: 12px 14px; }
+	.m24-mega--float { max-height: 82vh; }
 	.m24-sr-title { white-space: normal; }
 }
 
@@ -98,7 +89,4 @@
 .m24-sp-card h3 { font-family: 'Saira', Arial, sans-serif; font-size: 15px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
 .m24-sp-card .m24-sp-price { color: #9a6b25; font-weight: 700; }
 .m24-sp-card .m24-sp-sold { color: #9e2b2b; font-weight: 700; }
-.m24-sp-chips { display: flex; flex-wrap: wrap; gap: 10px; }
-.m24-sp-chip { display: inline-block; padding: 10px 18px; border: 1px solid rgba(0, 0, 0, .12); border-radius: 999px; background: #fafafa; color: #14161a; text-decoration: none; font-weight: 600; }
-.m24-sp-chip:hover { border-color: #1763ad; color: #1763ad; background: #fff; }
 .m24-sp-empty { color: #6b7077; padding: 20px 0; }

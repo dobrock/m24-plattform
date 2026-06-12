@@ -41,13 +41,6 @@ get_header();
 		<?php if ( empty( $m24_data['items'] ) ) : ?>
 			<p class="m24-sp-empty"><?php echo esc_html__( 'Keine Treffer in dieser Gruppe.', 'm24-plattform' ); ?></p>
 
-		<?php elseif ( M24_Search_Query::GROUP_FAHRZEUGE === $m24_group ) : ?>
-			<div class="m24-sp-chips">
-				<?php foreach ( $m24_data['items'] as $it ) : ?>
-					<a class="m24-sp-chip" href="<?php echo esc_url( $it['url'] ); ?>"><?php echo esc_html( $it['title'] ); ?><?php if ( ! empty( $it['meta'] ) ) : ?> <span style="color:#9a6b25;">(<?php echo esc_html( $it['meta'] ); ?>)</span><?php endif; ?></a>
-				<?php endforeach; ?>
-			</div>
-
 		<?php else : ?>
 			<div class="m24-sp-grid">
 				<?php foreach ( $m24_data['items'] as $it ) : ?>

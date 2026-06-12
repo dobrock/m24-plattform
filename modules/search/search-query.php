@@ -20,8 +20,33 @@ class M24_Search_Query {
 	const GROUP_TEILE         = 'teile';
 	const GROUP_VERSCHIEDENES = 'verschiedenes';
 
-	const TAX_MODELL = 'm24_fahrzeugkat';
-	const PT_TEIL    = 'm24_teil';
+	const PT_TEIL = 'm24_teil';
+
+	/**
+	 * „Fahrzeuge" = echte Beitraege (post) aus diesen vier Kategorien (Slugs).
+	 * Diese Beitraege erscheinen NICHT in „Verschiedenes". Override via Filter
+	 * `m24_search_fahrzeug_categories` (Slugs) / `m24_search_fahrzeug_sold_categories`.
+	 */
+	const FAHRZEUG_CATEGORIES      = array( 'classic-cars-for-sale', 'race-cars-for-sale', 'sold-classic-cars', 'racecars-sold' );
+	const FAHRZEUG_SOLD_CATEGORIES = array( 'sold-classic-cars', 'racecars-sold' );
+
+	/** Slugs → term_ids (gecacht pro Request). */
+	private static function cat_ids( $slugs, $filter ) {
+		static $cache = array();
+		$slugs = (array) apply_filters( $filter, $slugs );
+		$key   = md5( implode( ',', $slugs ) );
+		if ( isset( $cache[ $key ] ) ) { return $cache[ $key ]; }
+		$ids = array();
+		foreach ( $slugs as $slug ) {
+			$t = get_term_by( 'slug', $slug, 'category' );
+			if ( $t && ! is_wp_error( $t ) ) { $ids[] = (int) $t->term_id; }
+		}
+		$cache[ $key ] = $ids;
+		return $ids;
+	}
+
+	public static function fahrzeug_cat_ids()      { return self::cat_ids( self::FAHRZEUG_CATEGORIES, 'm24_search_fahrzeug_categories' ); }
+	public static function fahrzeug_sold_cat_ids() { return self::cat_ids( self::FAHRZEUG_SOLD_CATEGORIES, 'm24_search_fahrzeug_sold_categories' ); }
 
 	/** Default-Limits (Dropdown). Vollergebnis-Seite ruft mit hohem Limit. */
 	public static function default_limits() {
@@ -68,29 +93,36 @@ class M24_Search_Query {
 		);
 	}
 
-	// ── Fahrzeuge = Modell-Terme ───────────────────────────────────────────
+	// ── Fahrzeuge = echte Beitraege (post) aus den 4 Fahrzeug-Kategorien ────
 
 	private static function fahrzeuge( $q, $limit ) {
 		if ( '' === $q ) { return self::empty_group( self::GROUP_FAHRZEUGE, $q ); }
-		$args = array(
-			'taxonomy'   => self::TAX_MODELL,
-			'hide_empty' => true,   // nur Modelle mit Teilen
-			'search'     => $q,     // Name LIKE %q%
-		);
-		$total = wp_count_terms( $args );
-		$total = is_wp_error( $total ) ? 0 : (int) $total;
+		$cat_ids = self::fahrzeug_cat_ids();
+		if ( empty( $cat_ids ) ) { return self::empty_group( self::GROUP_FAHRZEUGE, $q ); }
+		$sold_ids = self::fahrzeug_sold_cat_ids();
 
-		$terms = get_terms( array_merge( $args, array( 'number' => max( 0, $limit ), 'orderby' => 'count', 'order' => 'DESC' ) ) );
+		$query = new WP_Query( array(
+			'post_type'           => 'post',
+			'post_status'         => 'publish',
+			's'                   => $q,
+			'category__in'        => $cat_ids,
+			'posts_per_page'      => max( 0, $limit ),
+			'ignore_sticky_posts' => true,
+			'no_found_rows'       => false,
+		) );
 		$items = array();
-		if ( ! is_wp_error( $terms ) ) {
-			foreach ( $terms as $t ) {
-				$items[] = array(
-					'title' => $t->name,
-					'url'   => add_query_arg( 'm24_modell', $t->slug, home_url( '/gebrauchtteile/' ) ),
-					'meta'  => sprintf( _n( '%d Teil', '%d Teile', (int) $t->count, 'm24-plattform' ), (int) $t->count ),
-				);
-			}
+		foreach ( $query->posts as $p ) {
+			$cats = wp_get_post_categories( $p->ID );
+			$sold = ! empty( array_intersect( $cats, $sold_ids ) );
+			$items[] = array(
+				'title' => get_the_title( $p->ID ),
+				'url'   => get_permalink( $p->ID ),
+				'thumb' => self::thumb( $p->ID ),
+				'sold'  => $sold,
+			);
 		}
+		$total = (int) $query->found_posts;
+		wp_reset_postdata();
 		return array( 'items' => $items, 'total' => $total, 'all_url' => self::all_url( self::GROUP_FAHRZEUGE, $q ) );
 	}
 
@@ -128,18 +160,22 @@ class M24_Search_Query {
 		return array( 'items' => $items, 'total' => $total, 'all_url' => self::all_url( self::GROUP_TEILE, $q ) );
 	}
 
-	// ── Verschiedenes = post + page ────────────────────────────────────────
+	// ── Verschiedenes = post + page OHNE die Fahrzeug-Kategorien ────────────
 
 	private static function verschiedenes( $q, $limit ) {
 		if ( '' === $q ) { return self::empty_group( self::GROUP_VERSCHIEDENES, $q ); }
-		$query = new WP_Query( array(
+		$args = array(
 			'post_type'           => array( 'post', 'page' ),
 			'post_status'         => 'publish',
 			's'                   => $q,
 			'posts_per_page'      => max( 0, $limit ),
 			'ignore_sticky_posts' => true,
 			'no_found_rows'       => false,
-		) );
+		);
+		// Fahrzeug-Beitraege ausschliessen (duerfen nicht doppelt in „Verschiedenes" auftauchen).
+		$cat_ids = self::fahrzeug_cat_ids();
+		if ( ! empty( $cat_ids ) ) { $args['category__not_in'] = $cat_ids; }
+		$query = new WP_Query( $args );
 		$items = array();
 		foreach ( $query->posts as $p ) {
 			$items[] = array(
