@@ -65,6 +65,15 @@ trait M24_Shopware_Import_Core {
 		}
 	}
 
+	/**
+	 * Nur-Medien-Resync fuer ein bestehendes Teil — laedt FEHLENDE Bilder erneut von
+	 * Shopware (Hash-Dedupe → vorhandene unangetastet, Featured nur wenn leer). Titel,
+	 * Preis, Meta bleiben unberuehrt (im Gegensatz zum vollen import_product_core).
+	 */
+	public function import_media( array $product, $post_id, $is_update = true ) {
+		$this->import_product_media( $product, (int) $post_id, (bool) $is_update );
+	}
+
 	protected function find_by_sw_id( $sw_id ) {
 		$q = get_posts( array(
 			'post_type'      => M24_Catalog_CPT::POST_TYPE,
