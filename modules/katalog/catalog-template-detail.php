@@ -278,6 +278,19 @@ class M24_Catalog_Template_Detail {
 		.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="fit"] p,.m24det .tabpanel[data-panel="manufacture"] p{margin:0 0 1.1em}
 		.m24det .tabpanel[data-panel="desc"] ul,.m24det .tabpanel[data-panel="desc"] ol,.m24det .tabpanel[data-panel="fit"] ul,.m24det .tabpanel[data-panel="fit"] ol{margin:0 0 1.1em;padding-left:1.5em}
 		.m24det .tabpanel[data-panel="desc"] li,.m24det .tabpanel[data-panel="fit"] li{margin:0 0 .4em}
+		/* Bewertungs-Karte (Variante C) — rechts im Beschreibungsbereich gefloatet. */
+		.m24det .m24-review-card{float:right;width:300px;margin:4px 0 20px 32px;border:1px solid var(--line);border-radius:12px;padding:18px;background:#fbfaf8;box-shadow:0 4px 14px rgba(0,0,0,.05);font-size:15px}
+		.m24det .m24-rc-head{display:flex;align-items:center;gap:10px}
+		.m24det .m24-stars{position:relative;display:inline-block;font-size:18px;line-height:1;letter-spacing:2px;color:#dcd7cf}
+		.m24det .m24-stars-fill{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5a623}
+		.m24det .m24-rc-avg{font-family:'Saira',sans-serif;font-size:22px;font-weight:700;color:var(--ink)}
+		.m24det .m24-rc-count{font-size:12.5px;color:var(--mut);margin-top:3px}
+		.m24det .m24-rc-item{display:none}
+		.m24det .m24-rc-item.is-active{display:block}
+		.m24det .m24-rc-quote{margin:13px 0 6px;font-size:15px;line-height:1.5;color:var(--tx);font-style:italic}
+		.m24det .m24-rc-author{font-size:13px;color:var(--mut);font-weight:600}
+		.m24det .m24-rc-link{display:inline-block;margin-top:13px;font-size:13px;font-weight:700;color:var(--blue);text-decoration:none}
+		.m24det .m24-rc-link:hover{text-decoration:underline}
 		.m24det .m24-fit-links{display:flex;flex-wrap:wrap;gap:10px}
 		.m24det .m24-fit-chip{display:inline-block;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:#fafafa;color:var(--ink);font-family:'Saira',sans-serif;font-weight:600;font-size:15px;text-decoration:none;line-height:1.2;transition:border-color .15s ease,background .15s ease}
 		.m24det .m24-fit-chip:hover{border-color:var(--blue);background:#fff;color:var(--blue)}
@@ -314,7 +327,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -449,6 +462,7 @@ class M24_Catalog_Template_Detail {
 					<?php endif; ?>
 				</div>
 				<div class="tabpanel" data-panel="desc">
+					<?php if ( class_exists( 'M24_Reviews_Card' ) ) { echo M24_Reviews_Card::render_card(); /* phpcs:ignore — Trust-Karte, rechts gefloatet */ } ?>
 					<?php echo $desc ? wp_kses_post( wpautop( $desc ) ) : '<span style="color:#6b7077">Keine Beschreibung hinterlegt.</span>'; // phpcs:ignore ?>
 				</div>
 				<?php if ( $has_fit ) : ?>
@@ -495,6 +509,8 @@ class M24_Catalog_Template_Detail {
 		(function(){
 			var root=document.getElementById('m24det-<?php echo (int) $id; ?>');
 			if(!root)return;
+			// Bewertungs-Karte: pro Aufruf zufaellig eine Bewertung zeigen (cache-fest, clientseitig).
+			(function(){var its=root.querySelectorAll('.m24-review-card .m24-rc-item');if(its.length<2)return;for(var i=0;i<its.length;i++){its[i].classList.remove('is-active');}its[Math.floor(Math.random()*its.length)].classList.add('is-active');})();
 			// Paket B: Tooltips. Hover/Focus = oeffnen (Desktop), Tap = toggeln (Touch),
 			// ESC oder Klick ausserhalb = schliessen, Viewport-Flip wenn untere Kante reisst.
 			(function(){
