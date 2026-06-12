@@ -200,7 +200,7 @@ class M24_Catalog_Template_Detail {
 		?>
 		<style>
 		@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;700&display=swap');
-		.m24det{--ink:#14161a;--line:rgba(0,0,0,.12);--tx:#1b1e22;--mut:#6b7077;--surf:#f4f4f2;--blue:#1763ad;--blued:#0e447e;--bronze:#9a6b25;--red:#9e2b2b;width:100%;margin:22px 0 44px;color:var(--tx)}
+		.m24det{--ink:#14161a;--line:rgba(0,0,0,.12);--tx:#1b1e22;--mut:#6b7077;--surf:#f4f4f2;--blue:#1763ad;--blued:#0e447e;--bronze:#9a6b25;--red:#9e2b2b;--m24-sticky-top:100px;width:100%;margin:22px 0 44px;color:var(--tx)}
 		.m24det *{box-sizing:border-box}
 		.m24det .bc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);margin-bottom:12px}
 		.m24det .bc a{color:var(--blue);text-decoration:none;display:inline-flex;align-items:center}
@@ -246,7 +246,12 @@ class M24_Catalog_Template_Detail {
 		.m24det .srow .k{color:var(--mut);white-space:nowrap}
 		.m24det .srow .v{font-family:monospace;min-width:0;word-break:break-word}
 		.m24det .sheet .slabel + .srow{padding-top:5px}
-		.m24det .m24-actions-group{margin-top:auto;display:flex;flex-direction:column}
+		/* Sticky rechter Info-Block (Preis + Teile-Daten + Buttons) als EINHEIT:
+		   folgt beim Scrollen bis Viewport-Top (Offset --m24-sticky-top = unter Theme-Headerbar).
+		   Stop-Boundary = Unterkante von .right (per Grid-Stretch = Unterkante Thumbnail-Strip),
+		   dort released der Sticky. Gilt fuer 2- und 3-Button-(Varianten-)Fall. */
+		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1}
+		.m24det .m24-actions-group{display:flex;flex-direction:column}
 		.m24det .m24-varianten-wrap{margin:0}
 		.m24det .m24-varianten{appearance:none;-webkit-appearance:none;-moz-appearance:none;width:100%;height:46px;padding:0 38px 0 14px;border:0.5px solid var(--line);border-radius:8px;background:#fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231b1e22' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;font-family:'Saira',sans-serif;font-size:15px;font-weight:500;color:var(--tx);cursor:pointer;line-height:1}
 		.m24det .m24-varianten:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
@@ -302,7 +307,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -355,6 +360,7 @@ class M24_Catalog_Template_Detail {
 				</div>
 
 				<div class="right">
+					<div class="m24-right-inner">
 					<?php if ( $verkauft ) : ?>
 						<span class="vbadge">VERKAUFT</span>
 						<p class="pnote" style="margin-top:8px">Dieses Teil ist verkauft.</p>
@@ -417,6 +423,7 @@ class M24_Catalog_Template_Detail {
 						</div>
 						</div>
 					<?php endif; ?>
+					</div>
 				</div>
 			</div>
 
