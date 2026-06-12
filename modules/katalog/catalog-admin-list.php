@@ -278,6 +278,12 @@ class M24_Catalog_Admin_List {
 		} else {
 			$new['m24_vis'] = sprintf( '<a href="%s">Ausblenden</a>', esc_url( $base . '&do=ausgeblendet' ) );
 		}
+		// Verkauft-Toggle (Schnellaktion): markiert/entmarkiert ohne Editor.
+		if ( 'verkauft' === $status ) {
+			$new['m24_sold'] = sprintf( '<a href="%s">Wieder aktiv</a>', esc_url( $base . '&do=aktiv' ) );
+		} else {
+			$new['m24_sold'] = sprintf( '<a href="%s" style="color:#9e2b2b">Als verkauft</a>', esc_url( $base . '&do=verkauft' ) );
+		}
 		$new['m24_dup'] = sprintf( '<a href="%s">Duplizieren</a>', esc_url( $base . '&do=dup' ) );
 		if ( isset( $actions['trash'] ) )   { $new['trash']   = $actions['trash']; }
 		if ( isset( $actions['delete'] ) )  { $new['delete']  = $actions['delete']; }

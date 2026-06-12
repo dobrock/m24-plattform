@@ -368,12 +368,11 @@ class M24_Catalog_Template_Detail {
 
 				<div class="right">
 					<div class="m24-right-inner">
+					<?php $pos_list = isset( $opts_data['options'] ) ? $opts_data['options'] : array(); ?>
 					<?php if ( $verkauft ) : ?>
-						<span class="vbadge">VERKAUFT</span>
-						<p class="pnote" style="margin-top:8px">Dieses Teil ist verkauft.</p>
+						<div class="m24-sold-badge"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></div>
 					<?php else :
-						$pos_list = isset( $opts_data['options'] ) ? $opts_data['options'] : array();
-						$pos_n    = count( $pos_list );
+						$pos_n = count( $pos_list );
 						?>
 						<div class="pbr"><span class="m24-brutto-val"><?php echo esc_html( $preis['brutto_fmt'] ); ?></span><sup class="pstar">*</sup></div>
 						<?php if ( ! empty( $preis['netto_fmt'] ) ) : ?>
@@ -405,9 +404,8 @@ class M24_Catalog_Template_Detail {
 						<?php if ( $hinweis ) : ?><div class="srow"><span class="k">Hinweis</span><span class="v" style="font-family:inherit"><?php echo esc_html( $hinweis ); ?></span></div><?php endif; ?>
 					</div>
 
-					<?php if ( ! $verkauft ) : ?>
 						<div class="m24-actions-group">
-						<?php if ( ! empty( $pos_list ) && count( $pos_list ) > 1 ) : ?>
+						<?php if ( ! $verkauft && ! empty( $pos_list ) && count( $pos_list ) > 1 ) : ?>
 							<div class="m24-varianten-wrap">
 								<label class="slabel" for="m24-varianten-<?php echo (int) $id; ?>">VARIANTE</label>
 								<select class="m24-varianten" id="m24-varianten-<?php echo (int) $id; ?>">
@@ -425,14 +423,19 @@ class M24_Catalog_Template_Detail {
 							</div>
 						<?php endif; ?>
 						<div class="actions">
-							<button type="button" class="btn btn-pri m24-frage" data-id="<?php echo esc_attr( $id ); ?>" data-title="<?php echo esc_attr( get_the_title( $id ) ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-url="<?php echo esc_url( get_permalink( $id ) ); ?>" data-price="<?php echo esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="" data-modell="<?php echo esc_attr( ( $terms && ! is_wp_error( $terms ) && isset( $terms[0]->slug ) ) ? $terms[0]->slug : '' ); ?>">Frage stellen</button>
-							<button type="button" class="btn btn-sec m24-merken" data-id="<?php echo esc_attr( $id ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-price="<?php echo esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="">Auf den Merkzettel</button>
+							<button type="button" class="btn btn-pri m24-frage" data-id="<?php echo esc_attr( $id ); ?>" data-title="<?php echo esc_attr( get_the_title( $id ) ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-url="<?php echo esc_url( get_permalink( $id ) ); ?>" data-price="<?php echo $verkauft ? '' : esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="" data-modell="<?php echo esc_attr( ( $terms && ! is_wp_error( $terms ) && isset( $terms[0]->slug ) ) ? $terms[0]->slug : '' ); ?>">Frage stellen</button>
+							<?php if ( $verkauft ) : ?>
+								<button type="button" class="btn btn-sec m24-merken is-disabled" disabled aria-disabled="true" title="<?php esc_attr_e( 'Teil verkauft', 'm24-plattform' ); ?>">Auf den Merkzettel</button>
+							<?php else : ?>
+								<button type="button" class="btn btn-sec m24-merken" data-id="<?php echo esc_attr( $id ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-price="<?php echo esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="">Auf den Merkzettel</button>
+							<?php endif; ?>
 						</div>
 						</div>
-					<?php endif; ?>
 					</div>
 				</div>
 			</div>
+
+			<?php if ( $verkauft && class_exists( 'M24_Sold_Alternatives' ) ) { echo M24_Sold_Alternatives::render_block( $id ); /* phpcs:ignore */ } ?>
 
 			<div class="m24-tabs">
 				<?php $has_fit = ( $terms && ! is_wp_error( $terms ) && ! empty( $terms ) ); ?>

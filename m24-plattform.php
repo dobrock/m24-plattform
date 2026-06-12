@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.4.1
+ * Version:           0.5.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.4.1' );
+define( 'M24_PLATTFORM_VERSION',     '0.5.0' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -111,6 +111,10 @@ require_once M24_PLATTFORM_DIR . 'modules/search/search-rest.php';
 require_once M24_PLATTFORM_DIR . 'modules/search/search-results.php';
 require_once M24_PLATTFORM_DIR . 'modules/search/search-frontend.php';
 
+// Verkauft-Ansicht (Alternativen-Block + Desktop-Lightbox auf verkauften Teilen).
+require_once M24_PLATTFORM_DIR . 'modules/sold/sold-alternatives.php';  // reiner Helfer, kein init()
+require_once M24_PLATTFORM_DIR . 'modules/sold/sold-lightbox.php';
+
 // Importer (Paket D — Shopware-Gebrauchtteile). Helfer immer geladen; WP-CLI-Command nur unter CLI.
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-shopware-client.php';
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-bmw-models.php';
@@ -155,6 +159,8 @@ add_action( 'plugins_loaded', function() {
     M24_Search_REST::init();
     M24_Search_Results::init();
     M24_Search_Frontend::init();
+    // Verkauft-Ansicht: Assets (Inline-Block-CSS + Desktop-Lightbox) auf verkauften Teilen.
+    M24_Sold_Lightbox::init();
     // Hintergrund-Import: AS-Action-Handler registrieren (Cron + Web-Kontext).
     M24_Shopware_Queue::init();
     if ( is_admin() ) {
