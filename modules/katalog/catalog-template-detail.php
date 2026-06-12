@@ -135,24 +135,6 @@ class M24_Catalog_Template_Detail {
 			wp_reset_postdata();
 		}
 
-		// „Passend für"-Reiter: weitere Teile DERSELBEN Modelle (alle Modell-Terms des Teils),
-		// auto-verlinkt, konservativ limitiert, ohne das aktuelle Teil. Volle Liste via Archiv-Link.
-		$fit_parts = array();
-		if ( $terms && ! is_wp_error( $terms ) ) {
-			$fq = new WP_Query( array(
-				'post_type'      => self::PT,
-				'posts_per_page' => 12,
-				'post__not_in'   => array( $id ),
-				'no_found_rows'  => true,
-				'orderby'        => 'title',
-				'order'          => 'ASC',
-				'tax_query'      => array( array( 'taxonomy' => M24_Catalog_CPT::TAXONOMY, 'terms' => wp_list_pluck( $terms, 'term_id' ) ) ),
-				'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
-			) );
-			$fit_parts = $fq->posts;
-			wp_reset_postdata();
-		}
-
 		$ld = array(
 			'@context'        => 'https://schema.org',
 			'@type'           => 'BreadcrumbList',
@@ -287,14 +269,6 @@ class M24_Catalog_Template_Detail {
 		.m24det .m24-fit-links{display:flex;flex-wrap:wrap;gap:10px}
 		.m24det .m24-fit-chip{display:inline-block;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:#fafafa;color:var(--ink);font-family:'Saira',sans-serif;font-weight:600;font-size:15px;text-decoration:none;line-height:1.2;transition:border-color .15s ease,background .15s ease}
 		.m24det .m24-fit-chip:hover{border-color:var(--blue);background:#fff;color:var(--blue)}
-		.m24det .m24-fit-sub{margin:1.4em 0 .6em;font-weight:600}
-		.m24det .m24-fit-parts{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
-		.m24det .m24-fit-parts li{margin:0}
-		.m24det .m24-fit-parts li a{display:flex;justify-content:space-between;gap:16px;align-items:baseline;padding:11px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
-		.m24det .m24-fit-parts li a:hover{color:var(--blue)}
-		.m24det .m24-fit-parts .m24-fp-price{flex:0 0 auto;color:var(--mut);font-variant-numeric:tabular-nums}
-		.m24det .m24-fit-all{margin:1em 0 0}
-		.m24det .m24-fit-all a{font-weight:600;text-decoration:none;color:var(--blue)}
 		/* Paket B: barrierearme Tooltips (Hover/Focus auf Desktop, Tap auf Touch, ESC schliesst). */
 		.m24det{--m24-tt-width:280px}
 		.m24det .m24-tt-wrap{position:relative;display:inline-flex;align-items:center;vertical-align:baseline}
@@ -335,7 +309,7 @@ class M24_Catalog_Template_Detail {
 		<div class="td-container m24-katalog-container">
 		<div class="m24det" id="m24det-<?php echo (int) $id; ?>">
 			<div class="bc">
-				<a href="<?php echo esc_url( $home ); ?>" aria-label="Start" title="Start"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M5 11l1.4-4.2A2.5 2.5 0 0 1 8.8 5h6.4a2.5 2.5 0 0 1 2.4 1.8L19 11h.5A1.5 1.5 0 0 1 21 12.5V15a1 1 0 0 1-1 1h-.6a2.4 2.4 0 0 1-4.8 0H9.4a2.4 2.4 0 0 1-4.8 0H4a1 1 0 0 1-1-1v-2.5A1.5 1.5 0 0 1 4.5 11H5zm2.4-4l-1 3h11.2l-1-3H7.4zM7 14.2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm10 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></a>
+				<a href="<?php echo esc_url( $home ); ?>" aria-label="Start" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></a>
 				<span>›</span><a href="<?php echo esc_url( $typ_url ); ?>"><?php echo esc_html( $typ_label ); ?></a>
 				<?php if ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) : // Primaer-Modell (erstes Term) — weitere Modelle bleiben uebers Archiv-Filter erreichbar. ?>
 					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $terms[0]->slug, $typ_url ) ); ?>"><?php echo esc_html( $terms[0]->name ); ?></a>
@@ -462,21 +436,12 @@ class M24_Catalog_Template_Detail {
 				</div>
 				<?php if ( $has_fit ) : ?>
 					<div class="tabpanel" data-panel="fit" hidden>
-						<p style="margin:0 0 .8em">Dieses Teil passt für folgende Modelle:</p>
+						<p style="margin:0 0 1em">Dieses Teil passt für folgende Modelle:</p>
 						<div class="m24-fit-links">
 							<?php foreach ( $terms as $t ) : ?>
 								<a class="m24-fit-chip" href="<?php echo esc_url( add_query_arg( 'm24_modell', $t->slug, $typ_url ) ); ?>"><?php echo esc_html( $t->name ); ?></a>
 							<?php endforeach; ?>
 						</div>
-						<?php if ( $fit_parts ) : ?>
-							<p class="m24-fit-sub">Weitere passende Teile:</p>
-							<ul class="m24-fit-parts">
-								<?php foreach ( $fit_parts as $fp ) : $fpr = M24_Catalog_Pricing::get( $fp->ID ); ?>
-									<li><a href="<?php echo esc_url( get_permalink( $fp->ID ) ); ?>"><span class="m24-fp-title"><?php echo esc_html( get_the_title( $fp->ID ) ); ?></span><span class="m24-fp-price"><?php echo esc_html( $fpr['brutto_fmt'] ); ?></span></a></li>
-								<?php endforeach; ?>
-							</ul>
-							<p class="m24-fit-all"><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $terms[0]->slug, $typ_url ) ); ?>">Alle <?php echo esc_html( $term_names[0] ); ?>-Teile ansehen →</a></p>
-						<?php endif; ?>
 					</div>
 				<?php endif; ?>
 				<?php if ( $leichtbau ) : ?>
