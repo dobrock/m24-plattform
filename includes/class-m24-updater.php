@@ -105,21 +105,32 @@ class M24_Updater {
 			$update = self::$checker->checkForUpdates(); // Update|null
 			$errors = method_exists( self::$checker, 'getLastRequestApiErrors' ) ? self::$checker->getLastRequestApiErrors() : array();
 
-			if ( ! empty( $errors ) ) {
-				$type    = 'error';
-				$first   = $errors[0]['error'] ?? null;
-				$msg     = ( $first instanceof WP_Error ) ? $first->get_error_message() : __( 'unbekannter Fehler', 'm24-plattform' );
-				$notice  = sprintf( __( 'Update-Pruefung fehlgeschlagen: %s', 'm24-plattform' ), $msg );
-				if ( ! self::has_token() ) {
-					$notice .= ' ' . __( '(Kein GitHub-Token gesetzt — bei einem privaten Repo zwingend: Konstante M24_GITHUB_TOKEN in wp-config.php.)', 'm24-plattform' );
+			// Im Branch-Modus probiert PUC fuer 'main' per Design ZUERST releases/latest + tags
+			// und faellt dann auf den Branch zurueck. Da wir keine Releases/Tags fuehren, sind
+			// deren 404 ERWARTBAR und kein Fehler — nur ein fehlgeschlagener Branch-/Auth-Zugriff
+			// ist fatal. Diese harmlosen 404 herausfiltern, sonst meldet der Button faelschlich Fehler.
+			$fatal = array();
+			foreach ( $errors as $e ) {
+				$err = isset( $e['error'] ) ? $e['error'] : null;
+				$m   = ( $err instanceof WP_Error ) ? $err->get_error_message() : '';
+				if ( '' !== $m && ! preg_match( '#/releases/latest|/tags#', $m ) ) {
+					$fatal[] = $m;
 				}
-			} elseif ( $update && isset( $update->version ) ) {
+			}
+
+			if ( $update && isset( $update->version ) ) {
 				$notice = sprintf(
 					__( 'Update verfuegbar: Version %1$s (installiert: %2$s). Unter „Plugins" aktualisieren.', 'm24-plattform' ),
 					$update->version, M24_PLATTFORM_VERSION
 				);
+			} elseif ( ! empty( $fatal ) ) {
+				$type    = 'error';
+				$notice  = sprintf( __( 'Update-Pruefung fehlgeschlagen: %s', 'm24-plattform' ), $fatal[0] );
+				if ( ! self::has_token() ) {
+					$notice .= ' ' . __( '(Kein GitHub-Token gesetzt — bei einem privaten Repo zwingend: Konstante M24_GITHUB_TOKEN in wp-config.php.)', 'm24-plattform' );
+				}
 			} else {
-				$notice = sprintf( __( 'Kein Update verfuegbar. Aktuelle Version %s ist die neueste.', 'm24-plattform' ), M24_PLATTFORM_VERSION );
+				$notice = sprintf( __( 'Kein Update verfuegbar. Version %s ist die neueste (Branch main).', 'm24-plattform' ), M24_PLATTFORM_VERSION );
 			}
 		}
 
