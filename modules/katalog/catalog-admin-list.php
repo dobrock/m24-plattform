@@ -765,8 +765,13 @@ class M24_Catalog_Admin_List {
 			. $b . ' .wp-list-table .column-title{white-space:nowrap}'
 			. $b . ' .wp-list-table .column-title strong{display:inline}'
 			. $b . ' .wp-list-table .column-title strong a{display:inline;white-space:nowrap}'
-			// Horizontal-Scroll-Wrapper (JS-injiziert: .m24-table-scroll)
-			. $b . ' .m24-table-scroll{overflow-x:auto;overflow-y:visible;width:100%;background:#fff}'
+			// Horizontal-Scroll NUR innerhalb des Wrappers — darf NICHT das Admin-Layout
+			// (Sidebar/Toolbar) nach links schieben. Die Flex-/Grid-Vorfahren (WP 7.0) bekommen
+			// min-width:0, damit die max-content-Tabelle die Inhaltsspalte nicht aufblaeht;
+			// der Wrapper selbst wird auf die Inhaltsbreite begrenzt.
+			. $b . ' #wpcontent,' . $b . ' #wpbody,' . $b . ' #wpbody-content,' . $b . ' #wpbody-content .wrap,' . $b . ' #posts-filter{min-width:0}'
+			. $b . ' #wpbody-content .wrap,' . $b . ' #posts-filter{max-width:100%}'
+			. $b . ' .m24-table-scroll{overflow-x:auto;overflow-y:visible;width:100%;max-width:100%;min-width:0;background:#fff}'
 			. $b . ' .m24-table-scroll .wp-list-table{width:max-content;min-width:100%}'
 			// Row-Actions: nur bei Hover (WP-Standard explizit erzwingen)
 			. $b . ' .wp-list-table .row-actions{visibility:hidden;position:absolute;left:10px}'
