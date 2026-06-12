@@ -24,7 +24,7 @@
 .m24-mega-wrap {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 6px 36px;
+	gap: 6px 40px;
 	max-width: 1100px;
 	margin: 0 auto;
 	padding: 16px 20px 18px;
@@ -32,6 +32,19 @@
 	box-sizing: border-box;
 }
 .m24-mega--float .m24-mega-wrap { max-width: none; margin: 0; padding: 10px 12px; }
+
+/* Breites Panel im Theme-Overlay: nur der befuellte Overlay-Container (.m24-mega-host,
+   per JS gesetzt) wird verbreitert — RECHTSBUENDIG (rechter Rand bleibt, waechst nach
+   links Richtung Nav). Breite ueber --m24-mega-w justierbar (Default ~ Nav-Beginn bis
+   Header-Kante); auf schmalen Viewports auf 96vw geklemmt → volle Breite/gestapelt. */
+.tdb-drop-down-search-inner.m24-mega-host,
+.td-drop-down-search.m24-mega-host {
+	width: var(--m24-mega-w, 980px) !important;
+	max-width: calc(100vw - 24px) !important;
+	margin-left: auto !important;                          /* rechtsbuendig: waechst nach links */
+	margin-right: var(--m24-mega-right, 0) !important;     /* Feinjustage rechter Rand */
+}
+.m24-mega-host .m24-mega-wrap { max-width: none; margin: 0; }
 .m24-mega-wrap * { box-sizing: border-box; }
 .m24-mega-col { min-width: 0; }
 
@@ -60,7 +73,8 @@
 .m24-sr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .m24-sr-thumb--empty { background: repeating-linear-gradient(45deg, #f0f0ee, #f0f0ee 6px, #e8e8e4 6px, #e8e8e4 12px); }
 .m24-sr-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.m24-sr-title { font-size: 14px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Voller Titel — kein Abschneiden mehr (umbrechen statt ellipsis). */
+.m24-sr-title { font-size: 14px; font-weight: 600; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
 .m24-sr-sub { font-size: 12.5px; color: #6b7077; }
 .m24-sr-sub.m24-sr-price { color: #9a6b25; font-weight: 700; }
 .m24-sr-sub.m24-sr-sold { color: #9e2b2b; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; font-size: 11.5px; }

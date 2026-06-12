@@ -88,6 +88,7 @@
 		var host = overlayHost(input);
 		var mega;
 		if (host) {
+			host.classList.add('m24-mega-host'); // CSS verbreitert nur den befuellten Overlay-Container
 			mega = host.querySelector('.m24-mega');
 			if (!mega) { mega = el('div', 'm24-mega'); host.appendChild(mega); }
 		} else {
@@ -107,6 +108,8 @@
 	function hidePanels() {
 		var open = document.querySelectorAll('.m24-mega--on');
 		for (var i = 0; i < open.length; i++) { open[i].classList.remove('m24-mega--on'); open[i].innerHTML = ''; }
+		var hosts = document.querySelectorAll('.m24-mega-host');
+		for (var j = 0; j < hosts.length; j++) { hosts[j].classList.remove('m24-mega-host'); }
 	}
 
 	function positionFloat(input) {
