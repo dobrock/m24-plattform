@@ -269,6 +269,13 @@ class M24_Catalog_Template_Detail {
 		.m24det .btn{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;width:100%;font-family:'Saira',sans-serif;text-decoration:none}
 		.m24det .btn-pri{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:none;margin-bottom:10px}
 		.m24det .btn-sec{background:#fff;color:var(--blued);border:1px solid var(--blue)}
+		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
+		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare unter den Buttons, per feiner Linie abgesetzt.
+		   Letztes Element von .m24-right-inner → parkt am Sticky-Stopp (Thumbnail-Unterkante). */
+		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 12px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}
+		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
+		.m24det .m24-trust-dot{color:var(--line)}
 		.m24det .m24-tabs{margin-top:32px}
 		.m24det .tabbar{display:flex;gap:2px;border-bottom:2px solid var(--line)}
 		.m24det .tab{font-family:'Saira',sans-serif;font-weight:600;font-size:15px;padding:12px 24px;border:none;background:none;cursor:pointer;color:var(--mut);border-bottom:3px solid transparent;margin-bottom:-2px}
@@ -436,14 +443,19 @@ class M24_Catalog_Template_Detail {
 							</div>
 						<?php endif; ?>
 						<div class="actions">
-							<button type="button" class="btn btn-pri m24-frage" data-id="<?php echo esc_attr( $id ); ?>" data-title="<?php echo esc_attr( get_the_title( $id ) ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-url="<?php echo esc_url( get_permalink( $id ) ); ?>" data-price="<?php echo $verkauft ? '' : esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="" data-modell="<?php echo esc_attr( ( $terms && ! is_wp_error( $terms ) && isset( $terms[0]->slug ) ) ? $terms[0]->slug : '' ); ?>">Frage stellen</button>
+							<button type="button" class="btn btn-pri m24-frage" data-id="<?php echo esc_attr( $id ); ?>" data-title="<?php echo esc_attr( get_the_title( $id ) ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-url="<?php echo esc_url( get_permalink( $id ) ); ?>" data-price="<?php echo $verkauft ? '' : esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="" data-modell="<?php echo esc_attr( ( $terms && ! is_wp_error( $terms ) && isset( $terms[0]->slug ) ) ? $terms[0]->slug : '' ); ?>"><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Frage stellen</button>
 							<?php if ( $verkauft ) : ?>
-								<button type="button" class="btn btn-sec m24-merken is-disabled" disabled aria-disabled="true" title="<?php esc_attr_e( 'Teil verkauft', 'm24-plattform' ); ?>">Auf den Merkzettel</button>
+								<button type="button" class="btn btn-sec m24-merken is-disabled" disabled aria-disabled="true" title="<?php esc_attr_e( 'Teil verkauft', 'm24-plattform' ); ?>"><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>Auf den Merkzettel</button>
 							<?php else : ?>
-								<button type="button" class="btn btn-sec m24-merken" data-id="<?php echo esc_attr( $id ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-price="<?php echo esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label="">Auf den Merkzettel</button>
+								<button type="button" class="btn btn-sec m24-merken" data-id="<?php echo esc_attr( $id ); ?>" data-artnr="<?php echo esc_attr( $artnr ); ?>" data-price="<?php echo esc_attr( $preis['brutto_fmt'] ); ?>" data-variant-label=""><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>Auf den Merkzettel</button>
 							<?php endif; ?>
 						</div>
 						</div>
+						<div class="m24-trust">
+							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
+							<span class="m24-trust-dot" aria-hidden="true">·</span>
+							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
+					</div>
 					</div>
 				</div>
 			</div>
