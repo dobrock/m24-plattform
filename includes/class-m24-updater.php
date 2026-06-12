@@ -188,8 +188,8 @@ class M24_Updater {
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:8px;">
 			<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION ); ?>">
 			<?php wp_nonce_field( self::ACTION ); ?>
-			<button type="submit" class="button button-primary">
-				<span class="dashicons dashicons-update" style="vertical-align:text-bottom;"></span>
+			<button type="submit" class="button button-primary" style="display:inline-flex;align-items:center;gap:4px;">
+				<span class="dashicons dashicons-update" style="line-height:1;"></span>
 				<?php echo esc_html__( 'Nach Updates suchen', 'm24-plattform' ); ?>
 			</button>
 		</form>
