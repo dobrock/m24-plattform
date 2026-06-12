@@ -92,11 +92,19 @@ trait M24_Shopware_Import_Core {
 		$desc_raw = isset( $product['description'] )               ? (string) $product['description']               : '';
 		$desc     = '' !== trim( $desc_tr ) ? $desc_tr : $desc_raw;
 
-		// BMW-Teilenummer: bevorzugt manufacturerNumber, sonst Extraktion aus Beschreibung.
+		// BMW-Teilenummer: bevorzugt manufacturerNumber, sonst aus Beschreibung, sonst aus Titel.
 		if ( '' === trim( $oem ) && '' !== trim( $desc ) ) {
 			$extracted = M24_BMW_Teilenummer_Extractor::extract( $desc );
 			if ( in_array( $extracted['source'], array( 'cue', 'muster' ), true ) ) {
 				$oem = (string) $extracted['number'];
+			}
+		}
+		// Fallback: eindeutige 11-stellige BMW-Nummer aus dem (bereits kompaktierten) Titel,
+		// z.B. „… Frontspoiler 51712238178". Spiegelt den CLI-Command extract-bmw-teilenummer.
+		if ( '' === trim( $oem ) ) {
+			$from_title = M24_BMW_Teilenummer_Extractor::from_title( $name );
+			if ( null !== $from_title['number'] ) {
+				$oem = (string) $from_title['number'];
 			}
 		}
 
