@@ -1,0 +1,50 @@
+/**
+ * M24 Plattform — Anfragen: Modal + PPWR-Hinweis + Merkzettel-Mail-Button
+ * Tokens an catalog-template-detail.php angeglichen (Saira, Blau-Verlauf …).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;700&display=swap');
+
+.m24iq-overlay{position:fixed;inset:0;z-index:100000;background:rgba(10,11,13,.6);display:flex;align-items:center;justify-content:center;padding:18px}
+.m24iq-overlay[hidden]{display:none}
+.m24iq-modal{position:relative;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;background:#fff;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.32);padding:24px;color:#1b1e22;font-family:inherit}
+.m24iq-close{position:absolute;top:10px;right:12px;border:none;background:none;font-size:26px;line-height:1;color:#6b7077;cursor:pointer}
+.m24iq-close:hover{color:#14161a}
+.m24iq-title{font-family:'Saira',sans-serif;font-weight:700;font-size:21px;margin:0 4px 12px 0;color:#14161a}
+.m24iq-ref{background:#f4f4f2;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px}
+.m24iq-ref strong{display:block;color:#14161a}
+.m24iq-ref span{color:#6b7077;font-size:12px}
+
+.m24iq-form{display:flex;flex-direction:column;gap:10px}
+.m24iq-row{display:flex;gap:10px}
+.m24iq-row.m24iq-2>*{flex:1 1 0;min-width:0}
+.m24iq-form input[type=text],.m24iq-form input[type=email],.m24iq-form input[type=tel],.m24iq-form select,.m24iq-form textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid rgba(0,0,0,.18);border-radius:8px;font-size:14px;font-family:inherit;color:#1b1e22;background:#fff}
+.m24iq-form input:focus,.m24iq-form select:focus,.m24iq-form textarea:focus{outline:none;border-color:#1763ad;box-shadow:0 0 0 3px rgba(23,99,173,.12)}
+.m24iq-form textarea{resize:vertical;min-height:64px}
+.m24iq-form select{appearance:auto;cursor:pointer}
+.m24iq-landwrap{flex:1 1 0;min-width:0}
+.m24iq-spacer{height:2px}
+.m24iq-toggle,.m24iq-consent{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#1b1e22;cursor:pointer}
+.m24iq-consent input[type="checkbox"]{flex-shrink:0;margin-top:2px}
+.m24iq-consent-text{flex:1;line-height:1.5}
+.m24iq-consent a{color:#1763ad;text-decoration:underline}
+.m24iq-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+
+.m24iq-actions{margin-top:6px}
+.m24iq-submit{width:100%;border:none;border-radius:8px;padding:13px;font-family:'Saira',sans-serif;font-weight:600;font-size:15px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e)}
+.m24iq-submit:disabled{opacity:.5;cursor:not-allowed}
+
+.m24iq-notice{background:#fdeaea;border:1px solid #e3b4b4;color:#9e2b2b;border-radius:8px;padding:10px 12px;font-size:13px}
+.m24iq-success{background:#eaf6ee;border:1px solid #b6ddc4;color:#236a3f;border-radius:8px;padding:16px;font-size:14px;text-align:center;font-weight:600}
+
+/* PPWR-Hinweis (Modal + Sammelanfrage-Formular) */
+.m24-ppwr-notice{margin-top:6px;background:#fdeaea;border:1px solid #e3b4b4;color:#9e2b2b;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.45}
+
+/* "Per E-Mail an mich senden" — sekundaer, ins bestehende Sidebar-Panel injiziert */
+.m24-sidebar__email-me{display:block;width:100%;margin-top:8px;border:1px solid #1763ad;background:#fff;color:#0e447e;border-radius:8px;padding:11px;font-family:'Saira',sans-serif;font-weight:600;font-size:13px;cursor:pointer}
+.m24-sidebar__email-me:hover{background:#f4f8fc}
+
+@media(max-width:560px){
+	.m24iq-overlay{padding:0;align-items:flex-end}
+	.m24iq-modal{max-width:100%;max-height:94vh;border-radius:14px 14px 0 0;padding:20px}
+	.m24iq-row.m24iq-2{flex-direction:column}
+}

@@ -1,0 +1,452 @@
+/**
+ * M24 Plattform — Sammelanfrage-Sidebar Styles
+ *
+ * BEM-Naming: m24-sidebar__element--modifier
+ * Alle Variablen lokal auf #m24-sidebar-root gescoped.
+ * Keine globalen :root-Variablen, um Theme-Konflikte zu vermeiden.
+ */
+
+#m24-sidebar-root {
+    /* Design-Tokens */
+    --m24-sb-color-bg:           #ffffff;
+    --m24-sb-color-text:         #1a1a1a;
+    --m24-sb-color-muted:        #6b7280;
+    --m24-sb-color-border:       #e5e7eb;
+    --m24-sb-color-accent:       #c8102e;       /* M24-Rot, anpassbar */
+    --m24-sb-color-accent-text:  #ffffff;
+    --m24-sb-color-shadow:       rgba(0, 0, 0, 0.18);
+    --m24-sb-color-overlay:      rgba(0, 0, 0, 0.4);
+
+    /* Pillar-Farben */
+    --m24-sb-pillar-gebrauchtteile: #2563eb;   /* Blau */
+    --m24-sb-pillar-katalog:        #16a34a;   /* Grün */
+    --m24-sb-pillar-fahrzeug:       #f59e0b;   /* Orange */
+    --m24-sb-pillar-blog:           #8b5cf6;   /* Lila */
+
+    /* Größen */
+    --m24-sb-radius:           10px;
+    --m24-sb-radius-sm:        6px;
+    --m24-sb-spacing:          12px;
+    --m24-sb-spacing-sm:       8px;
+    --m24-sb-spacing-lg:       16px;
+    --m24-sb-toggle-size:      56px;
+    --m24-sb-panel-width:      380px;
+    --m24-sb-z-toggle:         9998;
+    --m24-sb-z-panel:          9999;
+    --m24-sb-transition:       220ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    position: fixed;
+    inset: 0 0 auto auto;
+    pointer-events: none;
+    z-index: var(--m24-sb-z-toggle);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--m24-sb-color-text);
+}
+
+#m24-sidebar-root *,
+#m24-sidebar-root *::before,
+#m24-sidebar-root *::after {
+    box-sizing: border-box;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Toggle-Button (immer sichtbar, rechts unten)                      */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__toggle {
+    position: fixed;
+    bottom: var(--m24-sb-spacing-lg);
+    right: var(--m24-sb-spacing-lg);
+    width: var(--m24-sb-toggle-size);
+    height: var(--m24-sb-toggle-size);
+    border-radius: 50%;
+    border: none;
+    background: var(--m24-sb-color-accent);
+    color: var(--m24-sb-color-accent-text);
+    cursor: pointer;
+    box-shadow: 0 4px 12px var(--m24-sb-color-shadow);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--m24-sb-transition), box-shadow var(--m24-sb-transition);
+    padding: 0;
+}
+
+.m24-sidebar__toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px var(--m24-sb-color-shadow);
+}
+
+.m24-sidebar__toggle:focus-visible {
+    outline: 3px solid var(--m24-sb-color-accent);
+    outline-offset: 3px;
+}
+
+.m24-sidebar__toggle-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.m24-sidebar__badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: #1a1a1a;
+    color: #ffffff;
+    border-radius: 11px;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--m24-sb-color-bg);
+}
+
+/* Flash-Animation beim addItem() */
+.m24-sidebar--flash .m24-sidebar__toggle {
+    animation: m24-sb-flash 0.6s ease-out;
+}
+
+@keyframes m24-sb-flash {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(200, 16, 46, 0.2); }
+    100% { transform: scale(1); }
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Panel (Slide-In)                                                  */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--m24-sb-panel-width);
+    max-width: 100vw;
+    background: var(--m24-sb-color-bg);
+    box-shadow: -8px 0 24px var(--m24-sb-color-shadow);
+    transform: translateX(100%);
+    transition: transform var(--m24-sb-transition);
+    z-index: var(--m24-sb-z-panel);
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+}
+
+#m24-sidebar-root[data-state="open"] .m24-sidebar__panel {
+    transform: translateX(0);
+}
+
+#m24-sidebar-root[data-state="open"] .m24-sidebar__toggle {
+    /* Toggle bleibt sichtbar, aber dezenter, wenn Panel offen */
+    opacity: 0.85;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Header                                                            */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--m24-sb-spacing-lg);
+    border-bottom: 1px solid var(--m24-sb-color-border);
+    flex-shrink: 0;
+}
+
+.m24-sidebar__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--m24-sb-color-text);
+}
+
+.m24-sidebar__close {
+    border: none;
+    background: transparent;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--m24-sb-color-muted);
+    cursor: pointer;
+    padding: 0 var(--m24-sb-spacing-sm);
+    border-radius: var(--m24-sb-radius-sm);
+}
+
+.m24-sidebar__close:hover { color: var(--m24-sb-color-text); }
+.m24-sidebar__close:focus-visible {
+    outline: 2px solid var(--m24-sb-color-accent);
+    outline-offset: 2px;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Body                                                              */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--m24-sb-spacing);
+}
+
+.m24-sidebar__empty {
+    text-align: center;
+    padding: var(--m24-sb-spacing-lg) var(--m24-sb-spacing);
+    color: var(--m24-sb-color-muted);
+}
+
+.m24-sidebar__empty-title {
+    margin: 0 0 var(--m24-sb-spacing-sm) 0;
+    font-weight: 600;
+    color: var(--m24-sb-color-text);
+}
+
+.m24-sidebar__empty-hint {
+    margin: 0;
+    font-size: 13px;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Item-Liste                                                        */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--m24-sb-spacing-sm);
+}
+
+.m24-sidebar__item {
+    background: #f9fafb;
+    border: 1px solid var(--m24-sb-color-border);
+    border-radius: var(--m24-sb-radius-sm);
+    padding: var(--m24-sb-spacing);
+    display: flex;
+    flex-direction: column;
+    gap: var(--m24-sb-spacing-sm);
+}
+
+.m24-sidebar__item-art {
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--m24-sb-color-text);
+    word-break: break-word;
+}
+
+.m24-sidebar__item-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--m24-sb-spacing-sm);
+    flex-wrap: wrap;
+    font-size: 12px;
+}
+
+.m24-sidebar__item-pillar {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+}
+
+.m24-sidebar__item-pillar--gebrauchtteile { background: var(--m24-sb-pillar-gebrauchtteile); }
+.m24-sidebar__item-pillar--katalog        { background: var(--m24-sb-pillar-katalog); }
+.m24-sidebar__item-pillar--fahrzeug       { background: var(--m24-sb-pillar-fahrzeug); }
+.m24-sidebar__item-pillar--blog           { background: var(--m24-sb-pillar-blog); }
+
+.m24-sidebar__item-price {
+    color: var(--m24-sb-color-text);
+    font-weight: 500;
+}
+
+.m24-sidebar__item-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--m24-sb-spacing-sm);
+}
+
+/* Mengen-Adjuster */
+.m24-sidebar__qty {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--m24-sb-color-border);
+    border-radius: var(--m24-sb-radius-sm);
+    overflow: hidden;
+    background: var(--m24-sb-color-bg);
+}
+
+.m24-sidebar__qty-btn {
+    border: none;
+    background: transparent;
+    width: 28px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--m24-sb-color-text);
+}
+
+.m24-sidebar__qty-btn:hover {
+    background: #f3f4f6;
+}
+
+.m24-sidebar__qty-input {
+    width: 44px;
+    height: 32px;
+    border: none;
+    border-left: 1px solid var(--m24-sb-color-border);
+    border-right: 1px solid var(--m24-sb-color-border);
+    text-align: center;
+    font-size: 14px;
+    background: var(--m24-sb-color-bg);
+    color: var(--m24-sb-color-text);
+    -moz-appearance: textfield;
+}
+
+.m24-sidebar__qty-input::-webkit-outer-spin-button,
+.m24-sidebar__qty-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.m24-sidebar__remove {
+    border: 1px solid var(--m24-sb-color-border);
+    background: transparent;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--m24-sb-radius-sm);
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--m24-sb-color-muted);
+    transition: color 120ms, background 120ms, border-color 120ms;
+}
+
+.m24-sidebar__remove:hover {
+    color: var(--m24-sb-color-accent);
+    border-color: var(--m24-sb-color-accent);
+    background: #fef2f2;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Footer                                                            */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__footer {
+    padding: var(--m24-sb-spacing-lg);
+    border-top: 1px solid var(--m24-sb-color-border);
+    flex-shrink: 0;
+}
+
+.m24-sidebar__submit {
+    width: 100%;
+    padding: 12px var(--m24-sb-spacing);
+    background: var(--m24-sb-color-accent);
+    color: var(--m24-sb-color-accent-text);
+    border: none;
+    border-radius: var(--m24-sb-radius-sm);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 120ms, transform 120ms;
+}
+
+.m24-sidebar__submit:hover:not(:disabled) {
+    background: #a30d25;
+    transform: translateY(-1px);
+}
+
+.m24-sidebar__submit:disabled {
+    background: #d1d5db;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.m24-sidebar__submit:focus-visible {
+    outline: 3px solid var(--m24-sb-color-accent);
+    outline-offset: 2px;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Toast                                                             */
+/* ────────────────────────────────────────────────────────────────── */
+
+.m24-sidebar__toast {
+    position: fixed;
+    bottom: 90px;
+    right: var(--m24-sb-spacing-lg);
+    background: #1a1a1a;
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: var(--m24-sb-radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    animation: m24-sb-toast-in 240ms ease-out;
+    pointer-events: none;
+}
+
+.m24-sidebar__toast--out {
+    animation: m24-sb-toast-out 380ms ease-in forwards;
+}
+
+@keyframes m24-sb-toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes m24-sb-toast-out {
+    to { opacity: 0; transform: translateY(8px); }
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Mobile (< 600px) — Vollbild                                       */
+/* ────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+    #m24-sidebar-root {
+        --m24-sb-toggle-size: 52px;
+    }
+
+    .m24-sidebar__panel {
+        width: 100vw;
+        max-width: 100vw;
+    }
+
+    .m24-sidebar__toggle {
+        bottom: var(--m24-sb-spacing);
+        right: var(--m24-sb-spacing);
+    }
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* Reduced Motion                                                    */
+/* ────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .m24-sidebar__panel,
+    .m24-sidebar__toggle,
+    .m24-sidebar__submit,
+    .m24-sidebar__toast {
+        transition: none;
+        animation: none;
+    }
+    .m24-sidebar--flash .m24-sidebar__toggle {
+        animation: none;
+    }
+}

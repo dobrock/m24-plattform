@@ -1,0 +1,13 @@
+# Lokale Restore-Punkte (iCloud-Konvention) — gehoeren nicht ins Repo / Deployment
+*.bak
+*.bak.*
+*.bak[0-9]*
+
+# macOS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs / temporaeres
+*.log

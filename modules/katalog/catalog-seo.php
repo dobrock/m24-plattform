@@ -1,0 +1,262 @@
+<?php
+/**
+ * M24 Plattform — Katalog: SEO (Feld-Autofill mit Hash-Marker-Auto-Sync)
+ *
+ * Strategie (Re-Fix nach T6 — Werte SICHTBAR im wpSEO-Feld):
+ *  - Title + Description werden ins wpSEO-Feld geschrieben
+ *    (_wpseo_edit_title / _wpseo_edit_description) → sichtbar/editierbar.
+ *  - Beim Schreiben wird ein Hash-Marker abgelegt (sha1 des Werts):
+ *    _m24_seo_autofill_title_hash / _m24_seo_autofill_desc_hash.
+ *  - Auto-Sync bei Titeländerung (Save / Inline-Rename / Import):
+ *      sha1(Feldwert) === Marker → noch „auto"  → neu generieren + Marker updaten
+ *      sha1(Feldwert) !== Marker → manuell editiert → unangetastet
+ *      Feld leer                → auto befüllen + Marker
+ *  - Render-Filter (wpseo_set_title) gibt den Feldwert verbatim aus und verhindert
+ *    so den wpSEO-Blog-Channel-Append (Doppel-Suffix). wpseo_set_desc liefert
+ *    zusätzlich die statische Archiv-Description.
+ *
+ * Bestand nachziehen:  wp m24 reseed-seo-felder [--dry-run] [--yes]
+ * Felder leeren:       wp m24 cleanup-seo-meta   [--dry-run] [--yes]
+ */
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class M24_Catalog_SEO {
+
+	const PT         = 'm24_teil';
+	const TITLE_MAX  = 70;
+
+	const FIELD_TITLE  = '_wpseo_edit_title';
+	const FIELD_DESC   = '_wpseo_edit_description';
+	const MARKER_TITLE = '_m24_seo_autofill_title_hash';
+	const MARKER_DESC  = '_m24_seo_autofill_desc_hash';
+
+	/** Re-Entrancy-Schutz (compact_bmw_in_title etc. loesen verschachtelte save_post aus). */
+	private static $syncing = false;
+
+	public static function init() {
+		// Description-Filter cover Archiv UND Detail.
+		add_filter( 'wpseo_set_desc',  array( __CLASS__, 'filter_desc' ),  20, 1 );
+		// Detail-Title verbatim aus Feld (verhindert Blog-Channel-Append).
+		add_filter( 'wpseo_set_title', array( __CLASS__, 'force_detail_title' ), 99, 1 );
+		// Feld-Autofill + Marker. Prio 30: nach fields::save(10)/compact_bmw_in_title(15)/
+		// artnr(20)/auto_slug(25) — arbeitet mit dem finalen Post-Titel.
+		add_action( 'save_post_' . self::PT, array( __CLASS__, 'on_save' ), 30, 1 );
+	}
+
+	// ── Title-Kaskade ────────────────────────────────────────────────────
+	public static function build_title( $titel, $typ ) {
+		$titel = trim( wp_strip_all_tags( (string) $titel ) );
+		if ( 'neu' === $typ ) {
+			$variants = array(
+				$titel . ' | MOTORSPORT24 seit 2006',
+				$titel . ' | MOTORSPORT24',
+			);
+		} else {
+			$variants = array(
+				$titel . ' Original gebraucht | MOTORSPORT24 seit 2006',
+				$titel . ' Original gebraucht | MOTORSPORT24',
+				$titel . ' | MOTORSPORT24',
+			);
+		}
+		foreach ( $variants as $v ) {
+			if ( mb_strlen( $v ) <= self::TITLE_MAX ) { return $v; }
+		}
+		return end( $variants );
+	}
+
+	// ── Description-Kaskade ─────────────────────────────────────────────
+	public static function build_desc( $titel, $typ ) {
+		$titel = trim( wp_strip_all_tags( (string) $titel ) );
+		$tail  = ( 'neu' === $typ )
+			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ jetzt anfragen bei MOTORSPORT24 seit 2006'
+			: ' ✓ Original gebraucht & geprüft ✓ sofort verfügbar ✓ fair kaufen bei MOTORSPORT24 seit 2006';
+		$max          = 160;
+		$title_budget = $max - mb_strlen( $tail );
+		if ( $title_budget < 12 ) { $title_budget = 12; }
+		if ( mb_strlen( $titel ) > $title_budget ) {
+			$titel = rtrim( mb_substr( $titel, 0, $title_budget - 1 ) ) . '…';
+		}
+		return $titel . $tail;
+	}
+
+	// ── Feld-Autofill + Marker-Auto-Sync ─────────────────────────────────
+	/**
+	 * Schreibt Feld + Marker, respektiert manuelle Edits.
+	 *
+	 * @param bool $adopt_unmarked true (Reseed): nicht-leeres Feld OHNE Marker als
+	 *                             „auto" adoptieren (Bestands-Backfill importierter Teile).
+	 * @return string filled|resynced|manual
+	 */
+	private static function sync_field( $post_id, $field_key, $marker_key, $new_value, $adopt_unmarked = false ) {
+		$current = (string) get_post_meta( $post_id, $field_key, true );
+		$marker  = (string) get_post_meta( $post_id, $marker_key, true );
+
+		if ( '' === $current ) {
+			update_post_meta( $post_id, $field_key, $new_value );
+			update_post_meta( $post_id, $marker_key, sha1( $new_value ) );
+			return 'filled';
+		}
+		$is_auto = ( '' !== $marker && sha1( $current ) === $marker )
+				|| ( $adopt_unmarked && '' === $marker );
+		if ( $is_auto ) {
+			if ( $current !== $new_value ) {
+				update_post_meta( $post_id, $field_key, $new_value );
+			}
+			update_post_meta( $post_id, $marker_key, sha1( $new_value ) );
+			return 'resynced';
+		}
+		return 'manual';
+	}
+
+	/**
+	 * Synct Title + Description eines Teils aus dem aktuellen Post-Titel + _m24_typ.
+	 * Aufgerufen von: save_post (Save/Inline), Importer (explizit), Reseed-CLI, Detail-Render.
+	 *
+	 * @return array{title:string,desc:string}
+	 */
+	public static function sync_post( $post_id, $adopt_unmarked = false ) {
+		$post_id = (int) $post_id;
+		if ( get_post_type( $post_id ) !== self::PT ) { return array(); }
+		$titel = get_the_title( $post_id );
+		$typ   = ( 'neu' === get_post_meta( $post_id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
+		return array(
+			'title' => self::sync_field( $post_id, self::FIELD_TITLE, self::MARKER_TITLE, self::build_title( $titel, $typ ), $adopt_unmarked ),
+			'desc'  => self::sync_field( $post_id, self::FIELD_DESC,  self::MARKER_DESC,  self::build_desc( $titel, $typ ),  $adopt_unmarked ),
+		);
+	}
+
+	public static function on_save( $post_id ) {
+		if ( self::$syncing ) { return; }
+		if ( wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) ) { return; }
+		self::$syncing = true;
+		self::sync_post( (int) $post_id, false );
+		self::$syncing = false;
+	}
+
+	/** Lazy-Backfill vom Detail-Template (vor get_header). Idempotent. */
+	public static function fill_if_empty( $post_id ) {
+		self::sync_post( (int) $post_id, false );
+	}
+
+	/**
+	 * Detail-<title>: gespeichertes _wpseo_edit_title verbatim (Feld-Autofill ODER
+	 * manueller Override), sonst Live-Build aus aktuellem Post-Titel + _m24_typ.
+	 */
+	public static function force_detail_title( $title ) {
+		if ( ! is_singular( self::PT ) ) {
+			return $title;
+		}
+		$id     = get_queried_object_id();
+		$custom = trim( (string) get_post_meta( $id, self::FIELD_TITLE, true ) );
+		if ( '' !== $custom ) {
+			return $custom;
+		}
+		$typ = ( 'neu' === get_post_meta( $id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
+		return self::build_title( get_the_title( $id ), $typ );
+	}
+
+	/**
+	 * Description-Filter:
+	 *  - Archiv (/gebrauchtteile/, /rennsport-teile/): statische Texte.
+	 *  - Detail-Single: gespeichertes Feld verbatim, sonst Live-Build aus Post-Titel.
+	 */
+	public static function filter_desc( $desc ) {
+		if ( class_exists( 'M24_Catalog_Archive' ) && M24_Catalog_Archive::is_archive() ) {
+			return ( 'neu' === M24_Catalog_Archive::current_typ() )
+				? 'Rennsport-Teile ✓ Rennsportqualität ✓ Made in Germany ✓ eindeutig per Teilenummer — MOTORSPORT24 seit 2006'
+				: 'Original gebrauchte BMW-Teile ✓ geprüft ✓ sofort lieferbar ✓ eindeutig per Teilenummer — MOTORSPORT24 seit 2006';
+		}
+		if ( is_singular( self::PT ) ) {
+			$id     = get_queried_object_id();
+			$custom = trim( (string) get_post_meta( $id, self::FIELD_DESC, true ) );
+			if ( '' !== $custom ) {
+				return $custom;
+			}
+			$typ = ( 'neu' === get_post_meta( $id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
+			return self::build_desc( get_the_title( $id ), $typ );
+		}
+		return $desc;
+	}
+}
+
+// ── CLI ────────────────────────────────────────────────────────────────────
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+
+	/**
+	 * Bestand nachziehen: Feld + Marker auf allen m24_teil-Posts schreiben/auto-syncen.
+	 * Adoptiert nicht-leere Felder OHNE Marker als „auto" (Backfill importierter Teile).
+	 * Manuelle Edits (Feld != Marker-Hash) bleiben unangetastet.
+	 */
+	WP_CLI::add_command( 'm24 reseed-seo-felder', function( $args, $assoc ) {
+		$dry      = ! empty( $assoc['dry-run'] );
+		$auto_yes = ! empty( $assoc['yes'] );
+
+		$ids = get_posts( array(
+			'post_type' => 'm24_teil', 'post_status' => 'any',
+			'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true,
+		) );
+		if ( empty( $ids ) ) { WP_CLI::log( 'Keine m24_teil-Posts gefunden.' ); return; }
+
+		if ( ! $dry && ! $auto_yes ) {
+			WP_CLI::confirm( sprintf( 'SEO-Felder + Marker auf %d Posts schreiben/auto-syncen? Manuelle Edits bleiben unberuehrt.', count( $ids ) ) );
+		}
+
+		$stat = array( 'filled' => 0, 'resynced' => 0, 'manual' => 0 );
+		foreach ( $ids as $pid ) {
+			if ( $dry ) {
+				// Read-only-Klassifikation (Title-Feld als Repraesentant).
+				$cur = (string) get_post_meta( $pid, M24_Catalog_SEO::FIELD_TITLE, true );
+				$mrk = (string) get_post_meta( $pid, M24_Catalog_SEO::MARKER_TITLE, true );
+				if ( '' === $cur ) { $stat['filled']++; }
+				elseif ( ( '' !== $mrk && sha1( $cur ) === $mrk ) || '' === $mrk ) { $stat['resynced']++; }
+				else { $stat['manual']++; }
+				continue;
+			}
+			$r = M24_Catalog_SEO::sync_post( $pid, true );
+			$k = isset( $r['title'] ) ? $r['title'] : 'manual';
+			if ( isset( $stat[ $k ] ) ) { $stat[ $k ]++; }
+		}
+
+		WP_CLI::log( sprintf( 'Posts gesamt: %d', count( $ids ) ) );
+		WP_CLI::log( sprintf( '  befuellt (Feld war leer):        %d', $stat['filled'] ) );
+		WP_CLI::log( sprintf( '  resynced (auto / adoptiert):     %d', $stat['resynced'] ) );
+		WP_CLI::log( sprintf( '  manuell (unangetastet):          %d', $stat['manual'] ) );
+		if ( $dry ) { WP_CLI::warning( 'Dry-run: nichts geschrieben.' ); }
+		else { WP_CLI::success( 'Reseed abgeschlossen — Feld + Marker stehen, Auto-Sync aktiv.' ); }
+	} );
+
+	/**
+	 * Felder leeren: _wpseo_edit_title/_description + Marker auf allen m24_teil-Posts.
+	 * (Reset auf reines Live-Render; Gegenstueck zum Reseed.)
+	 */
+	WP_CLI::add_command( 'm24 cleanup-seo-meta', function( $args, $assoc ) {
+		$dry      = ! empty( $assoc['dry-run'] );
+		$auto_yes = ! empty( $assoc['yes'] );
+
+		$ids = get_posts( array(
+			'post_type' => 'm24_teil', 'post_status' => 'any',
+			'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true,
+		) );
+		if ( empty( $ids ) ) { WP_CLI::log( 'Keine m24_teil-Posts gefunden.' ); return; }
+
+		$with_title = $with_desc = 0;
+		foreach ( $ids as $pid ) {
+			if ( '' !== trim( (string) get_post_meta( $pid, M24_Catalog_SEO::FIELD_TITLE, true ) ) ) { $with_title++; }
+			if ( '' !== trim( (string) get_post_meta( $pid, M24_Catalog_SEO::FIELD_DESC, true ) ) )  { $with_desc++; }
+		}
+		WP_CLI::log( sprintf( 'Posts gesamt: %d | mit Title: %d | mit Desc: %d', count( $ids ), $with_title, $with_desc ) );
+		if ( $dry ) { WP_CLI::warning( 'Dry-run: nichts geloescht.' ); return; }
+		if ( ! $auto_yes ) {
+			WP_CLI::confirm( sprintf( 'SEO-Felder + Marker auf %d Posts wirklich leeren? Manuelle SEO-Edits gehen verloren.', count( $ids ) ) );
+		}
+		$cleared = 0;
+		foreach ( $ids as $pid ) {
+			delete_post_meta( $pid, M24_Catalog_SEO::FIELD_TITLE );
+			delete_post_meta( $pid, M24_Catalog_SEO::FIELD_DESC );
+			delete_post_meta( $pid, M24_Catalog_SEO::MARKER_TITLE );
+			delete_post_meta( $pid, M24_Catalog_SEO::MARKER_DESC );
+			$cleared++;
+		}
+		WP_CLI::success( sprintf( 'SEO-Felder + Marker auf %d Posts geleert.', $cleared ) );
+	} );
+}

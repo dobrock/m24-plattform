@@ -1,0 +1,155 @@
+<?php
+/**
+ * Plugin Name:       M24 Plattform
+ * Plugin URI:        https://www.motorsport24.de
+ * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
+ * Version:           0.1.0
+ * Requires at least: 6.4
+ * Requires PHP:      8.0
+ * Author:            MOTORSPORT24 GmbH
+ * Author URI:        https://www.motorsport24.de
+ * License:           GPL v2 or later
+ * Text Domain:       m24-plattform
+ * Domain Path:       /languages
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+define( 'M24_PLATTFORM_VERSION',     '0.1.0' );
+define( 'M24_PLATTFORM_FILE',        __FILE__ );
+define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
+define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
+define( 'M24_PLATTFORM_DB_VERSION',  '004' );
+
+/**
+ * Pflicht-Hinweis fuer Rennsport-Neuteile. Wird im Detail-Template als
+ * Fallback fuer `_m24_hinweis` ausgegeben (Typ='neu'), und vom Shopware-Importer
+ * (Paket D) als Default fuer `_m24_hinweis` gesetzt, wenn das Quell-Customfield leer ist.
+ * Ueberschreibbar via Filter `m24_rennsport_hinweis`.
+ */
+define( 'M24_RENNSPORT_HINWEIS', 'Verkauf rein für den Rennsport. Kein Gutachten vorhanden und keine Eintragung möglich.' );
+
+function m24_rennsport_hinweis() {
+    return apply_filters( 'm24_rennsport_hinweis', M24_RENNSPORT_HINWEIS );
+}
+
+/**
+ * Typ-abhaengiges Detail-Header-Logo (oben rechts).
+ *  - 'gebraucht' → BMW-Logo
+ *  - 'neu'       → MOTORSPORT24-Logo
+ * Files liegen in assets/img/. Ueberschreibbar via Filter `m24_detail_logo` ($url, $typ).
+ */
+define( 'M24_DETAIL_LOGO_BMW', 'assets/img/bmw-logo.png' );
+define( 'M24_DETAIL_LOGO_M24', 'assets/img/m24-logo.png' );
+
+function m24_detail_logo_url( $typ ) {
+    $relative = ( 'neu' === $typ ) ? M24_DETAIL_LOGO_M24 : M24_DETAIL_LOGO_BMW;
+    $default  = plugins_url( $relative, M24_PLATTFORM_FILE );
+    return apply_filters( 'm24_detail_logo', $default, $typ );
+}
+
+/**
+ * DSGVO-Consent-Text fuer das Anfrage-/Sammelanfrage-Modal.
+ * %s = Datenschutzerklaerungs-Link. Ueberschreibbar via Filter `m24_consent_text`.
+ */
+define( 'M24_INQUIRY_CONSENT_TEXT', 'Ich willige ein, dass meine angegebenen Daten zur Bearbeitung meiner Anfrage gespeichert und verarbeitet werden. Hinweise zur Verarbeitung und zu meinem Widerrufsrecht finde ich in der %s. *' );
+
+function m24_consent_text() {
+    return apply_filters( 'm24_consent_text', M24_INQUIRY_CONSENT_TEXT );
+}
+
+/**
+ * Datenschutzerklaerungs-URL. Default = WP-Datenschutzseite via get_privacy_policy_url().
+ * Ueberschreibbar via Filter `m24_datenschutz_url`.
+ */
+function m24_datenschutz_url() {
+    $url = function_exists( 'get_privacy_policy_url' ) ? (string) get_privacy_policy_url() : '';
+    return apply_filters( 'm24_datenschutz_url', $url );
+}
+
+/**
+ * Hinweis-Text fuer den Tab „Herstellungshinweise" auf Detail-Seiten
+ * von Leichtbauteilen. Ueberschreibbar via Filter `m24_leichtbau_hinweis`.
+ */
+define( 'M24_LEICHTBAU_HINWEIS', 'Unsere Leichtbauteile werden ausschließlich in Deutschland von deutschen Fachbetrieben hergestellt. Bitte beachten Sie, dass wir rein für den Rennsport produzieren und keine Gutachten oder sonstige Unterlagen zur Verfügung stellen.' );
+
+function m24_leichtbau_hinweis() {
+    return apply_filters( 'm24_leichtbau_hinweis', M24_LEICHTBAU_HINWEIS );
+}
+
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-database.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-logger.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-cache.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-rest-client.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
+require_once M24_PLATTFORM_DIR . 'admin/class-m24-settings.php';
+require_once M24_PLATTFORM_DIR . 'modules/core/inquiries/inquiries-bootstrap.php';
+
+// Katalog (CPT m24_teil + Taxonomie/Meta, Felder, Admin-Liste; Pricing = reiner Helfer).
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-cpt.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-pricing.php';   // reiner Helfer, kein init()
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-fields.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-admin-list.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-artnr.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-gallery.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-detail.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seed-terms.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-rewrites.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seo.php';
+
+// Anfragen-Frontend (Modal + Merkzettel-Mail; nutzt bestehende Inquiry-Pipeline).
+require_once M24_PLATTFORM_DIR . 'modules/anfragen/ppwr.php';            // reiner Helfer, kein init()
+require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-submit.php';
+require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-frontend.php';
+
+// Importer (Paket D — Shopware-Gebrauchtteile). Helfer immer geladen; WP-CLI-Command nur unter CLI.
+require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-shopware-client.php';
+require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-bmw-models.php';
+require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-bmw-teilenummer-extractor.php';
+// Kontextfreie Per-Produkt-Importlogik (Trait) + Hintergrund-Queue (AS-Action-Handler).
+// Beides IMMER laden — der Worker laeuft im WP-Cron-Kontext, nicht nur unter WP-CLI.
+require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-shopware-import-core.php';
+require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-queue.php';
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-cli.php';
+}
+
+if ( is_admin() ) {
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-log-viewer.php';
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-mock-log-viewer.php';
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-import-status.php';
+}
+
+register_activation_hook( __FILE__, [ 'M24_Database', 'activate' ] );
+register_deactivation_hook( __FILE__, function() {
+    // Nichts loeschen - nur Cron/Action-Scheduler-Jobs deregistrieren
+} );
+
+add_action( 'plugins_loaded', function() {
+    M24_Database::maybe_upgrade();
+    M24_Inquiries::init();
+    M24_Settings::init();
+    M24_Updater::init();
+    M24_Catalog_CPT::init();
+    M24_Catalog_Fields::init();
+    M24_Catalog_Admin_List::init();
+    M24_Catalog_Artnr::init();
+    M24_Catalog_Gallery::init();
+    M24_Catalog_Template_Detail::init();
+    M24_Catalog_Seed_Terms::init();
+    M24_Catalog_Rewrites::init();
+    M24_Catalog_Archive::init();
+    M24_Catalog_SEO::init();
+    M24_Inquiry_Submit::init();
+    M24_Inquiry_Frontend::init();
+    // Hintergrund-Import: AS-Action-Handler registrieren (Cron + Web-Kontext).
+    M24_Shopware_Queue::init();
+    if ( is_admin() ) {
+        M24_Log_Viewer::init();
+        M24_Mock_Log_Viewer::init();
+        M24_Import_Status_Page::init();
+    }
+}, 5 );

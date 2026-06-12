@@ -1,0 +1,178 @@
+<?php
+/**
+ * M24 Plattform — Katalog: Preislogik
+ * Modul: catalog-pricing.php
+ *
+ * Verantwortung: einheitliche Preisberechnung und -formatierung für Templates
+ * und Admin-Liste. Reiner Helfer — kein init()/keine Hooks.
+ *
+ *  - regel:       Basiswert = NETTO; brutto = netto × 1,19; beide werden gezeigt.
+ *  - paragraf25a: Basiswert = BRUTTO; keine ausweisbare MwSt.
+ *
+ * Seit Migration 004 ist `_m24_preisoptionen` (JSON-Array) das primaere
+ * Preisdatenmodell. `get()` bleibt fuer Backward-Compat erhalten und liefert
+ * die Default-Option (= erste Option). `get_options()` liefert alle Optionen.
+ */
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class M24_Catalog_Pricing {
+
+	const MWST_SATZ = 0.19;
+
+	/** Tooltip-Text am „Verpackung & Transport"-Hinweis (beide Steuer-Varianten). */
+	const VERPACKUNG_TIP = 'Nach Erhalt Ihrer Anfrage errechnen wir Ihnen ein Angebot, welches die Kosten für Verpackung und Versand beinhaltet.';
+
+	/** Tooltip-Text am Netto-Hinweis „Export & EU-B2B". */
+	const NETTO_EXPORT_TIP = 'Kunden aus Drittländern und Geschäftskunden aus bestätigten EU-Ländern, in die wir liefern, können netto bei uns kaufen.';
+
+	/**
+	 * Liefert die note-Bausteine fuer das neue Tooltip-System (Paket B).
+	 * Detail-Template baut daraus den finalen `<button>`-Tooltip.
+	 *
+	 * @param string $modus 'regel'|'paragraf25a'
+	 * @return array{lead:string, vut_label:string, vut_tip:string, trail:string}
+	 */
+	public static function note_parts( $modus ) {
+		$modus = ( 'paragraf25a' === $modus ) ? 'paragraf25a' : 'regel';
+		return array(
+			'lead'      => ( 'paragraf25a' === $modus )
+				? 'Differenzbesteuert nach §25a UStG, MwSt. nicht ausweisbar, zzgl. '
+				: 'inkl. 19 % MwSt., zzgl. ',
+			'vut_label' => 'Verpackung & Transport',
+			'vut_tip'   => self::VERPACKUNG_TIP,
+			'trail'     => '.',
+		);
+	}
+
+	/** Deutsche Währungsformatierung. */
+	public static function format( $value ) {
+		return number_format( (float) $value, 2, ',', '.' ) . ' €';
+	}
+
+	/**
+	 * Liest und parsed `_m24_preisoptionen`. Liefert IMMER ein Array (ggf. leer).
+	 * Jede Option ist normalisiert auf {label, art_nr, netto|null, brutto}.
+	 */
+	public static function raw_options( $post_id ) {
+		$raw = get_post_meta( $post_id, '_m24_preisoptionen', true );
+		if ( '' === $raw || null === $raw ) {
+			return array();
+		}
+		$arr = is_array( $raw ) ? $raw : json_decode( (string) $raw, true );
+		if ( ! is_array( $arr ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $arr as $opt ) {
+			if ( ! is_array( $opt ) ) { continue; }
+			$out[] = array(
+				'label'  => isset( $opt['label'] )  ? (string) $opt['label']  : '',
+				'art_nr' => isset( $opt['art_nr'] ) ? (string) $opt['art_nr'] : '',
+				'netto'  => ( isset( $opt['netto'] ) && '' !== $opt['netto'] && null !== $opt['netto'] ) ? (float) $opt['netto'] : null,
+				'brutto' => ( isset( $opt['brutto'] ) && '' !== $opt['brutto'] && null !== $opt['brutto'] ) ? (float) $opt['brutto'] : 0.0,
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * Liefert ein Array mit allen Preisoptionen, mit formatierten Strings:
+	 *  [
+	 *    'modus'        => 'regel'|'paragraf25a',
+	 *    'note'         => Hinweistext (mit Verpackung-Tip),
+	 *    'netto_hinweis'=> ggf. Drittland/EU-B2B-Hinweis,
+	 *    'options' => [
+	 *      ['label', 'art_nr', 'netto'|null, 'netto_fmt'|null, 'brutto', 'brutto_fmt']
+	 *    ],
+	 *    'agg' => [ 'low' => float, 'high' => float ]   // nur wenn >1 Option
+	 *  ]
+	 */
+	public static function get_options( $post_id ) {
+		$modus = get_post_meta( $post_id, '_m24_mwst_modus', true );
+		$modus = ( 'paragraf25a' === $modus ) ? 'paragraf25a' : 'regel';
+
+		$verp = '<span class="m24-tip" title="' . esc_attr( self::VERPACKUNG_TIP ) . '">Verpackung &amp; Transport</span>';
+
+		$opts_raw = self::raw_options( $post_id );
+
+		// Backward-Compat: wenn _m24_preisoptionen leer → aus _m24_preis_netto bauen
+		if ( empty( $opts_raw ) ) {
+			$basis = (float) get_post_meta( $post_id, '_m24_preis_netto', true );
+			if ( $basis > 0 ) {
+				if ( 'paragraf25a' === $modus ) {
+					$opts_raw = array( array( 'label' => '', 'art_nr' => (string) get_post_meta( $post_id, '_m24_artikelnummer', true ), 'netto' => null, 'brutto' => $basis ) );
+				} else {
+					$opts_raw = array( array( 'label' => '', 'art_nr' => (string) get_post_meta( $post_id, '_m24_artikelnummer', true ), 'netto' => $basis, 'brutto' => round( $basis * ( 1 + self::MWST_SATZ ), 2 ) ) );
+				}
+			}
+		}
+
+		$options = array();
+		foreach ( $opts_raw as $o ) {
+			$options[] = array(
+				'label'      => $o['label'],
+				'art_nr'     => $o['art_nr'],
+				'netto'      => $o['netto'],
+				'netto_fmt'  => ( null !== $o['netto'] ) ? self::format( $o['netto'] ) : null,
+				'brutto'     => $o['brutto'],
+				'brutto_fmt' => self::format( $o['brutto'] ),
+			);
+		}
+
+		if ( 'paragraf25a' === $modus ) {
+			$note          = 'Differenzbesteuert nach §25a UStG, MwSt. nicht ausweisbar, zzgl. ' . $verp . '.';
+			$netto_hinweis = '';
+		} else {
+			$note          = 'inkl. 19 % MwSt., zzgl. ' . $verp . '.';
+			$netto_hinweis = 'Kunden aus Drittländern und Geschäftskunden aus bestätigten EU-Ländern, in die wir liefern, können netto bei uns kaufen.';
+		}
+
+		$agg = null;
+		if ( count( $options ) > 1 ) {
+			$brutto_values = array_map( function( $o ) { return (float) $o['brutto']; }, $options );
+			$agg = array(
+				'low'  => min( $brutto_values ),
+				'high' => max( $brutto_values ),
+			);
+		}
+
+		return array(
+			'modus'         => $modus,
+			'note'          => $note,
+			'netto_hinweis' => $netto_hinweis,
+			'options'       => $options,
+			'agg'           => $agg,
+		);
+	}
+
+	/**
+	 * Backward-Compat: liefert die Default-Option (erste) im alten Shape.
+	 * Bestehende Templates/Admin-Liste laufen weiter ohne Anpassung.
+	 */
+	public static function get( $post_id ) {
+		$data    = self::get_options( $post_id );
+		$default = isset( $data['options'][0] ) ? $data['options'][0] : null;
+
+		if ( ! $default ) {
+			return array(
+				'modus'         => $data['modus'],
+				'brutto'        => 0,
+				'brutto_fmt'    => self::format( 0 ),
+				'netto'         => null,
+				'netto_fmt'     => null,
+				'note'          => $data['note'],
+				'netto_hinweis' => '',
+			);
+		}
+
+		return array(
+			'modus'         => $data['modus'],
+			'brutto'        => $default['brutto'],
+			'brutto_fmt'    => $default['brutto_fmt'],
+			'netto'         => $default['netto'],
+			'netto_fmt'     => $default['netto_fmt'],
+			'note'          => $data['note'],
+			'netto_hinweis' => ( null !== $default['netto'] ) ? $data['netto_hinweis'] : '',
+		);
+	}
+}
