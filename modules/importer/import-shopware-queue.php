@@ -29,6 +29,7 @@ class M24_Shopware_Queue {
 	use M24_Shopware_Import_Core;
 
 	const HOOK         = 'm24_import_shopware_batch';
+	const HOOK_RESYNC  = 'm24_resync_media_batch';
 	const GROUP        = 'm24-import';
 	const OPTION       = 'm24_import_run';
 	const MAX_ATTEMPTS = 3;
@@ -37,9 +38,10 @@ class M24_Shopware_Queue {
 	// Porsche-Wurzel (identisch zum synchronen Importer).
 	const EXCLUDE = array( '018af11a2e6f7c16a9ed62487f1b3978' );
 
-	/** Registriert den AS-Action-Handler. Muss in JEDEM Kontext laufen (Cron/Web), nicht nur CLI. */
+	/** Registriert die AS-Action-Handler. Muss in JEDEM Kontext laufen (Cron/Web), nicht nur CLI. */
 	public static function init() {
-		add_action( self::HOOK, array( __CLASS__, 'run_batch' ), 10, 5 );
+		add_action( self::HOOK,        array( __CLASS__, 'run_batch' ),        10, 5 );
+		add_action( self::HOOK_RESYNC, array( __CLASS__, 'run_resync_batch' ), 10, 5 );
 	}
 
 	/** Singleton-Instanz fuer die Trait-Methoden (kein State noetig). */
@@ -137,6 +139,54 @@ class M24_Shopware_Queue {
 		);
 	}
 
+	/**
+	 * Reiht eine konkrete sw_id-Liste fuer einen Media-Resync ueber Action Scheduler ein
+	 * (eigener Hook → run_resync_batch). Default batch-size 2 (Bild-Downloads), drainet
+	 * unbeaufsichtigt ueber den System-Cron. $cover_only = nur Featured Image laden.
+	 *
+	 * @return array { run_id, enqueued, batches }  (wirft Exception ohne Action Scheduler)
+	 */
+	public static function enqueue_resync( array $sw_ids, $cover_only = false, $batch_size = 2 ) {
+		if ( ! self::as_available() ) {
+			throw new Exception( 'Action Scheduler nicht verfuegbar (kein as_enqueue_async_action).' );
+		}
+		$sw_ids = array_values( array_unique( array_filter( array_map( 'strval', $sw_ids ) ) ) );
+		if ( empty( $sw_ids ) ) {
+			return array( 'run_id' => '', 'enqueued' => 0, 'batches' => 0 );
+		}
+		$batch_size = max( 1, (int) $batch_size );
+		as_unschedule_all_actions( self::HOOK_RESYNC ); // hook-only → sauberer Re-Run
+
+		$run_id  = 'resync_' . gmdate( 'YmdHis' ) . '_' . substr( md5( implode( '', $sw_ids ) . microtime() ), 0, 6 );
+		$batches = array_chunk( $sw_ids, $batch_size );
+		foreach ( $batches as $i => $batch_ids ) {
+			as_enqueue_async_action(
+				self::HOOK_RESYNC,
+				array( $batch_ids, (bool) $cover_only, $run_id, (int) $i, 1 ),
+				self::GROUP
+			);
+		}
+		update_option( self::OPTION, array(
+			'run_id'          => $run_id,
+			'type'            => $cover_only ? 'resync-media (cover-only)' : 'resync-media',
+			'force'           => false,
+			'enqueued'        => count( $sw_ids ),
+			'total_api'       => count( $sw_ids ),
+			'batches'         => count( $batches ),
+			'batch_size'      => $batch_size,
+			'started_at'      => current_time( 'mysql' ),
+			'done_products'   => 0,
+			'failed_products' => 0,
+			'done_batch_nos'  => array(),
+		), false );
+
+		M24_Logger::info( 'shopware-import', sprintf(
+			'Media-Resync enqueue: %d Teile in %d Batches (Groesse %d%s, run %s)',
+			count( $sw_ids ), count( $batches ), $batch_size, $cover_only ? ', cover-only' : '', $run_id
+		) );
+		return array( 'run_id' => $run_id, 'enqueued' => count( $sw_ids ), 'batches' => count( $batches ) );
+	}
+
 	// ----------------------------------------------------------------------
 	// Worker (laeuft im WP-Cron-Kontext, NICHT WP-CLI)
 	// ----------------------------------------------------------------------
@@ -183,6 +233,58 @@ class M24_Shopware_Queue {
 		M24_Logger::info( 'shopware-import', sprintf(
 			'Batch %d fertig: +%d neu, ~%d update, %d gesperrt, %d Fehler (run %s)',
 			$batch_no, $created, $updated, $locked, $errors, $run_id
+		) );
+	}
+
+	/**
+	 * Media-Resync-Worker: laedt fehlende Medien (oder nur Cover) der Batch-sw_ids nach.
+	 * Titel/Preis/Meta bleiben unberuehrt; idempotent ueber Media-Hash. Quellbild fehlt →
+	 * geloggt, kein endloser Retry.
+	 */
+	public static function run_resync_batch( $ids = array(), $cover_only = false, $run_id = '', $batch_no = 0, $attempt = 1 ) {
+		$ids = is_array( $ids ) ? $ids : array();
+		if ( empty( $ids ) ) { return; }
+
+		try {
+			$client   = new M24_Shopware_Client();
+			$products = $client->fetch_products_by_ids( $ids );
+		} catch ( Exception $e ) {
+			if ( $attempt < self::MAX_ATTEMPTS && function_exists( 'as_schedule_single_action' ) ) {
+				as_schedule_single_action( time() + self::RETRY_DELAY, self::HOOK_RESYNC,
+					array( $ids, (bool) $cover_only, $run_id, (int) $batch_no, (int) $attempt + 1 ), self::GROUP );
+				M24_Logger::warning( 'shopware-import', sprintf( 'Resync-Batch %d Hydrierung fehlgeschlagen (Versuch %d/%d), Re-Enqueue: %s', $batch_no, $attempt, self::MAX_ATTEMPTS, $e->getMessage() ) );
+			} else {
+				self::tally_batch( $run_id, $batch_no, 0, count( $ids ) );
+				M24_Logger::error( 'shopware-import', sprintf( 'Resync-Batch %d endgueltig fehlgeschlagen: %s', $batch_no, $e->getMessage() ) );
+			}
+			return;
+		}
+
+		$worker = self::worker();
+		$by_id  = array();
+		foreach ( $products as $p ) { $by_id[ (string) ( $p['id'] ?? '' ) ] = $p; }
+
+		$done = 0; $no_source = 0; $errors = 0;
+		foreach ( $ids as $sw ) {
+			$p = isset( $by_id[ $sw ] ) ? $by_id[ $sw ] : null;
+			if ( null === $p ) { $errors++; continue; }
+			$post_id = $worker->find_by_sw_id( $sw );
+			if ( ! $post_id ) { $errors++; continue; }
+			$media = isset( $p['media'] ) && is_array( $p['media'] ) ? $p['media'] : array();
+			if ( empty( $media ) ) {
+				$no_source++;
+				M24_Logger::warning( 'shopware-import', sprintf( 'Resync #%d: Quellbild fehlt bei Shopware (bleibt manuell)', $post_id ) );
+				continue;
+			}
+			if ( $cover_only ) { $worker->import_cover_only( (array) $p, $post_id ); }
+			else               { $worker->import_media( (array) $p, $post_id, true ); }
+			if ( get_post_thumbnail_id( $post_id ) ) { $done++; } else { $errors++; }
+		}
+
+		self::tally_batch( $run_id, $batch_no, $done, $no_source + $errors );
+		M24_Logger::info( 'shopware-import', sprintf(
+			'Resync-Batch %d fertig: %d Bild(er) gesetzt, %d Quelle fehlt, %d Fehler (run %s)',
+			$batch_no, $done, $no_source, $errors, $run_id
 		) );
 	}
 

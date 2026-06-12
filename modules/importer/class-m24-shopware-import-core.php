@@ -74,6 +74,44 @@ trait M24_Shopware_Import_Core {
 		$this->import_product_media( $product, (int) $post_id, (bool) $is_update );
 	}
 
+	/**
+	 * NUR Featured Image: laedt das Cover-Bild (coverId, sonst erstes nach position) und
+	 * setzt es als Beitragsbild — Galerie wird uebersprungen. Schnell + Konsolen-Timeout-safe
+	 * (1 Download/Teil). Tut nichts, wenn schon ein Featured Image existiert.
+	 *
+	 * @return bool true wenn ein Cover gesetzt wurde.
+	 */
+	public function import_cover_only( array $product, $post_id ) {
+		$post_id = (int) $post_id;
+		if ( get_post_thumbnail_id( $post_id ) ) { return false; }
+		$media = isset( $product['media'] ) && is_array( $product['media'] ) ? $product['media'] : array();
+		if ( empty( $media ) ) { return false; }
+		usort( $media, function ( $a, $b ) {
+			return ( (int) ( $a['position'] ?? 0 ) ) <=> ( (int) ( $b['position'] ?? 0 ) );
+		} );
+		$cover_sw_id = (string) ( $product['coverId'] ?? '' );
+		$pick = null;
+		if ( '' !== $cover_sw_id ) {
+			foreach ( $media as $m ) {
+				if ( (string) ( $m['id'] ?? '' ) === $cover_sw_id ) { $pick = $m; break; }
+			}
+		}
+		if ( null === $pick ) { $pick = $media[0]; }
+
+		$mob  = isset( $pick['media'] ) && is_array( $pick['media'] ) ? $pick['media'] : array();
+		$url  = (string) ( $mob['url'] ?? '' );
+		$hash = (string) ( $mob['metaData']['hash'] ?? '' );
+		if ( '' === $url ) { return false; }
+
+		$att = $this->sideload_image( $url, $post_id, $hash );
+		if ( $att > 0 ) {
+			set_post_thumbnail( $post_id, $att );
+			if ( defined( 'WP_CLI' ) && WP_CLI ) { WP_CLI::log( '   → Cover gesetzt (ID ' . $att . ')' ); }
+			return true;
+		}
+		return false;
+	}
+
 	protected function find_by_sw_id( $sw_id ) {
 		$q = get_posts( array(
 			'post_type'      => M24_Catalog_CPT::POST_TYPE,

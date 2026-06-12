@@ -13,14 +13,25 @@
  *   wp m24 resync-media --dry-run --export=fehlende-bilder.csv
  *   wp m24 resync-media --limit=10                # 10 Teile nachladen (Konsolen-Timeout-safe)
  *   wp m24 resync-media                           # bis Default-Limit nachladen
+ *   wp m24 resync-media --queue --cover-only      # Hintergrund (System-Cron), nur Hauptbild
+ *   wp m24 resync-media --queue --batch-size=2    # Hintergrund, alle fehlenden Medien
+ *
+ * Flags:
+ *   --queue        Statt direkt: in die Action-Scheduler-Resync-Queue einreihen (unbeaufsichtigt
+ *                  ueber WP-Cron, Default batch-size 2). Fortschritt: wp m24 import-status.
+ *   --cover-only   Nur das Featured Image laden (Galerie ueberspringen) — schnell.
+ *   --batch-size=N Produkte pro Hintergrund-Batch (nur mit --queue, Default 2).
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) { return; }
 
 WP_CLI::add_command( 'm24 resync-media', function ( $args, $assoc ) {
-	$dry    = ! empty( $assoc['dry-run'] );
-	$limit  = isset( $assoc['limit'] ) ? max( 1, (int) $assoc['limit'] ) : 25;
-	$export = isset( $assoc['export'] ) ? (string) $assoc['export'] : '';
+	$dry        = ! empty( $assoc['dry-run'] );
+	$use_queue  = ! empty( $assoc['queue'] );
+	$cover_only = ! empty( $assoc['cover-only'] );
+	$limit      = isset( $assoc['limit'] ) ? max( 1, (int) $assoc['limit'] ) : 25;
+	$batch_size = isset( $assoc['batch-size'] ) ? max( 1, (int) $assoc['batch-size'] ) : 2;
+	$export     = isset( $assoc['export'] ) ? (string) $assoc['export'] : '';
 
 	// Scope: importierte Teile (sw_id) ohne Featured Image.
 	$ids = get_posts( array(
@@ -65,6 +76,21 @@ WP_CLI::add_command( 'm24 resync-media', function ( $args, $assoc ) {
 		return;
 	}
 
+	// Hintergrund-Modus: in die AS-Resync-Queue einreihen → System-Cron drainet unbeaufsichtigt.
+	if ( $use_queue ) {
+		try {
+			$r = M24_Shopware_Queue::enqueue_resync( array_values( $scope ), $cover_only, $batch_size );
+		} catch ( Exception $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+		WP_CLI::success( sprintf(
+			'%d Teile in %d Batches eingereiht (Groesse %d%s, run %s). Abarbeitung laeuft unbeaufsichtigt ueber WP-Cron.',
+			$r['enqueued'], $r['batches'], $batch_size, $cover_only ? ', cover-only' : '', $r['run_id']
+		) );
+		WP_CLI::log( 'Fortschritt: wp m24 import-status' );
+		return;
+	}
+
 	try {
 		$client = new M24_Shopware_Client();
 	} catch ( Exception $e ) {
@@ -101,7 +127,8 @@ WP_CLI::add_command( 'm24 resync-media', function ( $args, $assoc ) {
 			WP_CLI::warning( sprintf( '  #%d %s → QUELLBILD FEHLT bei Shopware (bleibt manuell)', $pid, $title ) );
 			continue;
 		}
-		$worker->import_media( $product, $pid, true ); // nur Medien, idempotent
+		if ( $cover_only ) { $worker->import_cover_only( $product, $pid ); }   // nur Featured Image
+		else               { $worker->import_media( $product, $pid, true ); } // alle fehlenden Medien
 		if ( get_post_thumbnail_id( $pid ) ) {
 			$loaded++;
 			WP_CLI::log( sprintf( '  #%d %s → Bild geladen ✓', $pid, $title ) );
