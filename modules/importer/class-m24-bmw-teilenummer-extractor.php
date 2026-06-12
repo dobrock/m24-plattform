@@ -95,6 +95,35 @@ class M24_BMW_Teilenummer_Extractor {
 	}
 
 	/**
+	 * Extrahiert eine 11-stellige BMW-OEM-Nummer aus dem TITEL.
+	 *
+	 * Titel sind kurz + strukturiert; eine zusammenhaengende 11-Ziffern-Folge ist dort
+	 * zuverlaessig die OEM-Nummer (Laufleistung/Datum/Preis sind kuerzer bzw. durch
+	 * Separatoren unterbrochen). Erkennt sowohl die kompakte Form „51712238178" (so legt
+	 * der Importer Titel via compact_in_title() an) als auch das gespacte BMW-Format.
+	 * Genau EIN eindeutiger Kandidat → Treffer; mehrere → null (Ambiguitaet, skip).
+	 *
+	 * @return array{number: string|null, candidates: string[]}
+	 */
+	public static function from_title( $title ) {
+		$plain = wp_strip_all_tags( (string) $title );
+		$cands = array();
+		// a) gespactes BMW-Standardformat
+		if ( preg_match_all( '/(?<!\d)(\d{2}\s\d{2}\s\d\s\d{3}\s\d{3})(?!\d)/u', $plain, $m ) ) {
+			foreach ( $m[1] as $r ) { $n = self::normalize( $r ); if ( null !== $n ) { $cands[] = $n; } }
+		}
+		// b) kompakte 11-stellige Ziffernfolge
+		if ( preg_match_all( '/(?<!\d)(\d{11})(?!\d)/u', $plain, $m2 ) ) {
+			foreach ( $m2[1] as $r ) { $n = self::normalize( $r ); if ( null !== $n ) { $cands[] = $n; } }
+		}
+		$unique = array_values( array_unique( $cands ) );
+		return array(
+			'number'     => ( 1 === count( $unique ) ) ? $unique[0] : null,
+			'candidates' => $unique,
+		);
+	}
+
+	/**
 	 * Normalisiert eine Rohnummer (mit Separatoren) auf BMW-Standardformat.
 	 *  - 11 Ziffern → "XX XX X XXX XXX" (klassisches OEM-Format)
 	 *  - 7  Ziffern → "X XXX XXX"        (Kurzformat, z.B. Steuergeraet/DSC)

@@ -766,21 +766,8 @@ class M24_Catalog_Admin_List {
 			. $b . ' .wp-list-table .column-title strong{display:inline}'
 			. $b . ' .wp-list-table .column-title strong a{display:inline;white-space:nowrap}'
 			// Horizontal-Scroll-Wrapper (JS-injiziert: .m24-table-scroll)
-			. $b . ' .m24-table-scroll{overflow-x:auto;overflow-y:visible;width:100%;background:#fff;--m24-check-w:46px;--m24-bild-w:76px}'
+			. $b . ' .m24-table-scroll{overflow-x:auto;overflow-y:visible;width:100%;background:#fff}'
 			. $b . ' .m24-table-scroll .wp-list-table{width:max-content;min-width:100%}'
-			// Sticky Bild + Title (immer sichtbar beim Rechts-Scroll).
-			// WP-7.0-robust: Check-Spalte + Bild-Spalte auf feste Breiten pinnen und die
-			// Sticky-Offsets daraus BERECHNEN (statt harter 46/122px). Aendert Core die
-			// Default-Checkbox-Breite, verschoben sich sonst die Sticky-Spalten → Ueberlappung.
-			. $b . ' .m24-table-scroll .wp-list-table th.check-column,' . $b . ' .m24-table-scroll .wp-list-table td.check-column{position:sticky;left:0;z-index:5;background:#fff;box-sizing:border-box;width:var(--m24-check-w)!important;min-width:var(--m24-check-w)!important;max-width:var(--m24-check-w)!important}'
-			. $b . ' .m24-table-scroll .wp-list-table .column-m24_bild{position:sticky;left:var(--m24-check-w);z-index:5;background:#fff;box-shadow:none;box-sizing:border-box;width:var(--m24-bild-w)!important;min-width:var(--m24-bild-w)!important;max-width:var(--m24-bild-w)!important}'
-			. $b . ' .m24-table-scroll .wp-list-table .column-title{position:sticky;left:calc(var(--m24-check-w) + var(--m24-bild-w));z-index:5;background:#fff;border-right:1px solid #e0e0e0;box-shadow:2px 0 4px rgba(0,0,0,.04)}'
-			// Body-Rows kriegen weißen Background damit sticky-cols nicht durchscheinen
-			. $b . ' .m24-table-scroll .wp-list-table tbody tr{background:#fff}'
-			. $b . ' .m24-table-scroll .wp-list-table tbody tr.alternate,' . $b . ' .m24-table-scroll .wp-list-table tbody tr:nth-child(2n){background:#f6f7f7}'
-			. $b . ' .m24-table-scroll .wp-list-table tbody tr:nth-child(2n) .check-column,' . $b . ' .m24-table-scroll .wp-list-table tbody tr:nth-child(2n) .column-m24_bild,' . $b . ' .m24-table-scroll .wp-list-table tbody tr:nth-child(2n) .column-title{background:#f6f7f7}'
-			. $b . ' .m24-table-scroll .wp-list-table tbody tr:hover{background:#f0f6fc}'
-			. $b . ' .m24-table-scroll .wp-list-table tbody tr:hover .check-column,' . $b . ' .m24-table-scroll .wp-list-table tbody tr:hover .column-m24_bild,' . $b . ' .m24-table-scroll .wp-list-table tbody tr:hover .column-title{background:#f0f6fc}'
 			// Row-Actions: nur bei Hover (WP-Standard explizit erzwingen)
 			. $b . ' .wp-list-table .row-actions{visibility:hidden;position:absolute;left:10px}'
 			. $b . ' .wp-list-table tr:hover .row-actions,' . $b . ' .wp-list-table tr:focus-within .row-actions{visibility:visible}'

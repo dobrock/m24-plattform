@@ -203,6 +203,23 @@
         }
     });
 
+    // Aktualisiert Chips + data-current IN PLACE (Container NICHT ersetzen), damit das
+    // Multi-Select-Dropdown beim Auswaehlen offen bleibt (kein Schliessen pro Klick).
+    // Offene Checkboxen werden an den neuen Stand angeglichen.
+    function m24SyncModell($container, html) {
+        var $new = $(html);
+        var cur = ($new.attr('data-current') || '');
+        $container.attr('data-current', cur).data('current', cur);
+        $container.find('.m24-ms-chips').first().html($new.find('.m24-ms-chips').first().html());
+        var $dd = $container.find('.m24-ms-dropdown');
+        if ($dd.length && !$dd.prop('hidden')) {
+            var ids = cur.split(',').map(function(x) { return parseInt(x, 10); }).filter(Boolean);
+            $dd.find('input[type="checkbox"]').each(function() {
+                this.checked = ids.indexOf(parseInt(this.value, 10)) !== -1;
+            });
+        }
+    }
+
     // Checkbox-Change → AJAX add/remove
     $(document).on('change', '.m24-ms-dropdown input[type="checkbox"]', function() {
         var $cb = $(this);
@@ -219,9 +236,8 @@
             op: op
         }).done(function(res) {
             if (res && res.success && res.data && res.data.html) {
-                // Container ersetzen mit Server-Render (data-current synced)
-                var $new = $(res.data.html);
-                $container.replaceWith($new);
+                // In place aktualisieren → Dropdown bleibt offen (Multi-Select).
+                m24SyncModell($container, res.data.html);
             } else {
                 $cb.prop('checked', !$cb.prop('checked'));  // revert
                 alert((res && res.data && res.data.msg) || 'Fehler beim Speichern');
@@ -250,7 +266,7 @@
             op: 'remove'
         }).done(function(res) {
             if (res && res.success && res.data && res.data.html) {
-                $container.replaceWith($(res.data.html));
+                m24SyncModell($container, res.data.html);
             } else {
                 $chip.css('opacity', 1);
                 alert((res && res.data && res.data.msg) || 'Fehler');

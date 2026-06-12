@@ -386,6 +386,7 @@ WP_CLI::add_command( 'm24 extract-bmw-teilenummer', function( $args, $assoc ) {
 	$stats = array(
 		'cue'        => 0,
 		'muster'     => 0,
+		'titel'      => 0,
 		'skip'       => 0,
 		'none'       => 0,
 		'pre_filled' => 0,
@@ -400,23 +401,38 @@ WP_CLI::add_command( 'm24 extract-bmw-teilenummer', function( $args, $assoc ) {
 			$desc = (string) get_post_meta( $pid, '_m24_beschreibung_de', true );
 		}
 
-		$res = M24_BMW_Teilenummer_Extractor::extract( $desc );
-		$stats[ $res['source'] ]++;
+		$res        = M24_BMW_Teilenummer_Extractor::extract( $desc );
+		$number     = in_array( $res['source'], array( 'cue', 'muster' ), true ) ? $res['number'] : null;
+		$source     = $res['source'];
+		$candidates = $res['candidates'];
+
+		// Fallback: 11-stellige BMW-Nummer aus dem TITEL (z.B. „… Frontspoiler 51712238178").
+		// Die Beschreibung liefert sie oft nicht; im Titel steht sie kompakt + eindeutig.
+		if ( null === $number ) {
+			$from_title = M24_BMW_Teilenummer_Extractor::from_title( get_post_field( 'post_title', $pid ) );
+			if ( null !== $from_title['number'] ) {
+				$number     = $from_title['number'];
+				$source     = 'titel';
+				$candidates = $from_title['candidates'];
+			}
+		}
+
+		$stats[ $source ]++;
 		$pre = ( '' !== $current );
 		if ( $pre ) { $stats['pre_filled']++; }
 
 		if ( $handle ) {
 			fputcsv( $handle, array(
 				$artnr,
-				$res['number'] ?: '—',
-				$res['source'],
-				implode( ' | ', $res['candidates'] ),
+				$number ?: '—',
+				$source,
+				implode( ' | ', $candidates ),
 				$pre ? $current : '—',
 			), ';' );
 		}
 
-		if ( ! $dry && ! $pre && in_array( $res['source'], array( 'cue', 'muster' ), true ) ) {
-			update_post_meta( $pid, '_m24_bmw_teilenummer', $res['number'] );
+		if ( ! $dry && ! $pre && null !== $number ) {
+			update_post_meta( $pid, '_m24_bmw_teilenummer', $number );
 			$stats['written']++;
 		}
 	}
@@ -428,6 +444,7 @@ WP_CLI::add_command( 'm24 extract-bmw-teilenummer', function( $args, $assoc ) {
 	WP_CLI::log( sprintf( '  Posts gescannt:     %d', count( $ids ) ) );
 	WP_CLI::log( sprintf( '  Cue (hoch):         %d', $stats['cue'] ) );
 	WP_CLI::log( sprintf( '  Muster:             %d', $stats['muster'] ) );
+	WP_CLI::log( sprintf( '  Titel (11-stellig): %d', $stats['titel'] ) );
 	WP_CLI::log( sprintf( '  Skip (multi):       %d', $stats['skip'] ) );
 	WP_CLI::log( sprintf( '  None:               %d', $stats['none'] ) );
 	WP_CLI::log( sprintf( '  Schon befuellt:     %d', $stats['pre_filled'] ) );
