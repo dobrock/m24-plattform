@@ -149,11 +149,17 @@ class M24_Catalog_Fields {
 				<?php endif; ?>
 			</div>
 
-			<p class="full" style="margin:14px 0 4px;font-weight:600">Preisoptionen <span class="hint">(0 oder 1 Option = Single-Preis im Frontend, kein Dropdown · &gt;1 Option = Frontend-Dropdown)</span></p>
+			<p class="full" style="margin:14px 0 4px;font-weight:600">Preis <span class="hint">(Einzelpreis. Weitere Varianten optional einklappbar · &gt;1 Option = Frontend-Dropdown)</span></p>
 			<div class="full" id="m24po-list" data-mode="<?php echo esc_attr( $preis_mode ); ?>" data-rate="<?php echo esc_attr( (string) $tax_rate ); ?>">
-				<?php foreach ( $opts as $i => $opt ) : self::render_option_row( $i, $opt, $preis_mode, $tax_rate ); endforeach; ?>
+				<?php self::render_option_row( 0, $opts[0], $preis_mode, $tax_rate ); // Option 1 immer sichtbar ?>
 			</div>
-			<div class="full" style="margin-bottom:6px"><button type="button" class="m24po-add" id="m24po-add">+ Option hinzufügen</button></div>
+			<details class="full m24po-more" style="margin:2px 0 6px"<?php echo ( count( $opts ) > 1 ) ? ' open' : ''; ?>>
+				<summary style="cursor:pointer;font-weight:600;color:#2271b1;margin:6px 0">Weitere Preis-Varianten</summary>
+				<div id="m24po-list-more" data-mode="<?php echo esc_attr( $preis_mode ); ?>" data-rate="<?php echo esc_attr( (string) $tax_rate ); ?>">
+					<?php for ( $i = 1, $n = count( $opts ); $i < $n; $i++ ) : self::render_option_row( $i, $opts[ $i ], $preis_mode, $tax_rate ); endfor; ?>
+				</div>
+				<div style="margin-top:6px"><button type="button" class="m24po-add" id="m24po-add">+ Option hinzufügen</button></div>
+			</details>
 			<input type="hidden" name="m24_preis_eingabe" id="m24po-mode-hidden" value="<?php echo esc_attr( $preis_mode ); ?>">
 
 			<p class="full" style="margin:6px 0 0;font-weight:600">Beschreibung (DE)</p>
@@ -169,8 +175,11 @@ class M24_Catalog_Fields {
 		(function(){
 			var list = document.getElementById('m24po-list');
 			if(!list) return;
+			var more = document.getElementById('m24po-list-more');
 			var rate = parseFloat(list.dataset.rate) || 0.19;
 			var modeHidden = document.getElementById('m24po-mode-hidden');
+			// Alle Options-Zeilen über beide Container (Option 1 + „Weitere Varianten") in DOM-Reihenfolge.
+			function allRows(){ return Array.prototype.slice.call(document.querySelectorAll('#m24po-list .m24po, #m24po-list-more .m24po')); }
 
 			function fmt(n){ if(isNaN(n)) return ''; return n.toFixed(2); }
 
@@ -209,7 +218,7 @@ class M24_Catalog_Fields {
 			}
 
 			function reindex(){
-				var rows = list.querySelectorAll('.m24po');
+				var rows = allRows();
 				rows.forEach(function(r, idx){
 					r.querySelector('.m24po-num').textContent = 'Option ' + (idx+1);
 					r.querySelectorAll('[name^="m24_preisopt["]').forEach(function(inp){
@@ -224,9 +233,10 @@ class M24_Catalog_Fields {
 					b.addEventListener('click', function(e){ e.preventDefault(); setRowMode(row, b.dataset.mode); });
 				});
 				row.querySelector('.m24po-del').addEventListener('click', function(){
-					if(list.querySelectorAll('.m24po').length <= 1){
+					if(allRows().length <= 1){
 						// letzte Option leeren statt entfernen
 						row.querySelectorAll('input[type=text],input[type=number]').forEach(function(i){ i.value=''; });
+						recalcRow(row);
 						return;
 					}
 					row.remove(); reindex();
@@ -234,14 +244,15 @@ class M24_Catalog_Fields {
 				recalcRow(row);
 			}
 
-			list.querySelectorAll('.m24po').forEach(wireRow);
+			allRows().forEach(wireRow);
 
 			document.getElementById('m24po-add').addEventListener('click', function(){
 				var tpl = document.getElementById('m24po-tpl');
 				var html = tpl.innerHTML;
 				var wrap = document.createElement('div'); wrap.innerHTML = html.trim();
 				var row  = wrap.firstChild;
-				list.appendChild(row);
+				( more || list ).appendChild(row); // neue Varianten in die „Weitere"-Sektion
+				var det = more && more.closest('details'); if(det){ det.open = true; }
 				reindex();
 				wireRow(row);
 			});
