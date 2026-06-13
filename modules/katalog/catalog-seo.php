@@ -50,7 +50,9 @@ class M24_Catalog_SEO {
 
 	// ── Title-Kaskade ────────────────────────────────────────────────────
 	public static function build_title( $titel, $typ ) {
-		$titel = trim( wp_strip_all_tags( (string) $titel ) );
+		// HTML-Entities aus dem Titel dekodieren (get_the_title liefert via wptexturize z.B.
+		// „10&#215;18"). Sonst landen sie doppelt-escaped in Title/Description/og.
+		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
 		if ( 'neu' === $typ ) {
 			$variants = array(
 				$titel . ' | MOTORSPORT24 seit 2006',
@@ -71,7 +73,7 @@ class M24_Catalog_SEO {
 
 	// ── Description-Kaskade ─────────────────────────────────────────────
 	public static function build_desc( $titel, $typ ) {
-		$titel = trim( wp_strip_all_tags( (string) $titel ) );
+		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
 		$tail  = ( 'neu' === $typ )
 			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ jetzt anfragen bei MOTORSPORT24 seit 2006'
 			: ' ✓ Original gebraucht & geprüft ✓ sofort verfügbar ✓ fair kaufen bei MOTORSPORT24 seit 2006';
