@@ -63,21 +63,22 @@ class M24_Sold_Alternatives {
 		if ( ! $terms || is_wp_error( $terms ) || ! class_exists( 'M24_Search_Query' ) ) {
 			return array( 'items' => array(), 'archive' => self::vehicles_archive(), 'model' => '' );
 		}
-		$model    = $terms[0]->name;
+		$model    = trim( (string) $terms[0]->name );
 		$cat_ids  = M24_Search_Query::fahrzeug_cat_ids();
 		$sold_ids = M24_Search_Query::fahrzeug_sold_cat_ids();
 		// Nur AKTIVE Angebote: For-Sale-Kategorien (Sold-Kategorien ausschliessen).
 		$active_ids = array_values( array_diff( $cat_ids, $sold_ids ) );
-		if ( empty( $active_ids ) ) {
+		if ( empty( $active_ids ) || '' === $model ) {
 			return array( 'items' => array(), 'archive' => self::vehicles_archive(), 'model' => $model );
 		}
 		$limit = max( 1, (int) $limit );
+		// Modell-/titelbasiert statt Volltext: aktive For-Sale-Fahrzeuge holen, dann per Titel-Substring
+		// strikt aufs Modell filtern (verhindert unscharfe Volltext-Treffer wie Porsche ↔ „BMW 1er").
 		$q = new WP_Query( array(
 			'post_type'           => 'post',
 			'post_status'         => 'publish',
-			's'                   => $model,
 			'category__in'        => $active_ids,
-			'posts_per_page'      => $limit + 6, // Puffer fuer das Titel-Sicherheitsnetz unten
+			'posts_per_page'      => 60, // Pool zum Filtern
 			'no_found_rows'       => true,
 			'ignore_sticky_posts' => true,
 			// Zusaetzlich per Meta als verkauft markierte Fahrzeuge ausschliessen (kein SOLD mehr).
@@ -87,12 +88,14 @@ class M24_Sold_Alternatives {
 				array( 'key' => '_m24_fahrzeug_verkauft', 'value' => '1', 'compare' => '!=' ),
 			),
 		) );
-		$items = array();
+		$needle = self::norm( $model );
+		$items  = array();
 		foreach ( $q->posts as $p ) {
 			$title = html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' );
-			// Sicherheitsnetz: als „SOLD …" betitelte Fahrzeuge nie zeigen — falls Kategorie/Meta
-			// nicht gepflegt sind (kanonisch greifen bereits Kategorie- + _m24_fahrzeug_verkauft-Filter).
+			// Sicherheitsnetz: als „SOLD …" betitelte Fahrzeuge nie zeigen (falls Kategorie/Meta ungepflegt).
 			if ( preg_match( '/^\s*sold\b/i', $title ) ) { continue; }
+			// Modell MUSS im Fahrzeugtitel vorkommen (strikt, kein Volltext-Fuzzy).
+			if ( '' === $needle || false === strpos( self::norm( $title ), $needle ) ) { continue; }
 			$items[] = array(
 				'title' => $title,
 				'url'   => get_permalink( $p->ID ),
@@ -102,6 +105,11 @@ class M24_Sold_Alternatives {
 		}
 		wp_reset_postdata();
 		return array( 'items' => $items, 'archive' => self::vehicles_archive(), 'model' => $model );
+	}
+
+	/** Normalisiert fuer Substring-Vergleich: lowercase + Mehrfach-Whitespace zu einem Space. */
+	private static function norm( $s ) {
+		return preg_replace( '/\s+/', ' ', mb_strtolower( trim( (string) $s ) ) );
 	}
 
 	private static function vehicles_archive() {

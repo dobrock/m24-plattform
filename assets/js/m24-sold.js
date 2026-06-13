@@ -18,11 +18,12 @@
 	function alreadyShown() { try { return sessionStorage.getItem(SKEY) === '1'; } catch (e) { return false; } }
 	function markShown() { try { sessionStorage.setItem(SKEY, '1'); } catch (e) {} }
 
-	var lb = null, opened = false, timer = null;
+	var lb = null, opened = false, timer = null, srcEl = null;
 
 	function buildLightbox() {
-		var src = document.querySelector('.m24-sold-alt');
+		var src = document.querySelector('.m24-sold-alt:not(.m24-sold-alt--lb)');
 		if (!src) { return null; }
+		srcEl = src;
 		var overlay = document.createElement('div');
 		overlay.className = 'm24-sold-lb';
 		overlay.setAttribute('role', 'dialog');
@@ -67,6 +68,7 @@
 		// eslint-disable-next-line no-unused-expressions
 		lb.offsetHeight;
 		lb.classList.add('m24-sold-lb--on');
+		if (srcEl) { srcEl.classList.add('is-lb-hidden'); } // Dedup: Inline waehrend Modal aus
 		opened = true;
 		markShown();
 		document.addEventListener('keydown', onKey);
@@ -75,6 +77,7 @@
 	function closeLb() {
 		if (!lb) { return; }
 		lb.classList.remove('m24-sold-lb--on');
+		if (srcEl) { srcEl.classList.remove('is-lb-hidden'); } // Inline nach Schliessen wieder zeigen
 		document.body.classList.remove('m24-sold-lb-lock');
 		document.removeEventListener('keydown', onKey);
 		var node = lb; lb = null;

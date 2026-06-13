@@ -1,18 +1,18 @@
 /* M24 Plattform — Verkauft-Ansicht: Badge, deaktivierter Merkzettel, Alternativen, Lightbox */
 
-/* Verkauft-Badge dort, wo der Preis stand (Gold-Akzent). */
+/* Verkauft-Badge (Variante A — Outline): transparent, goldener Rahmen, kein Fill/Schatten. */
 .m24det .m24-sold-badge {
 	display: inline-block;
 	font-family: 'Saira', Arial, sans-serif;
 	font-weight: 700;
-	font-size: 18px;
-	letter-spacing: 1.5px;
+	font-size: 15px;
+	letter-spacing: 2.5px;
 	text-transform: uppercase;
-	color: #fff;
-	background: linear-gradient(135deg, #b8862f, #8a5e1e);
-	padding: 9px 20px;
-	border-radius: 8px;
-	box-shadow: 0 2px 8px rgba(138, 94, 30, .25);
+	color: #8a6824;
+	background: transparent;
+	border: 2px solid #a87f2e;
+	border-radius: 9px;
+	padding: 10px 26px;
 }
 
 /* „Auf den Merkzettel" deaktiviert (ausgegraut, nicht klickbar). */
@@ -100,3 +100,5 @@ body.m24-sold-lb-lock { overflow: hidden; }
 	margin: 0 28px 16px 0; color: #14161a;
 }
 .m24-sold-alt--lb { margin: 0; }
+/* Dedup: solange das Modal offen ist, den Inline-Block ausblenden (nie beides gleichzeitig). */
+.m24-sold-alt.is-lb-hidden { display: none !important; }
