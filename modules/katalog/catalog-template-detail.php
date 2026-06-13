@@ -334,7 +334,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .bc{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;gap:6px;font-size:11.5px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:11.5px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap}.m24det .m24-detail-head h1{font-size:21px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -356,7 +356,7 @@ class M24_Catalog_Template_Detail {
 					$logo_alt = $is_neu ? 'MOTORSPORT24' : 'BMW';
 					?>
 					<div class="m24-detail-logo">
-						<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $logo_alt ); ?>" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy onerror="this.closest('.m24-detail-logo').style.display='none'">
+						<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $logo_alt ); ?>" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy onerror="if(!this.complete||!this.naturalWidth){this.closest('.m24-detail-logo').style.display='none';}">
 					</div>
 				<?php endif; ?>
 			</div>
