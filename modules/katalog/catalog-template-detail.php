@@ -129,19 +129,9 @@ class M24_Catalog_Template_Detail {
 		$shown  = array_slice( $imgs, 0, 6 );
 		$extra  = max( 0, count( $imgs ) - 6 );
 
-		$related = array();
-		if ( $terms && ! is_wp_error( $terms ) ) {
-			$rq = new WP_Query( array(
-				'post_type'      => self::PT,
-				'posts_per_page' => 5,
-				'post__not_in'   => array( $id ),
-				'no_found_rows'  => true,
-				'tax_query'      => array( array( 'taxonomy' => M24_Catalog_CPT::TAXONOMY, 'terms' => $terms[0]->term_id ) ),
-				'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
-			) );
-			$related = $rq->posts;
-			wp_reset_postdata();
-		}
+		// „Weitere Teile" = manuelle Pins zuerst, dann Auto-Auffuellung (Modell → Baugruppe),
+		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
+		$related = class_exists( 'M24_Catalog_Related' ) ? M24_Catalog_Related::get( $id, 5 ) : array();
 
 		$ld = array(
 			'@context'        => 'https://schema.org',
@@ -259,7 +249,10 @@ class M24_Catalog_Template_Detail {
 		   folgt beim Scrollen bis Viewport-Top (Offset --m24-sticky-top = unter Theme-Headerbar).
 		   Stop-Boundary = Unterkante von .right (per Grid-Stretch = Unterkante Thumbnail-Strip),
 		   dort released der Sticky. Gilt fuer 2- und 3-Button-(Varianten-)Fall. */
-		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1}
+		/* Inner-Container streckt sich auf die volle Hoehe der rechten Zelle (= Thumbnail-Unterkante,
+		   da Grid-Zelle auf Zeilenhoehe gestreckt). Flex-Spalte → Trust-Zeile via margin-top:auto ans
+		   untere Ende (Linie buendig mit Thumbnail-Strip, Luft zwischen Buttons und Linie). */
+		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1;display:flex;flex-direction:column;flex:1 1 auto}
 		.m24det .m24-actions-group{display:flex;flex-direction:column}
 		.m24det .m24-varianten-wrap{margin:0}
 		.m24det .m24-varianten{appearance:none;-webkit-appearance:none;-moz-appearance:none;width:100%;height:46px;padding:0 38px 0 14px;border:0.5px solid var(--line);border-radius:8px;background:#fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231b1e22' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;font-family:'Saira',sans-serif;font-size:15px;font-weight:500;color:var(--tx);cursor:pointer;line-height:1}
@@ -274,7 +267,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
 		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare unter den Buttons, per feiner Linie abgesetzt.
 		   Letztes Element von .m24-right-inner → parkt am Sticky-Stopp (Thumbnail-Unterkante). */
-		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:auto;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
 		.m24det .m24-trust-dot{color:var(--line)}
@@ -503,11 +496,11 @@ class M24_Catalog_Template_Detail {
 
 			<?php if ( $related ) : ?>
 				<div class="related">
-					<div class="dl">WEITERE <?php echo esc_html( mb_strtoupper( $term_names[0] ) ); ?>-TEILE</div>
+					<div class="dl"><?php echo ! empty( $term_names ) ? esc_html( 'WEITERE ' . mb_strtoupper( $term_names[0] ) . '-TEILE' ) : esc_html__( 'WEITERE TEILE', 'm24-plattform' ); ?></div>
 					<div class="rlist">
 						<?php
 						foreach ( $related as $rp ) :
-							$rp_id    = $rp->ID;
+							$rp_id    = (int) $rp;
 							$r_anfr   = (bool) get_post_meta( $rp_id, '_m24_preis_auf_anfrage', true );
 							$rpr      = M24_Catalog_Pricing::get( $rp_id );
 							$r_price  = $r_anfr ? __( 'Preis auf Anfrage', 'm24-plattform' ) : (string) $rpr['brutto_fmt'];
