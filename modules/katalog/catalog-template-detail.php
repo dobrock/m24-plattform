@@ -283,7 +283,7 @@ class M24_Catalog_Template_Detail {
 		/* Bewertungs-Karte (Variante C) — rechts im Beschreibungsbereich gefloatet. */
 		/* Trust-Karte: Breite an die Action-Button-Spalte (2fr) angeglichen ≈ 66 % der Textspalte (3fr),
 		   flach/kompakt — wenig Padding, Kopf eng, Zitat auf 3 Zeilen gekappt → ragt nicht in „Weitere Teile". */
-		.m24det .m24-review-card{float:right;width:66%;max-width:460px;margin:2px 0 14px 28px;border:1px solid var(--line);border-radius:12px;padding:12px 15px;background:#fbfaf8;box-shadow:0 3px 12px rgba(0,0,0,.05);font-size:14px}
+		.m24det .m24-review-card{box-sizing:border-box;float:right;width:66%;max-width:460px;margin:2px 0 14px 28px;border:1px solid var(--line);border-radius:12px;padding:12px 15px;background:#fbfaf8;box-shadow:0 3px 12px rgba(0,0,0,.05);font-size:14px}
 		.m24det .m24-rc-head{display:flex;align-items:baseline;gap:8px}
 		.m24det .m24-stars{position:relative;display:inline-block;font-size:16px;line-height:1;letter-spacing:1.5px;color:#dcd7cf}
 		.m24det .m24-stars-fill{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5a623}
@@ -294,6 +294,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .m24-rc-quote{margin:8px 0 4px;font-size:13.5px;line-height:1.42;color:var(--tx);font-style:italic;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 		.m24det .m24-rc-author{font-size:12.5px;color:var(--mut);font-weight:600}
 		.m24det .m24-rc-link{display:inline-block;margin-top:8px;font-size:12.5px;font-weight:700;color:var(--blue);text-decoration:none}
+		.m24det .m24-rv-tab-btn{display:none} /* Reviews-Tab nur mobil (siehe Media-Query) */
 		.m24det .m24-rc-link:hover{text-decoration:underline}
 		.m24det .m24-fit-links{display:flex;flex-wrap:wrap;gap:10px}
 		.m24det .m24-fit-chip{display:inline-block;padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:#fafafa;color:var(--ink);font-family:'Saira',sans-serif;font-weight:600;font-size:15px;text-decoration:none;line-height:1.2;transition:border-color .15s ease,background .15s ease}
@@ -314,14 +315,16 @@ class M24_Catalog_Template_Detail {
 		.m24det .fitchips span{background:var(--surf);border:1px solid var(--line);border-radius:6px;padding:7px 13px;font-size:13px;font-weight:500}
 		.m24det .related{clear:both;margin-top:36px;border-top:1px solid var(--line);padding-top:18px}
 		.m24det .related .dl{font-family:'Saira',sans-serif;font-size:12px;letter-spacing:1.5px;color:var(--bronze);margin-bottom:8px}
-		.m24det .rlist{display:flex;flex-direction:column;gap:10px;margin-top:12px}
-		.m24det .rrow{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit}
-		.m24det .rrow .rimg{aspect-ratio:4/3;background:#ededea}
-		.m24det .rrow .rimg img{width:100%;height:100%;object-fit:cover;display:block}
-		.m24det .rrow .rb{padding:8px 14px 8px 0;min-width:0}
-		.m24det .rrow h4{font-family:'Saira',sans-serif;font-weight:600;font-size:15px;margin:0 0 3px;line-height:1.25}
-		.m24det .rrow .rdesc{font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-		.m24det .rrow .rp{font-family:'Saira',sans-serif;font-weight:700;font-size:14px;color:var(--bronze)}
+		/* DESKTOP: urspruengliches Karten-Grid (Bild oben, Titel + Preis darunter). Beschreibung
+		   ausgeblendet. MOBIL (<=760px, siehe Media-Query): umschalten auf ¼/¾-Listenzeilen. */
+		.m24det .related-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:12px}
+		.m24det .ritem{border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;display:block}
+		.m24det .ritem .rimg{aspect-ratio:4/3;background:#ededea}
+		.m24det .ritem .rimg img{width:100%;height:100%;object-fit:cover;display:block}
+		.m24det .ritem .rb{padding:10px 12px}
+		.m24det .ritem h4{font-family:'Saira',sans-serif;font-weight:500;font-size:13.5px;margin:0 0 5px;line-height:1.25}
+		.m24det .ritem .rdesc{display:none}
+		.m24det .ritem .rp{font-family:'Saira',sans-serif;font-weight:700;font-size:14px;color:var(--bronze)}
 		.m24-lb{display:none;position:fixed;inset:0;background:rgba(10,11,13,.93);z-index:99999;align-items:center;justify-content:center;padding:30px}
 		.m24-lb .lb-stage{flex:1;display:flex;align-items:center;justify-content:center;height:100%}
 		.m24-lb-img{max-width:100%;max-height:90vh;object-fit:contain;transition:opacity .3s ease}
@@ -332,7 +335,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:18px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:11.5px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:18px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:11.5px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap}.m24det .m24-detail-head h1{font-size:21px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -463,7 +466,13 @@ class M24_Catalog_Template_Detail {
 			<?php if ( $verkauft && class_exists( 'M24_Sold_Alternatives' ) ) { echo M24_Sold_Alternatives::render_block( $id ); /* phpcs:ignore */ } ?>
 
 			<div class="m24-tabs">
-				<?php $has_fit = ( $terms && ! is_wp_error( $terms ) && ! empty( $terms ) ); ?>
+				<?php
+				$has_fit     = ( $terms && ! is_wp_error( $terms ) && ! empty( $terms ) );
+				// Bewertungs-Karte einmal rendern, zweimal verwenden: Desktop = gefloatet im
+				// Beschreibungs-Panel; Mobil (<=760px) = eigener Tab „Google-Bewertung" (per CSS umgeschaltet).
+				$review_html = class_exists( 'M24_Reviews_Card' ) ? (string) M24_Reviews_Card::render_card() : '';
+				$has_review  = '' !== trim( $review_html );
+				?>
 				<div class="tabbar">
 					<button type="button" class="tab active" data-tab="desc">Beschreibung</button>
 					<?php if ( $has_fit ) : ?>
@@ -472,9 +481,12 @@ class M24_Catalog_Template_Detail {
 					<?php if ( $leichtbau ) : ?>
 						<button type="button" class="tab" data-tab="manufacture">Herstellungshinweise</button>
 					<?php endif; ?>
+					<?php if ( $has_review ) : ?>
+						<button type="button" class="tab m24-rv-tab-btn" data-tab="reviews">Google-Bewertung</button>
+					<?php endif; ?>
 				</div>
 				<div class="tabpanel" data-panel="desc">
-					<?php if ( class_exists( 'M24_Reviews_Card' ) ) { echo M24_Reviews_Card::render_card(); /* phpcs:ignore — Trust-Karte, rechts gefloatet */ } ?>
+					<?php echo $review_html; // phpcs:ignore — Trust-Karte, Desktop rechts gefloatet; mobil ausgeblendet ?>
 					<?php echo $desc ? wp_kses_post( wpautop( $desc ) ) : '<span style="color:#6b7077">Keine Beschreibung hinterlegt.</span>'; // phpcs:ignore ?>
 				</div>
 				<?php if ( $has_fit ) : ?>
@@ -492,12 +504,17 @@ class M24_Catalog_Template_Detail {
 						<p style="margin:0"><?php echo esc_html( m24_leichtbau_hinweis() ); ?></p>
 					</div>
 				<?php endif; ?>
+				<?php if ( $has_review ) : ?>
+					<div class="tabpanel m24-rv-tab-pane" data-panel="reviews" hidden>
+						<?php echo $review_html; // phpcs:ignore — nur mobil sichtbar (Tab) ?>
+					</div>
+				<?php endif; ?>
 			</div>
 
 			<?php if ( $related ) : ?>
 				<div class="related">
 					<div class="dl"><?php echo ! empty( $term_names ) ? esc_html( 'WEITERE ' . mb_strtoupper( $term_names[0] ) . '-TEILE' ) : esc_html__( 'WEITERE TEILE', 'm24-plattform' ); ?></div>
-					<div class="rlist">
+					<div class="related-grid">
 						<?php
 						foreach ( $related as $rp ) :
 							$rp_id    = (int) $rp;
@@ -506,7 +523,7 @@ class M24_Catalog_Template_Detail {
 							$r_price  = $r_anfr ? __( 'Preis auf Anfrage', 'm24-plattform' ) : (string) $rpr['brutto_fmt'];
 							$r_desc   = trim( preg_replace( '/\s+/', ' ', (string) wp_strip_all_tags( (string) get_post_meta( $rp_id, '_m24_beschreibung_de', true ) ) ) );
 							?>
-							<a class="rrow" href="<?php echo esc_url( get_permalink( $rp_id ) ); ?>">
+							<a class="ritem" href="<?php echo esc_url( get_permalink( $rp_id ) ); ?>">
 								<div class="rimg"><?php echo has_post_thumbnail( $rp_id ) ? get_the_post_thumbnail( $rp_id, 'medium' ) : ''; // phpcs:ignore ?></div>
 								<div class="rb">
 									<h4><?php echo esc_html( html_entity_decode( get_the_title( $rp_id ), ENT_QUOTES, 'UTF-8' ) ); ?></h4>
@@ -533,7 +550,7 @@ class M24_Catalog_Template_Detail {
 			var root=document.getElementById('m24det-<?php echo (int) $id; ?>');
 			if(!root)return;
 			// Bewertungs-Karte: pro Aufruf zufaellig eine Bewertung zeigen (cache-fest, clientseitig).
-			(function(){var its=root.querySelectorAll('.m24-review-card .m24-rc-item');if(its.length<2)return;for(var i=0;i<its.length;i++){its[i].classList.remove('is-active');}its[Math.floor(Math.random()*its.length)].classList.add('is-active');})();
+			(function(){root.querySelectorAll('.m24-review-card').forEach(function(card){var its=card.querySelectorAll('.m24-rc-item');if(its.length<2)return;for(var i=0;i<its.length;i++){its[i].classList.remove('is-active');}its[Math.floor(Math.random()*its.length)].classList.add('is-active');});})();
 			// Paket B: Tooltips. Hover/Focus = oeffnen (Desktop), Tap = toggeln (Touch),
 			// ESC oder Klick ausserhalb = schliessen, Viewport-Flip wenn untere Kante reisst.
 			(function(){
