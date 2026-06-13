@@ -249,10 +249,11 @@ class M24_Catalog_Template_Detail {
 		   folgt beim Scrollen bis Viewport-Top (Offset --m24-sticky-top = unter Theme-Headerbar).
 		   Stop-Boundary = Unterkante von .right (per Grid-Stretch = Unterkante Thumbnail-Strip),
 		   dort released der Sticky. Gilt fuer 2- und 3-Button-(Varianten-)Fall. */
-		/* Inner-Container streckt sich auf die volle Hoehe der rechten Zelle (= Thumbnail-Unterkante,
-		   da Grid-Zelle auf Zeilenhoehe gestreckt). Flex-Spalte → Trust-Zeile via margin-top:auto ans
-		   untere Ende (Linie buendig mit Thumbnail-Strip, Luft zwischen Buttons und Linie). */
-		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1;display:flex;flex-direction:column;flex:1 1 auto}
+		/* Inner-Container bleibt content-hoch + sticky → Preis/Buttons bleiben beim Scrollen gepinnt.
+		   Die Trust-Zeile ist GESCHWISTER von .m24-right-inner (direkt in .right). .right ist Flex-Spalte
+		   und auf Zeilenhoehe gestreckt (= Thumbnail-Unterkante) → m24-trust{margin-top:auto} parkt die
+		   graue Linie buendig an der Thumbnail-Unterkante, mit Luft ueber den Buttons. */
+		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1}
 		.m24det .m24-actions-group{display:flex;flex-direction:column}
 		.m24det .m24-varianten-wrap{margin:0}
 		.m24det .m24-varianten{appearance:none;-webkit-appearance:none;-moz-appearance:none;width:100%;height:46px;padding:0 38px 0 14px;border:0.5px solid var(--line);border-radius:8px;background:#fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231b1e22' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;font-family:'Saira',sans-serif;font-size:15px;font-weight:500;color:var(--tx);cursor:pointer;line-height:1}
@@ -335,7 +336,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:18px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:11.5px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tab{padding:12px 16px;font-size:14px}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:18px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -357,7 +358,10 @@ class M24_Catalog_Template_Detail {
 					$logo_alt = $is_neu ? 'MOTORSPORT24' : 'BMW';
 					?>
 					<div class="m24-detail-logo">
-						<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $logo_alt ); ?>" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy onerror="if(!this.complete||!this.naturalWidth){this.closest('.m24-detail-logo').style.display='none';}">
+						<?php // Kein onerror-Hide mehr: auf Safari (Lazy-/Smart-Affix-Timing) ein Fehlauslöser,
+						// der das intakte Logo ausblendete. Lazy-Unterdrueckung (skip-lazy/data-no-lazy)
+						// bleibt → Bild laedt sofort, kein WP-Rocket-Lazy-Swap. ?>
+						<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $logo_alt ); ?>" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -454,11 +458,11 @@ class M24_Catalog_Template_Detail {
 							<?php endif; ?>
 						</div>
 						</div>
-						<div class="m24-trust">
-							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
-							<span class="m24-trust-dot" aria-hidden="true">·</span>
-							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
 					</div>
+					<div class="m24-trust">
+						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
+						<span class="m24-trust-dot" aria-hidden="true">·</span>
+						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
 					</div>
 				</div>
 			</div>
