@@ -115,7 +115,7 @@ class M24_Search_Query {
 			$cats = wp_get_post_categories( $p->ID );
 			$sold = ! empty( array_intersect( $cats, $sold_ids ) );
 			$items[] = array(
-				'title' => get_the_title( $p->ID ),
+				'title' => html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' ),
 				'url'   => get_permalink( $p->ID ),
 				'thumb' => self::thumb( $p->ID ),
 				'sold'  => $sold,
@@ -148,7 +148,7 @@ class M24_Search_Query {
 				$price = isset( $pr['brutto_fmt'] ) ? (string) $pr['brutto_fmt'] : '';
 			}
 			$items[] = array(
-				'title' => get_the_title( $pid ),
+				'title' => html_entity_decode( get_the_title( $pid ), ENT_QUOTES, 'UTF-8' ),
 				'url'   => get_permalink( $pid ),
 				'thumb' => self::thumb( $pid ),
 				'price' => $price,
@@ -179,7 +179,7 @@ class M24_Search_Query {
 		$items = array();
 		foreach ( $query->posts as $p ) {
 			$items[] = array(
-				'title' => get_the_title( $p->ID ),
+				'title' => html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' ),
 				'url'   => get_permalink( $p->ID ),
 				'thumb' => self::thumb( $p->ID ),
 				'meta'  => ( 'page' === $p->post_type ) ? __( 'Seite', 'm24-plattform' ) : __( 'Beitrag', 'm24-plattform' ),

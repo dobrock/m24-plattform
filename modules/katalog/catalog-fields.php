@@ -93,6 +93,13 @@ class M24_Catalog_Fields {
 			.m24po-shadow{font-size:11px;color:#666;margin-top:2px;font-family:monospace}
 			.m24po-add{background:#fff;border:1px dashed #1763ad;color:#1763ad;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12.5px}
 			.m24po-add:hover{background:#e8f1fb}
+			/* Veröffentlichen-Box robust gegen Float-/Overlap-Probleme (WP 7.0 + Cache-Plugin-
+			   Buttons wie „Cache leeren"). Nur auf dieser Editor-Seite aktiv (Style liegt in der
+			   Teile-Metabox). Stellt den Standard-Float wieder her. */
+			#submitdiv #major-publishing-actions{display:flow-root;align-items:center}
+			#submitdiv #delete-action{float:left;line-height:28px}
+			#submitdiv #publishing-action{float:right;text-align:right}
+			#submitdiv .misc-pub-section{overflow:hidden}
 		</style>
 		<div class="m24f">
 			<label>Typ</label>
