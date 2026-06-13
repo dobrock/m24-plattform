@@ -58,7 +58,7 @@ class M24_Sold_Alternatives {
 	}
 
 	/** Passende Fahrzeuge: Beitraege der 4 Kategorien, Titel-Match aufs Modell. */
-	public static function matching_vehicles( $post_id, $limit = 6 ) {
+	public static function matching_vehicles( $post_id, $limit = 3 ) {
 		$terms = get_the_terms( $post_id, self::TAX );
 		if ( ! $terms || is_wp_error( $terms ) || ! class_exists( 'M24_Search_Query' ) ) {
 			return array( 'items' => array(), 'archive' => self::vehicles_archive(), 'model' => '' );
@@ -66,27 +66,39 @@ class M24_Sold_Alternatives {
 		$model    = $terms[0]->name;
 		$cat_ids  = M24_Search_Query::fahrzeug_cat_ids();
 		$sold_ids = M24_Search_Query::fahrzeug_sold_cat_ids();
-		if ( empty( $cat_ids ) ) {
+		// Nur AKTIVE Angebote: For-Sale-Kategorien (Sold-Kategorien ausschliessen).
+		$active_ids = array_values( array_diff( $cat_ids, $sold_ids ) );
+		if ( empty( $active_ids ) ) {
 			return array( 'items' => array(), 'archive' => self::vehicles_archive(), 'model' => $model );
 		}
+		$limit = max( 1, (int) $limit );
 		$q = new WP_Query( array(
 			'post_type'           => 'post',
 			'post_status'         => 'publish',
 			's'                   => $model,
-			'category__in'        => $cat_ids,
-			'posts_per_page'      => max( 1, (int) $limit ),
+			'category__in'        => $active_ids,
+			'posts_per_page'      => $limit + 6, // Puffer fuer das Titel-Sicherheitsnetz unten
 			'no_found_rows'       => true,
 			'ignore_sticky_posts' => true,
+			// Zusaetzlich per Meta als verkauft markierte Fahrzeuge ausschliessen (kein SOLD mehr).
+			'meta_query'          => array(
+				'relation' => 'OR',
+				array( 'key' => '_m24_fahrzeug_verkauft', 'compare' => 'NOT EXISTS' ),
+				array( 'key' => '_m24_fahrzeug_verkauft', 'value' => '1', 'compare' => '!=' ),
+			),
 		) );
 		$items = array();
 		foreach ( $q->posts as $p ) {
-			$cats = wp_get_post_categories( $p->ID );
+			$title = html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' );
+			// Sicherheitsnetz: als „SOLD …" betitelte Fahrzeuge nie zeigen — falls Kategorie/Meta
+			// nicht gepflegt sind (kanonisch greifen bereits Kategorie- + _m24_fahrzeug_verkauft-Filter).
+			if ( preg_match( '/^\s*sold\b/i', $title ) ) { continue; }
 			$items[] = array(
-				'title' => html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' ),
+				'title' => $title,
 				'url'   => get_permalink( $p->ID ),
 				'thumb' => self::thumb( $p->ID ),
-				'sold'  => ! empty( array_intersect( $cats, $sold_ids ) ),
 			);
+			if ( count( $items ) >= $limit ) { break; }
 		}
 		wp_reset_postdata();
 		return array( 'items' => $items, 'archive' => self::vehicles_archive(), 'model' => $model );
@@ -123,10 +135,11 @@ class M24_Sold_Alternatives {
 	/** Inline-Block (zweispaltig). Wird auch vom Lightbox-JS geklont. */
 	public static function render_block( $post_id ) {
 		$parts    = self::similar_parts( $post_id );
-		$vehicles = self::matching_vehicles( $post_id );
+		$vehicles     = self::matching_vehicles( $post_id );
+		$has_vehicles = ! empty( $vehicles['items'] );
 		ob_start(); ?>
 		<section class="m24-sold-alt" aria-label="<?php esc_attr_e( 'Alternativen', 'm24-plattform' ); ?>">
-			<div class="m24-sold-alt-grid">
+			<div class="m24-sold-alt-grid<?php echo $has_vehicles ? '' : ' m24-sold-alt-grid--single'; ?>">
 				<div class="m24-sold-col m24-sold-col--parts">
 					<h3><?php esc_html_e( 'Ähnliche Teile', 'm24-plattform' ); ?></h3>
 					<?php if ( ! empty( $parts['items'] ) ) : ?>
@@ -143,19 +156,17 @@ class M24_Sold_Alternatives {
 						<?php endif; ?>
 					<?php endif; ?>
 				</div>
+				<?php if ( $has_vehicles ) : ?>
 				<div class="m24-sold-col m24-sold-col--cars">
-					<h3><?php esc_html_e( 'Passende Fahrzeuge', 'm24-plattform' ); ?></h3>
-					<?php if ( ! empty( $vehicles['items'] ) ) : ?>
-						<div class="m24-alt-list">
-							<?php foreach ( $vehicles['items'] as $it ) {
-								echo self::card( $it, ! empty( $it['sold'] ) ? __( 'Sold', 'm24-plattform' ) : __( 'For Sale', 'm24-plattform' ) ); // phpcs:ignore
-							} ?>
-						</div>
-					<?php else : ?>
-						<p class="m24-alt-empty"><?php esc_html_e( 'Keine passenden Fahrzeuge.', 'm24-plattform' ); ?></p>
-						<a class="m24-alt-all" href="<?php echo esc_url( $vehicles['archive'] ); ?>"><?php esc_html_e( 'Aktuelle Fahrzeuge ansehen →', 'm24-plattform' ); ?></a>
-					<?php endif; ?>
+					<h3><?php esc_html_e( 'Aktuelle Fahrzeugangebote', 'm24-plattform' ); ?></h3>
+					<div class="m24-alt-list">
+						<?php foreach ( $vehicles['items'] as $it ) {
+							echo self::card( $it, __( 'For Sale', 'm24-plattform' ) ); // phpcs:ignore — nur aktive Angebote, kein SOLD
+						} ?>
+					</div>
+					<a class="m24-alt-all" href="<?php echo esc_url( $vehicles['archive'] ); ?>"><?php esc_html_e( 'Alle aktuellen Fahrzeuge ansehen →', 'm24-plattform' ); ?></a>
 				</div>
+				<?php endif; ?>
 			</div>
 		</section>
 		<?php return ob_get_clean();

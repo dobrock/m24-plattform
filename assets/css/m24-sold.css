@@ -34,7 +34,12 @@
 	margin: 28px 0 8px;
 }
 .m24-sold-alt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.m24-sold-alt-grid--single { grid-template-columns: 1fr; } /* keine Fahrzeuge → Teile über volle Breite */
 .m24-sold-col { min-width: 0; }
+/* Groessere Thumbnails in der Fahrzeug-Spalte (nur max. 3 Angebote → mehr Platz). */
+.m24-sold-col--cars .m24-alt-img { width: 120px; height: 80px; border-radius: 6px; }
+.m24-sold-col--cars .m24-alt-card { gap: 14px; padding: 9px; }
+.m24-sold-col--cars .m24-alt-title { font-size: 15px; }
 .m24-sold-col h3 {
 	font-family: 'Saira', Arial, sans-serif;
 	font-size: 16px; font-weight: 700; letter-spacing: .5px;
