@@ -119,6 +119,7 @@ class M24_Catalog_Template_Detail {
 		$terms      = get_the_terms( $id, M24_Catalog_CPT::TAXONOMY );
 		$term_names = ( $terms && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'name' ) : array();
 		$verkauft   = ( 'verkauft' === $status );
+		$preis_auf_anfrage = (bool) get_post_meta( $id, '_m24_preis_auf_anfrage', true );
 		$is_neu     = ( 'neu' === $typ );
 		$typ_label  = $is_neu ? 'Rennsport Teile' : 'Gebrauchte BMW M Teile';
 		$typ_url    = home_url( $is_neu ? '/rennsport-teile/' : '/gebrauchtteile/' );
@@ -172,7 +173,7 @@ class M24_Catalog_Template_Detail {
 		if ( $desc ) {
 			$product_ld['description'] = mb_substr( wp_strip_all_tags( $desc ), 0, 2000 );
 		}
-		if ( $preis['brutto'] > 0 ) {
+		if ( $preis['brutto'] > 0 && ! $preis_auf_anfrage ) {
 			$avail  = $verkauft ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
 			$cond   = $is_neu ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition';
 			$opts   = isset( $opts_data['options'] ) ? $opts_data['options'] : array();
@@ -239,6 +240,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .thumbs .t:focus,.m24det .thumbs .t:focus-visible{outline:none}
 		.m24det .thumbs .more{position:absolute;inset:0;background:rgba(20,22,26,.66);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Saira',sans-serif;font-weight:700;font-size:17px}
 		.m24det .pbr{font-family:'Saira',sans-serif;font-weight:700;font-size:26px;color:var(--bronze)}
+		.m24det .m24-preis-anfrage{font-family:'Saira',sans-serif;font-weight:700;font-size:22px;color:var(--blued)}
 		.m24det .pnet{font-size:13.5px;margin-top:5px}
 		.m24det .pnet .lnk{display:inline-flex;align-items:center;gap:4px;color:var(--blue);cursor:help;vertical-align:baseline}
 		.m24det .pnet .lnk-i{width:13px;height:13px;flex:0 0 auto;display:block}
@@ -391,6 +393,8 @@ class M24_Catalog_Template_Detail {
 					<?php $pos_list = isset( $opts_data['options'] ) ? $opts_data['options'] : array(); ?>
 					<?php if ( $verkauft ) : ?>
 						<div class="m24-sold-badge"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></div>
+					<?php elseif ( $preis_auf_anfrage ) : ?>
+						<div class="m24-preis-anfrage"><?php esc_html_e( 'Preis auf Anfrage', 'm24-plattform' ); ?></div>
 					<?php else :
 						$pos_n = count( $pos_list );
 						?>
@@ -425,7 +429,7 @@ class M24_Catalog_Template_Detail {
 					</div>
 
 						<div class="m24-actions-group">
-						<?php if ( ! $verkauft && ! empty( $pos_list ) && count( $pos_list ) > 1 ) : ?>
+						<?php if ( ! $verkauft && ! $preis_auf_anfrage && ! empty( $pos_list ) && count( $pos_list ) > 1 ) : ?>
 							<div class="m24-varianten-wrap">
 								<label class="slabel" for="m24-varianten-<?php echo (int) $id; ?>">VARIANTE</label>
 								<select class="m24-varianten" id="m24-varianten-<?php echo (int) $id; ?>">

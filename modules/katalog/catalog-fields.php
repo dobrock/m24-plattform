@@ -62,10 +62,11 @@ class M24_Catalog_Fields {
 		$desc_de = get_post_meta( $post->ID, '_m24_beschreibung_de', true );
 
 		// Preisoptionen + Eingabemodus
-		$opts        = M24_Catalog_Pricing::raw_options( $post->ID );
-		$preis_mode  = get_post_meta( $post->ID, '_m24_preis_eingabe', true ) ?: 'brutto';
-		$preis_mode  = in_array( $preis_mode, array( 'brutto', 'netto' ), true ) ? $preis_mode : 'brutto';
-		$tax_rate    = self::tax_rate();
+		$opts             = M24_Catalog_Pricing::raw_options( $post->ID );
+		$preis_mode       = get_post_meta( $post->ID, '_m24_preis_eingabe', true ) ?: 'brutto';
+		$preis_mode       = in_array( $preis_mode, array( 'brutto', 'netto' ), true ) ? $preis_mode : 'brutto';
+		$tax_rate         = self::tax_rate();
+		$preis_auf_anfrage = (bool) get_post_meta( $post->ID, '_m24_preis_auf_anfrage', true );
 
 		// Wenn noch keine Optionen vorhanden (z.B. ganz neuer Post): eine leere Default-Option.
 		if ( empty( $opts ) ) {
@@ -117,6 +118,18 @@ class M24_Catalog_Fields {
 			<label>Hinweis <span class="hint">(optional, z. B. „Stand 2011")</span></label>
 			<input type="text" name="m24_hinweis" value="<?php echo $g( '_m24_hinweis' ); ?>">
 
+			<label>Preis</label>
+			<div>
+				<div id="m24po-list" data-mode="<?php echo esc_attr( $preis_mode ); ?>" data-rate="<?php echo esc_attr( (string) $tax_rate ); ?>">
+					<?php self::render_option_row( 0, $opts[0], $preis_mode, $tax_rate ); // Einzelpreis (Brutto/Netto-Switch + Live-Netto) ?>
+				</div>
+				<label style="font-weight:400;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-top:2px">
+					<input type="checkbox" name="m24_preis_auf_anfrage" value="1" <?php checked( $preis_auf_anfrage, true ); ?>>
+					<span>Preis auf Anfrage <span class="hint">(Frontend zeigt „Preis auf Anfrage" statt Betrag; Schema ohne Preis)</span></span>
+				</label>
+				<input type="hidden" name="m24_preis_eingabe" id="m24po-mode-hidden" value="<?php echo esc_attr( $preis_mode ); ?>">
+			</div>
+
 			<label>MwSt-Modus</label>
 			<select name="m24_mwst_modus">
 				<option value="regel" <?php selected( $modus, 'regel' ); ?>>Regelbesteuerung (19 %, netto + MwSt)</option>
@@ -156,22 +169,17 @@ class M24_Catalog_Fields {
 				<?php endif; ?>
 			</div>
 
-			<p class="full" style="margin:14px 0 4px;font-weight:600">Preis <span class="hint">(Einzelpreis. Weitere Varianten optional einklappbar · &gt;1 Option = Frontend-Dropdown)</span></p>
-			<div class="full" id="m24po-list" data-mode="<?php echo esc_attr( $preis_mode ); ?>" data-rate="<?php echo esc_attr( (string) $tax_rate ); ?>">
-				<?php self::render_option_row( 0, $opts[0], $preis_mode, $tax_rate ); // Option 1 immer sichtbar ?>
-			</div>
-			<details class="full m24po-more" style="margin:2px 0 6px"<?php echo ( count( $opts ) > 1 ) ? ' open' : ''; ?>>
-				<summary style="cursor:pointer;font-weight:600;color:#2271b1;margin:6px 0">Weitere Preis-Varianten</summary>
+			<p class="full" style="margin:14px 0 4px;font-weight:600">Beschreibung (DE)</p>
+			<textarea class="full" name="m24_beschreibung_de" rows="7"><?php echo esc_textarea( $desc_de ); ?></textarea>
+			<p class="full hint">Reiner Text; einfache HTML-Tags (z. B. &lt;ul&gt;&lt;li&gt;, &lt;b&gt;) sind erlaubt. Absätze entstehen automatisch.</p>
+
+			<details class="full m24po-more" style="margin:10px 0 6px">
+				<summary style="cursor:pointer;font-weight:600;color:#2271b1;margin:6px 0">Weitere Preis-Varianten<?php if ( count( $opts ) > 1 ) : ?> (<?php echo (int) ( count( $opts ) - 1 ); ?>)<?php endif; ?></summary>
 				<div id="m24po-list-more" data-mode="<?php echo esc_attr( $preis_mode ); ?>" data-rate="<?php echo esc_attr( (string) $tax_rate ); ?>">
 					<?php for ( $i = 1, $n = count( $opts ); $i < $n; $i++ ) : self::render_option_row( $i, $opts[ $i ], $preis_mode, $tax_rate ); endfor; ?>
 				</div>
 				<div style="margin-top:6px"><button type="button" class="m24po-add" id="m24po-add">+ Option hinzufügen</button></div>
 			</details>
-			<input type="hidden" name="m24_preis_eingabe" id="m24po-mode-hidden" value="<?php echo esc_attr( $preis_mode ); ?>">
-
-			<p class="full" style="margin:6px 0 0;font-weight:600">Beschreibung (DE)</p>
-			<textarea class="full" name="m24_beschreibung_de" rows="7"><?php echo esc_textarea( $desc_de ); ?></textarea>
-			<p class="full hint">Reiner Text; einfache HTML-Tags (z. B. &lt;ul&gt;&lt;li&gt;, &lt;b&gt;) sind erlaubt. Absätze entstehen automatisch.</p>
 
 			<p class="full hint">Titel (DE) oben im Titelfeld. „Beitragsbild" (rechts) = Titelbild. Mehrere Bilder in der Box „Bilder &amp; Galerie". Fahrzeug-Zuordnung über „Passend für".</p>
 		</div>
@@ -349,6 +357,7 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_logo_anzeigen', isset( $_POST['m24_logo_anzeigen'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_leichtbau',         isset( $_POST['m24_leichtbau'] )         ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_rennsport_hinweis', isset( $_POST['m24_rennsport_hinweis'] ) ? 1 : 0 );
+		update_post_meta( $post_id, '_m24_preis_auf_anfrage', isset( $_POST['m24_preis_auf_anfrage'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_beschreibung_de', wp_kses_post( wp_unslash( isset( $_POST['m24_beschreibung_de'] ) ? $_POST['m24_beschreibung_de'] : '' ) ) );
 
 		// Preis-Eingabe-Modus persistieren (fuer das naechste Oeffnen).
