@@ -40,7 +40,8 @@ class M24_Sold_Alternatives {
 		) );
 		$items = array();
 		foreach ( $q->posts as $p ) {
-			$pr = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::get( $p->ID ) : array();
+			$anfrage = (bool) get_post_meta( $p->ID, '_m24_preis_auf_anfrage', true );
+			$pr = ( ! $anfrage && class_exists( 'M24_Catalog_Pricing' ) ) ? M24_Catalog_Pricing::get( $p->ID ) : array();
 			$items[] = array(
 				'title' => html_entity_decode( get_the_title( $p->ID ), ENT_QUOTES, 'UTF-8' ),
 				'url'   => get_permalink( $p->ID ),

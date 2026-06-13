@@ -142,8 +142,9 @@ class M24_Search_Query {
 		foreach ( $query->posts as $p ) {
 			$pid    = $p->ID;
 			$sold   = ( 'verkauft' === get_post_meta( $pid, '_m24_status', true ) );
+			$anfrage = (bool) get_post_meta( $pid, '_m24_preis_auf_anfrage', true );
 			$price  = '';
-			if ( ! $sold && class_exists( 'M24_Catalog_Pricing' ) ) {
+			if ( ! $sold && ! $anfrage && class_exists( 'M24_Catalog_Pricing' ) ) {
 				$pr    = M24_Catalog_Pricing::get( $pid );
 				$price = isset( $pr['brutto_fmt'] ) ? (string) $pr['brutto_fmt'] : '';
 			}
