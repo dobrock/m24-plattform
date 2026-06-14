@@ -126,8 +126,8 @@ class M24_Catalog_Template_Detail {
 		$home       = home_url( '/' );
 
 		$imgs   = self::images( $id );
-		$shown  = array_slice( $imgs, 0, 6 );
-		$extra  = max( 0, count( $imgs ) - 6 );
+		$shown  = array_slice( $imgs, 0, 5 );           // max. 5 Kacheln, eine Reihe
+		$extra  = max( 0, count( $imgs ) - 5 );          // >5 → 5. Kachel abgedunkelt „+N"
 
 		// „Weitere Teile" = manuelle Pins zuerst, dann Auto-Auffuellung (Modell → Baugruppe),
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
@@ -231,8 +231,8 @@ class M24_Catalog_Template_Detail {
 		.m24det .m24-noimg-t2{font-size:12.5px;color:#9a988f}
 		.m24det .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.88);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;color:var(--tx);font-size:18px}
 		.m24det .nav-arrow.prev{left:10px}.m24det .nav-arrow.next{right:10px}
-		.m24det .thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-		.m24det .thumbs .t{flex:0 0 auto;width:120px;aspect-ratio:3/2;border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative;background:#fff;cursor:pointer}
+		.m24det .thumbs{display:flex;flex-wrap:nowrap;gap:10px;margin-top:10px}
+		.m24det .thumbs .t{flex:1 1 0;min-width:0;max-width:120px;aspect-ratio:3/2;border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative;background:#fff;cursor:pointer}
 		.m24det .thumbs .t img{width:100%;height:100%;object-fit:cover;background:#fff}
 		.m24det .thumbs .t.active{border-color:var(--line);border-width:1px}
 		.m24det .ratio img{outline:none}
@@ -276,13 +276,10 @@ class M24_Catalog_Template_Detail {
 		.m24det .btn-pri{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:none;margin-bottom:10px}
 		.m24det .btn-sec{background:#fff;color:var(--blued);border:1px solid var(--blue)}
 		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
-		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare unter den Buttons, per feiner Linie abgesetzt.
-		   Letztes Element von .m24-right-inner → parkt am Sticky-Stopp (Thumbnail-Unterkante). */
-		/* Trust-Zeile ist GESCHWISTER der sticky Preisbox (direkt in .right, das per Grid auf
-		   Zeilenhoehe = Galerie-Hoehe gestreckt ist). margin-top:auto dockt Trennlinie+Text an die
-		   Spalten-Unterkante (= Thumbnail-Unterkante). Preisbox bleibt dadurch sticky. Mobil (1-Spalte)
-		   ist .right content-hoch → margin-top:auto ohne Effekt → Mobile unveraendert. */
-		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:auto;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare, per feiner Linie abgesetzt. Liegt als LETZTES
+		   Element INNERHALB der sticky Preisbox (.m24-right-inner), direkt unter den Buttons —
+		   kompakt mit ~16px Abstand, scrollt sticky mit (kein margin-top:auto, kein Geschwister). */
+		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
 		.m24det .m24-trust-dot{color:var(--line)}
@@ -406,7 +403,7 @@ class M24_Catalog_Template_Detail {
 					</div>
 					<?php if ( count( $imgs ) > 1 ) : // T1: Strip nur bei >1 Bild (sonst Einzelbild-Duplikat) ?>
 						<div class="thumbs">
-							<?php foreach ( $shown as $i => $im ) : $is_more = ( 5 === $i && $extra > 0 ); ?>
+							<?php foreach ( $shown as $i => $im ) : $is_more = ( 4 === $i && $extra > 0 ); // 5. Kachel (Index 4) = more-tile ?>
 								<div class="t<?php echo 0 === $i ? ' active' : ''; ?><?php echo $is_more ? ' more-tile' : ''; ?>" data-i="<?php echo (int) $i; ?>">
 									<img src="<?php echo esc_url( $im['thumb'] ); ?>" alt="">
 									<?php if ( $is_more ) : ?><span class="more">+<?php echo esc_html( $extra ); ?></span><?php endif; ?>
@@ -483,11 +480,11 @@ class M24_Catalog_Template_Detail {
 							<?php endif; ?>
 						</div>
 						</div>
-					</div>
-					<div class="m24-trust">
-						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
-						<span class="m24-trust-dot" aria-hidden="true">·</span>
-						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
+						<div class="m24-trust">
+							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
+							<span class="m24-trust-dot" aria-hidden="true">·</span>
+							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
+						</div>
 					</div>
 				</div>
 			</div>
