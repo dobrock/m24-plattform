@@ -278,7 +278,11 @@ class M24_Catalog_Template_Detail {
 		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
 		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare unter den Buttons, per feiner Linie abgesetzt.
 		   Letztes Element von .m24-right-inner → parkt am Sticky-Stopp (Thumbnail-Unterkante). */
-		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+		/* Trust-Zeile ist GESCHWISTER der sticky Preisbox (direkt in .right, das per Grid auf
+		   Zeilenhoehe = Galerie-Hoehe gestreckt ist). margin-top:auto dockt Trennlinie+Text an die
+		   Spalten-Unterkante (= Thumbnail-Unterkante). Preisbox bleibt dadurch sticky. Mobil (1-Spalte)
+		   ist .right content-hoch → margin-top:auto ohne Effekt → Mobile unveraendert. */
+		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:auto;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
 		.m24det .m24-trust-dot{color:var(--line)}
@@ -479,11 +483,11 @@ class M24_Catalog_Template_Detail {
 							<?php endif; ?>
 						</div>
 						</div>
+					</div>
 					<div class="m24-trust">
 						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
 						<span class="m24-trust-dot" aria-hidden="true">·</span>
 						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v9H3z"/><path d="M14 9h3.5L21 12.5V15h-7z"/><circle cx="7" cy="18" r="1.7"/><circle cx="17" cy="18" r="1.7"/></svg> weltweiter Versand</span>
-					</div>
 					</div>
 				</div>
 			</div>
