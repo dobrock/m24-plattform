@@ -121,7 +121,7 @@ class M24_Catalog_Template_Detail {
 		$verkauft   = ( 'verkauft' === $status );
 		$preis_auf_anfrage = (bool) get_post_meta( $id, '_m24_preis_auf_anfrage', true );
 		$is_neu     = ( 'neu' === $typ );
-		$typ_label  = $is_neu ? 'Rennsport Teile' : 'Gebrauchte BMW M Teile';
+		$typ_label  = $is_neu ? 'Rennsport Teile' : 'Gebrauchte Teile';
 		$typ_url    = home_url( $is_neu ? '/rennsport-teile/' : '/gebrauchtteile/' );
 		$home       = home_url( '/' );
 
@@ -357,7 +357,7 @@ class M24_Catalog_Template_Detail {
 				<a href="<?php echo esc_url( $home ); ?>" aria-label="Start" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></a>
 				<span>›</span><a href="<?php echo esc_url( $typ_url ); ?>"><?php echo esc_html( $typ_label ); ?></a>
 				<?php if ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) : // Primaer-Modell (erstes Term) — weitere Modelle bleiben uebers Archiv-Filter erreichbar. ?>
-					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $terms[0]->slug, $typ_url ) ); ?>"><?php echo esc_html( $terms[0]->name ); ?></a>
+					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $terms[0]->slug, $typ_url ) ); ?>">passend für <?php echo esc_html( $terms[0]->name ); ?></a>
 				<?php endif; ?>
 				<span>›</span><span><?php echo esc_html( get_the_title( $id ) ); ?></span>
 			</div>
