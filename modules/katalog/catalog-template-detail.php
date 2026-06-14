@@ -208,6 +208,11 @@ class M24_Catalog_Template_Detail {
 		.m24det .m24-detail-head h1{margin:0;flex:1;min-width:0}
 		.m24det .m24-detail-head .m24-detail-logo{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;height:48px}
 		.m24det .m24-detail-head .m24-detail-logo img{max-height:42px;max-width:140px;width:auto;height:auto;display:block;object-fit:contain}
+		/* „Original BMW-Teil"-Badge (ersetzt das BMW-Rundel — Markenrecht). */
+		.m24-original-badge{display:inline-flex;align-items:center;gap:8px;background:#f3f3f0;border:1px solid #d2d2cb;border-radius:8px;padding:8px 14px;line-height:1;color:#111;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
+		.m24-original-badge__icon{flex:0 0 auto;color:#111}
+		.m24-original-badge__text{font-size:15px;font-weight:500;letter-spacing:.3px}
+		@media(max-width:767px){.m24-original-badge{padding:7px 12px}.m24-original-badge__text{font-size:14px}}
 		.m24det .row{display:grid;grid-template-columns:3fr 2fr;gap:48px}
 		.m24det .left,.m24det .right{min-width:0;display:flex;flex-direction:column}
 		.m24det .ratio{position:relative;width:100%;aspect-ratio:3/2;background:#ededea;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:zoom-in}
@@ -364,16 +369,17 @@ class M24_Catalog_Template_Detail {
 
 			<div class="m24-detail-head">
 				<h1><?php echo esc_html( get_the_title( $id ) ); ?></h1>
-				<?php if ( $logo_enabled ) :
-					$logo_url = m24_detail_logo_url( $typ );
-					$logo_alt = $is_neu ? 'MOTORSPORT24' : 'BMW';
-					?>
-					<div class="m24-detail-logo">
-						<?php // Kein onerror-Hide mehr: auf Safari (Lazy-/Smart-Affix-Timing) ein Fehlauslöser,
-						// der das intakte Logo ausblendete. Lazy-Unterdrueckung (skip-lazy/data-no-lazy)
-						// bleibt → Bild laedt sofort, kein WP-Rocket-Lazy-Swap. ?>
-						<img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $logo_alt ); ?>" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
-					</div>
+				<?php if ( $is_neu ) : ?>
+					<?php if ( $logo_enabled ) : ?>
+						<div class="m24-detail-logo">
+							<?php // MOTORSPORT24-Eigenlogo (kein Markenrechts-Problem). Lazy-Unterdrueckung bleibt. ?>
+							<img src="<?php echo esc_url( m24_detail_logo_url( 'neu' ) ); ?>" alt="MOTORSPORT24" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
+						</div>
+					<?php endif; ?>
+				<?php else : ?>
+					<?php // Markenrecht (BMW-Abmahnung 2023): KEIN BMW-Rundel mehr. Reines Text-Badge
+					// „Original BMW-Teil" — NUR bei echten Originalteilen (_m24_original_teil=1), sonst ''. ?>
+					<?php echo m24_render_original_badge( $id ); // phpcs:ignore — statisches Markup, intern gegated ?>
 				<?php endif; ?>
 			</div>
 

@@ -46,6 +46,7 @@ class M24_Catalog_Fields {
 		// Logo-Anzeigen-Default: TRUE wenn Meta nie gesetzt; explizite 0 wird respektiert.
 		$logo_raw     = get_post_meta( $post->ID, '_m24_logo_anzeigen', true );
 		$logo_anzeigen = ( '' === $logo_raw ) ? true : (bool) (int) $logo_raw;
+		$original_teil = '1' === get_post_meta( $post->ID, '_m24_original_teil', true );
 		$leichtbau    = (bool) (int) get_post_meta( $post->ID, '_m24_leichtbau', true );
 		$rennsport_hinweis = (bool) (int) get_post_meta( $post->ID, '_m24_rennsport_hinweis', true );
 		// N2/T8: URL-Slug.
@@ -146,7 +147,13 @@ class M24_Catalog_Fields {
 			<label>Logo anzeigen</label>
 			<label style="font-weight:400;cursor:pointer">
 				<input type="checkbox" name="m24_logo_anzeigen" value="1" <?php checked( $logo_anzeigen, true ); ?>>
-				<span>Typ-Logo (BMW bei Gebraucht / MOTORSPORT24 bei Neuteil) oben rechts im Detail-Header</span>
+				<span>MOTORSPORT24-Logo bei Neuteilen oben rechts im Detail-Header (Gebrauchtteile: kein BMW-Logo mehr — siehe „Original BMW-Teil")</span>
+			</label>
+
+			<label>Original BMW-Teil</label>
+			<label style="font-weight:400;cursor:pointer">
+				<input type="checkbox" name="m24_original_teil" value="1" <?php checked( $original_teil, true ); ?>>
+				<span>Badge „Original BMW-Teil" im Detail-Header anzeigen — <strong style="color:#c8102e">nur bei echten Original-BMW-Teilen</strong> (Markenrecht). NICHT bei Nachbau/Zubehör/Nicht-BMW.</span>
 			</label>
 
 			<label>Leichtbauteil</label>
@@ -355,6 +362,8 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_mwst_modus', $modus );
 		update_post_meta( $post_id, '_m24_status', $status );
 		update_post_meta( $post_id, '_m24_logo_anzeigen', isset( $_POST['m24_logo_anzeigen'] ) ? 1 : 0 );
+		// Markenrecht: „Original BMW-Teil"-Badge nur bei explizit markierten Originalteilen ('1').
+		update_post_meta( $post_id, '_m24_original_teil', isset( $_POST['m24_original_teil'] ) ? '1' : '0' );
 		update_post_meta( $post_id, '_m24_leichtbau',         isset( $_POST['m24_leichtbau'] )         ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_rennsport_hinweis', isset( $_POST['m24_rennsport_hinweis'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_preis_auf_anfrage', isset( $_POST['m24_preis_auf_anfrage'] ) ? 1 : 0 );
