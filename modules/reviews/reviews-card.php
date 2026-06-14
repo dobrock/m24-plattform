@@ -49,13 +49,12 @@ class M24_Reviews_Card {
 		if ( empty( $items ) || $avg_f <= 0 ) {
 			return '';
 		}
-		$pct     = max( 0, min( 100, $avg_f / 5 * 100 ) );
 		$avg_disp = number_format_i18n( $avg_f, 1 );
 
 		ob_start(); ?>
 		<aside class="m24-review-card" aria-label="<?php esc_attr_e( 'Kundenbewertungen', 'm24-plattform' ); ?>">
 			<div class="m24-rc-head">
-				<span class="m24-stars" aria-hidden="true">★★★★★<span class="m24-stars-fill" style="width:<?php echo esc_attr( round( $pct, 1 ) ); ?>%">★★★★★</span></span>
+				<span class="m24-stars" style="--rating:<?php echo esc_attr( number_format( $avg_f, 2, '.', '' ) ); ?>" role="img" aria-label="<?php echo esc_attr( sprintf( __( '%s von 5 Sternen', 'm24-plattform' ), $avg_disp ) ); ?>"><span class="m24-stars__fill"></span></span>
 				<span class="m24-rc-avg"><?php echo esc_html( $avg_disp ); ?></span>
 			</div>
 			<?php if ( $cfg['count'] > 0 ) : ?>

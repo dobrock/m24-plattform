@@ -254,12 +254,11 @@ class M24_Catalog_Template_Detail {
 		   folgt beim Scrollen bis Viewport-Top (Offset --m24-sticky-top = unter Theme-Headerbar).
 		   Stop-Boundary = Unterkante von .right (per Grid-Stretch = Unterkante Thumbnail-Strip),
 		   dort released der Sticky. Gilt fuer 2- und 3-Button-(Varianten-)Fall. */
-		/* EIN sticky-Element enthaelt alles: Preis/Buttons (oben), Spacer (flex-grow), Trennlinie+Trust
-		   (unten). So bleibt beim Scrollen alles als Block zusammen. Der Inner fuellt die rechte Zelle
-		   (flex:1 → Hoehe bis Thumbnail-Unterkante); der Spacer schiebt die Trust-Zeile ans untere Ende
-		   (max. dort, nicht tiefer). */
-		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1;display:flex;flex-direction:column;flex:1 1 auto}
-		.m24det .m24-sticky-spacer{flex:1 1 auto;min-height:0}
+		/* T2: EIN sticky-Element (kompakt, content-hoch) — Preis/Buttons + Trennlinie + Trust stacken eng
+		   (flex column). Da das Element kuerzer ist als die linke Galerie-Spalte, klebt es beim Scrollen
+		   am top und bleibt als Block zusammen gepinnt. KEIN flex:1/Fill (das hob das Pinnen auf, weil
+		   der Block dann die ganze Spalte fuellte); Trust liegt IM Element (rutscht nicht weg wie 0.7.2). */
+		.m24det .m24-right-inner{position:sticky;top:var(--m24-sticky-top);z-index:1;display:flex;flex-direction:column}
 		.m24det .m24-actions-group{display:flex;flex-direction:column}
 		.m24det .m24-varianten-wrap{margin:0}
 		.m24det .m24-varianten{appearance:none;-webkit-appearance:none;-moz-appearance:none;width:100%;height:46px;padding:0 38px 0 14px;border:0.5px solid var(--line);border-radius:8px;background:#fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231b1e22' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;font-family:'Saira',sans-serif;font-size:15px;font-weight:500;color:var(--tx);cursor:pointer;line-height:1}
@@ -274,7 +273,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
 		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare unter den Buttons, per feiner Linie abgesetzt.
 		   Letztes Element von .m24-right-inner → parkt am Sticky-Stopp (Thumbnail-Unterkante). */
-		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:0;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
 		.m24det .m24-trust-dot{color:var(--line)}
@@ -294,10 +293,12 @@ class M24_Catalog_Template_Detail {
 		   Das desc-Panel ist volle Containerbreite, daher relativ dazu rechnen (nicht 66%). */
 		.m24det .m24-review-card{box-sizing:border-box;float:right;width:calc((100% - 48px) * 0.4);max-width:none;margin:2px 0 14px 28px;border:1px solid var(--line);border-radius:12px;padding:12px 15px;background:#fbfaf8;box-shadow:0 3px 12px rgba(0,0,0,.05);font-size:14px}
 		.m24det .m24-rc-head{display:flex;align-items:baseline;gap:8px}
-		/* Sterne: position !important, damit Theme/WP-Rocket-Optimierung die Overlay-Technik nicht
-		   aushebelt (sonst rendern Basis + Fuellung nebeneinander = 10 Sterne statt 5). */
-		.m24det .m24-stars{position:relative!important;display:inline-block;font-size:16px;line-height:1;letter-spacing:1.5px;color:#dcd7cf;white-space:nowrap}
-		.m24det .m24-stars-fill{position:absolute!important;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5a623}
+		/* T4: Sterne via ::before-Content — IMMER genau 5 Glyphen, --rating fuellt anteilig (4,9 = 98%).
+		   Robust gegen Theme/WP-Rocket (kein Inline-Width, keine zwei Glyph-Strings nebeneinander). */
+		.m24det .m24-stars{position:relative!important;display:inline-block;line-height:1;font-size:16px;white-space:nowrap}
+		.m24det .m24-stars::before{content:"\2605\2605\2605\2605\2605";color:#d8d8d8;letter-spacing:1.5px}
+		.m24det .m24-stars__fill{position:absolute!important;left:0;top:0;bottom:0;overflow:hidden;width:calc(var(--rating) / 5 * 100%);white-space:nowrap}
+		.m24det .m24-stars__fill::before{content:"\2605\2605\2605\2605\2605";color:#f5a623;letter-spacing:1.5px}
 		.m24det .m24-rc-avg{font-family:'Saira',sans-serif;font-size:18px;font-weight:700;color:var(--ink)}
 		.m24det .m24-rc-count{font-size:12px;color:var(--mut);margin-top:1px}
 		.m24det .m24-rc-item{display:none}
@@ -346,7 +347,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:18px;line-height:1.7}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .thumbs{overflow-x:auto;-webkit-overflow-scrolling:touch}.m24det .thumbs .t{flex:0 0 23%}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -393,7 +394,7 @@ class M24_Catalog_Template_Detail {
 							</div>
 						<?php endif; ?>
 					</div>
-					<?php if ( $shown ) : ?>
+					<?php if ( count( $imgs ) > 1 ) : // T1: Strip nur bei >1 Bild (sonst Einzelbild-Duplikat) ?>
 						<div class="thumbs">
 							<?php foreach ( $shown as $i => $im ) : $is_more = ( 5 === $i && $extra > 0 ); ?>
 								<div class="t<?php echo 0 === $i ? ' active' : ''; ?><?php echo $is_more ? ' more-tile' : ''; ?>" data-i="<?php echo (int) $i; ?>">
@@ -472,7 +473,6 @@ class M24_Catalog_Template_Detail {
 							<?php endif; ?>
 						</div>
 						</div>
-					<div class="m24-sticky-spacer" aria-hidden="true"></div>
 					<div class="m24-trust">
 						<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
 						<span class="m24-trust-dot" aria-hidden="true">·</span>
