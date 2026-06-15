@@ -107,16 +107,8 @@ class M24_Inquiry_Frontend {
 						<input type="text" name="vorname" placeholder="<?php esc_attr_e( 'Vorname', 'm24-plattform' ); ?>" autocomplete="given-name">
 						<input type="text" name="nachname" placeholder="<?php esc_attr_e( 'Nachname', 'm24-plattform' ); ?>" autocomplete="family-name">
 					</div>
-					<div class="m24iq-row m24iq-2">
-						<input type="email" name="email" placeholder="<?php esc_attr_e( 'E-Mail *', 'm24-plattform' ); ?>" required autocomplete="email">
-						<input type="tel" name="tel" placeholder="<?php esc_attr_e( 'Telefon', 'm24-plattform' ); ?>" autocomplete="tel">
-					</div>
 					<div class="m24iq-row">
-						<input type="text" name="strasse" placeholder="<?php esc_attr_e( 'Straße & Hausnummer', 'm24-plattform' ); ?>" autocomplete="street-address">
-					</div>
-					<div class="m24iq-row m24iq-2">
-						<input type="text" name="plz" placeholder="<?php esc_attr_e( 'PLZ', 'm24-plattform' ); ?>" autocomplete="postal-code">
-						<input type="text" name="ort" placeholder="<?php esc_attr_e( 'Ort', 'm24-plattform' ); ?>" autocomplete="address-level2">
+						<input type="email" name="email" placeholder="<?php esc_attr_e( 'E-Mail *', 'm24-plattform' ); ?>" required autocomplete="email">
 					</div>
 					<div class="m24iq-row m24iq-2">
 						<div class="m24iq-landwrap">

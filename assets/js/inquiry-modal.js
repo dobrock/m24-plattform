@@ -127,7 +127,6 @@
 		var o = overlay(); if (!o) { return; }
 		var on = field('biz') && field('biz').value === '1';
 		o.querySelectorAll('.m24iq-biz').forEach(function (el) { el.hidden = !on; });
-		['strasse', 'plz', 'ort'].forEach(function (n) { var f = field(n); if (f) { f.required = !!on; } });
 	}
 
 	function submitModal(e) {
@@ -144,8 +143,7 @@
 		var payload = {
 			biz: field('biz') ? field('biz').value : '',
 			firma: val('firma'), vorname: val('vorname'), nachname: val('nachname'),
-			email: val('email'), tel: val('tel'), strasse: val('strasse'),
-			plz: val('plz'), ort: val('ort'), land: val('land'), uid: val('uid'),
+			email: val('email'), land: val('land'), uid: val('uid'),
 			notes: val('notes'),
 			dsgvo_consent: field('dsgvo_consent') && field('dsgvo_consent').checked ? '1' : '',
 			website_confirm: val('website_confirm'),

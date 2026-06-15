@@ -170,27 +170,6 @@ class M24_Inquiries_Form {
                     </div>
 
                     <div class="m24-form__field">
-                        <label for="m24-tel"><?php esc_html_e( 'Telefon', 'm24-plattform' ); ?></label>
-                        <input type="tel" name="tel" id="m24-tel" autocomplete="tel" value="<?php self::echo_field('tel'); ?>">
-                    </div>
-
-                    <div class="m24-form__field">
-                        <label for="m24-strasse"><?php esc_html_e( 'Straße & Hausnummer', 'm24-plattform' ); ?></label>
-                        <input type="text" name="strasse" id="m24-strasse" autocomplete="street-address" value="<?php self::echo_field('strasse'); ?>">
-                    </div>
-
-                    <div class="m24-form__row">
-                        <div class="m24-form__field m24-form__field--narrow">
-                            <label for="m24-plz"><?php esc_html_e( 'PLZ', 'm24-plattform' ); ?></label>
-                            <input type="text" name="plz" id="m24-plz" autocomplete="postal-code" value="<?php self::echo_field('plz'); ?>">
-                        </div>
-                        <div class="m24-form__field">
-                            <label for="m24-ort"><?php esc_html_e( 'Ort', 'm24-plattform' ); ?></label>
-                            <input type="text" name="ort" id="m24-ort" autocomplete="address-level2" value="<?php self::echo_field('ort'); ?>">
-                        </div>
-                    </div>
-
-                    <div class="m24-form__field">
                         <label for="m24-land"><?php esc_html_e( 'Land', 'm24-plattform' ); ?> <span class="m24-form__required">*</span></label>
                         <select name="land" id="m24-land" autocomplete="country" required>
                             <option value="DE" <?php self::is_selected('land', 'DE'); ?>>Deutschland</option>

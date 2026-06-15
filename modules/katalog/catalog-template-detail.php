@@ -335,7 +335,8 @@ class M24_Catalog_Template_Detail {
 		.m24det .related .dl{font-family:'Saira',sans-serif;font-size:12px;letter-spacing:1.5px;color:var(--bronze);margin-bottom:8px}
 		/* DESKTOP: urspruengliches Karten-Grid (Bild oben, Titel + Preis darunter). Beschreibung
 		   ausgeblendet. MOBIL (<=760px, siehe Media-Query): umschalten auf ¼/¾-Listenzeilen. */
-		.m24det .related-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:12px}
+		/* „Weitere Teile": einreihiges Grid — Desktop 5 Spalten, ≤900px 2 Spalten (kein Umbruch/keine Liste). */
+		.m24det .related-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:12px}
 		.m24det .ritem{border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;display:block}
 		.m24det .ritem .rimg{aspect-ratio:4/3;background:#ededea}
 		.m24det .ritem .rimg img{width:100%;height:100%;object-fit:cover;display:block}
@@ -343,6 +344,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .ritem h4{font-family:'Saira',sans-serif;font-weight:500;font-size:13.5px;margin:0 0 5px;line-height:1.25}
 		.m24det .ritem .rdesc{display:none}
 		.m24det .ritem .rp{font-family:'Saira',sans-serif;font-weight:700;font-size:14px;color:var(--bronze)}
+		@media(max-width:900px){.m24det .related-grid{grid-template-columns:repeat(2,1fr)}}
 		.m24-lb{display:none;position:fixed;inset:0;background:rgba(10,11,13,.93);z-index:99999;align-items:center;justify-content:center;padding:30px}
 		.m24-lb .lb-stage{flex:1;display:flex;align-items:center;justify-content:center;height:100%}
 		.m24-lb-img{max-width:100%;max-height:90vh;object-fit:contain;transition:opacity .3s ease}
@@ -353,7 +355,7 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .related-grid{display:flex;flex-direction:column;gap:10px}.m24det .ritem{display:grid;grid-template-columns:25% 1fr;gap:14px;align-items:center}.m24det .ritem .rb{padding:8px 14px 8px 0;min-width:0}.m24det .ritem h4{font-size:15px;font-weight:600;margin:0 0 3px}.m24det .ritem .rdesc{display:block;font-size:13px;color:#6b7077;line-height:1.4;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -370,17 +372,15 @@ class M24_Catalog_Template_Detail {
 
 			<div class="m24-detail-head">
 				<h1><?php echo esc_html( get_the_title( $id ) ); ?></h1>
-				<?php if ( $is_neu ) : ?>
-					<?php if ( $logo_enabled ) : ?>
-						<div class="m24-detail-logo">
-							<?php // MOTORSPORT24-Eigenlogo (kein Markenrechts-Problem). Lazy-Unterdrueckung bleibt. ?>
-							<img src="<?php echo esc_url( m24_detail_logo_url( 'neu' ) ); ?>" alt="MOTORSPORT24" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
-						</div>
-					<?php endif; ?>
-				<?php else : ?>
-					<?php // Markenrecht (BMW-Abmahnung 2023): KEIN BMW-Rundel mehr. Reines Text-Badge
-					// „Original BMW-Teil" — NUR bei echten Originalteilen (_m24_original_teil=1), sonst ''. ?>
-					<?php echo m24_render_original_badge( $id ); // phpcs:ignore — statisches Markup, intern gegated ?>
+				<?php
+				// Header oben rechts: echtes Original-BMW-Teil → Trust-Badge (Markenrecht, nur gebraucht+Flag).
+				// Sonst MOTORSPORT24-Eigenlogo statt leerem Platz. KEIN BMW-Rundel mehr (BMW-Abmahnung 2023).
+				if ( ! $is_neu && '1' === get_post_meta( $id, '_m24_original_teil', true ) ) :
+					echo m24_render_original_badge( $id ); // phpcs:ignore — statisches Markup, intern gegated
+				elseif ( $logo_enabled ) : ?>
+					<div class="m24-detail-logo">
+						<img src="<?php echo esc_url( m24_detail_logo_url( 'neu' ) ); ?>" alt="MOTORSPORT24" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
+					</div>
 				<?php endif; ?>
 			</div>
 

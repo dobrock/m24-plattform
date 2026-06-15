@@ -120,7 +120,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 
 		// Marken-Logo (eigenes M24-Logo, public URL – Outlook-/Brevo-tauglich)
 		$LOGO_URL  = 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2025/10/MOTORSPORT24-Logo_280px.png';
-		$LOGO_W    = 150; // Anzeigebreite px (Native 280px → scharf auf Retina)
+		$LOGO_W    = 112; // Anzeigebreite px (Native 280px → scharf auf Retina)
 
 		// --- Daten normalisieren -----------------------------------------
 		$titel      = isset( $a['titel'] ) && $a['titel'] !== '' ? $a['titel'] : 'Neue Produktanfrage';
@@ -186,7 +186,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 					. '</td></tr>';
 			}
 			if ( $p_art !== '' ) {
-				$rows .= '<tr><td style="padding:0;font-family:' . $MONO . ';font-size:12px;line-height:16px;color:' . $MUTED . ';">Art.-Nr.: ' . esc_html( $p_art ) . '</td></tr>';
+				$rows .= '<tr><td style="padding:0;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">Artikelnummer: ' . esc_html( $p_art ) . '</td></tr>';
 			}
 
 			// Trenn-Haarlinie zwischen mehreren Positionen (Sammelanfrage)
@@ -227,6 +227,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		$html = '<!DOCTYPE html><html lang="de" xmlns="http://www.w3.org/1999/xhtml"><head>'
 			. '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<meta http-equiv="X-UA-Compatible" content="IE=edge">'
+			. '<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">'
 			. '<title>' . esc_html( $titel ) . '</title>'
 			. '</head>'
 			. '<body style="margin:0;padding:0;background:' . $BG . ';-webkit-text-size-adjust:100%;">'
@@ -243,7 +244,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
 			. '<td style="font-family:' . $FF . ';font-size:17px;line-height:22px;font-weight:bold;color:' . $ANTHRAZIT . ';vertical-align:middle;">' . esc_html( $titel ) . '</td>'
 			. '<td align="right" style="vertical-align:middle;white-space:nowrap;">'
-			. '<img src="' . esc_url( $LOGO_URL ) . '" width="' . (int) $LOGO_W . '" alt="MOTORSPORT24" style="display:inline-block;width:' . (int) $LOGO_W . 'px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />'
+			. '<img src="' . esc_url( $LOGO_URL ) . '" width="' . (int) $LOGO_W . '" alt="MOTORSPORT24" style="display:inline-block;width:' . (int) $LOGO_W . 'px;height:auto;vertical-align:middle;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />'
 			. '</td>'
 			. '</tr></table>'
 			. '</td></tr>'
