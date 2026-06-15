@@ -400,7 +400,7 @@ class M24_Catalog_Template_Detail {
 							<div class="thumbs">
 								<?php foreach ( $shown as $i => $im ) : $is_more = ( 4 === $i && $extra > 0 ); // 5. Kachel (Index 4) = more-tile ?>
 									<div class="t<?php echo 0 === $i ? ' active' : ''; ?><?php echo $is_more ? ' more-tile' : ''; ?>" data-i="<?php echo (int) $i; ?>">
-										<img src="<?php echo esc_url( $im['thumb'] ); ?>" alt="">
+										<img src="<?php echo esc_url( $im['thumb'] ); ?>" alt="<?php echo esc_attr( get_the_title( $id ) . ' – Bild ' . ( (int) $i + 1 ) ); ?>">
 										<?php if ( $is_more ) : ?><span class="more">+<?php echo esc_html( $extra ); ?></span><?php endif; ?>
 									</div>
 								<?php endforeach; ?>
@@ -551,7 +551,7 @@ class M24_Catalog_Template_Detail {
 							?>
 							<a class="ritem" href="<?php echo esc_url( get_permalink( $rp_id ) ); ?>">
 								<?php if ( has_post_thumbnail( $rp_id ) ) : ?>
-									<div class="rimg"><?php echo get_the_post_thumbnail( $rp_id, 'medium' ); // phpcs:ignore ?></div>
+									<div class="rimg"><?php echo get_the_post_thumbnail( $rp_id, 'medium', array( 'alt' => esc_attr( html_entity_decode( get_the_title( $rp_id ), ENT_QUOTES, 'UTF-8' ) ) ) ); // phpcs:ignore ?></div>
 								<?php else : // Bildlos → Platzhalter als CSS-Background (kein <img>). ?>
 									<div class="rimg rimg-noimg" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
 								<?php endif; ?>

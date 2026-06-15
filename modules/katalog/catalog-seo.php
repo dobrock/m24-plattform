@@ -23,7 +23,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class M24_Catalog_SEO {
 
 	const PT             = 'm24_teil';
-	const TITLE_MAX      = 78;   // Soft-Cap: bevorzugte <title>-Laenge (Boilerplate wird zuerst geopfert)
+	const TITLE_MAX      = 65;   // Soft-Cap: SERP-tauglich. Reicht der Platz nicht, wird zuerst das Boilerplate
+	                            //   reduziert — zuletzt ganz weggelassen (nur {Titel}), nie die Teilenummern.
 	const TITLE_HARD_MAX = 100;  // Hard-Cap: erst hier wird der Titel SELBST gekuerzt — an Wortgrenze, nie in einer Nummer
 
 	const FIELD_TITLE  = '_wpseo_edit_title';
@@ -60,19 +61,21 @@ class M24_Catalog_SEO {
 			$variants = array(
 				$titel . ' | MOTORSPORT24 seit 2006',
 				$titel . ' | MOTORSPORT24',
+				$titel, // bare: Suffix weg, bevor der Titel/Teilenummern leiden
 			);
 		} else {
 			$variants = array(
 				$titel . ' Original gebraucht | MOTORSPORT24 seit 2006',
 				$titel . ' Original gebraucht | MOTORSPORT24',
 				$titel . ' | MOTORSPORT24',
+				$titel, // bare: Suffix weg, bevor der Titel/Teilenummern leiden
 			);
 		}
 		// Boilerplate zuerst opfern; Titel selbst wird hier NIE gekuerzt (steht ggf. ueber dem Soft-Cap).
 		foreach ( $variants as $v ) {
 			if ( mb_strlen( $v ) <= self::TITLE_MAX ) { return $v; }
 		}
-		return end( $variants );
+		return end( $variants ); // = bare {Titel} (ggf. hard-capped), ohne Suffix
 	}
 
 	/** Kuerzt NUR den Titel selbst, wenn er allein > $max ist — an der letzten Wortgrenze, mit „…". */
