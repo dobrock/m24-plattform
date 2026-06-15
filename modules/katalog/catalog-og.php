@@ -106,8 +106,8 @@ class M24_Catalog_OG {
 			}
 		}
 		if ( '' === $url ) {
-			// CC/Daniel: reales 1200×630-Default-Social-Bild hinterlegen oder Filter setzen.
-			$url = (string) apply_filters( 'm24_og_default_image', home_url( '/wp-content/uploads/m24-og-default.jpg' ) );
+			// Default-Social-Bild (Teil ohne Featured Image). Filterbar via m24_og_default_image.
+			$url = (string) apply_filters( 'm24_og_default_image', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/bild-folgt.png' );
 			$w = 0; $h = 0;
 		}
 		return array( 'url' => '' !== $url ? esc_url_raw( $url ) : '', 'w' => $w, 'h' => $h );
