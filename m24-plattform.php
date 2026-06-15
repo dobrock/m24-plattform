@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.7.17
+ * Version:           0.7.18
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.7.17' );
+define( 'M24_PLATTFORM_VERSION',     '0.7.18' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -103,6 +103,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seed-terms.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-rewrites.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seo.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-og.php';       // Open-Graph/Twitter (eine Quelle, ersetzt WPCode-Snippets)
 require_once M24_PLATTFORM_DIR . 'inc/detail-original-badge.php';        // „Original BMW-Teil"-Badge (Markenrecht), reiner Helfer
 
 // Anfragen-Frontend (Modal + Merkzettel-Mail; nutzt bestehende Inquiry-Pipeline).
@@ -165,6 +166,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_Rewrites::init();
     M24_Catalog_Archive::init();
     M24_Catalog_SEO::init();
+    M24_Catalog_OG::init();
     M24_Inquiry_Submit::init();
     M24_Inquiry_Frontend::init();
     // Gruppierte Suche: REST-Route, Vollergebnis-Routing, Frontend-Assets.
