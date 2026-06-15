@@ -134,7 +134,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		$datum_ts   = isset( $a['datum_ts'] ) ? (int) $a['datum_ts'] : time();
 		$positionen = isset( $a['positionen'] ) && is_array( $a['positionen'] ) ? $a['positionen'] : array();
 
-		$datum = date_i18n( 'd.m.Y H:i', $datum_ts ); // ohne Sekunden
+		$datum = wp_date( 'd.m.Y H:i', $datum_ts ); // Site-Zeitzone (CEST/CET), ohne Sekunden
 
 		// --- KONTAKT-Zeilen (nur befüllte) -------------------------------
 		$kontakt_rows = '';
@@ -215,7 +215,11 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		}
 
 		// --- Footer-Text --------------------------------------------------
-		$footer = 'Anfrage-ID: ' . ( $anfrage_id > 0 ? $anfrage_id : '—' ) . ' &middot; eingegangen ' . esc_html( $datum );
+		// ID nur zeigen, wenn vorhanden — sonst kein dangling „—".
+		$footer_parts = array();
+		if ( $anfrage_id > 0 ) { $footer_parts[] = 'Anfrage-ID: ' . (int) $anfrage_id; }
+		$footer_parts[] = 'eingegangen ' . esc_html( $datum );
+		$footer = implode( ' &middot; ', $footer_parts );
 
 		// --- Preheader (unsichtbar, verbessert Inbox-Vorschau) -----------
 		$preheader = esc_html( $titel );

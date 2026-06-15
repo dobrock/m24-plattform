@@ -22,8 +22,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Catalog_SEO {
 
-	const PT         = 'm24_teil';
-	const TITLE_MAX  = 70;
+	const PT             = 'm24_teil';
+	const TITLE_MAX      = 78;   // Soft-Cap: bevorzugte <title>-Laenge (Boilerplate wird zuerst geopfert)
+	const TITLE_HARD_MAX = 100;  // Hard-Cap: erst hier wird der Titel SELBST gekuerzt — an Wortgrenze, nie in einer Nummer
 
 	const FIELD_TITLE  = '_wpseo_edit_title';
 	const FIELD_DESC   = '_wpseo_edit_description';
@@ -52,6 +53,9 @@ class M24_Catalog_SEO {
 		// HTML-Entities aus dem Titel dekodieren (get_the_title liefert via wptexturize z.B.
 		// „10&#215;18"). Sonst landen sie doppelt-escaped in Title/Description/og.
 		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
+		// Teilenummern haben SEO-Vorrang: der volle Beitragstitel bleibt erhalten. Nur wenn er ALLEIN
+		// den Hard-Cap reisst, an der naechsten Wortgrenze kuerzen (nie mitten in einer Nummer).
+		$titel = self::hard_cap_title( $titel, self::TITLE_HARD_MAX );
 		if ( 'neu' === $typ ) {
 			$variants = array(
 				$titel . ' | MOTORSPORT24 seit 2006',
@@ -64,10 +68,20 @@ class M24_Catalog_SEO {
 				$titel . ' | MOTORSPORT24',
 			);
 		}
+		// Boilerplate zuerst opfern; Titel selbst wird hier NIE gekuerzt (steht ggf. ueber dem Soft-Cap).
 		foreach ( $variants as $v ) {
 			if ( mb_strlen( $v ) <= self::TITLE_MAX ) { return $v; }
 		}
 		return end( $variants );
+	}
+
+	/** Kuerzt NUR den Titel selbst, wenn er allein > $max ist — an der letzten Wortgrenze, mit „…". */
+	private static function hard_cap_title( $titel, $max ) {
+		if ( mb_strlen( $titel ) <= $max ) { return $titel; }
+		$cut = mb_substr( $titel, 0, $max );
+		$sp  = mb_strrpos( $cut, ' ' );
+		if ( false !== $sp && $sp > 0 ) { $cut = mb_substr( $cut, 0, $sp ); }
+		return rtrim( $cut ) . '…';
 	}
 
 	// ── Description-Kaskade ─────────────────────────────────────────────
@@ -75,7 +89,7 @@ class M24_Catalog_SEO {
 		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
 		$tail  = ( 'neu' === $typ )
 			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ jetzt anfragen bei MOTORSPORT24 seit 2006'
-			: ' ✓ Original gebraucht & geprüft ✓ sofort verfügbar ✓ fair kaufen bei MOTORSPORT24 seit 2006';
+			: ' ✓ Original gebraucht ✓ geprüft ✓ sofort verfügbar ✓ fair kaufen bei MOTORSPORT24 seit 2006';
 		$max          = 160;
 		$title_budget = $max - mb_strlen( $tail );
 		if ( $title_budget < 12 ) { $title_budget = 12; }
