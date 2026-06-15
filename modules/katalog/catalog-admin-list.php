@@ -42,8 +42,9 @@ class M24_Catalog_Admin_List {
 		add_action( 'restrict_manage_posts', array( __CLASS__, 'filters' ) );
 
 		// Such-Erweiterung (Artnr + BMW-Teilenr)
-		add_filter( 'posts_join',   array( __CLASS__, 'search_join' ), 10, 2 );
-		add_filter( 'posts_search', array( __CLASS__, 'search_meta' ), 10, 2 );
+		add_filter( 'posts_join',    array( __CLASS__, 'search_join' ), 10, 2 );
+		add_filter( 'posts_search',  array( __CLASS__, 'search_meta' ), 10, 2 );
+		add_filter( 'posts_groupby', array( __CLASS__, 'search_groupby' ), 10, 2 ); // Dedup gegen den Meta-JOIN
 
 		// Row-Actions + Quick-View
 		add_filter( 'post_row_actions',  array( __CLASS__, 'row_actions' ), 10, 2 );
@@ -265,17 +266,33 @@ class M24_Catalog_Admin_List {
 
 	// ─── SUCHE (Artnr + BMW-Teilenr) ────────────────────────────
 
+	/** Gilt der Meta-JOIN? Nur Admin-Hauptquery dieses CPT mit NICHT-leerem Suchbegriff. */
+	private static function search_active( $q ) {
+		return is_admin() && $q->is_main_query() && $q->is_search()
+			&& self::PT === $q->get( 'post_type' )
+			&& '' !== trim( (string) $q->get( 's' ) );
+	}
+
 	public static function search_join( $join, $q ) {
 		global $wpdb;
-		if ( is_admin() && $q->is_main_query() && $q->is_search() && self::PT === $q->get( 'post_type' ) ) {
+		if ( self::search_active( $q ) ) {
 			$join .= " LEFT JOIN {$wpdb->postmeta} m24sm ON ({$wpdb->posts}.ID = m24sm.post_id) ";
 		}
 		return $join;
 	}
 
+	/** GROUP BY posts.ID — verhindert eine Ergebniszeile pro gejointer Meta-Zeile (Dup-Bug). */
+	public static function search_groupby( $groupby, $q ) {
+		global $wpdb;
+		if ( self::search_active( $q ) ) {
+			return "{$wpdb->posts}.ID";
+		}
+		return $groupby;
+	}
+
 	public static function search_meta( $search, $q ) {
 		global $wpdb;
-		if ( '' === $search || ! is_admin() || ! $q->is_main_query() || ! $q->is_search() || self::PT !== $q->get( 'post_type' ) ) {
+		if ( '' === $search || ! self::search_active( $q ) ) {
 			return $search;
 		}
 		$term = '%' . $wpdb->esc_like( $q->get( 's' ) ) . '%';
@@ -284,7 +301,7 @@ class M24_Catalog_Admin_List {
 			$term
 		);
 		$search = preg_replace( '/\)\)\s*$/', $meta . '))', $search, 1 );
-		$q->set( 'distinct', true );
+		// Dedup erfolgt via posts_groupby (search_groupby) — kein wirkungsloses 'distinct'-Query-Var.
 		return $search;
 	}
 

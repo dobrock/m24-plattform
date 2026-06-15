@@ -212,6 +212,14 @@
     });
 
     // ─── 1. Inline-Preis-Edit ───────────────────────────────
+    // Enter im Preisfeld darf NICHT das #posts-filter-Formular abschicken (sonst Listen-Bug);
+    // stattdessen den bestehenden change-Save auslösen.
+    $(document).on('keydown', 'input.m24-inline-price', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            $(this).trigger('change');
+        }
+    });
     $(document).on('change', 'input.m24-inline-price', function() {
         var $inp = $(this);
         var postId = $inp.data('post');
