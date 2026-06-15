@@ -128,8 +128,8 @@ class M24_Catalog_Template_Detail {
 		$imgs   = self::images( $id );
 		$shown  = array_slice( $imgs, 0, 5 );           // max. 5 Kacheln, eine Reihe
 		$extra  = max( 0, count( $imgs ) - 5 );          // >5 → 5. Kachel abgedunkelt „+N"
-		// Bildloser Platzhalter (klein, gecroppt, als CSS-Background → kein <img>, nicht zoombar/indexierbar).
-		$noimg_url = apply_filters( 'm24_noimg_placeholder', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/bild-folgt.png' );
+		// Bildloser Platzhalter (CSS-Background → kein <img>, nicht zoombar/indexierbar). Zentrale Quelle.
+		$noimg_url = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
 
 		// „Weitere Teile" = manuelle Pins zuerst, dann Auto-Auffuellung (Modell → Baugruppe),
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
@@ -225,9 +225,11 @@ class M24_Catalog_Template_Detail {
 		.m24det .ratio img.m24-slide-to-left{transform:translateX(-100%);opacity:0}
 		.m24det .ratio img.m24-slide-to-right{transform:translateX(100%);opacity:0}
 		@media(prefers-reduced-motion:reduce){.m24det .ratio img{transition:none!important}}
-		/* Bildloser Platzhalter: kleine, gecroppte Box (CSS-Background, kein <img>) — nicht zoombar,
-		   nicht in Image-Sitemaps, „in groß sieht man Abweichungen vom Original" → bewusst klein. */
-		.m24det .m24-noimg-box{width:240px;max-width:100%;aspect-ratio:3/2;border:1px solid var(--line);border-radius:10px;background-color:#ededea;background-position:center;background-size:cover;background-repeat:no-repeat;cursor:default}
+		/* Bildloser Platzhalter: reguläre Hauptbild-Fläche (volle Spaltenbreite, 3:2) als CSS-Background
+		   (kein <img>) — optisch wie ein echtes Hauptbild, aber nicht zoombar/nicht in Image-Sitemaps. */
+		.m24det .m24-noimg-box{width:100%;aspect-ratio:3/2;border:1px solid var(--line);border-radius:10px;background-color:#ededea;background-position:center;background-size:cover;background-repeat:no-repeat;cursor:default}
+		/* Related-/Weitere-Teile-Thumbnail-Platzhalter (CSS-Background, kein <img>). */
+		.m24det .ritem .rimg.rimg-noimg{background-size:cover;background-position:center;background-repeat:no-repeat}
 		.m24det .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.88);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;color:var(--tx);font-size:18px}
 		.m24det .nav-arrow.prev{left:10px}.m24det .nav-arrow.next{right:10px}
 		.m24det .thumbs{display:flex;flex-wrap:nowrap;gap:10px;margin-top:10px}
@@ -548,7 +550,11 @@ class M24_Catalog_Template_Detail {
 							$r_desc   = trim( preg_replace( '/\s+/', ' ', (string) wp_strip_all_tags( (string) get_post_meta( $rp_id, '_m24_beschreibung_de', true ) ) ) );
 							?>
 							<a class="ritem" href="<?php echo esc_url( get_permalink( $rp_id ) ); ?>">
-								<div class="rimg"><?php echo has_post_thumbnail( $rp_id ) ? get_the_post_thumbnail( $rp_id, 'medium' ) : ''; // phpcs:ignore ?></div>
+								<?php if ( has_post_thumbnail( $rp_id ) ) : ?>
+									<div class="rimg"><?php echo get_the_post_thumbnail( $rp_id, 'medium' ); // phpcs:ignore ?></div>
+								<?php else : // Bildlos → Platzhalter als CSS-Background (kein <img>). ?>
+									<div class="rimg rimg-noimg" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
+								<?php endif; ?>
 								<div class="rb">
 									<h4><?php echo esc_html( html_entity_decode( get_the_title( $rp_id ), ENT_QUOTES, 'UTF-8' ) ); ?></h4>
 									<?php if ( '' !== $r_desc ) : ?><div class="rdesc"><?php echo esc_html( $r_desc ); ?></div><?php endif; ?>

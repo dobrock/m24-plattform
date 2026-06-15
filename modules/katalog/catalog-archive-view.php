@@ -111,6 +111,7 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 .m24-card__media{position:relative;display:block;aspect-ratio:4/3;background:var(--m24-surface);overflow:hidden;}
 .m24-card__media img{width:100%;height:100%;object-fit:cover;display:block;}
 .m24-card__noimg{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:13px;letter-spacing:.12em;color:#b9bcc0;font-weight:700;}
+.m24-card__noimg--ph{background-size:cover;background-position:center;background-repeat:no-repeat;}
 .m24-card__badge{position:absolute;top:10px;left:10px;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:6px;color:#fff;text-transform:uppercase;}
 .m24-card__badge--sold{background:var(--m24-red);}
 .m24-card__body{display:flex;flex-direction:column;gap:6px;padding:14px 15px 16px;flex:1;}

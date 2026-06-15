@@ -168,9 +168,11 @@ class M24_Catalog_Archive {
 		$oem    = get_post_meta( $post_id, '_m24_bmw_teilenummer', true );
 		$status = get_post_meta( $post_id, '_m24_status', true );
 
+		// Bildlos → zentraler Platzhalter als CSS-Background (kein <img> → nicht in Image-Sitemap).
+		$noimg = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
 		$thumb = has_post_thumbnail( $post_id )
 			? get_the_post_thumbnail( $post_id, 'medium_large', array( 'loading' => 'lazy', 'alt' => esc_attr( $title ) ) )
-			: '<span class="m24-card__noimg" aria-hidden="true">MOTORSPORT24</span>';
+			: '<span class="m24-card__noimg m24-card__noimg--ph" aria-hidden="true" style="background-image:url(\'' . esc_url( $noimg ) . '\')"></span>';
 
 		$badge = ( 'verkauft' === $status )
 			? '<span class="m24-card__badge m24-card__badge--sold">Verkauft</span>'
