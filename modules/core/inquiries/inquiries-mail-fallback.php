@@ -163,6 +163,15 @@ class M24_Inquiries_Mail_Fallback {
         $subject = self::build_subject( $data, $reason );
         $body    = self::build_html_body( $data, $reason );
         $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+        // Produktanfrage: From-Name = Kundenname, System-Absenderadresse (wp_mail_from) beibehalten.
+        if ( self::REASON_PRODUCT === $reason ) {
+            $from_name = trim( $data['vorname'] . ' ' . $data['nachname'] );
+            $from_name = '' !== $from_name ? $from_name : 'MOTORSPORT24';
+            $from_name = '"' . str_replace( '"', '', $from_name ) . '"'; // RFC: Name quoten (Komma-sicher)
+            $host = preg_replace( '#^www\.#i', '', (string) wp_parse_url( network_home_url(), PHP_URL_HOST ) );
+            $system_from = apply_filters( 'wp_mail_from', 'wordpress@' . $host );
+            $headers[]   = 'From: ' . $from_name . ' <' . $system_from . '>';
+        }
         if ( '' !== $data['email'] && is_email( $data['email'] ) ) {
             $rn = trim( $data['vorname'] . ' ' . $data['nachname'] );
             $headers[] = 'Reply-To: ' . ( '' !== $rn ? sprintf( '"%s" <%s>', $rn, $data['email'] ) : $data['email'] );
@@ -312,7 +321,8 @@ class M24_Inquiries_Mail_Fallback {
             $name = $data['email'] !== '' ? $data['email'] : sprintf( 'Anfrage #%d', $data['post_id'] );
         }
         if ( self::REASON_PRODUCT === $reason ) {
-            return sprintf( '[M24 Plattform] Produktanfrage von %s', $name );
+            $pt = isset( $data['items'][0]['art'] ) ? trim( (string) $data['items'][0]['art'] ) : '';
+            return 'Neue Frage zu ' . ( '' !== $pt ? $pt : 'einem Artikel' );
         }
         if ( self::REASON_MERKZETTEL === $reason ) {
             return sprintf( '[M24 Plattform] Merkzettel-Anfrage von %s', $name );
@@ -323,7 +333,45 @@ class M24_Inquiries_Mail_Fallback {
         return sprintf( '[M24 Plattform] Sammelanfrage von %s — %s', $name, $reason );
     }
 
+    /**
+     * Produktanfrage („Frage stellen") → „Variante A"-Mail (kundenfreundlich, gebrandet).
+     * Mappt das Builder-Daten-Shape auf m24_render_inquiry_email(). NUR Produkt-Route.
+     */
+    private static function render_product_email( array $data ) {
+        $name       = trim( $data['vorname'] . ' ' . $data['nachname'] );
+        $positionen = array();
+        foreach ( (array) $data['items'] as $item ) {
+            if ( ! is_array( $item ) ) { continue; }
+            $artnr = '' !== (string) ( $item['src_art_nr'] ?? '' )
+                ? (string) $item['src_art_nr']
+                : (string) ( $item['src_pid'] ?? '' );
+            $positionen[] = array(
+                'titel'         => (string) ( $item['art'] ?? '' ),
+                'menge'         => (int) ( $item['qty'] ?? 1 ),
+                'preis'         => (string) ( $item['price'] ?? '' ),
+                'link'          => (string) ( $item['src_url'] ?? '' ),
+                'artikelnummer' => $artnr,
+            );
+        }
+        return m24_render_inquiry_email( array(
+            'titel'      => 'Neue Produktanfrage',
+            'name'       => $name,
+            'firma'      => (string) $data['firma'],
+            'email'      => (string) $data['email'],
+            'land'       => (string) $data['land'],            // ISO2 → im Template ausgeschrieben
+            'kundentyp'  => ( '1' === (string) $data['biz'] ) ? 'business' : 'private',
+            'positionen' => $positionen,
+            'nachricht'  => (string) ( $data['notes'] ?? '' ),
+            'anfrage_id' => (int) ( $data['post_id'] ?? 0 ),
+            'datum_ts'   => time(),
+        ) );
+    }
+
     private static function build_html_body( $data, $reason ) {
+        // Produktanfrage: neues „Variante A"-Template (sonst der bestehende Diagnose-/Fallback-Builder).
+        if ( self::REASON_PRODUCT === $reason && function_exists( 'm24_render_inquiry_email' ) ) {
+            return self::render_product_email( $data );
+        }
         $name = trim( $data['vorname'] . ' ' . $data['nachname'] );
 
         // Front-End-Benachrichtigung (notify/produkt/merkzettel) vs. echter Fallback.
