@@ -27,6 +27,7 @@ class M24_Catalog_Admin_List {
 	const NONCE_ORIGINAL = 'm24_inline_original';
 	const NONCE_BULK_ORIG = 'm24_bulk_original';
 	const NONCE_STATUS   = 'm24_inline_status';
+	const NONCE_RENNSPORT = 'm24_inline_rennsport';
 
 	public static function init() {
 		$pt = self::PT;
@@ -69,6 +70,8 @@ class M24_Catalog_Admin_List {
 		add_action( 'wp_ajax_m24_bulk_original',   array( __CLASS__, 'ajax_bulk_original' ) );
 		// AJAX Inline-Status (Aktiv/Ausgeblendet/Verkauft/Entwurf/Gelöscht)
 		add_action( 'wp_ajax_m24_status_set',      array( __CLASS__, 'ajax_inline_status' ) );
+		// AJAX Inline „Rennsport-Hinweis" (Checkbox-Spalte)
+		add_action( 'wp_ajax_m24_rennsport_toggle', array( __CLASS__, 'ajax_inline_rennsport' ) );
 
 		// Assets
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
@@ -86,6 +89,7 @@ class M24_Catalog_Admin_List {
 			'm24_modell'      => 'Modell',
 			'm24_status'      => 'Status',
 			'm24_original'    => 'Original BMW-Teil',
+			'm24_rennsport'   => 'Rennsport',
 			'date'            => isset( $cols['date'] ) ? $cols['date'] : 'Datum',
 		);
 	}
@@ -124,7 +128,10 @@ class M24_Catalog_Admin_List {
 
 			case 'm24_status':
 				$cur  = self::current_status_value( $post_id );
-				$opts = array( 'aktiv' => 'Aktiv', 'ausgeblendet' => 'Ausgeblendet', 'verkauft' => 'Verkauft', 'entwurf' => 'Entwurf', 'geloescht' => 'Gelöscht' );
+				// 4 wählbare Werte (Aktiv/Verkauft/Ausgeblendet/Gelöscht). „Entwurf" wird NICHT als
+				// Ziel angeboten, aber angezeigt, falls der Post aktuell ein Entwurf ist (sonst falsche Auswahl).
+				$opts = array( 'aktiv' => 'Aktiv', 'verkauft' => 'Verkauft', 'ausgeblendet' => 'Ausgeblendet', 'geloescht' => 'Gelöscht' );
+				if ( 'entwurf' === $cur ) { $opts = array( 'entwurf' => 'Entwurf' ) + $opts; }
 				echo '<select class="m24-inline-status" data-post="' . (int) $post_id . '" data-current="' . esc_attr( $cur ) . '">';
 				foreach ( $opts as $k => $label ) {
 					printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $cur, $k, false ), esc_html( $label ) );
@@ -139,6 +146,15 @@ class M24_Catalog_Admin_List {
 				printf(
 					'<label class="m24-original-cell" title="Badge „Original BMW-Teil" auf der Detailseite (nur echte Originalteile)"><input type="checkbox" class="m24-inline-original" data-post="%d"%s> <small class="m24-original-status"></small></label>',
 					(int) $post_id, $on ? ' checked' : ''
+				);
+				break;
+
+			case 'm24_rennsport':
+				// Inline-Toggle: _m24_rennsport_hinweis → Detailseite zeigt den Rennsport-Hinweis.
+				$rs = (bool) (int) get_post_meta( $post_id, '_m24_rennsport_hinweis', true );
+				printf(
+					'<label class="m24-original-cell" title="Rennsport-Hinweis auf der Detailseite anzeigen"><input type="checkbox" class="m24-inline-rennsport" data-post="%d"%s> <small class="m24-original-status"></small></label>',
+					(int) $post_id, $rs ? ' checked' : ''
 				);
 				break;
 		}
@@ -767,6 +783,18 @@ class M24_Catalog_Admin_List {
 		wp_send_json_success( array( 'on' => $on ? 1 : 0 ) );
 	}
 
+	/** Setzt _m24_rennsport_hinweis (1|0). Detailseite zeigt den Rennsport-Hinweis bei 1. */
+	public static function ajax_inline_rennsport() {
+		check_ajax_referer( self::NONCE_RENNSPORT, 'nonce' );
+		$post_id = absint( $_POST['post_id'] ?? 0 );
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( array( 'msg' => 'Keine Berechtigung' ), 403 );
+		}
+		$on = ( '1' === (string) ( $_POST['on'] ?? '' ) );
+		update_post_meta( $post_id, '_m24_rennsport_hinweis', $on ? 1 : 0 );
+		wp_send_json_success( array( 'on' => $on ? 1 : 0 ) );
+	}
+
 	// ─── AJAX BULK „ORIGINAL BMW-TEIL" (alle, batchweise) ───────
 
 	/** Setzt/entfernt _m24_original_teil auf ALLEN Teilen — in Batches (Plesk-30s-sicher). */
@@ -866,6 +894,7 @@ class M24_Catalog_Admin_List {
 			'nonceOriginal'      => wp_create_nonce( self::NONCE_ORIGINAL ),
 			'nonceBulkOrig'      => wp_create_nonce( self::NONCE_BULK_ORIG ),
 			'nonceStatus'        => wp_create_nonce( self::NONCE_STATUS ),
+			'nonceRennsport'     => wp_create_nonce( self::NONCE_RENNSPORT ),
 			'modellTerms'        => self::dropdown_data( self::TAX_MODELL ),
 			'baugruppeTerms'     => self::dropdown_data( self::TAX_BAUGRUPPE ),
 		) );

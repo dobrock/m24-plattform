@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.7.24
+ * Version:           0.7.25
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.7.24' );
+define( 'M24_PLATTFORM_VERSION',     '0.7.25' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -29,7 +29,7 @@ define( 'M24_PLATTFORM_DB_VERSION',  '004' );
  * (Paket D) als Default fuer `_m24_hinweis` gesetzt, wenn das Quell-Customfield leer ist.
  * Ueberschreibbar via Filter `m24_rennsport_hinweis`.
  */
-define( 'M24_RENNSPORT_HINWEIS', 'Verkauf rein für den Rennsport. Kein Gutachten vorhanden und keine Eintragung möglich.' );
+define( 'M24_RENNSPORT_HINWEIS', 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.' );
 
 function m24_rennsport_hinweis() {
     return apply_filters( 'm24_rennsport_hinweis', M24_RENNSPORT_HINWEIS );
