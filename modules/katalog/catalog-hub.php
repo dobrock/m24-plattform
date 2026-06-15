@@ -53,6 +53,9 @@ class M24_Catalog_Hub {
 		add_filter( 'wpseo_set_desc',      array( __CLASS__, 'seo_desc' ), 99, 1 );
 		add_filter( 'wpseo_set_robots',    array( __CLASS__, 'seo_robots' ), 99, 1 );
 		add_filter( 'wpseo_set_canonical', array( __CLASS__, 'seo_canonical' ), 99, 1 );
+		// Rohe Filter-URL ?m24_modell={hub-term} auf dem Gebrauchtteile-Archiv →
+		// rel=canonical auf den sauberen Hub (kein Duplicate); Filterseite bleibt noindex.
+		add_filter( 'wpseo_set_canonical', array( __CLASS__, 'archive_canonical' ), 99, 1 );
 		add_filter( 'document_title_parts', array( __CLASS__, 'doc_title' ) );
 	}
 
@@ -132,17 +135,99 @@ class M24_Catalog_Hub {
 		) );
 	}
 
+	/** Term-Meta-Schluessel (ohne Praefix) → Admin/Seite teilen sich diese Liste. */
+	const META_PREFIX = '_m24_hub_';
+	public static function meta_keys() {
+		return array( 'h1', 'sub', 'intro_h2', 'intro', 'modell', 'motor', 'baujahre', 'seo_title', 'seo_desc', 'images' );
+	}
+
+	/** Primaerer Term eines Hubs (erster existierender gemappter Slug) — traegt die Term-Meta. */
+	public static function primary_term_id( $hub = '' ) {
+		$hub = $hub ?: self::current();
+		if ( '' === $hub || ! isset( self::hubs()[ $hub ] ) ) { return 0; }
+		foreach ( self::hubs()[ $hub ]['terms'] as $slug ) {
+			$t = get_term_by( 'slug', $slug, self::TAX );
+			if ( $t && ! is_wp_error( $t ) ) { return (int) $t->term_id; }
+		}
+		return 0;
+	}
+
+	/** Hub-Key, dessen Primaer-Term diese Term-ID ist (fuer Admin-Sektion) — sonst ''. */
+	public static function hub_of_term( $term_id ) {
+		$term_id = (int) $term_id;
+		foreach ( array_keys( self::hubs() ) as $hub ) {
+			if ( self::primary_term_id( $hub ) === $term_id ) { return $hub; }
+		}
+		return '';
+	}
+
+	/** Hub-Key, der diesen Modell-Term-Slug mappt (fuer Archiv-Canonical) — sonst ''. */
+	public static function hub_for_term_slug( $slug ) {
+		foreach ( self::hubs() as $hub => $cfg ) {
+			if ( in_array( $slug, $cfg['terms'], true ) ) { return $hub; }
+		}
+		return '';
+	}
+
+	/** Seed-Defaults + redaktionelle Term-Meta-Overrides (nicht-leere gewinnen). */
 	public static function config( $hub = '' ) {
 		$hub = $hub ?: self::current();
-		return $hub ? self::hubs()[ $hub ] : array();
+		if ( '' === $hub || ! isset( self::hubs()[ $hub ] ) ) { return array(); }
+		$cfg = self::hubs()[ $hub ];
+		$pid = self::primary_term_id( $hub );
+		if ( $pid ) {
+			$m = function ( $k ) use ( $pid ) { return trim( (string) get_term_meta( $pid, self::META_PREFIX . $k, true ) ); };
+			foreach ( array( 'modell', 'motor', 'baujahre', 'sub', 'intro_h2', 'h1', 'seo_title', 'seo_desc' ) as $k ) {
+				if ( '' !== $m( $k ) ) { $cfg[ $k ] = $m( $k ); }
+			}
+			if ( '' !== $m( 'intro' ) ) { $cfg['intro_html'] = $m( 'intro' ); } // WYSIWYG-Override (HTML)
+			if ( '' !== $m( 'images' ) ) {
+				$cfg['images'] = array_values( array_filter( array_map( 'intval', explode( ',', $m( 'images' ) ) ) ) );
+			}
+		}
+		return $cfg;
 	}
 
 	public static function url( $hub ) { return home_url( '/gebrauchtteile/' . $hub . '/' ); }
 
-	/** H1/Title-Muster (Markenrecht: Bestimmungsangabe). */
+	/** H1/Title-Muster (Markenrecht: Bestimmungsangabe). Term-Meta-Override gewinnt. */
 	public static function h1( $hub = '' ) {
 		$c = self::config( $hub );
+		if ( ! empty( $c['h1'] ) ) { return $c['h1']; }
 		return 'Gebrauchtteile passend für BMW ' . ( $c['modell'] ?? '' );
+	}
+
+	/** Slideshow-Bilder (aus Term-Meta) → [id,url,w,h,alt]; leer ⇒ View zeigt Platzhalter. */
+	public static function images( $hub = '' ) {
+		$c   = self::config( $hub );
+		$ids = ! empty( $c['images'] ) ? $c['images'] : array();
+		$out = array();
+		foreach ( $ids as $id ) {
+			$src = wp_get_attachment_image_src( $id, 'full' );
+			if ( ! is_array( $src ) || empty( $src[0] ) ) { continue; }
+			$alt = trim( (string) get_post_meta( $id, '_wp_attachment_image_alt', true ) );
+			if ( '' === $alt ) { $alt = 'Gebrauchtteile passend für BMW ' . ( $c['modell'] ?? '' ); }
+			$out[] = array( 'id' => (int) $id, 'url' => $src[0], 'w' => (int) ( $src[1] ?? 0 ), 'h' => (int) ( $src[2] ?? 0 ), 'alt' => $alt );
+		}
+		return $out;
+	}
+
+	/** OG-Bild = erstes Slideshow-Bild (full) → Default-Social-Bild. */
+	public static function og_image_url( $hub = '' ) {
+		$imgs = self::images( $hub );
+		if ( ! empty( $imgs ) ) { return $imgs[0]['url']; }
+		$d = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
+		return (string) apply_filters( 'm24_og_default_image', $d );
+	}
+
+	/** ?m24_modell={hub-term} auf dem Gebrauchtteile-Archiv → Hub-Canonical. */
+	public static function archive_canonical( $url ) {
+		if ( ! class_exists( 'M24_Catalog_Archive' ) || ! M24_Catalog_Archive::is_archive() ) { return $url; }
+		if ( 'gebraucht' !== M24_Catalog_Archive::current_typ() ) { return $url; }
+		$mod = M24_Catalog_Archive::current_modell();
+		if ( '' === $mod ) { return $url; }
+		$hub = self::hub_for_term_slug( $mod );
+		return $hub ? self::url( $hub ) : $url;
 	}
 
 	public static function template_include( $template ) {
@@ -154,12 +239,18 @@ class M24_Catalog_Hub {
 	}
 
 	// ── SEO ────────────────────────────────────────────────────────────────
-	public static function seo_title( $title )  { return self::is_hub() ? self::build_title() : $title; }
+	public static function seo_title( $title )  {
+		if ( ! self::is_hub() ) { return $title; }
+		$c = self::config();
+		return ! empty( $c['seo_title'] ) ? $c['seo_title'] : self::build_title();
+	}
 	public static function doc_title( $parts )  { if ( self::is_hub() ) { $parts['title'] = self::h1(); } return $parts; }
 	public static function seo_desc( $desc )     {
 		if ( ! self::is_hub() ) { return $desc; }
 		$c = self::config();
-		$intro = isset( $c['intro'][0] ) ? wp_strip_all_tags( $c['intro'][0] ) : '';
+		if ( ! empty( $c['seo_desc'] ) ) { return $c['seo_desc']; }
+		$intro = ! empty( $c['intro_html'] ) ? wp_strip_all_tags( $c['intro_html'] )
+			: ( isset( $c['intro'][0] ) ? wp_strip_all_tags( $c['intro'][0] ) : '' );
 		if ( '' !== $intro ) { return mb_substr( $intro, 0, 158 ); }
 		return self::h1() . ' — geprüft, mit Historie, weltweiter Versand bei MOTORSPORT24 seit 2006.';
 	}

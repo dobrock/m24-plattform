@@ -30,7 +30,8 @@ class M24_Catalog_OG {
 	}
 
 	private static function active() {
-		return is_singular( self::PT );
+		return is_singular( self::PT )
+			|| ( class_exists( 'M24_Catalog_Hub' ) && M24_Catalog_Hub::is_hub() );
 	}
 
 	public static function buffer_start() {
@@ -61,6 +62,11 @@ class M24_Catalog_OG {
 	}
 
 	private static function render_tags() {
+		// Hub-Landingpages: OG aus Hub-Daten (erstes Slideshow-Bild, Hub-Title/Desc/URL).
+		if ( class_exists( 'M24_Catalog_Hub' ) && M24_Catalog_Hub::is_hub() ) {
+			return self::render_hub_tags();
+		}
+
 		$id = get_queried_object_id();
 		if ( ! $id ) { return ''; }
 
@@ -91,6 +97,32 @@ class M24_Catalog_OG {
 		$out .= self::tag( 'twitter:title', $title, 'name' );
 		$out .= self::tag( 'twitter:description', $desc, 'name' );
 		if ( '' !== $img['url'] ) { $out .= self::tag( 'twitter:image', $img['url'], 'name' ); }
+		return $out;
+	}
+
+	/** OG-Garnitur fuer Modell-Hubs (website, erstes Slideshow-Bild). */
+	private static function render_hub_tags() {
+		$hub   = M24_Catalog_Hub::current();
+		$title = M24_Catalog_Hub::seo_title( '' );
+		$desc  = M24_Catalog_Hub::seo_desc( '' );
+		$url   = M24_Catalog_Hub::url( $hub );
+		$img   = M24_Catalog_Hub::og_image_url( $hub );
+
+		$out  = "<!-- M24 Open Graph (Hub) -->\n";
+		$out .= self::tag( 'og:type', 'website' );
+		$out .= self::tag( 'og:site_name', get_bloginfo( 'name' ) );
+		$out .= self::tag( 'og:title', $title );
+		$out .= self::tag( 'og:description', $desc );
+		$out .= self::tag( 'og:url', $url );
+		if ( '' !== $img ) {
+			$out .= self::tag( 'og:image', $img );
+			$out .= self::tag( 'og:image:secure_url', $img );
+			$out .= self::tag( 'og:image:alt', $title );
+		}
+		$out .= self::tag( 'twitter:card', 'summary_large_image', 'name' );
+		$out .= self::tag( 'twitter:title', $title, 'name' );
+		$out .= self::tag( 'twitter:description', $desc, 'name' );
+		if ( '' !== $img ) { $out .= self::tag( 'twitter:image', $img, 'name' ); }
 		return $out;
 	}
 

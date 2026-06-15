@@ -14,7 +14,9 @@ $cfg    = M24_Catalog_Hub::config( $hub );
 $modell = $cfg['modell'] ?? '';
 $h1     = M24_Catalog_Hub::h1( $hub );
 $count  = M24_Catalog_Hub::count( $hub );
-$slides = max( 1, (int) apply_filters( 'm24_hub_slide_count', 5, $hub ) ); // Phase 2: echte Bilder
+$images = M24_Catalog_Hub::images( $hub );                 // Term-Meta-Bilder (leer ⇒ Platzhalter)
+$ph     = max( 1, (int) apply_filters( 'm24_hub_slide_count', 3, $hub ) ); // Platzhalter-Anzahl ohne Bilder
+$slides = ! empty( $images ) ? count( $images ) : $ph;
 $crumb  = home_url( '/gebrauchtteile/' );
 
 get_header();
@@ -108,9 +110,15 @@ $ld = array(
 
 	<section class="m24hub-full">
 		<div class="m24hub-slides" id="m24hub-slides" aria-roledescription="Bildergalerie">
-			<?php for ( $s = 0; $s < $slides; $s++ ) : ?>
-				<div class="m24hub-slide<?php echo 0 === $s ? ' on' : ''; ?>"><span class="tag"><?php echo esc_html( $modell . ' — Foto ' . ( $s + 1 ) ); ?></span></div>
-			<?php endfor; ?>
+			<?php if ( ! empty( $images ) ) : ?>
+				<?php foreach ( $images as $s => $img ) : ?>
+					<div class="m24hub-slide<?php echo 0 === $s ? ' on' : ''; ?>"><img src="<?php echo esc_url( $img['url'] ); ?>" alt="<?php echo esc_attr( $img['alt'] ); ?>"<?php echo $img['w'] ? ' width="' . (int) $img['w'] . '" height="' . (int) $img['h'] . '"' : ''; ?> loading="<?php echo 0 === $s ? 'eager' : 'lazy'; ?>" decoding="async"></div>
+				<?php endforeach; ?>
+			<?php else : ?>
+				<?php for ( $s = 0; $s < $slides; $s++ ) : ?>
+					<div class="m24hub-slide<?php echo 0 === $s ? ' on' : ''; ?>"><span class="tag"><?php echo esc_html( $modell . ' — Foto ' . ( $s + 1 ) ); ?></span></div>
+				<?php endfor; ?>
+			<?php endif; ?>
 			<button class="m24hub-arrow prev" id="m24hub-prev" aria-label="Vorheriges Bild">&#8249;</button>
 			<button class="m24hub-arrow next" id="m24hub-next" aria-label="Nächstes Bild">&#8250;</button>
 			<div class="m24hub-dots" id="m24hub-dots"></div>
@@ -124,10 +132,14 @@ $ld = array(
 		<div class="m24hub-tcell"><div class="k"><span class="m24hub-livedot"></span>Aktuell verfügbar</div><div class="v"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $count, 'm24-plattform' ), number_format_i18n( $count ) ) ); ?></div></div>
 	</div></div>
 
-	<?php if ( ! empty( $cfg['intro'] ) ) : ?>
+	<?php if ( ! empty( $cfg['intro_html'] ) || ! empty( $cfg['intro'] ) ) : ?>
 	<section class="m24hub-intro"><div class="m24hub-wrap">
 		<?php if ( ! empty( $cfg['intro_h2'] ) ) : ?><h2><?php echo esc_html( $cfg['intro_h2'] ); ?></h2><?php endif; ?>
-		<?php foreach ( (array) $cfg['intro'] as $p ) : ?><p><?php echo esc_html( $p ); ?></p><?php endforeach; ?>
+		<?php if ( ! empty( $cfg['intro_html'] ) ) : ?>
+			<?php echo wp_kses_post( wpautop( $cfg['intro_html'] ) ); ?>
+		<?php else : ?>
+			<?php foreach ( (array) $cfg['intro'] as $p ) : ?><p><?php echo esc_html( $p ); ?></p><?php endforeach; ?>
+		<?php endif; ?>
 	</div></section>
 	<?php endif; ?>
 
