@@ -40,7 +40,7 @@ class M24_Catalog_SEO {
 		add_filter( 'wpseo_set_title',        array( __CLASS__, 'force_detail_title' ), 99, 1 );
 		add_filter( 'wpseo_opengraph_title',  array( __CLASS__, 'force_detail_title' ), 99, 1 );
 		add_filter( 'wpseo_twitter_title',    array( __CLASS__, 'force_detail_title' ), 99, 1 );
-		add_filter( 'wpseo_opengraph_desc',   array( __CLASS__, 'filter_desc' ),        20, 1 );
+		add_filter( 'wpseo_opengraph_desc',   array( __CLASS__, 'filter_og_desc' ),     20, 1 );
 		// Feld-Autofill + Marker. Prio 30: nach fields::save(10)/compact_bmw_in_title(15)/
 		// artnr(20)/auto_slug(25) — arbeitet mit dem finalen Post-Titel. Auto-Draft wird in
 		// sync_post() uebersprungen; der Status-Uebergang in einen echten Status generiert neu.
@@ -221,6 +221,30 @@ class M24_Catalog_SEO {
 			return self::build_desc( get_the_title( $id ), $typ );
 		}
 		return $desc;
+	}
+
+	/**
+	 * og:description (FB/LinkedIn): bevorzugt den ECHTEN Beschreibungstext (_m24_beschreibung_de) —
+	 * liest sich auf Social-Karten natuerlicher als die Checkmark-Kaskade. Reihenfolge:
+	 *   manueller Meta-Override → echter Beschreibungstext → Checkmark-Kaskade (Fallback).
+	 * Archiv + Nicht-Teile wie filter_desc. (Meta-Description fuer die Suche bleibt unveraendert.)
+	 */
+	public static function filter_og_desc( $desc ) {
+		if ( ( class_exists( 'M24_Catalog_Archive' ) && M24_Catalog_Archive::is_archive() ) || ! is_singular( self::PT ) ) {
+			return self::filter_desc( $desc );
+		}
+		$id = get_queried_object_id();
+		if ( self::is_manual_override( $id, self::FIELD_DESC, self::MARKER_DESC ) ) {
+			return trim( (string) get_post_meta( $id, self::FIELD_DESC, true ) );
+		}
+		$real = trim( wp_strip_all_tags( html_entity_decode( (string) get_post_meta( $id, '_m24_beschreibung_de', true ), ENT_QUOTES, 'UTF-8' ) ) );
+		if ( '' !== $real ) {
+			$real = preg_replace( '/\s+/', ' ', $real );
+			if ( mb_strlen( $real ) > 200 ) { $real = rtrim( mb_substr( $real, 0, 199 ) ) . '…'; }
+			return $real;
+		}
+		$typ = ( 'neu' === get_post_meta( $id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
+		return self::build_desc( get_the_title( $id ), $typ );
 	}
 }
 
