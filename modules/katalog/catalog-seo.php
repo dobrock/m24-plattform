@@ -40,6 +40,8 @@ class M24_Catalog_SEO {
 		// Snapshot, z.B. Auto-Draft) — manuelle Overrides bleiben verbatim.
 		add_filter( 'wpseo_set_desc',         array( __CLASS__, 'filter_desc' ),        20, 1 );
 		add_filter( 'wpseo_set_title',        array( __CLASS__, 'force_detail_title' ), 99, 1 );
+		// SEO #2: Index-Schalter fuer Teile-Detailseiten (Default noindex,follow bis zum Flip).
+		add_filter( 'wpseo_set_robots',       array( __CLASS__, 'filter_robots' ),      99, 1 );
 		// OG/Twitter werden vollstaendig von M24_Catalog_OG ausgegeben (eine Quelle, inkl. og:image
 		// + Doubletten-Strip). force_detail_title()/filter_og_desc() bleiben als Helfer dafuer public.
 		// Feld-Autofill + Marker. Prio 30: nach fields::save(10)/compact_bmw_in_title(15)/
@@ -198,6 +200,19 @@ class M24_Catalog_SEO {
 	 * aus dem aktuellen Post-Titel — so kann nie ein veralteter Auto-Snapshot (z.B. Auto-Draft)
 	 * ausgegeben werden.
 	 */
+	/**
+	 * Robots fuer Teile-Detailseiten (wpSEO-Filter): per globalem Schalter index/noindex.
+	 * Default = noindex,follow (bis zum Flip). Andere Seiten unangetastet.
+	 */
+	public static function filter_robots( $robots ) {
+		if ( is_singular( self::PT ) ) {
+			return function_exists( 'm24_teile_index_enabled' ) && m24_teile_index_enabled()
+				? 'index, follow'
+				: 'noindex, follow';
+		}
+		return $robots;
+	}
+
 	public static function force_detail_title( $title ) {
 		if ( ! is_singular( self::PT ) ) {
 			return $title;

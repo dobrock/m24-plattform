@@ -72,6 +72,17 @@ class M24_Settings {
                 'default'           => self::defaults(),
             ]
         );
+        // SEO: globaler Index-Schalter fuer Teile-Detailseiten (Default 0 = noindex).
+        // Per Konstante M24_TEILE_INDEX uebersteuerbar (s. m24_teile_index_enabled()).
+        register_setting(
+            'm24_plattform_group',
+            'm24_teile_index',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
     }
 
     public static function defaults() {
@@ -373,6 +384,29 @@ class M24_Settings {
                                     '<code>' . esc_html( $mock_default ) . '</code>'
                                 );
                                 ?>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2><?php echo esc_html__( 'SEO — Indexierung', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Teile-Detailseiten indexieren', 'm24-plattform' ); ?></th>
+                        <td>
+                            <?php $teile_index_const = defined( 'M24_TEILE_INDEX' ); ?>
+                            <label>
+                                <input type="checkbox" name="m24_teile_index" value="1"
+                                    <?php checked( m24_teile_index_enabled(), true ); ?>
+                                    <?php disabled( $teile_index_const, true ); ?> />
+                                <?php echo esc_html__( 'Teile auf „index, follow" schalten (aus = noindex, follow)', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Übersichten (Gebrauchtteile/Rennsport) bleiben immer indexierbar; Modell-Filter-URLs bleiben noindex. Erst nach QA aller Teile aktivieren.', 'm24-plattform' ); ?>
+                                <?php if ( $teile_index_const ) : ?>
+                                    <br><span class="m24-config-locked-hint"><span class="dashicons dashicons-lock"></span>
+                                    <?php echo esc_html__( 'Per Konstante M24_TEILE_INDEX gesetzt — Schalter inaktiv.', 'm24-plattform' ); ?></span>
+                                <?php endif; ?>
                             </p>
                         </td>
                     </tr>

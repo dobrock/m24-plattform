@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.7.28
+ * Version:           0.7.29
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.7.28' );
+define( 'M24_PLATTFORM_VERSION',     '0.7.29' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -89,6 +89,16 @@ define( 'M24_NOIMG_PLACEHOLDER', 'https://www.motorsport24.de/wp-content/rennspo
 
 function m24_noimg_placeholder_url() {
     return apply_filters( 'm24_noimg_placeholder', M24_NOIMG_PLACEHOLDER );
+}
+
+/**
+ * Globaler Index-Schalter fuer Teile-Detailseiten (Vorbereitung Index-Flip).
+ * Konstante M24_TEILE_INDEX (wp-config) hat Vorrang, sonst Option `m24_teile_index`.
+ * Default 0 = noindex,follow. true → index,follow. Greift via wpSEO-Filter `wpseo_set_robots`.
+ */
+function m24_teile_index_enabled() {
+    if ( defined( 'M24_TEILE_INDEX' ) ) { return (bool) M24_TEILE_INDEX; }
+    return (bool) (int) get_option( 'm24_teile_index', 0 );
 }
 
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-database.php';
