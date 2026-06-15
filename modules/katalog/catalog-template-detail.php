@@ -128,6 +128,8 @@ class M24_Catalog_Template_Detail {
 		$imgs   = self::images( $id );
 		$shown  = array_slice( $imgs, 0, 5 );           // max. 5 Kacheln, eine Reihe
 		$extra  = max( 0, count( $imgs ) - 5 );          // >5 → 5. Kachel abgedunkelt „+N"
+		// Bildloser Platzhalter (klein, gecroppt, als CSS-Background → kein <img>, nicht zoombar/indexierbar).
+		$noimg_url = apply_filters( 'm24_noimg_placeholder', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/bild-folgt.png' );
 
 		// „Weitere Teile" = manuelle Pins zuerst, dann Auto-Auffuellung (Modell → Baugruppe),
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
@@ -223,12 +225,9 @@ class M24_Catalog_Template_Detail {
 		.m24det .ratio img.m24-slide-to-left{transform:translateX(-100%);opacity:0}
 		.m24det .ratio img.m24-slide-to-right{transform:translateX(100%);opacity:0}
 		@media(prefers-reduced-motion:reduce){.m24det .ratio img{transition:none!important}}
-		/* No-Image-Fallback (Variante C): 3:2-Flaeche mit grauem Verlauf, „Bilder in Kürze" /
-		   feiner Trenner / „wir arbeiten daran" — ersetzt die nackte graue „Kein Bild"-Flaeche. */
-		.m24det .ratio .none{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,#eceae6,#d7d6d0);color:#7a786f;font-family:'Saira',sans-serif;text-align:center;padding:16px}
-		.m24det .m24-noimg-t1{font-size:16px;font-weight:600;letter-spacing:.3px;color:#6c6a61}
-		.m24det .m24-noimg-sep{width:46px;height:1px;background:rgba(0,0,0,.16)}
-		.m24det .m24-noimg-t2{font-size:12.5px;color:#9a988f}
+		/* Bildloser Platzhalter: kleine, gecroppte Box (CSS-Background, kein <img>) — nicht zoombar,
+		   nicht in Image-Sitemaps, „in groß sieht man Abweichungen vom Original" → bewusst klein. */
+		.m24det .m24-noimg-box{width:240px;max-width:100%;aspect-ratio:3/2;border:1px solid var(--line);border-radius:10px;background-color:#ededea;background-position:center;background-size:cover;background-repeat:no-repeat;cursor:default}
 		.m24det .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.88);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;color:var(--tx);font-size:18px}
 		.m24det .nav-arrow.prev{left:10px}.m24det .nav-arrow.next{right:10px}
 		.m24det .thumbs{display:flex;flex-wrap:nowrap;gap:10px;margin-top:10px}
@@ -377,8 +376,9 @@ class M24_Catalog_Template_Detail {
 				// Sonst MOTORSPORT24-Eigenlogo statt leerem Platz. KEIN BMW-Rundel mehr (BMW-Abmahnung 2023).
 				if ( ! $is_neu && '1' === get_post_meta( $id, '_m24_original_teil', true ) ) :
 					echo m24_render_original_badge( $id ); // phpcs:ignore — statisches Markup, intern gegated
-				elseif ( $logo_enabled ) : ?>
+				else : ?>
 					<div class="m24-detail-logo">
+						<?php // Kein Badge → immer das MOTORSPORT24-Logo (Position nie leer). ?>
 						<img src="<?php echo esc_url( m24_detail_logo_url( 'neu' ) ); ?>" alt="MOTORSPORT24" class="skip-lazy" decoding="async" fetchpriority="high" data-no-lazy="1" data-skip-lazy>
 					</div>
 				<?php endif; ?>
@@ -386,30 +386,28 @@ class M24_Catalog_Template_Detail {
 
 			<div class="row">
 				<div class="left">
-					<div class="ratio">
-						<?php if ( $imgs ) : ?>
+					<?php if ( $imgs ) : ?>
+						<div class="ratio">
 							<img class="m24-main-img" src="<?php echo esc_url( $imgs[0]['full'] ); ?>" alt="<?php echo esc_attr( get_the_title( $id ) ); ?>">
 							<?php if ( count( $imgs ) > 1 ) : ?>
 								<span class="nav-arrow prev" aria-label="zurück">&#10094;</span>
 								<span class="nav-arrow next" aria-label="weiter">&#10095;</span>
 							<?php endif; ?>
-						<?php else : ?>
-							<div class="none m24-noimg">
-								<span class="m24-noimg-t1"><?php esc_html_e( 'Bilder in Kürze', 'm24-plattform' ); ?></span>
-								<span class="m24-noimg-sep" aria-hidden="true"></span>
-								<span class="m24-noimg-t2"><?php esc_html_e( 'wir arbeiten daran', 'm24-plattform' ); ?></span>
+						</div>
+						<?php if ( count( $imgs ) > 1 ) : // T1: Strip nur bei >1 Bild (sonst Einzelbild-Duplikat) ?>
+							<div class="thumbs">
+								<?php foreach ( $shown as $i => $im ) : $is_more = ( 4 === $i && $extra > 0 ); // 5. Kachel (Index 4) = more-tile ?>
+									<div class="t<?php echo 0 === $i ? ' active' : ''; ?><?php echo $is_more ? ' more-tile' : ''; ?>" data-i="<?php echo (int) $i; ?>">
+										<img src="<?php echo esc_url( $im['thumb'] ); ?>" alt="">
+										<?php if ( $is_more ) : ?><span class="more">+<?php echo esc_html( $extra ); ?></span><?php endif; ?>
+									</div>
+								<?php endforeach; ?>
 							</div>
 						<?php endif; ?>
-					</div>
-					<?php if ( count( $imgs ) > 1 ) : // T1: Strip nur bei >1 Bild (sonst Einzelbild-Duplikat) ?>
-						<div class="thumbs">
-							<?php foreach ( $shown as $i => $im ) : $is_more = ( 4 === $i && $extra > 0 ); // 5. Kachel (Index 4) = more-tile ?>
-								<div class="t<?php echo 0 === $i ? ' active' : ''; ?><?php echo $is_more ? ' more-tile' : ''; ?>" data-i="<?php echo (int) $i; ?>">
-									<img src="<?php echo esc_url( $im['thumb'] ); ?>" alt="">
-									<?php if ( $is_more ) : ?><span class="more">+<?php echo esc_html( $extra ); ?></span><?php endif; ?>
-								</div>
-							<?php endforeach; ?>
-						</div>
+					<?php else : ?>
+						<?php // Bildlos: kleiner, gecroppter Platzhalter als CSS-Background — kein <img> (nicht indexierbar),
+						// keine Lightbox/Zoom, keine Thumbnails. ?>
+						<div class="m24-noimg-box" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
 					<?php endif; ?>
 				</div>
 
