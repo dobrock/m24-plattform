@@ -50,6 +50,27 @@
         });
     }
 
+    // ─── Inline „Original BMW-Teil" (Checkbox) ─────────────
+    $(document).on('change', '.m24-inline-original', function() {
+        var $cb = $(this);
+        var postId = $cb.data('post');
+        var on = $cb.is(':checked') ? '1' : '0';
+        var $st = $cb.closest('.m24-original-cell').find('.m24-original-status');
+        $st.text('…');
+        $.post(M24AdminList.ajaxUrl, {
+            action: 'm24_original_toggle',
+            nonce: M24AdminList.nonceOriginal,
+            post_id: postId,
+            on: on
+        }).done(function(res) {
+            $st.text(res && res.success ? '✓' : '✗');
+            setTimeout(function() { $st.text(''); }, 1200);
+        }).fail(function() {
+            $st.text('✗');
+            $cb.prop('checked', on !== '1'); // revert
+        });
+    });
+
     // ─── Inline-Title-Edit (Klick auf ✎-Icon) ──────────────
     $(document).on('click', '.m24-title-edit', function(e) {
         e.preventDefault();
