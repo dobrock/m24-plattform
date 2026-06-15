@@ -25,6 +25,8 @@ class M24_Catalog_Admin_List {
 	const NONCE_MODELL_TOGGLE = 'm24_modell_toggle';
 	const NONCE_TITLE   = 'm24_inline_title';
 	const NONCE_ORIGINAL = 'm24_inline_original';
+	const NONCE_BULK_ORIG = 'm24_bulk_original';
+	const NONCE_STATUS   = 'm24_inline_status';
 
 	public static function init() {
 		$pt = self::PT;
@@ -63,6 +65,10 @@ class M24_Catalog_Admin_List {
 		add_action( 'wp_ajax_m24_inline_title',  array( __CLASS__, 'ajax_inline_title' ) );
 		// AJAX Inline „Original BMW-Teil" (steuert Badge vs. MOTORSPORT24-Logo auf der Detailseite)
 		add_action( 'wp_ajax_m24_original_toggle', array( __CLASS__, 'ajax_inline_original' ) );
+		// AJAX Bulk „Original BMW-Teil" (alle Teile setzen/entfernen, batchweise)
+		add_action( 'wp_ajax_m24_bulk_original',   array( __CLASS__, 'ajax_bulk_original' ) );
+		// AJAX Inline-Status (Aktiv/Ausgeblendet/Verkauft/Entwurf/Gelöscht)
+		add_action( 'wp_ajax_m24_status_set',      array( __CLASS__, 'ajax_inline_status' ) );
 
 		// Assets
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
@@ -117,9 +123,13 @@ class M24_Catalog_Admin_List {
 				break;
 
 			case 'm24_status':
-				$s   = get_post_meta( $post_id, '_m24_status', true ) ?: 'aktiv';
-				$map = array( 'aktiv' => '#2f7d52', 'ausgeblendet' => '#777', 'verkauft' => '#9e2b2b' );
-				printf( '<span style="color:%s;font-weight:600">%s</span>', esc_attr( $map[ $s ] ?? '#333' ), esc_html( ucfirst( $s ) ) );
+				$cur  = self::current_status_value( $post_id );
+				$opts = array( 'aktiv' => 'Aktiv', 'ausgeblendet' => 'Ausgeblendet', 'verkauft' => 'Verkauft', 'entwurf' => 'Entwurf', 'geloescht' => 'Gelöscht' );
+				echo '<select class="m24-inline-status" data-post="' . (int) $post_id . '" data-current="' . esc_attr( $cur ) . '">';
+				foreach ( $opts as $k => $label ) {
+					printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $cur, $k, false ), esc_html( $label ) );
+				}
+				echo '</select> <small class="m24-status-msg" aria-live="polite"></small>';
 				break;
 
 			case 'm24_original':
@@ -178,6 +188,12 @@ class M24_Catalog_Admin_List {
 			printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $status, $k, false ), esc_html( $v ) );
 		}
 		echo '</select>';
+
+		// Bulk „Original BMW-Teil" (alle Teile) — type=button, lösen NICHT den Filter-Submit aus.
+		echo '<span class="m24-bulk-orig">'
+			. '<button type="button" class="button m24-bulk-orig-set">Alle als „Original BMW-Teil"</button> '
+			. '<button type="button" class="button m24-bulk-orig-unset">Alle „Original" entfernen</button> '
+			. '<span class="m24-bulk-orig-status" aria-live="polite"></span></span>';
 	}
 
 	public static function apply_sort_and_filter( $q ) {
@@ -751,6 +767,82 @@ class M24_Catalog_Admin_List {
 		wp_send_json_success( array( 'on' => $on ? 1 : 0 ) );
 	}
 
+	// ─── AJAX BULK „ORIGINAL BMW-TEIL" (alle, batchweise) ───────
+
+	/** Setzt/entfernt _m24_original_teil auf ALLEN Teilen — in Batches (Plesk-30s-sicher). */
+	public static function ajax_bulk_original() {
+		check_ajax_referer( self::NONCE_BULK_ORIG, 'nonce' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'msg' => 'Keine Berechtigung' ), 403 );
+		}
+		$op     = ( 'set' === ( $_POST['op'] ?? '' ) ) ? 'set' : 'unset';
+		$offset = max( 0, absint( $_POST['offset'] ?? 0 ) );
+		$batch  = 200;
+		$all = get_posts( array(
+			'post_type'      => self::PT,
+			'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'orderby'        => 'ID',
+			'order'          => 'ASC',
+		) );
+		$total = count( $all );
+		$val   = ( 'set' === $op ) ? '1' : '0';
+		$done  = 0;
+		foreach ( array_slice( $all, $offset, $batch ) as $pid ) {
+			if ( current_user_can( 'edit_post', $pid ) ) {
+				update_post_meta( $pid, '_m24_original_teil', $val );
+				$done++;
+			}
+		}
+		$next = $offset + $batch;
+		wp_send_json_success( array(
+			'processed' => $done,
+			'total'     => $total,
+			'next'      => ( $next < $total ) ? $next : null,
+		) );
+	}
+
+	// ─── AJAX INLINE-STATUS ─────────────────────────────────────
+
+	/** Aktueller kombinierter Status-Wert (post_status + _m24_status) für das Select. */
+	private static function current_status_value( $post_id ) {
+		if ( 'draft' === get_post_status( $post_id ) ) { return 'entwurf'; }
+		$s = get_post_meta( $post_id, '_m24_status', true ) ?: 'aktiv';
+		return in_array( $s, array( 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ? $s : 'aktiv';
+	}
+
+	/**
+	 * Inline-Statuswechsel. Mappt auf post_status bzw. _m24_status:
+	 *   aktiv/ausgeblendet/verkauft → publish + Meta · entwurf → draft · geloescht → Papierkorb (reversibel).
+	 */
+	public static function ajax_inline_status() {
+		check_ajax_referer( self::NONCE_STATUS, 'nonce' );
+		$post_id = absint( $_POST['post_id'] ?? 0 );
+		$val     = sanitize_key( (string) ( $_POST['status'] ?? '' ) );
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( array( 'msg' => 'Keine Berechtigung' ), 403 );
+		}
+		if ( ! in_array( $val, array( 'aktiv', 'ausgeblendet', 'verkauft', 'entwurf', 'geloescht' ), true ) ) {
+			wp_send_json_error( array( 'msg' => 'Ungültiger Status' ), 400 );
+		}
+		if ( 'geloescht' === $val ) {
+			wp_trash_post( $post_id ); // reversibel, NIE Hard-Delete
+			wp_send_json_success( array( 'status' => $val, 'trashed' => true ) );
+		}
+		if ( 'entwurf' === $val ) {
+			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'draft' ) );
+			wp_send_json_success( array( 'status' => $val, 'trashed' => false ) );
+		}
+		// aktiv | ausgeblendet | verkauft → sicher veröffentlicht + Meta setzen.
+		if ( 'publish' !== get_post_status( $post_id ) ) {
+			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'publish' ) );
+		}
+		update_post_meta( $post_id, '_m24_status', $val );
+		wp_send_json_success( array( 'status' => $val, 'trashed' => false ) );
+	}
+
 	// ─── ASSETS ─────────────────────────────────────────────────
 
 	public static function enqueue_assets( $hook ) {
@@ -772,6 +864,8 @@ class M24_Catalog_Admin_List {
 			'nonceModellToggle'  => wp_create_nonce( self::NONCE_MODELL_TOGGLE ),
 			'nonceTitle'         => wp_create_nonce( self::NONCE_TITLE ),
 			'nonceOriginal'      => wp_create_nonce( self::NONCE_ORIGINAL ),
+			'nonceBulkOrig'      => wp_create_nonce( self::NONCE_BULK_ORIG ),
+			'nonceStatus'        => wp_create_nonce( self::NONCE_STATUS ),
 			'modellTerms'        => self::dropdown_data( self::TAX_MODELL ),
 			'baugruppeTerms'     => self::dropdown_data( self::TAX_BAUGRUPPE ),
 		) );
@@ -835,6 +929,12 @@ class M24_Catalog_Admin_List {
 			// Original-BMW-Teil-Zelle (Inline-Checkbox)
 			. $b . ' .wp-list-table .m24-original-cell{display:inline-flex;align-items:center;gap:5px;cursor:pointer}'
 			. $b . ' .wp-list-table .m24-original-status{font-size:11px;color:#777;min-width:10px}'
+			// Bulk „Original BMW-Teil"-Buttons (oben, nach den Filtern)
+			. $b . ' .m24-bulk-orig{display:inline-flex;align-items:center;gap:6px;margin-left:8px}'
+			. $b . ' .m24-bulk-orig-status{font-size:12px;color:#1d2327;font-weight:600}'
+			// Inline-Status-Select
+			. $b . ' .wp-list-table select.m24-inline-status{font-size:12px;height:28px;padding:0 4px;max-width:140px}'
+			. $b . ' .wp-list-table .m24-status-msg{font-size:11px;color:#777}'
 			// Bulk-Modal
 			. '.m24-bulk-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99999;display:flex;align-items:center;justify-content:center}'
 			. '.m24-bulk-modal-content{background:#fff;border-radius:6px;padding:20px;max-width:480px;width:90%;box-shadow:0 8px 24px rgba(0,0,0,.2)}'

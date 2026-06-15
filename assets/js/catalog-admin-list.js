@@ -50,6 +50,66 @@
         });
     }
 
+    // ─── Bulk „Original BMW-Teil" (alle, batchweise) ───────
+    function bulkOriginal(op, $btn) {
+        var processed = 0;
+        var $status = $('.m24-bulk-orig-status');
+        function step(offset) {
+            $.post(M24AdminList.ajaxUrl, {
+                action: 'm24_bulk_original',
+                nonce: M24AdminList.nonceBulkOrig,
+                op: op,
+                offset: offset
+            }).done(function(res) {
+                if (!res || !res.success) { $status.text('Fehler'); return; }
+                processed += res.data.processed;
+                $status.text(processed + ' / ' + res.data.total + ' …');
+                if (res.data.next !== null && res.data.next !== undefined) {
+                    step(res.data.next);
+                } else {
+                    $status.text('Fertig: ' + processed + ' Teile aktualisiert.');
+                    setTimeout(function() { location.reload(); }, 900);
+                }
+            }).fail(function() { $status.text('Fehler'); });
+        }
+        var msg = (op === 'set')
+            ? 'Wirklich ALLE Teile als „Original BMW-Teil" markieren?'
+            : 'Wirklich bei ALLEN Teilen „Original BMW-Teil" entfernen?';
+        if (!window.confirm(msg)) { return; }
+        $status.text('Start …');
+        step(0);
+    }
+    $(document).on('click', '.m24-bulk-orig-set', function(e) { e.preventDefault(); bulkOriginal('set', $(this)); });
+    $(document).on('click', '.m24-bulk-orig-unset', function(e) { e.preventDefault(); bulkOriginal('unset', $(this)); });
+
+    // ─── Inline-Status-Select ──────────────────────────────
+    $(document).on('focus', '.m24-inline-status', function() { $(this).data('prev', $(this).val()); });
+    $(document).on('change', '.m24-inline-status', function() {
+        var $sel = $(this);
+        var postId = $sel.data('post');
+        var val = $sel.val();
+        var prev = $sel.data('prev') || $sel.data('current') || 'aktiv';
+        var $msg = $sel.closest('td').find('.m24-status-msg');
+        if (val === 'geloescht' && !window.confirm('Teil in den Papierkorb verschieben? (wiederherstellbar)')) {
+            $sel.val(prev); return;
+        }
+        $msg.text('…');
+        $.post(M24AdminList.ajaxUrl, {
+            action: 'm24_status_set',
+            nonce: M24AdminList.nonceStatus,
+            post_id: postId,
+            status: val
+        }).done(function(res) {
+            if (res && res.success) {
+                $sel.data('prev', val);
+                if (res.data.trashed) { $sel.closest('tr').fadeOut(400); }
+                else { $msg.text('✓'); setTimeout(function() { $msg.text(''); }, 1200); }
+            } else {
+                $msg.text('✗'); $sel.val(prev);
+            }
+        }).fail(function() { $msg.text('✗'); $sel.val(prev); });
+    });
+
     // ─── Inline „Original BMW-Teil" (Checkbox) ─────────────
     $(document).on('change', '.m24-inline-original', function() {
         var $cb = $(this);
