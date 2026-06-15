@@ -19,6 +19,8 @@
         }
         // Edit-Icon zu Title-Links hinzufuegen
         injectTitleEdit();
+        // Beschreibung gedaempft unter den Titel
+        injectRowDesc();
     });
 
     function escapeHtml(s) {
@@ -30,6 +32,21 @@
             var $strong = $(this);
             if ($strong.find('.m24-title-edit').length) return;
             $strong.append(' <a href="#" class="m24-title-edit" title="Titel inline bearbeiten">✎</a>');
+        });
+    }
+
+    // Gekuerzte Beschreibung (~140 Zeichen) gedaempft unter dem Titel; Volltext im title-Attr.
+    function injectRowDesc() {
+        $('#the-list > tr').each(function() {
+            var $row = $(this);
+            var $cell = $row.find('.column-title .row-title').closest('td.column-title');
+            if (!$cell.length) { $cell = $row.find('td.column-title'); }
+            if (!$cell.length || $cell.find('.m24-row-desc').length) return;
+            var full = ($row.find('.m24-qv-data').attr('data-desc') || '').trim();
+            if (!full) return;
+            var short = full.length > 140 ? full.slice(0, 139).replace(/\s+\S*$/, '') + '…' : full;
+            var $strong = $cell.find('strong').first();
+            $('<div class="m24-row-desc"></div>').text(short).attr('title', full).insertAfter($strong);
         });
     }
 

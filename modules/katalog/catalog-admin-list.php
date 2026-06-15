@@ -75,7 +75,6 @@ class M24_Catalog_Admin_List {
 			'm24_artnr'       => 'Art.-Nr.',
 			'm24_preis'       => 'Preis',
 			'm24_modell'      => 'Modell',
-			'm24_baugruppe'   => 'Baugruppe',
 			'm24_status'      => 'Status',
 			'date'            => isset( $cols['date'] ) ? $cols['date'] : 'Datum',
 		);
@@ -111,16 +110,6 @@ class M24_Catalog_Admin_List {
 
 			case 'm24_modell':
 				echo self::render_modell_cell( $post_id ); // phpcs:ignore WordPress.Security.EscapeOutput
-				break;
-
-			case 'm24_baugruppe':
-				$terms = get_the_terms( $post_id, self::TAX_BAUGRUPPE );
-				if ( $terms && ! is_wp_error( $terms ) ) {
-					$names = wp_list_pluck( $terms, 'name' );
-					echo esc_html( implode( ', ', $names ) );
-				} else {
-					echo '<span style="color:#999">—</span>';
-				}
 				break;
 
 			case 'm24_status':
@@ -771,6 +760,8 @@ class M24_Catalog_Admin_List {
 			. $b . ' .wp-list-table .column-title{white-space:nowrap}'
 			. $b . ' .wp-list-table .column-title strong{display:inline}'
 			. $b . ' .wp-list-table .column-title strong a{display:inline;white-space:nowrap}'
+			// Beschreibung gedaempft unter dem Titel (max. 2 Zeilen, umbrechend)
+			. $b . ' .wp-list-table .m24-row-desc{white-space:normal;color:#787c82;font-size:12px;line-height:1.35;margin:2px 0 0;max-width:460px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
 			// Horizontal-Scroll NUR innerhalb des Wrappers — darf NICHT das Admin-Layout
 			// (Sidebar/Toolbar) nach links schieben. Die Flex-/Grid-Vorfahren (WP 7.0) bekommen
 			// min-width:0, damit die max-content-Tabelle die Inhaltsspalte nicht aufblaeht;
