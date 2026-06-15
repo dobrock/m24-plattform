@@ -32,7 +32,8 @@ $ld = array(
 ?>
 <script type="application/ld+json"><?php echo wp_json_encode( $ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?></script>
 <style>
-.m24hub{--ink:#14161a;--ink2:#1e2228;--surface:#f4f4f2;--paper:#fff;--blue:#1763ad;--ga:#1f74c4;--gb:#0e447e;--brass:#9a6b25;--red:#9e2b2b;--text:#1b1e22;--muted:#6b7077;--line:#e4e4e0;font-family:'Saira',Helvetica,Arial,sans-serif;color:var(--text);line-height:1.6}
+/* Design-Tokens (:root) + Karten-Komponente zentral: assets/css/m24-ci.css. */
+.m24hub{font-family:'Saira',Helvetica,Arial,sans-serif;color:var(--text);line-height:1.6}
 .m24hub .m24hub-wrap{max-width:1180px;margin:0 auto;padding:0 24px}
 .m24hub .m24hub-crumb{background:var(--surface);border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
 .m24hub .m24hub-crumb .m24hub-wrap{padding:12px 24px}
@@ -75,23 +76,6 @@ $ld = array(
 .m24hub .m24-archiv__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
 @media(max-width:900px){.m24hub .m24-archiv__grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.m24hub .m24-archiv__grid{grid-template-columns:1fr}}
-/* Katalog-Karte (wie Archiv; v1 dupliziert, Phase 2: geteiltes Stylesheet §9). */
-.m24hub .m24-card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:box-shadow .18s,transform .18s}
-.m24hub .m24-card:hover{box-shadow:0 8px 24px rgba(20,22,26,.12);transform:translateY(-2px)}
-.m24hub .m24-card__link{display:flex;flex-direction:column;text-decoration:none;color:inherit;height:100%}
-.m24hub .m24-card__media{position:relative;display:block;aspect-ratio:4/3;background:var(--surface);overflow:hidden}
-.m24hub .m24-card__media img{width:100%;height:100%;object-fit:cover;display:block}
-.m24hub .m24-card__noimg{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:13px;letter-spacing:.12em;color:#b9bcc0;font-weight:700}
-.m24hub .m24-card__noimg--ph{background-size:cover;background-position:center;background-repeat:no-repeat}
-.m24hub .m24-card__badge{position:absolute;top:10px;left:10px;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:6px;color:#fff;text-transform:uppercase}
-.m24hub .m24-card__badge--sold{background:var(--red)}
-.m24hub .m24-card__body{display:flex;flex-direction:column;gap:6px;padding:14px 15px 16px;flex:1}
-.m24hub .m24-card__title{font-size:16px;line-height:1.3;font-weight:600;margin:0}
-.m24hub .m24-card__meta{font-size:12.5px;color:var(--muted)}
-.m24hub .m24-card__pricewrap{margin-top:auto;padding-top:8px;display:flex;flex-direction:column}
-.m24hub .m24-card__price{font-size:19px;font-weight:700;color:var(--brass)}
-.m24hub .m24-card__price--ask{font-size:16px}
-.m24hub .m24-card__pricenote{font-size:11.5px;color:var(--muted)}
 .m24hub .m24hub-legal{background:var(--surface);border-top:1px solid var(--line)}
 .m24hub .m24hub-legal .m24hub-wrap{padding:20px 24px;font-size:12.5px;color:var(--muted);max-width:1000px}
 .m24hub .m24hub-empty{color:var(--muted);font-style:italic;padding:18px 0}

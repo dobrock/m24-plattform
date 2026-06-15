@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.7.31
+ * Version:           0.7.32
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.7.31' );
+define( 'M24_PLATTFORM_VERSION',     '0.7.32' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -123,6 +123,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-gallery.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-detail.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seed-terms.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-rewrites.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-assets.php';      // Zentrales CI-Stylesheet (Tokens + geteilte Karte)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub.php';        // Modell-Hub-Landingpages (Routing/SEO; Template separat)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub-admin.php';  // Modell-Hub: Term-Meta-Editor (Bilder/Texte/SEO)
@@ -188,6 +189,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_Template_Detail::init();
     M24_Catalog_Seed_Terms::init();
     M24_Catalog_Rewrites::init();
+    M24_Catalog_Assets::init();
     M24_Catalog_Archive::init();
     M24_Catalog_Hub::init();
     M24_Catalog_Hub_Admin::init();

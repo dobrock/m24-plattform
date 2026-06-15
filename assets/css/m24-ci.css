@@ -1,0 +1,44 @@
+/**
+ * M24 Plattform — zentrale CI-Design-Tokens + geteilte Komponenten
+ * Datei: assets/css/m24-ci.css  ·  Loader: modules/katalog/catalog-assets.php
+ *
+ * EINZIGE Wahrheitsquelle der Design-Tokens (kein Hardcode pro Template). Templates
+ * referenzieren var(--ink) etc. Geladen auf Katalog-Archiv, Modell-Hubs und Teile-
+ * Detailseiten. Die Karten-Komponente (.m24-card*) wird von Archiv UND Hub geteilt.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap');
+
+:root {
+	--ink: #14161a;
+	--ink2: #1e2228;
+	--surface: #f4f4f2;
+	--paper: #fff;
+	--blue: #1763ad;
+	--grad-a: #1f74c4;   /* Button-Verlauf Start */
+	--grad-b: #0e447e;   /* Button-Verlauf Ende  */
+	--brass: #9a6b25;
+	--red: #9e2b2b;      /* nur Signal (Verkauft) */
+	--text: #1b1e22;
+	--muted: #6b7077;
+	--line: #e4e4e0;
+	--m24-radius: 12px;
+}
+
+/* ── Geteilte Katalog-Karte (Archiv-Grid, Hub-Grid, verwandte Teile) ───────── */
+.m24-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--m24-radius); overflow: hidden; transition: box-shadow .18s, transform .18s; }
+.m24-card:hover { box-shadow: 0 8px 24px rgba(20,22,26,.12); transform: translateY(-2px); }
+.m24-card__link { display: flex; flex-direction: column; text-decoration: none; color: inherit; height: 100%; }
+.m24-card__media { position: relative; display: block; aspect-ratio: 4/3; background: var(--surface); overflow: hidden; }
+.m24-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.m24-card__noimg { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 13px; letter-spacing: .12em; color: #b9bcc0; font-weight: 700; }
+.m24-card__noimg--ph { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.m24-card__badge { position: absolute; top: 10px; left: 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 6px; color: #fff; text-transform: uppercase; }
+.m24-card__badge--sold { background: var(--red); }
+.m24-card__body { display: flex; flex-direction: column; gap: 6px; padding: 14px 15px 16px; flex: 1; }
+.m24-card__title { font-size: 16px; line-height: 1.3; font-weight: 600; margin: 0; }
+.m24-card__meta { font-size: 12.5px; color: var(--muted); }
+.m24-card__pricewrap { margin-top: auto; padding-top: 8px; display: flex; flex-direction: column; }
+.m24-card__price { font-size: 19px; font-weight: 700; color: var(--brass); }
+.m24-card__price--ask { font-size: 16px; }
+.m24-card__pricenote { font-size: 11.5px; color: var(--muted); }

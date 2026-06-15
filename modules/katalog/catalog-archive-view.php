@@ -80,8 +80,8 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 ?>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap');
-.m24-archiv{--m24-ink:#14161a;--m24-blue:#1763ad;--m24-brass:#9a6b25;--m24-red:#9e2b2b;--m24-surface:#f4f4f2;--m24-muted:#6b7077;width:100%;margin:34px 0 56px;color:var(--m24-ink);font-family:'Saira',sans-serif;}
+/* Tokens + Saira + Karten-Komponente zentral: assets/css/m24-ci.css. Lokale --m24-* aliasen darauf (eine Wahrheitsquelle). */
+.m24-archiv{--m24-ink:var(--ink);--m24-blue:var(--blue);--m24-brass:var(--brass);--m24-red:var(--red);--m24-surface:var(--surface);--m24-muted:var(--muted);width:100%;margin:34px 0 56px;color:var(--m24-ink);font-family:'Saira',sans-serif;}
 .m24-archiv *{box-sizing:border-box;}
 .m24-breadcrumb{font-size:12px;color:var(--m24-muted);display:flex;align-items:center;gap:8px;margin-bottom:12px;}
 .m24-breadcrumb a{color:var(--m24-blue);text-decoration:none;display:inline-flex;align-items:center;}
@@ -105,22 +105,7 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 .m24-archiv__grid--3{grid-template-columns:repeat(3,1fr);}
 .m24-archiv__grid--4{grid-template-columns:repeat(4,1fr);}
 .m24-archiv__grid--list{grid-template-columns:1fr;gap:14px;}
-.m24-card{background:#fff;border:1px solid #e8e8e6;border-radius:12px;overflow:hidden;transition:box-shadow .18s,transform .18s;}
-.m24-card:hover{box-shadow:0 8px 24px rgba(20,22,26,.12);transform:translateY(-2px);}
-.m24-card__link{display:flex;flex-direction:column;text-decoration:none;color:inherit;height:100%;}
-.m24-card__media{position:relative;display:block;aspect-ratio:4/3;background:var(--m24-surface);overflow:hidden;}
-.m24-card__media img{width:100%;height:100%;object-fit:cover;display:block;}
-.m24-card__noimg{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:13px;letter-spacing:.12em;color:#b9bcc0;font-weight:700;}
-.m24-card__noimg--ph{background-size:cover;background-position:center;background-repeat:no-repeat;}
-.m24-card__badge{position:absolute;top:10px;left:10px;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:6px;color:#fff;text-transform:uppercase;}
-.m24-card__badge--sold{background:var(--m24-red);}
-.m24-card__body{display:flex;flex-direction:column;gap:6px;padding:14px 15px 16px;flex:1;}
-.m24-card__title{font-size:16px;line-height:1.3;font-weight:600;margin:0;}
-.m24-card__meta{font-size:12.5px;color:var(--m24-muted);}
-.m24-card__pricewrap{margin-top:auto;padding-top:8px;display:flex;flex-direction:column;}
-.m24-card__price{font-size:19px;font-weight:700;color:var(--m24-brass);}
-.m24-card__price--ask{font-size:16px;}
-.m24-card__pricenote{font-size:11.5px;color:var(--m24-muted);}
+/* .m24-card* (Komponente) zentral in assets/css/m24-ci.css — hier nur Listen-Overrides. */
 /* Listenansicht: horizontal */
 .m24-archiv__grid--list .m24-card__link{flex-direction:row;align-items:stretch;}
 .m24-archiv__grid--list .m24-card__media{width:200px;flex:0 0 200px;aspect-ratio:4/3;}
