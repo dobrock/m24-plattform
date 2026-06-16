@@ -176,6 +176,29 @@ class M24_Shopware_Client {
 	}
 
 	/**
+	 * Leichte ID-Listung der Produkte EINER beliebigen Kategorie (Subtree via path),
+	 * NUR Haupt-Produkte (parentId=null). Fuer den Rennsport-Import (Kategorie-getrieben).
+	 *
+	 * @param string $category_uuid  Shopware-Kategorie-UUID.
+	 * @param int    $page
+	 * @param int    $limit          Items pro Seite (bis 100).
+	 * @return array Raw-Response: { data: [{id,productNumber}...], total: int }
+	 */
+	public function search_category_product_ids( $category_uuid, $page = 1, $limit = 100 ) {
+		$query = array(
+			'filter'           => array(
+				array( 'type' => 'equals',   'field' => 'parentId',          'value' => null ),
+				array( 'type' => 'contains', 'field' => 'categoriesRo.path', 'value' => (string) $category_uuid ),
+			),
+			'includes'         => array( 'product' => array( 'id', 'productNumber' ) ),
+			'page'             => max( 1, (int) $page ),
+			'limit'            => max( 1, min( 100, (int) $limit ) ),
+			'total-count-mode' => 1,
+		);
+		return $this->post( '/api/search/product', $query );
+	}
+
+	/**
 	 * Voll-Hydrierung einer ID-Liste (mit Medien/Tax/Kategorien-Associations) fuer den
 	 * Hintergrund-Worker. Wird pro Batch genau einmal aufgerufen.
 	 *

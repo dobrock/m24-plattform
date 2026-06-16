@@ -254,7 +254,9 @@ trait M24_Shopware_Import_Core {
 	protected function upsert_meta( $post_id, $mapping, $is_update, $force = false ) {
 		update_post_meta( $post_id, '_m24_sw_id',         $mapping['sw_id'] );
 		update_post_meta( $post_id, '_m24_artikelnummer', $mapping['pno'] );
-		update_post_meta( $post_id, '_m24_typ',           'gebraucht' );
+		// Teil-Typ: Default 'gebraucht'; der Rennsport-Importer setzt per Filter 'neu'.
+		$typ = apply_filters( 'm24_sw_import_typ', 'gebraucht', $mapping );
+		update_post_meta( $post_id, '_m24_typ',           in_array( $typ, array( 'neu', 'gebraucht' ), true ) ? $typ : 'gebraucht' );
 		// T1: mwst_modus aus mapping (nicht mehr blind §25a).
 		update_post_meta( $post_id, '_m24_mwst_modus',    $mapping['mwst_modus'] );
 
@@ -323,6 +325,8 @@ trait M24_Shopware_Import_Core {
 		} elseif ( '' !== trim( (string) ( $mapping['modell_term'] ?? '' ) ) ) {
 			$modell_term_names = array( $mapping['modell_term'] );
 		}
+		// Rennsport-Importer erzwingt hier den Hub-Modell-Term (z.B. „Z4 GT3"); Default = geparst.
+		$modell_term_names = (array) apply_filters( 'm24_sw_import_modell_terms', $modell_term_names, $product, $mapping );
 		$modell_ids      = array();
 		$modell_assigned = array();
 		foreach ( $modell_term_names as $tn ) {

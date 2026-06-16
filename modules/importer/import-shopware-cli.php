@@ -292,6 +292,11 @@ WP_CLI::add_command( 'm24 import-shopware', 'M24_Import_Shopware_CLI' );
 WP_CLI::add_command( 'm24 import-queue',  array( 'M24_Shopware_Queue', 'cli_enqueue' ) );
 WP_CLI::add_command( 'm24 import-status', array( 'M24_Shopware_Queue', 'cli_status' ) );
 
+// Rennsport-Import (kategorie-getrieben, eigener AS-Hook). Logik in import-shopware-rennsport.php.
+if ( class_exists( 'M24_Shopware_Rennsport' ) ) {
+	WP_CLI::add_command( 'm24 import-rennsport', array( 'M24_Shopware_Rennsport', 'cli' ) );
+}
+
 /**
  * Extrahiert BMW-Teilenummern aus den Beschreibungen aller m24_teil-Posts und schreibt
  * sie in _m24_bmw_teilenummer — nur wenn das Feld leer ist (idempotent, kein Overwrite).
