@@ -48,7 +48,11 @@ trait M24_Shopware_Import_Core {
 			$post_id = $this->upsert_post( $existing ?: null, $mapping, $force );
 			$this->upsert_meta( $post_id, $mapping, (bool) $existing, $force );
 			$this->assign_taxonomies( $post_id, $product, $mapping );
-			$this->import_product_media( $product, $post_id, (bool) $existing );
+			// Produkt steht ab hier garantiert. Medien optional entkoppeln (Rennsport-Import:
+			// Bilder NACH der Anlage best-effort, blockieren nie die Produktanlage).
+			if ( ! apply_filters( 'm24_sw_skip_media', false, $product ) ) {
+				$this->import_product_media( $product, $post_id, (bool) $existing );
+			}
 			return array(
 				'status'  => $existing ? 'updated' : 'created',
 				'post_id' => $post_id,

@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.9.2
+ * Version:           0.9.3
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.9.2' );
+define( 'M24_PLATTFORM_VERSION',     '0.9.3' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -157,6 +157,7 @@ require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-bmw-teilenummer-ext
 // Beides IMMER laden — der Worker laeuft im WP-Cron-Kontext, nicht nur unter WP-CLI.
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-shopware-import-core.php';
 require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-queue.php';
+require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-media.php';     // Bild-Entkopplung + Media-Repair (eine Verantwortung)
 require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-rennsport.php'; // Rennsport-Import (eigener AS-Hook)
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-cli.php';

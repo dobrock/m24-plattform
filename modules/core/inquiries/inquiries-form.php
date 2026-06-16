@@ -248,7 +248,7 @@ class M24_Inquiries_Form {
                                     __( 'Ich willige ein, dass meine Angaben zur Beantwortung meiner Anfrage gespeichert und verarbeitet werden. Weitere Informationen in der %s.', 'm24-plattform' ),
                                     [ 'a' => [ 'href' => [], 'target' => [], 'rel' => [] ] ]
                                 ),
-                                '<a href="/datenschutzerklaerung/">' . esc_html__( 'Datenschutzerklärung', 'm24-plattform' ) . '</a>'
+                                '<a href="' . esc_url( function_exists( 'm24_datenschutz_url' ) && m24_datenschutz_url() ? m24_datenschutz_url() : home_url( '/datenschutz/' ) ) . '">' . esc_html__( 'Datenschutzerklärung', 'm24-plattform' ) . '</a>'
                             );
                             ?>
                             <span class="m24-form__required">*</span>

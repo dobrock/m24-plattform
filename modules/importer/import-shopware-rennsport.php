@@ -220,9 +220,47 @@ class M24_Shopware_Rennsport {
 	}
 
 	/**
-	 * Worker: hydriert den Batch, setzt _m24_typ='neu' + festen Modell-Term via Filter,
-	 * importiert ueber die bestehende Per-Produkt-Logik, raeumt die Filter wieder ab.
+	 * ENTKOPPELTER Per-Produkt-Import (Prompt C, A+B): Produkt VOR Bild.
+	 * 1) Post+Meta+Term committen (_m24_typ=neu, _m24_sw_id, Modell-Term) — Produkt
+	 *    existiert ab hier garantiert (Medien im Core via m24_sw_skip_media aus).
+	 * 2) Quell-Bild-URLs in _m24_img_pending ablegen.
+	 * 3) Bilder best-effort laden (15s-Timeout, kein Throw) → Featured + Pending leeren.
+	 * Jedes Produkt in eigenem try/catch — eine Exception failt NIE den Batch.
+	 *
+	 * @return array { status, post_id, name, error, img:{done,remaining}|null }
 	 */
+	public static function import_one( $product, $term, $force = false ) {
+		$sw_id = (string) ( $product['id'] ?? '' );
+		if ( self::skip_existing_gebraucht( $sw_id ) ) {
+			return array( 'status' => 'skipped_gebraucht', 'post_id' => 0, 'name' => '', 'error' => '', 'img' => null );
+		}
+		$set_typ  = function () { return 'neu'; };
+		$set_term = function () use ( $term ) { return array( $term ); };
+		$set_skip = function () { return true; }; // Medien im Core ueberspringen → entkoppelt
+		add_filter( 'm24_sw_import_typ', $set_typ );
+		add_filter( 'm24_sw_import_modell_terms', $set_term );
+		add_filter( 'm24_sw_skip_media', $set_skip );
+		try {
+			$res = M24_Shopware_Queue_worker_proxy()->import_product_core( (array) $product, (bool) $force );
+		} catch ( Exception $e ) {
+			$res = array( 'status' => 'skipped_error', 'post_id' => 0, 'name' => (string) ( $product['name'] ?? '' ), 'error' => $e->getMessage() );
+		}
+		remove_filter( 'm24_sw_import_typ', $set_typ );
+		remove_filter( 'm24_sw_import_modell_terms', $set_term );
+		remove_filter( 'm24_sw_skip_media', $set_skip );
+
+		$img = null;
+		$pid = (int) ( $res['post_id'] ?? 0 );
+		if ( $pid && in_array( $res['status'], array( 'created', 'updated' ), true ) ) {
+			try {
+				M24_Shopware_Media::store_pending( $pid, M24_Shopware_Media::extract( $product ) );
+				$img = M24_Shopware_Media::attempt( $pid, M24_Shopware_Media::DEFAULT_TIMEOUT );
+			} catch ( Exception $e ) { $img = null; } // Bilder dürfen die Anlage nie kippen
+		}
+		return array( 'status' => $res['status'], 'post_id' => $pid, 'name' => $res['name'] ?? '', 'error' => $res['error'] ?? '', 'img' => $img );
+	}
+
+	/** Worker (AS-Batch): hydriert + importiert entkoppelt ueber import_one(). */
 	public static function run_batch( $ids = array(), $term = '', $force = false, $run_id = '', $batch_no = 0, $attempt = 1 ) {
 		$ids = is_array( $ids ) ? $ids : array();
 		if ( empty( $ids ) ) { return; }
@@ -235,29 +273,19 @@ class M24_Shopware_Rennsport {
 			return;
 		}
 
-		// Filter aktivieren: dieser Batch → Rennsport + fester Hub-Term.
-		$set_typ  = function () { return 'neu'; };
-		$set_term = function () use ( $term ) { return array( $term ); };
-		add_filter( 'm24_sw_import_typ', $set_typ );
-		add_filter( 'm24_sw_import_modell_terms', $set_term );
-
-		$worker = M24_Shopware_Queue_worker_proxy();
 		$created = 0; $updated = 0; $locked = 0; $errors = 0; $skipped = 0;
 		foreach ( $products as $product ) {
-			if ( self::skip_existing_gebraucht( (string) ( $product['id'] ?? '' ) ) ) { $skipped++; continue; }
-			$res = $worker->import_product_core( (array) $product, (bool) $force );
-			switch ( $res['status'] ) {
+			$r = self::import_one( $product, $term, $force );
+			switch ( $r['status'] ) {
 				case 'created': $created++; break;
 				case 'updated': $updated++; break;
 				case 'skipped_lock': $locked++; break;
+				case 'skipped_gebraucht': $skipped++; break;
 				default:
 					$errors++;
-					M24_Logger::warning( 'shopware-import', sprintf( 'Rennsport-Produkt-Fehler (Batch %s): %s — %s', $batch_no, $res['name'], $res['error'] ) );
+					M24_Logger::warning( 'shopware-import', sprintf( 'Rennsport-Produkt-Fehler (Batch %s): %s — %s', $batch_no, $r['name'], $r['error'] ) );
 			}
 		}
-
-		remove_filter( 'm24_sw_import_typ', $set_typ );
-		remove_filter( 'm24_sw_import_modell_terms', $set_term );
 
 		$missing = count( $ids ) - count( $products );
 		if ( $missing > 0 ) { $errors += $missing; }
@@ -265,6 +293,52 @@ class M24_Shopware_Rennsport {
 		self::tally( $run_id, $batch_no, $created + $updated + $locked + $skipped, $errors );
 		M24_Logger::info( 'shopware-import', sprintf( 'Rennsport-Batch %s [%s] fertig: +%d neu, ~%d update, %d gesperrt, %d übersprungen(gebraucht), %d Fehler (run %s)',
 			$batch_no, $term, $created, $updated, $locked, $skipped, $errors, $run_id ) );
+	}
+
+	/**
+	 * SYNCHRONER Voll-Drain (Prompt C, C): EIN CLI-Prozess, schleift ueber ALLE Produkte
+	 * der gewaehlten Kategorien bis fertig. Kein Zeit-Budget (CLI hat kein max_execution_time),
+	 * idempotent ueber _m24_sw_id (Disconnect/Ctrl-C → neu starten). Fortschritt via $cb.
+	 *
+	 * @return array { created,updated,skipped,errors,img_done,img_pending,per_cat }
+	 */
+	public static function run_all( $keys = array(), $force = false, $cb = null ) {
+		$map    = self::category_map();
+		$keys   = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
+		$client = new M24_Shopware_Client();
+		$tot    = array( 'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0, 'img_done' => 0, 'img_pending' => 0, 'per_cat' => array() );
+
+		foreach ( $keys as $key ) {
+			$cfg = $map[ $key ];
+			$ids = self::collect_ids( $client, $cfg['cat'] );
+			$n   = count( $ids ); $i = 0; $c = 0; $u = 0; $s = 0;
+			foreach ( array_chunk( $ids, 25 ) as $chunk ) {
+				try { $products = $client->fetch_products_by_ids( $chunk ); }
+				catch ( Exception $e ) { $tot['errors'] += count( $chunk ); $i += count( $chunk ); continue; }
+				$by = array();
+				foreach ( $products as $p ) { $by[ (string) ( $p['id'] ?? '' ) ] = $p; }
+				foreach ( $chunk as $swid ) {
+					$i++;
+					$p = isset( $by[ $swid ] ) ? $by[ $swid ] : null;
+					if ( null === $p ) { $tot['errors']++; continue; }
+					$r = self::import_one( $p, $cfg['term'], $force );
+					switch ( $r['status'] ) {
+						case 'created': $tot['created']++; $c++; break;
+						case 'updated': $tot['updated']++; $u++; break;
+						case 'skipped_gebraucht': $tot['skipped']++; $s++; break;
+						case 'skipped_lock': $tot['skipped']++; break;
+						default: $tot['errors']++;
+					}
+					if ( is_array( $r['img'] ) ) {
+						$tot['img_done'] += (int) $r['img']['done'];
+						if ( (int) $r['img']['remaining'] > 0 ) { $tot['img_pending']++; }
+					}
+					if ( is_callable( $cb ) ) { call_user_func( $cb, $key, $i, $n, $c + $u, $s, $tot['img_pending'] ); }
+				}
+			}
+			$tot['per_cat'][ $key ] = array( 'ids' => $n, 'created' => $c, 'updated' => $u, 'skipped' => $s );
+		}
+		return $tot;
 	}
 
 	private static function handle_failure( $ids, $term, $force, $run_id, $batch_no, $attempt, $msg ) {
@@ -290,47 +364,16 @@ class M24_Shopware_Rennsport {
 		update_option( self::OPTION, $run, false );
 	}
 
-	/** Synchroner Direkt-Import (Test/kleine Mengen, ohne AS) — gibt Zaehler zurueck. */
-	public static function run_sync( $keys = array(), $force = false ) {
-		$map    = self::category_map();
-		$keys   = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
-		$client = new M24_Shopware_Client();
-		$tot    = array( 'created' => 0, 'updated' => 0, 'locked' => 0, 'skipped' => 0, 'errors' => 0, 'per_cat' => array() );
-		foreach ( $keys as $key ) {
-			$cfg = $map[ $key ];
-			$ids = self::collect_ids( $client, $cfg['cat'] );
-			$c = 0; $u = 0; $s = 0;
-			foreach ( array_chunk( $ids, 25 ) as $chunk ) {
-				$products = $client->fetch_products_by_ids( $chunk );
-				$set_typ  = function () { return 'neu'; };
-				$set_term = function () use ( $cfg ) { return array( $cfg['term'] ); };
-				add_filter( 'm24_sw_import_typ', $set_typ );
-				add_filter( 'm24_sw_import_modell_terms', $set_term );
-				$worker = M24_Shopware_Queue_worker_proxy();
-				foreach ( $products as $product ) {
-					if ( self::skip_existing_gebraucht( (string) ( $product['id'] ?? '' ) ) ) { $tot['skipped']++; $s++; continue; }
-					$res = $worker->import_product_core( (array) $product, (bool) $force );
-					if ( 'created' === $res['status'] ) { $tot['created']++; $c++; }
-					elseif ( 'updated' === $res['status'] ) { $tot['updated']++; $u++; }
-					elseif ( 'skipped_lock' === $res['status'] ) { $tot['locked']++; }
-					else { $tot['errors']++; }
-				}
-				remove_filter( 'm24_sw_import_typ', $set_typ );
-				remove_filter( 'm24_sw_import_modell_terms', $set_term );
-			}
-			$tot['per_cat'][ $key ] = array( 'ids' => count( $ids ), 'created' => $c, 'updated' => $u, 'skipped' => $s );
-		}
-		return $tot;
-	}
-
 	/**
-	 * WP-CLI: wp m24 import-rennsport [--cats=z4-gt3,e30] [--batch-size=5]
-	 *   (default)   → Enqueue (eigene AS-Gruppe; bereinigt vorher Alt-Aktionen)
-	 *   --run        → dedizierter Drain NUR des Rennsport-Hooks (timeout-safe, mehrfach aufrufbar)
-	 *   --sync       → synchroner Direkt-Import (klein/Test, ohne AS)
-	 *   --status     → Status des aktuellsten Rennsport-Runs
-	 *   --reset      → nur Alt-Aktionen des Rennsport-Hooks bereinigen
-	 *   --max-seconds=50 (fuer --run) · --force
+	 * WP-CLI: wp m24 import-rennsport [--cats=z4-gt3,e30,…]
+	 *   --run-all    → SYNCHRONER Voll-Import in EINEM CLI-Prozess (Produkt vor Bild,
+	 *                  kein Zeit-Budget, idempotent; empfohlen). Alias: --sync
+	 *   --media      → Repair-Pass: offene _m24_img_pending nachladen (resumierbar, cron) [--timeout=15]
+	 *   --status     → Status + Bild-Statistik (total neu · mit Featured · img-pending)
+	 *   (default)    → Enqueue über eigene AS-Gruppe (bereinigt vorher Alt-Aktionen)
+	 *   --run        → dedizierter AS-Drain NUR des Rennsport-Hooks [--max-seconds=50]
+	 *   --reset      → Alt-Aktionen des Rennsport-Hooks bereinigen
+	 *   --batch-size=3 (Enqueue) · --force
 	 */
 	public static function cli( $args, $assoc_args ) {
 		$keys  = isset( $assoc_args['cats'] ) ? array_filter( array_map( 'trim', explode( ',', (string) $assoc_args['cats'] ) ) ) : array();
@@ -369,12 +412,26 @@ class M24_Shopware_Rennsport {
 			}
 			return;
 		}
-		// --sync
-		if ( isset( $assoc_args['sync'] ) ) {
-			WP_CLI::log( '── Rennsport-Import (synchron) ──' );
-			$t = self::run_sync( $keys, $force );
-			WP_CLI::success( sprintf( '%d neu, %d update, %d gesperrt, %d übersprungen(gebraucht), %d Fehler', $t['created'], $t['updated'], $t['locked'], $t['skipped'], $t['errors'] ) );
+		// --media (Repair-Pass: offene Bilder nachladen, resumierbar)
+		if ( isset( $assoc_args['media'] ) ) {
+			$to = isset( $assoc_args['timeout'] ) ? max( 5, (int) $assoc_args['timeout'] ) : M24_Shopware_Media::DEFAULT_TIMEOUT;
+			WP_CLI::log( '── Rennsport-Media-Repair (Timeout ' . $to . 's) ──' );
+			$r = M24_Shopware_Media::repair_all( $to, function ( $i, $n, $pid, $res ) {
+				if ( 0 === $i % 10 || $i === $n ) { WP_CLI::log( sprintf( '  %d/%d · +%d Bilder · offen %d', $i, $n, $res['done'], $res['remaining'] ) ); }
+			} );
+			WP_CLI::success( sprintf( '%d Produkte bearbeitet · %d Bilder geladen · %d noch mit offenen Bildern.', $r['products'], $r['done'], $r['still_pending'] ) );
+			return;
+		}
+		// --run-all / --sync → SYNCHRONER Voll-Drain (entkoppelt, kein Zeit-Budget)
+		if ( isset( $assoc_args['run-all'] ) || isset( $assoc_args['sync'] ) ) {
+			WP_CLI::log( '── Rennsport-Import (synchron, Produkt-vor-Bild) ──' );
+			$t = self::run_all( $keys, $force, function ( $key, $i, $n, $ok, $skip, $imgp ) {
+				if ( 0 === $i % 10 || $i === $n ) { WP_CLI::log( sprintf( '  %s %d/%d · ok %d · skip %d · img-pending %d', $key, $i, $n, $ok, $skip, $imgp ) ); }
+			} );
+			WP_CLI::success( sprintf( '%d neu, %d update, %d übersprungen(gebraucht), %d Fehler · %d Bilder geladen, %d Produkte mit offenen Bildern.',
+				$t['created'], $t['updated'], $t['skipped'], $t['errors'], $t['img_done'], $t['img_pending'] ) );
 			foreach ( $t['per_cat'] as $k => $v ) { WP_CLI::log( "  $k: {$v['ids']} IDs → {$v['created']} neu / {$v['updated']} update / {$v['skipped']} übersprungen" ); }
+			if ( $t['img_pending'] > 0 ) { WP_CLI::log( 'Offene Bilder nachladen: wp m24 import-rennsport --media' ); }
 			return;
 		}
 		// default → Enqueue
@@ -386,8 +443,9 @@ class M24_Shopware_Rennsport {
 		}
 		WP_CLI::success( sprintf( '%d Produkte in %d Batches eingereiht (run %s).', $r['enqueued'], $r['batches'], $r['run_id'] ) );
 		foreach ( $r['per_cat'] as $k => $n ) { WP_CLI::log( "  $k: $n Produkte" ); }
-		WP_CLI::log( 'Drain (timeout-safe, NUR eigener Hook): wp m24 import-rennsport --run' );
-		WP_CLI::log( 'Status:                                 wp m24 import-rennsport --status' );
+		WP_CLI::log( 'Empfohlen (synchron, kein AS-Babysitting): wp m24 import-rennsport --cats=' . ( $keys ? implode( ',', $keys ) : 'z4-gt3' ) . ' --run-all' );
+		WP_CLI::log( 'AS-Drain (nur eigener Hook):                wp m24 import-rennsport --run' );
+		WP_CLI::log( 'Status:                                     wp m24 import-rennsport --status' );
 	}
 
 	/** Status-Ausgabe (CLI) des aktuellsten Rennsport-Runs. */
@@ -408,6 +466,13 @@ class M24_Shopware_Rennsport {
 		WP_CLI::log( '  laufend:     ' . ( null === $as['running'] ? 'n/a' : (int) $as['running'] ) );
 		WP_CLI::log( '  erledigt:    ' . ( null === $as['complete'] ? 'n/a' : (int) $as['complete'] ) );
 		WP_CLI::log( '  fehlgeschl.: ' . ( null === $as['failed'] ? 'n/a' : (int) $as['failed'] ) );
+		// Bild-Statistik (Prompt C, E): „alle Bilder da?" ohne SQL.
+		$m = M24_Shopware_Media::media_stats();
+		WP_CLI::log( '' );
+		WP_CLI::log( 'Rennsport-Produkte (_m24_typ=neu):' );
+		WP_CLI::log( '  total:           ' . (int) $m['total'] );
+		WP_CLI::log( '  mit Featured:    ' . (int) $m['featured'] );
+		WP_CLI::log( '  img-pending:     ' . (int) $m['pending'] . ( $m['pending'] > 0 ? '  → wp m24 import-rennsport --media' : '  ✓ alle Bilder da' ) );
 		if ( ! empty( $run ) && 0 === (int) $as['pending'] + (int) $as['running'] ) {
 			WP_CLI::success( 'Rennsport-Queue leer — Import abgeschlossen.' );
 		}
