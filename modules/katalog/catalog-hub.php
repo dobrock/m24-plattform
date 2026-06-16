@@ -3,7 +3,7 @@
  * M24 Plattform — Modell-Hubs (indexierbare Landing Pages je BMW-M-Modell)
  * Modul: modules/katalog/catalog-hub.php
  *
- * Routing + Daten/Logik fuer /gebrauchtteile/{hub}/. Das Template (catalog-hub-view.php)
+ * Routing + Daten/Logik fuer /modelle/{hub}/. Das Template (catalog-hub-view.php)
  * baut nur den Inhaltsbereich zwischen get_header()/get_footer(). SEO: self-canonical,
  * index,follow (ueberschreibt die generelle „Modell-Filter = noindex"-Regel — nur diese Hubs).
  *
@@ -18,7 +18,8 @@ class M24_Catalog_Hub {
 	const TAX = 'm24_fahrzeugkat';
 	const CPT = 'm24_modellhub';
 	const META = '_m24_hub_';
-	const REWRITE_FLAG = 'm24_hub_rewrites_v3'; // v3: Slugs dynamisch aus CPT (m-sonstige → sonstige-bmw-m-modelle)
+	const BASE = 'modelle';                     // neutrale URL-Basis /modelle/{slug}/ (vorher gebrauchtteile)
+	const REWRITE_FLAG = 'm24_hub_rewrites_v4'; // v4: Base /gebrauchtteile/ → /modelle/
 	const PER_PAGE = 24;                        // Teile pro Seite (Auftrag: 24–36)
 
 	/** @var array|null Registry-Cache: slug => post_id (veroeffentlichte Hubs). */
@@ -78,31 +79,46 @@ class M24_Catalog_Hub {
 	public static function add_rewrite() {
 		$slugs = self::slugs_pattern();
 		if ( '' === $slugs ) { return; }
-		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$', 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]', 'top' );
-		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/?$', 'index.php?' . self::QV . '=$matches[1]', 'top' );
+		add_rewrite_rule( '^' . self::BASE . '/(' . $slugs . ')/seite/([0-9]+)/?$', 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]', 'top' );
+		add_rewrite_rule( '^' . self::BASE . '/(' . $slugs . ')/?$', 'index.php?' . self::QV . '=$matches[1]', 'top' );
 	}
 
 	public static function query_vars( $vars ) { $vars[] = self::QV; return $vars; }
 
-	/** Hub-Regeln garantiert an den Anfang des Rule-Arrays (gewinnen vor Detail-Regel). */
+	/** Hub-Regeln garantiert an den Anfang des Rule-Arrays. */
 	public static function prepend_rule( $rules ) {
 		$slugs = self::slugs_pattern();
 		if ( '' === $slugs ) { return $rules; }
 		$hub = array(
-			'^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$' => 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]',
-			'^gebrauchtteile/(' . $slugs . ')/?$'                => 'index.php?' . self::QV . '=$matches[1]',
+			'^' . self::BASE . '/(' . $slugs . ')/seite/([0-9]+)/?$' => 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]',
+			'^' . self::BASE . '/(' . $slugs . ')/?$'                => 'index.php?' . self::QV . '=$matches[1]',
 		);
 		return $hub + (array) $rules;
 	}
 
-	/** 301 von umbenannten/alten Hub-Slugs auf die aktuellen (SEO-Hygiene). */
+	/**
+	 * 301 von alten Hub-Pfaden auf die neuen /modelle/-URLs (Base- + Slug-Umzug).
+	 * Erhaelt Subpfade (/seite/N/) UND Querystrings (?sort=/?q=). Matcht NUR diese
+	 * Pfad-Praefixe — Teile-Archiv /gebrauchtteile/ und Detailseiten bleiben unberuehrt.
+	 */
 	public static function legacy_redirect() {
-		$map = apply_filters( 'm24_hub_legacy_slugs', array( 'm-sonstige' => 'sonstige-bmw-m-modelle' ) );
 		$path = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) : '';
+		if ( '' === $path ) { return; }
+		$map = apply_filters( 'm24_hub_legacy_paths', array(
+			'/gebrauchtteile/m3-e30'                 => '/modelle/bmw-m3-e30',
+			'/gebrauchtteile/m3-e36'                 => '/modelle/bmw-m3-e36',
+			'/gebrauchtteile/m3-e46'                 => '/modelle/bmw-m3-e46',
+			'/gebrauchtteile/m3-e9x'                 => '/modelle/bmw-m3-e9x',
+			'/gebrauchtteile/sonstige-bmw-m-modelle' => '/modelle/sonstige-bmw-m-modelle',
+			'/gebrauchtteile/m-sonstige'             => '/modelle/sonstige-bmw-m-modelle', // sehr alt
+		) );
 		foreach ( $map as $old => $new ) {
-			if ( preg_match( '#/gebrauchtteile/' . preg_quote( $old, '#' ) . '(/.*)?$#', $path, $m ) ) {
-				$tail = ( isset( $m[1] ) && '' !== $m[1] ) ? $m[1] : '/';
-				wp_safe_redirect( home_url( '/gebrauchtteile/' . $new . $tail ), 301 );
+			if ( $path === $old || 0 === strpos( $path, $old . '/' ) ) {
+				$tail = substr( $path, strlen( $old ) ); // '/seite/2/' o. '' o. '/'
+				if ( '' === $tail ) { $tail = '/'; }
+				$qs = ( isset( $_SERVER['QUERY_STRING'] ) && '' !== $_SERVER['QUERY_STRING'] )
+					? '?' . preg_replace( '/[^A-Za-z0-9_\-=&%\.]/', '', wp_unslash( $_SERVER['QUERY_STRING'] ) ) : '';
+				wp_safe_redirect( home_url( $new . $tail . $qs ), 301 );
 				exit;
 			}
 		}
@@ -155,8 +171,16 @@ class M24_Catalog_Hub {
 	 * Sicherheitsnetz, filterbar.
 	 */
 	public static function default_term_ids( $hub ) {
-		$map   = apply_filters( 'm24_hub_default_terms', array() ); // Override-Slot
-		$slugs = isset( $map[ $hub ] ) ? (array) $map[ $hub ] : array( $hub ); // Default: gleichnamiger flacher Term
+		// Hub-Slug (bmw-…) → FLACHER Modell-Term-Slug (Hauptbestand). Filterbar.
+		$map = apply_filters( 'm24_hub_default_terms', array(
+			'bmw-m3-e30'             => array( 'm3-e30' ),
+			'bmw-m3-e36'             => array( 'm3-e36' ),
+			'bmw-m3-e46'             => array( 'm3-e46' ),
+			'bmw-m3-e9x'             => array( 'm3-e9x' ),
+			'sonstige-bmw-m-modelle' => array( 'sonstige-bmw-m-modelle' ),
+			'bmw-z4-gt3'             => array( 'z4-gt3' ),
+		) );
+		$slugs = isset( $map[ $hub ] ) ? (array) $map[ $hub ] : array( $hub ); // sonst: gleichnamiger Term
 		$ids   = array();
 		foreach ( $slugs as $s ) {
 			$t = get_term_by( 'slug', $s, self::TAX );
@@ -387,10 +411,11 @@ class M24_Catalog_Hub {
 			'images'        => array_values( array_filter( array_map( 'intval', explode( ',', (string) $g( 'images' ) ) ) ) ),
 			'term_ids'      => array_values( array_filter( array_map( 'intval', (array) ( $g( 'terms' ) ?: array() ) ) ) ),
 			'cross_links'   => is_array( $cross ) ? $cross : array(),
+			'default_kat'   => (string) $g( 'default_kat' ) ?: 'gebraucht',
 		);
 	}
 
-	public static function url( $hub ) { return home_url( '/gebrauchtteile/' . $hub . '/' ); }
+	public static function url( $hub ) { return home_url( '/' . self::BASE . '/' . $hub . '/' ); }
 
 	/** H1/Title-Muster (Markenrecht: Bestimmungsangabe). Term-Meta-Override gewinnt. */
 	public static function h1( $hub = '' ) {
