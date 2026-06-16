@@ -49,7 +49,7 @@ $ld = array(
 <style>
 /* Design-Tokens (:root) + Karten-Komponente zentral: assets/css/m24-ci.css. */
 .m24hub{font-family:'Saira',Helvetica,Arial,sans-serif;color:var(--text);line-height:1.6}
-.m24hub .m24hub-wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.m24hub .m24hub-wrap{max-width:1116px;margin:0 auto;padding:0 24px} /* logo-bündig: (1440-1116)/2+24=186 = Header/Footer-Kante */
 .m24hub .m24hub-crumb{background:var(--surface);border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
 .m24hub .m24hub-crumb .m24hub-wrap{padding:12px 24px}
 .m24hub .m24hub-crumb a{color:var(--blue)}.m24hub .m24hub-crumb .sep{margin:0 8px;color:#bcbcb8}
@@ -136,7 +136,7 @@ $ld = array(
 .m24hub .m24hub-seo a{color:var(--blue)}
 .m24hub .m24hub-seo .links{font-size:14px;color:var(--muted)}
 .m24hub .m24hub-seo .links .sep{margin:0 6px;color:#cfcfca}
-/* Markenhinweis: eckiges Vollbreiten-Band, Textspalte = Content-Breite (1180px) */
+/* Markenhinweis: eckiges Vollbreiten-Band, Textspalte = Content-Breite (logo-bündig) */
 .m24hub .m24hub-legal{background:var(--surface);border-top:1px solid var(--line);border-radius:0}
 .m24hub .m24hub-legal .m24hub-wrap{padding:20px 24px;font-size:12.5px;color:var(--muted)}
 .m24hub .m24hub-empty{color:var(--muted);font-style:italic;padding:18px 0}
