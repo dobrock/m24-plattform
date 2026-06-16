@@ -19,6 +19,7 @@ class M24_Catalog_Hub_CPT {
 	const META          = '_m24_hub_';
 	const SEED_FLAG     = 'm24_modellhub_seeded_v1';
 	const BACKFILL_FLAG = 'm24_modellhub_terms_backfill_v1';
+	const FIX_FLAG      = 'm24_modellhub_terms_fix_v2'; // Korrektur: flacher statt hierarchischer Term
 
 	/** Editierbare Felder (Schluessel ohne Prefix). */
 	public static function text_fields() {
@@ -31,6 +32,7 @@ class M24_Catalog_Hub_CPT {
 		// sonst liefert get_term_by() false und das Term-Mapping bleibt leer.
 		add_action( 'init', array( __CLASS__, 'maybe_seed' ), 15 );
 		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 16 );
+		add_action( 'init', array( __CLASS__, 'maybe_fix_terms' ), 17 );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
@@ -297,6 +299,48 @@ class M24_Catalog_Hub_CPT {
 		return $q ? $q[0] : null;
 	}
 
+	/** Veroeffentlichte m24_teil im Term (Count, fuer „populaersten Term"-Wahl). */
+	private static function term_part_count( $term_id ) {
+		$q = new WP_Query( array(
+			'post_type' => 'm24_teil', 'post_status' => 'publish', 'fields' => 'ids',
+			'posts_per_page' => -1, 'no_found_rows' => true,
+			'tax_query' => array( array( 'taxonomy' => self::TAX, 'terms' => (int) $term_id ) ),
+		) );
+		return count( $q->posts );
+	}
+
+	/**
+	 * Korrektur (einmalig): Doppel-Terme. Je Hub den POPULAERSTEN Kandidaten-Term
+	 * (flacher Hauptbestand statt hierarchischem „BMW M3 …" unter „BMW 3er") waehlen
+	 * und m24_hub_terms darauf setzen (ueberschreibt das falsche Backfill-Mapping).
+	 */
+	public static function maybe_fix_terms() {
+		if ( get_option( self::FIX_FLAG ) ) { return; }
+		if ( ! taxonomy_exists( self::TAX ) ) { return; }
+		update_option( self::FIX_FLAG, gmdate( 'c' ) );
+		$cands = apply_filters( 'm24_hub_term_candidates', array(
+			'm3-e30'                 => array( 'm3-e30', 'bmw-m3-e30' ),
+			'm3-e36'                 => array( 'm3-e36', 'bmw-m3-e36' ),
+			'm3-e46'                 => array( 'm3-e46', 'bmw-m3-e46' ),
+			'm3-e9x'                 => array( 'm3-e9x', 'bmw-m3-e9x' ),
+			'sonstige-bmw-m-modelle' => array( 'sonstige-bmw-m-modelle', 'bmw-m-sonstige' ),
+		) );
+		$changed = false;
+		foreach ( $cands as $hub => $slugs ) {
+			$post = self::find_by_slug( $hub );
+			if ( ! $post ) { continue; }
+			$best = 0; $best_n = -1;
+			foreach ( $slugs as $s ) {
+				$t = get_term_by( 'slug', $s, self::TAX );
+				if ( ! $t || is_wp_error( $t ) ) { continue; }
+				$n = self::term_part_count( $t->term_id );
+				if ( $n > $best_n ) { $best_n = $n; $best = (int) $t->term_id; }
+			}
+			if ( $best ) { update_post_meta( $post->ID, self::META . 'terms', array( $best ) ); $changed = true; }
+		}
+		if ( $changed && class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+	}
+
 	/** Term-IDs aus Slugs (existierende). */
 	private static function term_ids_from_slugs( $slugs ) {
 		$ids = array();
@@ -345,7 +389,7 @@ class M24_Catalog_Hub_CPT {
 		$p = function ( $s ) { return '<p>' . $s . '</p>'; };
 		return array(
 			array(
-				'slug' => 'm3-e30', 'terms' => array( 'm3-e30', 'bmw-m3-e30' ),
+				'slug' => 'm3-e30', 'terms' => array( 'm3-e30' ),
 				'modell' => 'M3 E30', 'motor' => 'S14 2,3 / 2,5 L', 'baujahre' => '1986–1991',
 				'h1' => 'Gebrauchtteile passend für BMW M3 E30',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
@@ -362,7 +406,7 @@ class M24_Catalog_Hub_CPT {
 				),
 			),
 			array(
-				'slug' => 'm3-e36', 'terms' => array( 'm3-e36', 'bmw-m3-e36' ),
+				'slug' => 'm3-e36', 'terms' => array( 'm3-e36' ),
 				'modell' => 'M3 E36', 'motor' => 'S50 3,0 / 3,2 L', 'baujahre' => '1992–1999',
 				'h1' => 'Gebrauchtteile passend für BMW M3 E36',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
@@ -379,7 +423,7 @@ class M24_Catalog_Hub_CPT {
 				),
 			),
 			array(
-				'slug' => 'm3-e46', 'terms' => array( 'm3-e46', 'bmw-m3-e46' ),
+				'slug' => 'm3-e46', 'terms' => array( 'm3-e46' ),
 				'modell' => 'M3 E46', 'motor' => 'S54B32 3,2 L', 'baujahre' => '2000–2006',
 				'h1' => 'Gebrauchtteile passend für BMW M3 E46',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
@@ -396,7 +440,7 @@ class M24_Catalog_Hub_CPT {
 				),
 			),
 			array(
-				'slug' => 'm3-e9x', 'terms' => array( 'm3-e9x', 'bmw-m3-e9x' ),
+				'slug' => 'm3-e9x', 'terms' => array( 'm3-e9x' ),
 				'modell' => 'M3 E9x (E90/E92/E93)', 'motor' => 'S65B40 V8 4,0 L', 'baujahre' => '2007–2013',
 				'h1' => 'Gebrauchtteile passend für BMW M3 E9x',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
@@ -413,7 +457,7 @@ class M24_Catalog_Hub_CPT {
 				),
 			),
 			array(
-				'slug' => 'sonstige-bmw-m-modelle', 'terms' => array( 'sonstige-bmw-m-modelle', 'bmw-m-sonstige' ),
+				'slug' => 'sonstige-bmw-m-modelle', 'terms' => array( 'sonstige-bmw-m-modelle' ),
 				'modell' => 'weitere BMW M-Modelle', 'motor' => '', 'baujahre' => '',
 				'h1' => 'Gebrauchte Teile passend für weitere BMW M-Modelle',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',

@@ -149,16 +149,14 @@ class M24_Catalog_Hub {
 		return self::default_term_ids( $hub ); // DEFENSIVE: fehlendes Mapping leert NIE die Seite
 	}
 
-	/** Standard-Zuordnung Hub-Slug → Modell-Term-IDs (Sicherheitsnetz, filterbar). */
+	/**
+	 * Standard-Zuordnung Hub-Slug → FLACHER Modell-Term (Hauptbestand, Slug == Hub-Slug).
+	 * NICHT der hierarchische „BMW M3 …"-Term unter „BMW 3er" (kleiner Doppel-Satz).
+	 * Sicherheitsnetz, filterbar.
+	 */
 	public static function default_term_ids( $hub ) {
-		$map = apply_filters( 'm24_hub_default_terms', array(
-			'm3-e30'                 => array( 'm3-e30', 'bmw-m3-e30' ),
-			'm3-e36'                 => array( 'm3-e36', 'bmw-m3-e36' ),
-			'm3-e46'                 => array( 'm3-e46', 'bmw-m3-e46' ),
-			'm3-e9x'                 => array( 'm3-e9x', 'bmw-m3-e9x' ),
-			'sonstige-bmw-m-modelle' => array( 'sonstige-bmw-m-modelle', 'bmw-m-sonstige' ),
-		) );
-		$slugs = isset( $map[ $hub ] ) ? $map[ $hub ] : array( $hub ); // generisch: gleichnamiger Term
+		$map   = apply_filters( 'm24_hub_default_terms', array() ); // Override-Slot
+		$slugs = isset( $map[ $hub ] ) ? (array) $map[ $hub ] : array( $hub ); // Default: gleichnamiger flacher Term
 		$ids   = array();
 		foreach ( $slugs as $s ) {
 			$t = get_term_by( 'slug', $s, self::TAX );
