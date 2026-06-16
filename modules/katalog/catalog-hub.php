@@ -141,10 +141,30 @@ class M24_Catalog_Hub {
 
 	public static function is_hub() { return '' !== self::current(); }
 
-	/** Term-IDs des aktuellen Hubs (aus dem CPT-Mapping). */
+	/** Term-IDs des aktuellen Hubs (CPT-Mapping; Fallback Slug→Modell-Term, nie leer für bekannte Hubs). */
 	public static function term_ids( $hub = '' ) {
-		$c = self::config( $hub );
-		return ! empty( $c['term_ids'] ) ? $c['term_ids'] : array();
+		$hub = $hub ?: self::current();
+		$c   = self::config( $hub );
+		if ( ! empty( $c['term_ids'] ) ) { return $c['term_ids']; }
+		return self::default_term_ids( $hub ); // DEFENSIVE: fehlendes Mapping leert NIE die Seite
+	}
+
+	/** Standard-Zuordnung Hub-Slug → Modell-Term-IDs (Sicherheitsnetz, filterbar). */
+	public static function default_term_ids( $hub ) {
+		$map = apply_filters( 'm24_hub_default_terms', array(
+			'm3-e30'                 => array( 'm3-e30', 'bmw-m3-e30' ),
+			'm3-e36'                 => array( 'm3-e36', 'bmw-m3-e36' ),
+			'm3-e46'                 => array( 'm3-e46', 'bmw-m3-e46' ),
+			'm3-e9x'                 => array( 'm3-e9x', 'bmw-m3-e9x' ),
+			'sonstige-bmw-m-modelle' => array( 'sonstige-bmw-m-modelle', 'bmw-m-sonstige' ),
+		) );
+		$slugs = isset( $map[ $hub ] ) ? $map[ $hub ] : array( $hub ); // generisch: gleichnamiger Term
+		$ids   = array();
+		foreach ( $slugs as $s ) {
+			$t = get_term_by( 'slug', $s, self::TAX );
+			if ( $t && ! is_wp_error( $t ) ) { $ids[] = (int) $t->term_id; }
+		}
+		return $ids;
 	}
 
 	/** Live-Zaehler: aktive, veroeffentlichte Teile im Hub (nicht verkauft/ausgeblendet). */
@@ -381,10 +401,34 @@ class M24_Catalog_Hub {
 		return 'Gebrauchtteile passend für BMW ' . ( $c['modell'] ?? '' );
 	}
 
-	/** Slideshow-Bilder (aus Term-Meta) → [id,url,w,h,alt]; leer ⇒ View zeigt Platzhalter. */
+	/** Erste N Teilebilder des Hubs (Featured Images aktiver Teile) — Slideshow-Fallback. */
+	public static function part_image_ids( $hub = '', $limit = 8 ) {
+		$tids = self::term_ids( $hub );
+		if ( empty( $tids ) ) { return array(); }
+		$parts = get_posts( array(
+			'post_type'      => 'm24_teil',
+			'post_status'    => 'publish',
+			'posts_per_page' => 40,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'tax_query'      => array( array( 'taxonomy' => self::TAX, 'terms' => $tids ) ),
+			'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
+		) );
+		$out = array();
+		foreach ( $parts as $pid ) {
+			$tid = (int) get_post_thumbnail_id( $pid );
+			if ( $tid ) { $out[] = $tid; if ( count( $out ) >= $limit ) { break; } }
+		}
+		return $out;
+	}
+
+	/** Slideshow-Bilder: kuratierte Hub-Bilder (CPT) → sonst erste N Teilebilder → [id,url,w,h,alt]. */
 	public static function images( $hub = '' ) {
 		$c   = self::config( $hub );
 		$ids = ! empty( $c['images'] ) ? $c['images'] : array();
+		if ( empty( $ids ) ) {
+			$ids = self::part_image_ids( $hub, (int) apply_filters( 'm24_hub_slide_fallback_count', 8, $hub ) );
+		}
 		$out = array();
 		foreach ( $ids as $id ) {
 			$src = wp_get_attachment_image_src( $id, 'full' );

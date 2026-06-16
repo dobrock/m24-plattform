@@ -14,10 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Catalog_Hub_CPT {
 
-	const CPT         = 'm24_modellhub';
-	const TAX         = 'm24_fahrzeugkat';
-	const META        = '_m24_hub_';
-	const SEED_FLAG   = 'm24_modellhub_seeded_v1';
+	const CPT           = 'm24_modellhub';
+	const TAX           = 'm24_fahrzeugkat';
+	const META          = '_m24_hub_';
+	const SEED_FLAG     = 'm24_modellhub_seeded_v1';
+	const BACKFILL_FLAG = 'm24_modellhub_terms_backfill_v1';
 
 	/** Editierbare Felder (Schluessel ohne Prefix). */
 	public static function text_fields() {
@@ -25,8 +26,11 @@ class M24_Catalog_Hub_CPT {
 	}
 
 	public static function init() {
-		add_action( 'init', array( __CLASS__, 'register' ), 5 ); // vor Hub-Rewrites (init:20)
-		add_action( 'init', array( __CLASS__, 'maybe_seed' ), 6 ); // einmalig, sofort live (auch Frontend)
+		add_action( 'init', array( __CLASS__, 'register' ), 5 );   // vor Hub-Rewrites (init:20)
+		// Seed/Backfill auf init:15 — NACH der Taxonomie m24_fahrzeugkat (init:10),
+		// sonst liefert get_term_by() false und das Term-Mapping bleibt leer.
+		add_action( 'init', array( __CLASS__, 'maybe_seed' ), 15 );
+		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 16 );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
@@ -260,9 +264,37 @@ class M24_Catalog_Hub_CPT {
 
 	public static function maybe_seed() {
 		if ( get_option( self::SEED_FLAG ) ) { return; }
+		update_option( self::SEED_FLAG, gmdate( 'c' ) ); // ZUERST sperren (gegen Re-Entry/Doppel-Seed)
 		self::seed();
-		update_option( self::SEED_FLAG, gmdate( 'c' ) );
+		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
 		flush_rewrite_rules( false );
+	}
+
+	/**
+	 * Einmaliger Backfill: bereits angelegte Hubs mit LEEREM Term-Mapping aus der
+	 * Standard-Zuordnung (Slug → Modell-Term) reparieren. Heilt Bestands-Posts,
+	 * bei denen der Seeder vor der Taxonomie-Registrierung lief.
+	 */
+	public static function maybe_backfill() {
+		if ( get_option( self::BACKFILL_FLAG ) ) { return; }
+		if ( ! taxonomy_exists( self::TAX ) ) { return; } // sicherheitshalber
+		update_option( self::BACKFILL_FLAG, gmdate( 'c' ) );
+		$fixed = false;
+		foreach ( self::seed_data() as $d ) {
+			$post = self::find_by_slug( $d['slug'] );
+			if ( ! $post ) { continue; }
+			$cur = get_post_meta( $post->ID, self::META . 'terms', true );
+			if ( is_array( $cur ) && $cur ) { continue; } // schon befuellt
+			$ids = self::term_ids_from_slugs( $d['terms'] );
+			if ( $ids ) { update_post_meta( $post->ID, self::META . 'terms', $ids ); $fixed = true; }
+		}
+		if ( $fixed && class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+	}
+
+	/** Hub-Post per Slug (exakt, ohne get_page_by_path-Eigenheiten). */
+	private static function find_by_slug( $slug ) {
+		$q = get_posts( array( 'post_type' => self::CPT, 'name' => $slug, 'post_status' => 'any', 'numberposts' => 1 ) );
+		return $q ? $q[0] : null;
 	}
 
 	/** Term-IDs aus Slugs (existierende). */
