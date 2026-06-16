@@ -26,6 +26,8 @@ $ltotal = (int) $list['total'];
 $lq_q   = $list['q'];
 $lsort  = $list['sort'];
 $lkat   = $list['kat'] ?? 'alle';
+$kcounts = M24_Catalog_Hub::kat_counts( $hub ); // [rennsport,gebraucht,alle] — Switch-Mengen
+$kat_labels = array( 'rennsport' => 'Rennsport', 'gebraucht' => 'Gebraucht', 'alle' => 'Alle' );
 $cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array();
 
 // Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
@@ -106,6 +108,7 @@ $ld = array(
 .m24hub .m24hub-katsw a:first-child{border-left:none}
 .m24hub .m24hub-katsw a.on{background:var(--blue);color:#fff}
 .m24hub .m24hub-katsw a:hover:not(.on){background:#f0f0ee}
+.m24hub .m24hub-katsw .m24hub-katn{font-weight:500;opacity:.7;font-size:12px;margin-left:1px}
 /* Ansicht-Umschalter (Segmented Control) */
 .m24hub .m24hub-viewsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box}
 .m24hub .m24hub-viewsw button{border:none;background:#fff;padding:0 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600}
@@ -188,7 +191,8 @@ $ld = array(
 		<?php if ( '' !== $modell ) : ?><div class="m24hub-tcell"><div class="k">Modell</div><div class="v"><?php echo esc_html( $modell ); ?></div></div><?php endif; ?>
 		<?php if ( ! empty( $cfg['motor'] ) ) : ?><div class="m24hub-tcell"><div class="k">Motor</div><div class="v"><?php echo esc_html( $cfg['motor'] ); ?></div></div><?php endif; ?>
 		<?php if ( ! empty( $cfg['baujahre'] ) ) : ?><div class="m24hub-tcell"><div class="k">Baujahre</div><div class="v"><?php echo esc_html( $cfg['baujahre'] ); ?></div></div><?php endif; ?>
-		<div class="m24hub-tcell"><div class="k"><span class="m24hub-livedot"></span>Aktuell verfügbar</div><div class="v"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $count, 'm24-plattform' ), number_format_i18n( $count ) ) ); ?></div></div>
+		<?php $live = isset( $kcounts[ $lkat ] ) ? (int) $kcounts[ $lkat ] : (int) $count; ?>
+		<div class="m24hub-tcell"><div class="k"><span class="m24hub-livedot"></span>Aktuell verfügbar</div><div class="v" id="m24hub-live"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $live, 'm24-plattform' ), number_format_i18n( $live ) ) ); ?></div></div>
 	</div></div>
 
 	<?php if ( ! empty( $cfg['intro_html'] ) ) : ?>
@@ -219,15 +223,15 @@ $ld = array(
 			<div class="m24hub-controls-right">
 				<div class="m24hub-katsw" id="m24hub-katsw" role="group" aria-label="Kategorie wählen">
 					<?php
-					$kat_opts = array( 'rennsport' => 'Rennsport', 'gebraucht' => 'Gebraucht', 'alle' => 'Alle' );
-					foreach ( $kat_opts as $kv => $kl ) :
+					foreach ( $kat_labels as $kv => $kl ) :
 						$href = esc_url( add_query_arg( array_filter( array(
 							'kat'  => $kv,
 							'q'    => '' !== $lq_q ? $lq_q : null,
 							'sort' => 'neu' !== $lsort ? $lsort : null,
 						) ), $hub_url ) );
+						$cnt = isset( $kcounts[ $kv ] ) ? (int) $kcounts[ $kv ] : 0;
 						?>
-						<a href="<?php echo $href; ?>" data-kat="<?php echo esc_attr( $kv ); ?>" class="<?php echo $lkat === $kv ? 'on' : ''; ?>" rel="nofollow"><?php echo esc_html( $kl ); ?></a>
+						<a href="<?php echo $href; ?>" data-kat="<?php echo esc_attr( $kv ); ?>" class="<?php echo $lkat === $kv ? 'on' : ''; ?>" rel="nofollow"><?php echo esc_html( $kl ); ?> <span class="m24hub-katn">(<?php echo esc_html( number_format_i18n( $cnt ) ); ?>)</span></a>
 					<?php endforeach; ?>
 				</div>
 				<div class="m24hub-viewsw" id="m24hub-viewsw" role="group" aria-label="Ansicht wählen">

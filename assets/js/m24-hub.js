@@ -53,11 +53,18 @@
 	}
 
 	/* ── Kategorie-Switch (Rennsport | Gebraucht | Alle) ─────────────────────── */
+	var liveEl = document.getElementById( 'm24hub-live' );
+	function plural( n ) { return n === 1 ? ( n + ' Teil' ) : ( n + ' Teile' ); }
 	function setKatActive( k ) {
-		if ( ! katsw ) { return; }
-		[].forEach.call( katsw.querySelectorAll( 'a[data-kat]' ), function ( a ) {
-			a.classList.toggle( 'on', a.getAttribute( 'data-kat' ) === k );
-		} );
+		if ( katsw ) {
+			[].forEach.call( katsw.querySelectorAll( 'a[data-kat]' ), function ( a ) {
+				a.classList.toggle( 'on', a.getAttribute( 'data-kat' ) === k );
+			} );
+		}
+		// Telemetrie „Aktuell verfügbar" folgt der aktiven Rubrik.
+		if ( liveEl && cfg.counts && typeof cfg.counts[ k ] !== 'undefined' ) {
+			liveEl.textContent = plural( parseInt( cfg.counts[ k ], 10 ) || 0 );
+		}
 	}
 	if ( katsw ) {
 		katsw.addEventListener( 'click', function ( e ) {

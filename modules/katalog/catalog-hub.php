@@ -244,6 +244,30 @@ class M24_Catalog_Hub {
 	}
 
 	/**
+	 * Aktive Teile je Kategorie (gleiche Metrik wie count(): _m24_status=aktiv) — fuer
+	 * die Switch-Mengen + Telemetrie. Rueckgabe [rennsport,gebraucht,alle].
+	 */
+	public static function kat_counts( $hub = '' ) {
+		$res = array( 'rennsport' => 0, 'gebraucht' => 0, 'alle' => 0 );
+		$ids = self::term_ids( $hub );
+		if ( empty( $ids ) ) { return $res; }
+		$base = array(
+			'post_type'      => 'm24_teil',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'tax_query'      => array( array( 'taxonomy' => self::TAX, 'terms' => $ids ) ),
+		);
+		$r = $base; $r['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ), self::typ_clause( 'rennsport' ) );
+		$g = $base; $g['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ), self::typ_clause( 'gebraucht' ) );
+		$res['rennsport'] = count( ( new WP_Query( $r ) )->posts );
+		$res['gebraucht'] = count( ( new WP_Query( $g ) )->posts );
+		$res['alle']      = $res['rennsport'] + $res['gebraucht'];
+		return $res;
+	}
+
+	/**
 	 * Voll geordnete Teile-ID-Liste des Hubs: Suche (q) + Sortierung (neu/preis-auf/-ab),
 	 * Verkauft-Teile auf max. 15 % des Sets gedeckelt. Bei Preissortierung Verkauft ans Ende,
 	 * bei „neueste" nach Datum eingemischt.

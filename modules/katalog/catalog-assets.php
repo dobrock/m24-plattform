@@ -45,6 +45,7 @@ class M24_Catalog_Assets {
 				'hub'     => $hub,
 				'hubUrl'  => M24_Catalog_Hub::url( $hub ),
 				'kat'     => M24_Catalog_Hub::effective_kat( $hub ), // serverseitig gerenderte Kategorie
+				'counts'  => M24_Catalog_Hub::kat_counts( $hub ),    // Mengen je Rubrik (Telemetrie folgt Auswahl)
 			) );
 		}
 	}
