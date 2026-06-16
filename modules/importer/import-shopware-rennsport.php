@@ -79,7 +79,7 @@ class M24_Shopware_Rennsport {
 	 * @param bool  $force
 	 * @return array { run_id, enqueued, batches, per_cat }
 	 */
-	public static function enqueue( $keys = array(), $batch_size = 5, $force = false ) {
+	public static function enqueue( $keys = array(), $batch_size = 3, $force = false ) {
 		if ( ! self::as_available() ) {
 			throw new Exception( 'Action Scheduler nicht verfuegbar (kein as_enqueue_async_action).' );
 		}
@@ -88,7 +88,7 @@ class M24_Shopware_Rennsport {
 		$keys       = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
 		$client     = new M24_Shopware_Client();
 
-		as_unschedule_all_actions( self::HOOK ); // sauberer Re-Run (hook-only)
+		self::reset_actions(); // pending canceln + failed/canceled/complete des EIGENEN Hooks loeschen → sauberer Re-Run
 
 		$run_id   = 'rs_' . gmdate( 'YmdHis' ) . '_' . substr( md5( implode( '', $keys ) . microtime() ), 0, 6 );
 		$enqueued = 0; $batches = 0; $per_cat = array();
@@ -116,6 +116,93 @@ class M24_Shopware_Rennsport {
 			$enqueued, $batches, $run_id, wp_json_encode( $per_cat ) ) );
 
 		return array( 'run_id' => $run_id, 'enqueued' => $enqueued, 'batches' => $batches, 'per_cat' => $per_cat );
+	}
+
+	/**
+	 * Bereinigt AUSSCHLIESSLICH die AS-Aktionen des Rennsport-Hooks: pending canceln +
+	 * failed/canceled/complete loeschen. Fremde Hooks (Rocket-Preload, Gebraucht-Import)
+	 * bleiben unangetastet. → behebt „74 fehlgeschlagene Batches" + Doppel-Runs.
+	 *
+	 * @return array { pending, failed, canceled, complete } Anzahl bereinigter Aktionen.
+	 */
+	public static function reset_actions() {
+		$out = array( 'pending' => 0, 'failed' => 0, 'canceled' => 0, 'complete' => 0 );
+		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+			as_unschedule_all_actions( self::HOOK ); // canceln aller offenen (hook-only Fast-Path)
+		}
+		if ( ! class_exists( 'ActionScheduler' ) || ! class_exists( 'ActionScheduler_Store' ) ) { return $out; }
+		$store = ActionScheduler::store();
+		$states = array(
+			'failed'   => ActionScheduler_Store::STATUS_FAILED,
+			'canceled' => ActionScheduler_Store::STATUS_CANCELED,
+			'complete' => ActionScheduler_Store::STATUS_COMPLETE,
+			'pending'  => ActionScheduler_Store::STATUS_PENDING,
+		);
+		foreach ( $states as $key => $status ) {
+			$ids = $store->query_actions( array(
+				'hook' => self::HOOK, 'group' => self::GROUP, 'status' => $status, 'per_page' => 2000,
+			) );
+			foreach ( (array) $ids as $id ) {
+				try { $store->delete_action( (int) $id ); $out[ $key ]++; } catch ( Exception $e ) {}
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Dedizierter Drain: arbeitet NUR die pending-Aktionen des Rennsport-Hooks ab
+	 * (keine fremden AS-Jobs wie Rocket-Preload). Zeit-Budget-begrenzt → kein Plesk-
+	 * Konsolen-Timeout. Mehrfach aufrufen bis „fertig".
+	 *
+	 * @param int $max_seconds Gesamt-Budget dieser Iteration.
+	 * @return array { processed, remaining, seconds }
+	 */
+	public static function drain( $max_seconds = 50 ) {
+		if ( ! class_exists( 'ActionScheduler' ) || ! class_exists( 'ActionScheduler_Store' ) ) {
+			throw new Exception( 'Action Scheduler nicht verfuegbar.' );
+		}
+		$store  = ActionScheduler::store();
+		$runner = ActionScheduler::runner();
+		$start  = time();
+		$processed = 0;
+		while ( ( time() - $start ) < $max_seconds ) {
+			$ids = $store->query_actions( array(
+				'hook' => self::HOOK, 'group' => self::GROUP,
+				'status' => ActionScheduler_Store::STATUS_PENDING,
+				'per_page' => 20, 'orderby' => 'date', 'order' => 'ASC',
+			) );
+			if ( empty( $ids ) ) { break; }
+			foreach ( (array) $ids as $id ) {
+				try { $runner->process_action( (int) $id, 'cli' ); } catch ( Exception $e ) {
+					M24_Logger::warning( 'shopware-import', 'Rennsport-Drain Aktion ' . $id . ' Fehler: ' . $e->getMessage() );
+				}
+				$processed++;
+				if ( ( time() - $start ) >= $max_seconds ) { break; }
+			}
+		}
+		$remaining = (int) $store->query_actions( array(
+			'hook' => self::HOOK, 'group' => self::GROUP,
+			'status' => ActionScheduler_Store::STATUS_PENDING,
+		), 'count' );
+		return array( 'processed' => $processed, 'remaining' => $remaining, 'seconds' => time() - $start );
+	}
+
+	/** Status des AKTUELLSTEN Rennsport-Runs + AS-Zaehler des eigenen Hooks. */
+	public static function status() {
+		$run = get_option( self::OPTION, array() );
+		$as  = array( 'pending' => null, 'running' => null, 'complete' => null, 'failed' => null );
+		if ( class_exists( 'ActionScheduler' ) && class_exists( 'ActionScheduler_Store' ) ) {
+			$store = ActionScheduler::store();
+			foreach ( array(
+				'pending'  => ActionScheduler_Store::STATUS_PENDING,
+				'running'  => ActionScheduler_Store::STATUS_RUNNING,
+				'complete' => ActionScheduler_Store::STATUS_COMPLETE,
+				'failed'   => ActionScheduler_Store::STATUS_FAILED,
+			) as $k => $st ) {
+				$as[ $k ] = (int) $store->query_actions( array( 'hook' => self::HOOK, 'group' => self::GROUP, 'status' => $st ), 'count' );
+			}
+		}
+		return array( 'run' => $run, 'as' => $as );
 	}
 
 	/** Alle parentId=null-Produkt-IDs einer Kategorie seitenweise sammeln. */
@@ -236,10 +323,53 @@ class M24_Shopware_Rennsport {
 		return $tot;
 	}
 
-	/** WP-CLI: wp m24 import-rennsport [--cats=z4-gt3,e30] [--batch-size=5] [--sync] [--force] */
+	/**
+	 * WP-CLI: wp m24 import-rennsport [--cats=z4-gt3,e30] [--batch-size=5]
+	 *   (default)   → Enqueue (eigene AS-Gruppe; bereinigt vorher Alt-Aktionen)
+	 *   --run        → dedizierter Drain NUR des Rennsport-Hooks (timeout-safe, mehrfach aufrufbar)
+	 *   --sync       → synchroner Direkt-Import (klein/Test, ohne AS)
+	 *   --status     → Status des aktuellsten Rennsport-Runs
+	 *   --reset      → nur Alt-Aktionen des Rennsport-Hooks bereinigen
+	 *   --max-seconds=50 (fuer --run) · --force
+	 */
 	public static function cli( $args, $assoc_args ) {
-		$keys = isset( $assoc_args['cats'] ) ? array_filter( array_map( 'trim', explode( ',', (string) $assoc_args['cats'] ) ) ) : array();
+		$keys  = isset( $assoc_args['cats'] ) ? array_filter( array_map( 'trim', explode( ',', (string) $assoc_args['cats'] ) ) ) : array();
 		$force = isset( $assoc_args['force'] );
+
+		// --status
+		if ( isset( $assoc_args['status'] ) ) {
+			self::print_status();
+			return;
+		}
+		// --reset
+		if ( isset( $assoc_args['reset'] ) ) {
+			$r = self::reset_actions();
+			WP_CLI::success( sprintf( 'Rennsport-Hook bereinigt: %d pending, %d failed, %d canceled, %d complete geloescht.',
+				$r['pending'], $r['failed'], $r['canceled'], $r['complete'] ) );
+			return;
+		}
+		// --run (dedizierter Drain)
+		if ( isset( $assoc_args['run'] ) ) {
+			$max = isset( $assoc_args['max-seconds'] ) ? max( 5, (int) $assoc_args['max-seconds'] ) : 50;
+			WP_CLI::log( '── Rennsport-Drain (nur eigener Hook, ' . $max . 's Budget) ──' );
+			try {
+				$d = self::drain( $max );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+			$run = get_option( self::OPTION, array() );
+			WP_CLI::success( sprintf( '%d Batches verarbeitet in %ds · %d offen.', $d['processed'], $d['seconds'], $d['remaining'] ) );
+			if ( ! empty( $run ) ) {
+				WP_CLI::log( sprintf( 'Run %s: %d ok · %d Fehler', $run['run_id'] ?? '—', (int) ( $run['done_products'] ?? 0 ), (int) ( $run['failed_products'] ?? 0 ) ) );
+			}
+			if ( $d['remaining'] > 0 ) {
+				WP_CLI::log( 'Noch offen → erneut ausführen: wp m24 import-rennsport --run' );
+			} else {
+				WP_CLI::success( 'Rennsport-Queue leer — Import abgeschlossen.' );
+			}
+			return;
+		}
+		// --sync
 		if ( isset( $assoc_args['sync'] ) ) {
 			WP_CLI::log( '── Rennsport-Import (synchron) ──' );
 			$t = self::run_sync( $keys, $force );
@@ -247,7 +377,8 @@ class M24_Shopware_Rennsport {
 			foreach ( $t['per_cat'] as $k => $v ) { WP_CLI::log( "  $k: {$v['ids']} IDs → {$v['created']} neu / {$v['updated']} update / {$v['skipped']} übersprungen" ); }
 			return;
 		}
-		$bs = isset( $assoc_args['batch-size'] ) ? max( 1, (int) $assoc_args['batch-size'] ) : 5;
+		// default → Enqueue
+		$bs = isset( $assoc_args['batch-size'] ) ? max( 1, (int) $assoc_args['batch-size'] ) : 3;
 		try {
 			$r = self::enqueue( $keys, $bs, $force );
 		} catch ( Exception $e ) {
@@ -255,7 +386,31 @@ class M24_Shopware_Rennsport {
 		}
 		WP_CLI::success( sprintf( '%d Produkte in %d Batches eingereiht (run %s).', $r['enqueued'], $r['batches'], $r['run_id'] ) );
 		foreach ( $r['per_cat'] as $k => $n ) { WP_CLI::log( "  $k: $n Produkte" ); }
-		WP_CLI::log( 'Antreiben: wp action-scheduler run · Status: wp m24 import-status' );
+		WP_CLI::log( 'Drain (timeout-safe, NUR eigener Hook): wp m24 import-rennsport --run' );
+		WP_CLI::log( 'Status:                                 wp m24 import-rennsport --status' );
+	}
+
+	/** Status-Ausgabe (CLI) des aktuellsten Rennsport-Runs. */
+	public static function print_status() {
+		$s = self::status(); $run = $s['run']; $as = $s['as'];
+		WP_CLI::log( '── Rennsport-Import · Status ──' );
+		if ( empty( $run ) ) {
+			WP_CLI::log( 'Kein Rennsport-Run registriert. Start: wp m24 import-rennsport --cats=z4-gt3' );
+		} else {
+			WP_CLI::log( 'Run:         ' . ( $run['run_id'] ?? '—' ) . '  (gestartet ' . ( $run['started_at'] ?? '—' ) . ')' );
+			WP_CLI::log( 'Kategorien:  ' . implode( ', ', (array) ( $run['keys'] ?? array() ) ) );
+			WP_CLI::log( 'Eingereiht:  ' . (int) ( $run['enqueued'] ?? 0 ) . ' Produkte / ' . (int) ( $run['batches'] ?? 0 ) . ' Batches' );
+			WP_CLI::log( 'Verarbeitet: ' . (int) ( $run['done_products'] ?? 0 ) . ' ok · ' . (int) ( $run['failed_products'] ?? 0 ) . ' Fehler' );
+		}
+		WP_CLI::log( '' );
+		WP_CLI::log( 'Action-Scheduler (nur Rennsport-Hook):' );
+		WP_CLI::log( '  offen:       ' . ( null === $as['pending'] ? 'n/a' : (int) $as['pending'] ) );
+		WP_CLI::log( '  laufend:     ' . ( null === $as['running'] ? 'n/a' : (int) $as['running'] ) );
+		WP_CLI::log( '  erledigt:    ' . ( null === $as['complete'] ? 'n/a' : (int) $as['complete'] ) );
+		WP_CLI::log( '  fehlgeschl.: ' . ( null === $as['failed'] ? 'n/a' : (int) $as['failed'] ) );
+		if ( ! empty( $run ) && 0 === (int) $as['pending'] + (int) $as['running'] ) {
+			WP_CLI::success( 'Rennsport-Queue leer — Import abgeschlossen.' );
+		}
 	}
 }
 

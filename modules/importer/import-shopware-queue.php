@@ -432,6 +432,15 @@ class M24_Shopware_Queue {
 		if ( ! empty( $run ) && 0 === $open ) {
 			WP_CLI::success( 'Queue leer — Import abgeschlossen.' );
 		}
+
+		// Rennsport-Import (eigener Hook/Run) zusaetzlich ausweisen, falls vorhanden.
+		if ( class_exists( 'M24_Shopware_Rennsport' ) ) {
+			$rs = get_option( M24_Shopware_Rennsport::OPTION, array() );
+			if ( ! empty( $rs ) ) {
+				WP_CLI::log( '' );
+				M24_Shopware_Rennsport::print_status();
+			}
+		}
 	}
 
 	private static function fmt( $v ) {
