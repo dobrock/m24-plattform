@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.7.38
+ * Version:           0.7.39
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.7.38' );
+define( 'M24_PLATTFORM_VERSION',     '0.7.39' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -211,4 +211,26 @@ add_action( 'plugins_loaded', function() {
         M24_Import_Status_Page::init();
         M24_Reviews_Settings::init();
     }
+    m24_purge_cache_on_version_change();
 }, 5 );
+
+/**
+ * WP-Rocket-Cache bei Plugin-Versionswechsel einmalig leeren.
+ *
+ * Hub-CSS liegt inline im Template (<style>), steckt also in der gecachten HTML-
+ * Seite. Ohne Purge nach einem Deploy wird altes CSS weiter ausgeliefert (genau
+ * das hat den 1116px-Fix maskiert). Greift bei jedem Versionssprung automatisch.
+ * Kein Cloudflare im Stack — nur WP Rocket.
+ */
+function m24_purge_cache_on_version_change() {
+    if ( get_option( 'm24_purged_version' ) === M24_PLATTFORM_VERSION ) {
+        return;
+    }
+    update_option( 'm24_purged_version', M24_PLATTFORM_VERSION ); // zuerst sperren (kein Re-Entry)
+    if ( function_exists( 'rocket_clean_domain' ) ) {
+        rocket_clean_domain();
+    }
+    if ( function_exists( 'rocket_clean_minify' ) ) {
+        rocket_clean_minify(); // minifizierte/kombinierte CSS-Caches mit
+    }
+}
