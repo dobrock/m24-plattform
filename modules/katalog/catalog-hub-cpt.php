@@ -22,6 +22,7 @@ class M24_Catalog_Hub_CPT {
 	const FIX_FLAG      = 'm24_modellhub_terms_fix_v2'; // Korrektur: flacher statt hierarchischer Term
 	const MIGRATE_FLAG  = 'm24_modellhub_modelle_v1';   // Base /modelle/ + bmw-Slugs + Z4 + default_kat + Menue
 	const MIGRATE2_FLAG = 'm24_modellhub_teile_v1';     // 0.8.0: Base /teile/, H1 neutral, default_kat=alle, _m24_typ-Backfill
+	const MIGRATE3_FLAG = 'm24_modellhub_dualintro_v1'; // 0.8.1: dual-taugliche Intros + neutrale SEO-Titles
 
 	/** Editierbare Felder (Schluessel ohne Prefix). */
 	public static function text_fields() {
@@ -37,6 +38,7 @@ class M24_Catalog_Hub_CPT {
 		add_action( 'init', array( __CLASS__, 'maybe_fix_terms' ), 17 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_modelle' ), 18 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_teile' ), 19 );
+		add_action( 'init', array( __CLASS__, 'maybe_migrate_dual_intro' ), 20 );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
@@ -457,6 +459,62 @@ class M24_Catalog_Hub_CPT {
 	}
 
 	/** Cross-Links (alle Hubs) UND Menue-Items auf /teile/-URLs umschreiben (geteilte Legacy-Map). */
+	/**
+	 * 0.8.1 (einmalig, init:20): dual-taugliche Intro-Texte (Rennsport + Gebraucht) +
+	 * neutrale SEO-Titles fuer die 5 M-Hubs. Z4 GT3 bleibt unveraendert (Rennsport).
+	 */
+	public static function maybe_migrate_dual_intro() {
+		if ( get_option( self::MIGRATE3_FLAG ) ) { return; }
+		if ( ! post_type_exists( self::CPT ) ) { return; }
+		update_option( self::MIGRATE3_FLAG, gmdate( 'c' ) );
+		foreach ( self::dual_intro_data() as $slug => $d ) {
+			$p = self::find_by_slug( $slug );
+			if ( ! $p ) { continue; }
+			update_post_meta( $p->ID, self::META . 'intro_h2', $d['intro_h2'] );
+			update_post_meta( $p->ID, self::META . 'intro', $d['intro'] );
+			update_post_meta( $p->ID, self::META . 'seo_title', $d['seo_title'] );
+		}
+		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+	}
+
+	/** Dual-Intro-HTML (Rennsport + Gebraucht). $dat = Dativ-Phrase, $akk = Akkusativ-Phrase. */
+	private static function dual_intro_html( $dat, $akk ) {
+		$p1 = 'Hier finden Sie neue Rennsport-Teile und geprüfte Gebrauchtteile passend für ' . $dat
+			. ' — umschaltbar über Rennsport, Gebraucht oder Alle. Die Gebrauchtteile stammen überwiegend aus unseren eigenen '
+			. 'Rennsport-Umbauten: Wenn wir ' . $akk . ' für den Renneinsatz auf- oder umbauen, werden hochwertige '
+			. 'Originalteile fachgerecht ausgebaut, geprüft und mit klarer Herkunft angeboten. Dazu führen wir neue '
+			. 'Rennsport- und Aftermarket-Teile passend für ' . $dat . '.';
+		$p2 = 'Seit 2006 beliefern wir Werkstätten, Restauratoren und Rennsport-Teams weltweit. Sie suchen ein '
+			. 'bestimmtes Teil, das hier noch nicht gelistet ist? Fragen Sie uns — wir greifen auf einen großen, '
+			. 'nicht vollständig online gelisteten Bestand zu.';
+		return '<p>' . $p1 . '</p><p>' . $p2 . '</p>';
+	}
+
+	/** Pro Hub: intro_h2, intro (dual), seo_title (neutral). */
+	public static function dual_intro_data() {
+		$m3 = array(
+			'bmw-m3-e30' => 'BMW M3 E30',
+			'bmw-m3-e36' => 'BMW M3 E36',
+			'bmw-m3-e46' => 'BMW M3 E46',
+			'bmw-m3-e9x' => 'BMW M3 E9x',
+		);
+		$out = array();
+		foreach ( $m3 as $slug => $modell ) {
+			$out[ $slug ] = array(
+				'intro_h2'  => 'Teile passend für den ' . $modell,
+				'intro'     => self::dual_intro_html( 'den ' . $modell, 'einen ' . $modell ),
+				'seo_title' => 'Teile passend für ' . $modell . ' | MOTORSPORT24 seit 2006',
+			);
+		}
+		// Sonstige (Grammatik angepasst).
+		$out['sonstige-bmw-m-modelle'] = array(
+			'intro_h2'  => 'Teile passend für sonstige BMW M-Modelle',
+			'intro'     => self::dual_intro_html( 'sonstige BMW M-Modelle', 'ein BMW M-Modell' ),
+			'seo_title' => 'Teile passend für sonstige BMW M-Modelle | MOTORSPORT24 seit 2006',
+		);
+		return $out;
+	}
+
 	private static function rewrite_links_to_teile() {
 		if ( ! class_exists( 'M24_Catalog_Hub' ) ) { return; }
 		$map = M24_Catalog_Hub::legacy_paths(); // alle Alt-Pfade → /teile/{slug}

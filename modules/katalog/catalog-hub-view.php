@@ -83,35 +83,42 @@ $ld = array(
 .m24hub .m24hub-trust .m24hub-wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:20px 24px}
 @media(max-width:700px){.m24hub .m24hub-trust .m24hub-wrap{grid-template-columns:repeat(2,1fr)}}
 .m24hub .m24hub-trust .it{display:flex;align-items:center;gap:11px}
-.m24hub .m24hub-trust .ic{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--brass);font-size:17px;flex:0 0 auto}
+.m24hub .m24hub-trust .ic{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--brass);font-size:17px;flex:0 0 auto;font-variant-emoji:text}
 .m24hub .m24hub-trust .tt{font-size:14px;font-weight:600;color:var(--text);line-height:1.2}.m24hub .m24hub-trust .ts{font-size:12px;color:var(--muted)}
 .m24hub .m24hub-parts .m24hub-wrap{padding:30px 24px 50px}
 .m24hub .m24hub-parts .head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:24px}
 .m24hub .m24hub-parts h2{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
 .m24hub .m24hub-parts .count{color:var(--muted);font-size:14px}
-/* Such-/Sortier-Leiste */
+/* Such-/Sortier-Leiste — gemeinsame Control-Höhe 38px, kein Overlap */
+.m24hub{--m24hub-ctl-h:38px}
 .m24hub .m24hub-controls{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:24px}
-.m24hub .m24hub-search{position:relative;flex:1 1 320px;max-width:440px}
-.m24hub .m24hub-search input{width:100%;padding:11px 14px 11px 40px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:var(--text)}
+.m24hub .m24hub-search{position:relative;flex:1 1 240px;min-width:180px;max-width:360px}
+.m24hub .m24hub-search input{width:100%;height:var(--m24hub-ctl-h);padding:0 14px 0 40px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:var(--text);box-sizing:border-box}
 .m24hub .m24hub-search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(23,99,173,.12)}
 .m24hub .m24hub-search .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
-.m24hub .m24hub-sortwrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
-.m24hub .m24hub-sortwrap select{font-family:inherit;font-size:14px;padding:9px 30px 9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer}
+.m24hub .m24hub-controls-right{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:wrap}
+.m24hub .m24hub-sortwrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.m24hub .m24hub-sortwrap select{height:var(--m24hub-ctl-h);font-family:inherit;font-size:14px;line-height:1.2;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer;box-sizing:border-box}
 .m24hub .m24hub-resetq{font-size:13px;color:var(--blue);white-space:nowrap}
-.m24hub .m24hub-controls-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 /* Kategorie-Switch (Rennsport | Gebraucht | Alle) — Stil wie Ansicht-Umschalter */
-.m24hub .m24hub-katsw{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
-.m24hub .m24hub-katsw a{padding:8px 14px;cursor:pointer;color:var(--muted);border-left:1px solid var(--line);font-size:13px;font-weight:600;text-decoration:none;line-height:1.4}
+.m24hub .m24hub-katsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box}
+.m24hub .m24hub-katsw a{display:inline-flex;align-items:center;padding:0 14px;cursor:pointer;color:var(--muted);border-left:1px solid var(--line);font-size:13px;font-weight:600;text-decoration:none}
 .m24hub .m24hub-katsw a:first-child{border-left:none}
 .m24hub .m24hub-katsw a.on{background:var(--blue);color:#fff}
 .m24hub .m24hub-katsw a:hover:not(.on){background:#f0f0ee}
 /* Ansicht-Umschalter (Segmented Control) */
-.m24hub .m24hub-viewsw{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
-.m24hub .m24hub-viewsw button{border:none;background:#fff;padding:8px 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600}
+.m24hub .m24hub-viewsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box}
+.m24hub .m24hub-viewsw button{border:none;background:#fff;padding:0 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600}
 .m24hub .m24hub-viewsw button:first-child{border-left:none}
 .m24hub .m24hub-viewsw button.on{background:var(--blue);color:#fff}
 .m24hub .m24hub-viewsw button:hover:not(.on){background:#f0f0ee}
 .m24hub .m24hub-viewsw svg{fill:currentColor;flex:0 0 auto}
+/* Schmale Viewports: Suche volle Breite über den Controls (kein Überlagern) */
+@media(max-width:680px){
+	.m24hub .m24hub-controls{gap:12px}
+	.m24hub .m24hub-search{flex:1 1 100%;max-width:none;order:-1}
+	.m24hub .m24hub-controls-right{width:100%;justify-content:flex-start}
+}
 /* Grid mit Ansichten (Default 4 Spalten) */
 .m24hub .m24hub-grid{display:grid;gap:22px}
 .m24hub .m24hub-grid.view-3{grid-template-columns:repeat(3,1fr)}
@@ -193,7 +200,7 @@ $ld = array(
 
 	<div class="m24hub-trust"><div class="m24hub-wrap">
 		<div class="it"><span class="ic">&#9733;</span><div><div class="tt">seit 2006</div><div class="ts">auf BMW spezialisiert</div></div></div>
-		<div class="it"><span class="ic">&#9992;</span><div><div class="tt">weltweiter Versand</div><div class="ts">B2B / gewerblich</div></div></div>
+		<div class="it"><span class="ic">&#9992;&#xFE0E;</span><div><div class="tt">weltweiter Versand</div><div class="ts">B2B / gewerblich</div></div></div>
 		<div class="it"><span class="ic">&#10003;</span><div><div class="tt">geprüfte Teile</div><div class="ts">vor dem Verkauf kontrolliert</div></div></div>
 		<div class="it"><span class="ic">&#9737;</span><div><div class="tt">55.000+ Community</div><div class="ts">Werkstätten &amp; Sammler</div></div></div>
 	</div></div>
