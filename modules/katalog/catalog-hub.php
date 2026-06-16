@@ -16,29 +16,35 @@ class M24_Catalog_Hub {
 
 	const QV  = 'm24_hub';
 	const TAX = 'm24_fahrzeugkat';
-	const REWRITE_FLAG = 'm24_hub_rewrites_v2'; // v2: + /seite/N/-Pagination
+	const CPT = 'm24_modellhub';
+	const META = '_m24_hub_';
+	const REWRITE_FLAG = 'm24_hub_rewrites_v3'; // v3: Slugs dynamisch aus CPT (m-sonstige → sonstige-bmw-m-modelle)
 	const PER_PAGE = 24;                        // Teile pro Seite (Auftrag: 24–36)
 
-	/** Hub-Slug → Konfiguration (gemappte Term-Slugs + redaktionelle Seed-Defaults). */
-	public static function hubs() {
-		$brand = 'MOTORSPORT24 steht in keiner Geschäftsverbindung zur BMW AG und ist kein autorisierter Händler.';
-		return array(
-			'm3-e30' => array(
-				'terms'    => array( 'm3-e30', 'bmw-m3-e30' ),
-				'modell'   => 'M3 E30', 'motor' => 'S14 2,3 / 2,5 L', 'baujahre' => '1986–1991',
-				'sub'      => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
-				'intro_h2' => 'Teile mit Historie — aus eigenen Rennsport-Umbauten',
-				'intro'    => array(
-					'Unsere Gebrauchtteile passend für den BMW M3 E30 stammen überwiegend aus unseren eigenen Rennsport-Umbauten: Wenn wir einen M3 E30 für den Renneinsatz auf- oder umbauen, werden hochwertige Originalteile fachgerecht ausgebaut, geprüft und hier mit klarer Herkunft angeboten. Dazu kommen ausgewählte Aftermarket-Teile passend für den M3 E30.',
-					'So bekommen Sie Teile mit Geschichte statt anonymer Massenware. Seit 2006 beliefern wir Werkstätten, Restauratoren und Rennsport-Teams weltweit. Sie suchen ein bestimmtes Teil, das hier noch nicht gelistet ist? Fragen Sie uns — wir greifen auf einen großen, nicht vollständig online gelisteten Bestand zu.',
-				),
-			),
-			'm3-e36' => array( 'terms' => array( 'm3-e36', 'bmw-m3-e36' ), 'modell' => 'M3 E36', 'motor' => 'S50 / S52', 'baujahre' => '1992–1999' ),
-			'm3-e46' => array( 'terms' => array( 'm3-e46', 'bmw-m3-e46' ), 'modell' => 'M3 E46', 'motor' => 'S54 3,2 L', 'baujahre' => '2000–2006' ),
-			'm3-e9x' => array( 'terms' => array( 'm3-e9x', 'bmw-m3-e9x' ), 'modell' => 'M3 E9x', 'motor' => 'S65 V8 4,0 L', 'baujahre' => '2007–2013' ),
-			'm-sonstige' => array( 'terms' => array( 'sonstige-bmw-m-modelle', 'bmw-m-sonstige' ), 'modell' => 'M-Modelle', 'motor' => 'diverse', 'baujahre' => 'modellabhängig' ),
-		);
+	/** @var array|null Registry-Cache: slug => post_id (veroeffentlichte Hubs). */
+	private static $registry = null;
+
+	/** Hub-Registry aus dem CPT (eine Quelle). slug => post_id. */
+	public static function registry() {
+		if ( null !== self::$registry ) { return self::$registry; }
+		self::$registry = array();
+		if ( ! post_type_exists( self::CPT ) ) { return self::$registry; }
+		$posts = get_posts( array(
+			'post_type'   => self::CPT,
+			'post_status' => 'publish',
+			'numberposts' => -1,
+			'orderby'     => 'menu_order title',
+			'order'       => 'ASC',
+		) );
+		foreach ( $posts as $p ) {
+			if ( '' !== $p->post_name ) { self::$registry[ $p->post_name ] = (int) $p->ID; }
+		}
+		return self::$registry;
 	}
+
+	public static function flush_registry() { self::$registry = null; }
+
+	public static function post_id( $hub ) { $r = self::registry(); return isset( $r[ $hub ] ) ? (int) $r[ $hub ] : 0; }
 
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ), 20 );
@@ -48,6 +54,7 @@ class M24_Catalog_Hub {
 		add_filter( 'rewrite_rules_array', array( __CLASS__, 'prepend_rule' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'legacy_redirect' ), 1 ); // umbenannte Slugs 301
 		add_action( 'wp', array( __CLASS__, 'fix_status' ) ); // 404/Canonical-Schutz fuer /seite/N/
 		add_action( 'rest_api_init', array( __CLASS__, 'register_rest' ) ); // AJAX-Trefferliste
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
@@ -62,8 +69,15 @@ class M24_Catalog_Hub {
 		add_filter( 'document_title_parts', array( __CLASS__, 'doc_title' ) );
 	}
 
+	/** Hub-Slugs (regex-escaped, alternation) aus der Registry; '' wenn keine Hubs. */
+	private static function slugs_pattern() {
+		$keys = array_keys( self::registry() );
+		return $keys ? implode( '|', array_map( 'preg_quote', $keys ) ) : '';
+	}
+
 	public static function add_rewrite() {
-		$slugs = implode( '|', array_map( 'preg_quote', array_keys( self::hubs() ) ) );
+		$slugs = self::slugs_pattern();
+		if ( '' === $slugs ) { return; }
 		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$', 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]', 'top' );
 		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/?$', 'index.php?' . self::QV . '=$matches[1]', 'top' );
 	}
@@ -72,12 +86,26 @@ class M24_Catalog_Hub {
 
 	/** Hub-Regeln garantiert an den Anfang des Rule-Arrays (gewinnen vor Detail-Regel). */
 	public static function prepend_rule( $rules ) {
-		$slugs = implode( '|', array_map( 'preg_quote', array_keys( self::hubs() ) ) );
+		$slugs = self::slugs_pattern();
+		if ( '' === $slugs ) { return $rules; }
 		$hub = array(
 			'^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$' => 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]',
 			'^gebrauchtteile/(' . $slugs . ')/?$'                => 'index.php?' . self::QV . '=$matches[1]',
 		);
 		return $hub + (array) $rules;
+	}
+
+	/** 301 von umbenannten/alten Hub-Slugs auf die aktuellen (SEO-Hygiene). */
+	public static function legacy_redirect() {
+		$map = apply_filters( 'm24_hub_legacy_slugs', array( 'm-sonstige' => 'sonstige-bmw-m-modelle' ) );
+		$path = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) : '';
+		foreach ( $map as $old => $new ) {
+			if ( preg_match( '#/gebrauchtteile/' . preg_quote( $old, '#' ) . '(/.*)?$#', $path, $m ) ) {
+				$tail = ( isset( $m[1] ) && '' !== $m[1] ) ? $m[1] : '/';
+				wp_safe_redirect( home_url( '/gebrauchtteile/' . $new . $tail ), 301 );
+				exit;
+			}
+		}
 	}
 
 	/** Hub-Seiten nie 404 (auch /seite/N/) + Theme-Canonical-Redirect aus. */
@@ -108,21 +136,15 @@ class M24_Catalog_Hub {
 	/** Aktueller Hub-Slug (validiert) oder ''. */
 	public static function current() {
 		$h = get_query_var( self::QV );
-		return ( is_string( $h ) && isset( self::hubs()[ $h ] ) ) ? $h : '';
+		return ( is_string( $h ) && isset( self::registry()[ $h ] ) ) ? $h : '';
 	}
 
 	public static function is_hub() { return '' !== self::current(); }
 
-	/** Term-IDs des aktuellen Hubs (gemappte, existierende Terms). */
+	/** Term-IDs des aktuellen Hubs (aus dem CPT-Mapping). */
 	public static function term_ids( $hub = '' ) {
-		$hub = $hub ?: self::current();
-		if ( '' === $hub ) { return array(); }
-		$ids = array();
-		foreach ( self::hubs()[ $hub ]['terms'] as $slug ) {
-			$t = get_term_by( 'slug', $slug, self::TAX );
-			if ( $t && ! is_wp_error( $t ) ) { $ids[] = (int) $t->term_id; }
-		}
-		return $ids;
+		$c = self::config( $hub );
+		return ! empty( $c['term_ids'] ) ? $c['term_ids'] : array();
 	}
 
 	/** Live-Zaehler: aktive, veroeffentlichte Teile im Hub (nicht verkauft/ausgeblendet). */
@@ -292,8 +314,8 @@ class M24_Catalog_Hub {
 	}
 
 	public static function rest_parts( $req ) {
-		$hub = sanitize_key( (string) $req['hub'] );
-		if ( ! isset( self::hubs()[ $hub ] ) ) {
+		$hub = sanitize_title( (string) $req['hub'] );
+		if ( ! self::post_id( $hub ) ) {
 			return new WP_Error( 'm24_bad_hub', 'unknown hub', array( 'status' => 404 ) );
 		}
 		$list = self::listing( $hub, (string) $req['q'], (string) $req['sort'], (int) $req['paged'] );
@@ -314,58 +336,40 @@ class M24_Catalog_Hub {
 		return preg_replace( '#<h1\b([^>]*)>(\s*<(?:span|div|a)\b[^>]*tdb-logo.*?)</h1>#is', '<div$1>$2</div>', $html );
 	}
 
-	/** Term-Meta-Schluessel (ohne Praefix) → Admin/Seite teilen sich diese Liste. */
-	const META_PREFIX = '_m24_hub_';
-	public static function meta_keys() {
-		return array( 'h1', 'sub', 'intro_h2', 'intro', 'modell', 'motor', 'baujahre', 'seo_title', 'seo_desc', 'seo_text', 'images' );
-	}
-
-	/** Primaerer Term eines Hubs (erster existierender gemappter Slug) — traegt die Term-Meta. */
-	public static function primary_term_id( $hub = '' ) {
-		$hub = $hub ?: self::current();
-		if ( '' === $hub || ! isset( self::hubs()[ $hub ] ) ) { return 0; }
-		foreach ( self::hubs()[ $hub ]['terms'] as $slug ) {
-			$t = get_term_by( 'slug', $slug, self::TAX );
-			if ( $t && ! is_wp_error( $t ) ) { return (int) $t->term_id; }
-		}
-		return 0;
-	}
-
-	/** Hub-Key, dessen Primaer-Term diese Term-ID ist (fuer Admin-Sektion) — sonst ''. */
-	public static function hub_of_term( $term_id ) {
-		$term_id = (int) $term_id;
-		foreach ( array_keys( self::hubs() ) as $hub ) {
-			if ( self::primary_term_id( $hub ) === $term_id ) { return $hub; }
-		}
-		return '';
-	}
-
 	/** Hub-Key, der diesen Modell-Term-Slug mappt (fuer Archiv-Canonical) — sonst ''. */
 	public static function hub_for_term_slug( $slug ) {
-		foreach ( self::hubs() as $hub => $cfg ) {
-			if ( in_array( $slug, $cfg['terms'], true ) ) { return $hub; }
+		$t = get_term_by( 'slug', $slug, self::TAX );
+		if ( ! $t || is_wp_error( $t ) ) { return ''; }
+		$tid = (int) $t->term_id;
+		foreach ( array_keys( self::registry() ) as $hub ) {
+			if ( in_array( $tid, self::term_ids( $hub ), true ) ) { return $hub; }
 		}
 		return '';
 	}
 
-	/** Seed-Defaults + redaktionelle Term-Meta-Overrides (nicht-leere gewinnen). */
+	/** Hub-Konfiguration aus dem CPT (eine Quelle): Texte, Telemetrie, Bilder, Terms, Cross-Links. */
 	public static function config( $hub = '' ) {
 		$hub = $hub ?: self::current();
-		if ( '' === $hub || ! isset( self::hubs()[ $hub ] ) ) { return array(); }
-		$cfg = self::hubs()[ $hub ];
-		$pid = self::primary_term_id( $hub );
-		if ( $pid ) {
-			$m = function ( $k ) use ( $pid ) { return trim( (string) get_term_meta( $pid, self::META_PREFIX . $k, true ) ); };
-			foreach ( array( 'modell', 'motor', 'baujahre', 'sub', 'intro_h2', 'h1', 'seo_title', 'seo_desc' ) as $k ) {
-				if ( '' !== $m( $k ) ) { $cfg[ $k ] = $m( $k ); }
-			}
-			if ( '' !== $m( 'intro' ) ) { $cfg['intro_html'] = $m( 'intro' ); }       // WYSIWYG-Override (HTML)
-			if ( '' !== $m( 'seo_text' ) ) { $cfg['seo_text_html'] = $m( 'seo_text' ); } // SEO-Textblock unter dem Grid
-			if ( '' !== $m( 'images' ) ) {
-				$cfg['images'] = array_values( array_filter( array_map( 'intval', explode( ',', $m( 'images' ) ) ) ) );
-			}
-		}
-		return $cfg;
+		$id  = self::post_id( $hub );
+		if ( ! $id ) { return array(); }
+		$g     = function ( $k ) use ( $id ) { return get_post_meta( $id, self::META . $k, true ); };
+		$cross = $g( 'cross_links' );
+		return array(
+			'post_id'       => $id,
+			'modell'        => (string) $g( 'modell' ),
+			'motor'         => (string) $g( 'motor' ),
+			'baujahre'      => (string) $g( 'baujahre' ),
+			'sub'           => (string) $g( 'sub' ),
+			'intro_h2'      => (string) $g( 'intro_h2' ),
+			'h1'            => (string) $g( 'h1' ),
+			'intro_html'    => (string) $g( 'intro' ),
+			'seo_text_html' => (string) $g( 'seo_text' ),
+			'seo_title'     => (string) $g( 'seo_title' ),
+			'seo_desc'      => (string) $g( 'seo_desc' ),
+			'images'        => array_values( array_filter( array_map( 'intval', explode( ',', (string) $g( 'images' ) ) ) ) ),
+			'term_ids'      => array_values( array_filter( array_map( 'intval', (array) ( $g( 'terms' ) ?: array() ) ) ) ),
+			'cross_links'   => is_array( $cross ) ? $cross : array(),
+		);
 	}
 
 	public static function url( $hub ) { return home_url( '/gebrauchtteile/' . $hub . '/' ); }
@@ -429,8 +433,7 @@ class M24_Catalog_Hub {
 		if ( ! self::is_hub() ) { return $desc; }
 		$c = self::config();
 		if ( ! empty( $c['seo_desc'] ) ) { return $c['seo_desc']; }
-		$intro = ! empty( $c['intro_html'] ) ? wp_strip_all_tags( $c['intro_html'] )
-			: ( isset( $c['intro'][0] ) ? wp_strip_all_tags( $c['intro'][0] ) : '' );
+		$intro = ! empty( $c['intro_html'] ) ? trim( wp_strip_all_tags( $c['intro_html'] ) ) : '';
 		if ( '' !== $intro ) { return mb_substr( $intro, 0, 158 ); }
 		return self::h1() . ' — geprüft, mit Historie, weltweiter Versand bei MOTORSPORT24 seit 2006.';
 	}

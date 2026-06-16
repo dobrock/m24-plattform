@@ -25,6 +25,11 @@ $list   = M24_Catalog_Hub::listing( $hub );
 $ltotal = (int) $list['total'];
 $lq_q   = $list['q'];
 $lsort  = $list['sort'];
+$cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array();
+
+// Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
+$crumb_label = trim( preg_replace( '/^Gebraucht(?:e Teile|teile) passend für\s+/u', '', $h1 ) );
+if ( '' === $crumb_label ) { $crumb_label = $modell; }
 
 // Header puffern, damit die tagDiv-Logo-H1 zu <div> degradiert wird (genau 1 H1 = Seitentitel).
 ob_start();
@@ -36,7 +41,7 @@ $ld = array(
 	'@context' => 'https://schema.org', '@type' => 'BreadcrumbList',
 	'itemListElement' => array(
 		array( '@type' => 'ListItem', 'position' => 1, 'name' => 'Gebrauchte Teile', 'item' => $crumb ),
-		array( '@type' => 'ListItem', 'position' => 2, 'name' => 'passend für BMW ' . $modell ),
+		array( '@type' => 'ListItem', 'position' => 2, 'name' => $crumb_label ),
 	),
 );
 ?>
@@ -129,6 +134,8 @@ $ld = array(
 .m24hub .m24hub-seo h2{font-size:20px;font-weight:700;margin-bottom:10px}
 .m24hub .m24hub-seo p{color:#33373d;font-size:15.5px;margin-bottom:10px}
 .m24hub .m24hub-seo a{color:var(--blue)}
+.m24hub .m24hub-seo .links{font-size:14px;color:var(--muted)}
+.m24hub .m24hub-seo .links .sep{margin:0 6px;color:#cfcfca}
 /* Markenhinweis: eckiges Vollbreiten-Band, Textspalte = Content-Breite (1180px) */
 .m24hub .m24hub-legal{background:var(--surface);border-top:1px solid var(--line);border-radius:0}
 .m24hub .m24hub-legal .m24hub-wrap{padding:20px 24px;font-size:12.5px;color:var(--muted)}
@@ -136,7 +143,7 @@ $ld = array(
 </style>
 
 <div class="m24hub">
-	<div class="m24hub-crumb"><div class="m24hub-wrap"><a href="<?php echo esc_url( $crumb ); ?>">Gebrauchte Teile</a><span class="sep">›</span>passend für BMW <?php echo esc_html( $modell ); ?></div></div>
+	<div class="m24hub-crumb"><div class="m24hub-wrap"><a href="<?php echo esc_url( $crumb ); ?>">Gebrauchte Teile</a><span class="sep">›</span><?php echo esc_html( $crumb_label ); ?></div></div>
 
 	<div class="m24hub-wrap">
 		<div class="m24hub-hg">
@@ -164,20 +171,16 @@ $ld = array(
 	</section>
 
 	<div class="m24hub-telem"><div class="m24hub-wrap">
-		<div class="m24hub-tcell"><div class="k">Modell</div><div class="v"><?php echo esc_html( $modell ); ?></div></div>
-		<div class="m24hub-tcell"><div class="k">Motor</div><div class="v"><?php echo esc_html( $cfg['motor'] ?? '—' ); ?></div></div>
-		<div class="m24hub-tcell"><div class="k">Baujahre</div><div class="v"><?php echo esc_html( $cfg['baujahre'] ?? '—' ); ?></div></div>
+		<?php if ( '' !== $modell ) : ?><div class="m24hub-tcell"><div class="k">Modell</div><div class="v"><?php echo esc_html( $modell ); ?></div></div><?php endif; ?>
+		<?php if ( ! empty( $cfg['motor'] ) ) : ?><div class="m24hub-tcell"><div class="k">Motor</div><div class="v"><?php echo esc_html( $cfg['motor'] ); ?></div></div><?php endif; ?>
+		<?php if ( ! empty( $cfg['baujahre'] ) ) : ?><div class="m24hub-tcell"><div class="k">Baujahre</div><div class="v"><?php echo esc_html( $cfg['baujahre'] ); ?></div></div><?php endif; ?>
 		<div class="m24hub-tcell"><div class="k"><span class="m24hub-livedot"></span>Aktuell verfügbar</div><div class="v"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $count, 'm24-plattform' ), number_format_i18n( $count ) ) ); ?></div></div>
 	</div></div>
 
-	<?php if ( ! empty( $cfg['intro_html'] ) || ! empty( $cfg['intro'] ) ) : ?>
+	<?php if ( ! empty( $cfg['intro_html'] ) ) : ?>
 	<section class="m24hub-intro"><div class="m24hub-wrap">
 		<?php if ( ! empty( $cfg['intro_h2'] ) ) : ?><h2><?php echo esc_html( $cfg['intro_h2'] ); ?></h2><?php endif; ?>
-		<?php if ( ! empty( $cfg['intro_html'] ) ) : ?>
-			<?php echo wp_kses_post( wpautop( $cfg['intro_html'] ) ); ?>
-		<?php else : ?>
-			<?php foreach ( (array) $cfg['intro'] as $p ) : ?><p><?php echo esc_html( $p ); ?></p><?php endforeach; ?>
-		<?php endif; ?>
+		<?php echo wp_kses_post( wpautop( $cfg['intro_html'] ) ); ?>
 	</div></section>
 	<?php endif; ?>
 
@@ -222,13 +225,26 @@ $ld = array(
 	</div></section>
 
 	<?php
-	// SEO-Textblock (editierbar via Term-Meta; Fallback wie Mockup). Über dem Markenhinweis.
+	// SEO-Textblock (editierbar im CPT; Fallback wie Mockup). Über dem Markenhinweis.
 	$seo_html = ! empty( $cfg['seo_text_html'] )
 		? wpautop( $cfg['seo_text_html'] )
 		: '<h2>' . esc_html( $h1 ) . ' — laufend wechselnder Bestand</h2>'
 			. '<p>' . sprintf( esc_html__( 'Bei MOTORSPORT24 finden Sie regelmäßig wechselnde Gebrauchtteile passend für den BMW %s — von Motorperipherie über Fahrwerk und Bremse bis zu Karosserie- und Interieur-Teilen. Da viele Teile aus einzelnen Rennsport-Umbauten stammen, lohnt sich ein regelmäßiger Blick oder eine gezielte Anfrage zu einem konkreten Teil.', 'm24-plattform' ), esc_html( $modell ) ) . '</p>';
 	?>
-	<section class="m24hub-seo"><div class="m24hub-wrap"><?php echo wp_kses_post( $seo_html ); ?></div></section>
+	<?php if ( ! empty( $cfg['seo_text_html'] ) || ! empty( $cross ) ) : ?>
+	<section class="m24hub-seo"><div class="m24hub-wrap">
+		<?php echo wp_kses_post( $seo_html ); ?>
+		<?php if ( ! empty( $cross ) ) : ?>
+			<p class="links">Weitere Übersichten:
+				<?php $i = 0; foreach ( $cross as $cl ) :
+					if ( empty( $cl['url'] ) ) { continue; }
+					echo $i++ ? '<span class="sep">·</span>' : ' ';
+					printf( '<a href="%s">%s</a>', esc_url( $cl['url'] ), esc_html( $cl['label'] ?: $cl['url'] ) );
+				endforeach; ?>
+			</p>
+		<?php endif; ?>
+	</div></section>
+	<?php endif; ?>
 
 	<div class="m24hub-legal"><div class="m24hub-wrap">Alle genannten Marken- und Modellbezeichnungen (z. B. BMW, M3) sind Eigentum der jeweiligen Rechteinhaber und dienen ausschließlich der Beschreibung der Passgenauigkeit bzw. Herkunft der angebotenen Teile. MOTORSPORT24 steht in keiner Geschäftsverbindung zur BMW AG und ist kein autorisierter Händler.</div></div>
 </div>
