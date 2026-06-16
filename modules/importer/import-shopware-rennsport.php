@@ -300,19 +300,38 @@ class M24_Shopware_Rennsport {
 	 * der gewaehlten Kategorien bis fertig. Kein Zeit-Budget (CLI hat kein max_execution_time),
 	 * idempotent ueber _m24_sw_id (Disconnect/Ctrl-C → neu starten). Fortschritt via $cb.
 	 *
-	 * @return array { created,updated,skipped,errors,img_done,img_pending,per_cat }
+	 * FAST-SKIP: existiert bereits ein m24_teil mit dieser _m24_sw_id, wird das Produkt
+	 * VOR jedem Shopware-Detail-Fetch/Term/Bild uebersprungen (zaehlt „bereits da"). Re-Runs
+	 * in der 50s-gekappten Prod-Konsole rasen so durch Erledigtes und verbrennen die Zeit nur
+	 * an wirklich neuen Produkten → chunked-Laeufe kommen monoton voran. Reihenfolge
+	 * deterministisch (sortiert) → Fortschritt monoton.
+	 *
+	 * @return array { created,updated,skipped,skipped_existing,errors,img_done,img_pending,per_cat }
 	 */
 	public static function run_all( $keys = array(), $force = false, $cb = null ) {
-		$map    = self::category_map();
-		$keys   = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
-		$client = new M24_Shopware_Client();
-		$tot    = array( 'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0, 'img_done' => 0, 'img_pending' => 0, 'per_cat' => array() );
+		$map      = self::category_map();
+		$keys     = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
+		$client   = new M24_Shopware_Client();
+		$existing = self::existing_sw_ids(); // EIN Query: alle bereits importierten _m24_sw_id
+		$tot      = array( 'created' => 0, 'updated' => 0, 'skipped' => 0, 'skipped_existing' => 0, 'errors' => 0, 'img_done' => 0, 'img_pending' => 0, 'per_cat' => array() );
 
 		foreach ( $keys as $key ) {
 			$cfg = $map[ $key ];
 			$ids = self::collect_ids( $client, $cfg['cat'] );
-			$n   = count( $ids ); $i = 0; $c = 0; $u = 0; $s = 0;
-			foreach ( array_chunk( $ids, 25 ) as $chunk ) {
+			sort( $ids ); // deterministische Reihenfolge → monotoner Fortschritt
+			$n = count( $ids ); $i = 0; $c = 0; $u = 0; $s = 0; $se = 0;
+
+			// Fast-Skip-Partition: bereits importierte sofort raus (kein Detail-Fetch).
+			$new = array();
+			foreach ( $ids as $id ) {
+				if ( isset( $existing[ $id ] ) ) { $se++; $tot['skipped_existing']++; $i++; continue; }
+				$new[] = $id;
+			}
+			if ( defined( 'WP_CLI' ) && WP_CLI ) {
+				WP_CLI::log( sprintf( '  [%s] übersprungen (bereits da): %d · neu in diesem Lauf: %d', $key, $se, count( $new ) ) );
+			}
+
+			foreach ( array_chunk( $new, 25 ) as $chunk ) {
 				try { $products = $client->fetch_products_by_ids( $chunk ); }
 				catch ( Exception $e ) { $tot['errors'] += count( $chunk ); $i += count( $chunk ); continue; }
 				$by = array();
@@ -323,9 +342,9 @@ class M24_Shopware_Rennsport {
 					if ( null === $p ) { $tot['errors']++; continue; }
 					$r = self::import_one( $p, $cfg['term'], $force );
 					switch ( $r['status'] ) {
-						case 'created': $tot['created']++; $c++; break;
-						case 'updated': $tot['updated']++; $u++; break;
-						case 'skipped_gebraucht': $tot['skipped']++; $s++; break;
+						case 'created': $tot['created']++; $c++; $existing[ $swid ] = true; break;
+						case 'updated': $tot['updated']++; $u++; $existing[ $swid ] = true; break;
+						case 'skipped_gebraucht': $tot['skipped']++; $s++; $existing[ $swid ] = true; break;
 						case 'skipped_lock': $tot['skipped']++; break;
 						default: $tot['errors']++;
 					}
@@ -333,12 +352,21 @@ class M24_Shopware_Rennsport {
 						$tot['img_done'] += (int) $r['img']['done'];
 						if ( (int) $r['img']['remaining'] > 0 ) { $tot['img_pending']++; }
 					}
-					if ( is_callable( $cb ) ) { call_user_func( $cb, $key, $i, $n, $c + $u, $s, $tot['img_pending'] ); }
+					if ( is_callable( $cb ) ) { call_user_func( $cb, $key, $i, $n, $c + $u, $s + $se, $tot['img_pending'] ); }
 				}
 			}
-			$tot['per_cat'][ $key ] = array( 'ids' => $n, 'created' => $c, 'updated' => $u, 'skipped' => $s );
+			$tot['per_cat'][ $key ] = array( 'ids' => $n, 'created' => $c, 'updated' => $u, 'skipped' => $s, 'existing' => $se );
 		}
 		return $tot;
+	}
+
+	/** EIN Query: Set aller bereits in der DB vorhandenen _m24_sw_id (O(1)-Lookup im Lauf). */
+	private static function existing_sw_ids() {
+		global $wpdb;
+		$vals = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", '_m24_sw_id' ) ); // phpcs:ignore WordPress.DB
+		$set = array();
+		foreach ( (array) $vals as $v ) { if ( '' !== (string) $v ) { $set[ (string) $v ] = true; } }
+		return $set;
 	}
 
 	private static function handle_failure( $ids, $term, $force, $run_id, $batch_no, $attempt, $msg ) {
@@ -428,9 +456,9 @@ class M24_Shopware_Rennsport {
 			$t = self::run_all( $keys, $force, function ( $key, $i, $n, $ok, $skip, $imgp ) {
 				if ( 0 === $i % 10 || $i === $n ) { WP_CLI::log( sprintf( '  %s %d/%d · ok %d · skip %d · img-pending %d', $key, $i, $n, $ok, $skip, $imgp ) ); }
 			} );
-			WP_CLI::success( sprintf( '%d neu, %d update, %d übersprungen(gebraucht), %d Fehler · %d Bilder geladen, %d Produkte mit offenen Bildern.',
-				$t['created'], $t['updated'], $t['skipped'], $t['errors'], $t['img_done'], $t['img_pending'] ) );
-			foreach ( $t['per_cat'] as $k => $v ) { WP_CLI::log( "  $k: {$v['ids']} IDs → {$v['created']} neu / {$v['updated']} update / {$v['skipped']} übersprungen" ); }
+			WP_CLI::success( sprintf( '%d neu, %d update, %d bereits da, %d übersprungen(gebraucht), %d Fehler · %d Bilder geladen, %d Produkte mit offenen Bildern.',
+				$t['created'], $t['updated'], (int) ( $t['skipped_existing'] ?? 0 ), $t['skipped'], $t['errors'], $t['img_done'], $t['img_pending'] ) );
+			foreach ( $t['per_cat'] as $k => $v ) { WP_CLI::log( "  $k: {$v['ids']} IDs → {$v['created']} neu / {$v['updated']} update / " . (int) ( $v['existing'] ?? 0 ) . " bereits da / {$v['skipped']} übersprungen" ); }
 			if ( $t['img_pending'] > 0 ) { WP_CLI::log( 'Offene Bilder nachladen: wp m24 import-rennsport --media' ); }
 			return;
 		}
