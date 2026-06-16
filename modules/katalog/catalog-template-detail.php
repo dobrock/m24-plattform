@@ -273,9 +273,15 @@ class M24_Catalog_Template_Detail {
 		.m24det .fade::after{content:'';position:absolute;right:0;top:0;bottom:0;width:48px;background:linear-gradient(to right,rgba(255,255,255,0),#fff)}
 		.m24det .actions{margin-top:10px;padding-top:0}
 		.m24det .m24-varianten-wrap .slabel{margin-bottom:12px}
-		.m24det .btn{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;width:100%;font-family:'Saira',sans-serif;text-decoration:none}
-		.m24det .btn-pri{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:none;margin-bottom:10px}
-		.m24det .btn-sec{background:#fff;color:var(--blued);border:1px solid var(--blue)}
+		/* CTA-Buttons: geteiltes Button-System (Tokens aus assets/css/m24-ci.css). */
+		.m24det .btn{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--m24-btn-radius,8px);padding:var(--m24-btn-pad,13px 18px);font-size:14px;font-weight:var(--m24-btn-weight,600);line-height:1.1;cursor:pointer;width:100%;font-family:'Saira',sans-serif;text-decoration:none;border:1px solid transparent;transition:filter .15s,box-shadow .15s,transform .15s,background-color .15s}
+		.m24det .btn-pri{background:var(--m24-btn-grad,linear-gradient(135deg,#1f74c4,#0e447e));color:#fff;border-color:transparent;margin-bottom:10px}
+		.m24det .btn-pri:hover{filter:brightness(1.06);box-shadow:var(--m24-btn-shadow,0 6px 18px rgba(15,68,126,.28));transform:translateY(-1px)}
+		.m24det .btn-pri:active{filter:brightness(.97);transform:translateY(0);box-shadow:none}
+		.m24det .btn-sec{background:#fff;color:var(--grad-b,#0e447e);border:1px solid var(--blue)}
+		.m24det .btn-sec:hover{background:#f0f6fc;transform:translateY(-1px)}
+		.m24det .btn-sec:active{background:#e6eff7;transform:translateY(0)}
+		.m24det .btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 		.m24det .btn .m24-btn-i{width:17px;height:17px;flex:0 0 auto}
 		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare, per feiner Linie abgesetzt. Liegt als LETZTES
 		   Element INNERHALB der sticky Preisbox (.m24-right-inner), direkt unter den Buttons —

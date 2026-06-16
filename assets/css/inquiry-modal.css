@@ -30,8 +30,11 @@
 .m24iq-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 
 .m24iq-actions{margin-top:6px}
-.m24iq-submit{width:100%;border:none;border-radius:8px;padding:13px;font-family:'Saira',sans-serif;font-weight:600;font-size:15px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e)}
-.m24iq-submit:disabled{opacity:.5;cursor:not-allowed}
+/* Primaer-CTA: geteiltes Button-System (Tokens aus m24-ci.css; Fallbacks für Stand-alone-Modal). */
+.m24iq-submit{width:100%;border:1px solid transparent;border-radius:var(--m24-btn-radius,8px);padding:var(--m24-btn-pad,13px 18px);font-family:'Saira',sans-serif;font-weight:var(--m24-btn-weight,600);font-size:15px;line-height:1.1;color:#fff;cursor:pointer;background:var(--m24-btn-grad,linear-gradient(135deg,#1f74c4,#0e447e));transition:filter .15s,box-shadow .15s,transform .15s}
+.m24iq-submit:hover{filter:brightness(1.06);box-shadow:var(--m24-btn-shadow,0 6px 18px rgba(15,68,126,.28));transform:translateY(-1px)}
+.m24iq-submit:active{filter:brightness(.97);transform:translateY(0);box-shadow:none}
+.m24iq-submit:disabled{opacity:.5;cursor:not-allowed;filter:none;box-shadow:none;transform:none}
 
 .m24iq-notice{background:#fdeaea;border:1px solid #e3b4b4;color:#9e2b2b;border-radius:8px;padding:10px 12px;font-size:13px}
 .m24iq-success{background:#eaf6ee;border:1px solid #b6ddc4;color:#236a3f;border-radius:8px;padding:16px;font-size:14px;text-align:center;font-weight:600}
@@ -39,9 +42,10 @@
 /* PPWR-Hinweis (Modal + Sammelanfrage-Formular) */
 .m24-ppwr-notice{margin-top:6px;background:#fdeaea;border:1px solid #e3b4b4;color:#9e2b2b;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.45}
 
-/* "Per E-Mail an mich senden" — sekundaer, ins bestehende Sidebar-Panel injiziert */
-.m24-sidebar__email-me{display:block;width:100%;margin-top:8px;border:1px solid #1763ad;background:#fff;color:#0e447e;border-radius:8px;padding:11px;font-family:'Saira',sans-serif;font-weight:600;font-size:13px;cursor:pointer}
-.m24-sidebar__email-me:hover{background:#f4f8fc}
+/* Sekundaer-CTA „Per E-Mail an mich senden" — Outline-Variante des Button-Systems. */
+.m24-sidebar__email-me{display:block;width:100%;margin-top:8px;border:1px solid var(--blue,#1763ad);background:var(--paper,#fff);color:var(--grad-b,#0e447e);border-radius:var(--m24-btn-radius,8px);padding:var(--m24-btn-pad,13px 18px);font-family:'Saira',sans-serif;font-weight:var(--m24-btn-weight,600);font-size:13px;line-height:1.1;cursor:pointer;transition:background-color .15s,transform .15s}
+.m24-sidebar__email-me:hover{background:#f0f6fc;transform:translateY(-1px)}
+.m24-sidebar__email-me:active{background:#e6eff7;transform:translateY(0)}
 
 @media(max-width:560px){
 	.m24iq-overlay{padding:0;align-items:flex-end}

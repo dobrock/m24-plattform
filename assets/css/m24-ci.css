@@ -23,7 +23,27 @@
 	--muted: #6b7077;
 	--line: #e4e4e0;
 	--m24-radius: 12px;
+	/* ── Button-System (EINE Quelle, plattformweit) ───────────────────────── */
+	--m24-btn-grad: linear-gradient( 135deg, var(--grad-a), var(--grad-b) );
+	--m24-btn-radius: 8px;
+	--m24-btn-weight: 600;
+	--m24-btn-pad: 13px 18px;       /* einheitliche Hoehe/Innenabstand */
+	--m24-btn-shadow: 0 6px 18px rgba(15,68,126,.28);
 }
+
+/* ── Geteiltes Button-System: .m24-btn(--primary|--secondary) ──────────────
+ * Primaer = Gradient (var --m24-btn-grad), Sekundaer = Outline/neutral.
+ * Bestehende CTA-Klassen (Detail .btn-pri/.btn-sec, Inquiry .m24iq-submit /
+ * .m24-sidebar__email-me) konsumieren dieselben Tokens → identische Optik. */
+.m24-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--m24-btn-radius); padding: var(--m24-btn-pad); font-family: 'Saira', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: var(--m24-btn-weight); line-height: 1.1; cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: filter .15s, box-shadow .15s, transform .15s, background-color .15s; }
+.m24-btn--primary { background: var(--m24-btn-grad); color: #fff; border-color: transparent; }
+.m24-btn--primary:hover { filter: brightness(1.06); box-shadow: var(--m24-btn-shadow); transform: translateY(-1px); }
+.m24-btn--primary:active { filter: brightness(.97); transform: translateY(0); box-shadow: none; }
+.m24-btn--secondary { background: var(--paper); color: var(--grad-b); border-color: var(--blue); }
+.m24-btn--secondary:hover { background: #f0f6fc; transform: translateY(-1px); }
+.m24-btn--secondary:active { background: #e6eff7; transform: translateY(0); }
+.m24-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.m24-btn--block { width: 100%; }
 
 /* ── Geteilte Katalog-Karte (Archiv-Grid, Hub-Grid, verwandte Teile) ───────── */
 .m24-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--m24-radius); overflow: hidden; transition: box-shadow .18s, transform .18s; }
