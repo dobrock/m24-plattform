@@ -20,13 +20,32 @@ class M24_Catalog_Assets {
 
 	public static function enqueue() {
 		if ( ! self::needed() ) { return; }
-		$dir = M24_PLATTFORM_DIR . self::FILE;
+		$base = plugin_dir_url( M24_PLATTFORM_FILE );
+		$dir  = M24_PLATTFORM_DIR . self::FILE;
 		wp_enqueue_style(
 			self::HANDLE,
-			plugin_dir_url( M24_PLATTFORM_FILE ) . self::FILE,
+			$base . self::FILE,
 			array(),
 			file_exists( $dir ) ? (string) filemtime( $dir ) : M24_PLATTFORM_VERSION
 		);
+
+		// Hub-Frontend-JS (View-Umschalter + AJAX-Sortierung/Suche + Effekt) nur auf Hubs.
+		if ( class_exists( 'M24_Catalog_Hub' ) && M24_Catalog_Hub::is_hub() ) {
+			$js  = 'assets/js/m24-hub.js';
+			$jsd = M24_PLATTFORM_DIR . $js;
+			wp_enqueue_script(
+				'm24-hub', $base . $js, array(),
+				file_exists( $jsd ) ? (string) filemtime( $jsd ) : M24_PLATTFORM_VERSION,
+				true
+			);
+			$hub = M24_Catalog_Hub::current();
+			wp_localize_script( 'm24-hub', 'M24Hub', array(
+				'restUrl' => esc_url_raw( rest_url( 'm24/v1/hub-parts' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+				'hub'     => $hub,
+				'hubUrl'  => M24_Catalog_Hub::url( $hub ),
+			) );
+		}
 	}
 
 	private static function needed() {

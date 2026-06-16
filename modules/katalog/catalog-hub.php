@@ -49,6 +49,7 @@ class M24_Catalog_Hub {
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
 		add_action( 'wp', array( __CLASS__, 'fix_status' ) ); // 404/Canonical-Schutz fuer /seite/N/
+		add_action( 'rest_api_init', array( __CLASS__, 'register_rest' ) ); // AJAX-Trefferliste
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
 		// SEO (wpSEO-Filter): nur auf Hub-Seiten.
 		add_filter( 'wpseo_set_title',     array( __CLASS__, 'seo_title' ), 99, 1 );
@@ -198,16 +199,20 @@ class M24_Catalog_Hub {
 		) );
 	}
 
-	/** Paginierte Liste fuers Grid: query (aktuelle Seite), total, pages, paged, q, sort. */
-	public static function listing( $hub = '' ) {
+	/**
+	 * Paginierte Liste fuers Grid. Parameter optional explizit (REST/AJAX); sonst aus dem
+	 * Request (Server-Render). Rueckgabe: query (aktuelle Seite), total, pages, paged, q, sort, hub.
+	 */
+	public static function listing( $hub = '', $q = null, $sort = null, $paged = null ) {
 		$hub   = $hub ?: self::current();
-		$q     = self::current_q();
-		$sort  = self::current_sort();
+		$q     = ( null === $q )    ? self::current_q()    : trim( (string) $q );
+		$sort  = ( null === $sort ) ? self::current_sort() : ( in_array( $sort, array( 'preis-auf', 'preis-ab' ), true ) ? $sort : 'neu' );
 		$ids   = self::ordered_ids( $hub, $sort, $q );
 		$total = count( $ids );
 		$per   = self::PER_PAGE;
 		$pages = max( 1, (int) ceil( $total / $per ) );
-		$paged = min( self::current_paged(), $pages );
+		$paged = ( null === $paged ) ? self::current_paged() : max( 1, (int) $paged );
+		$paged = min( $paged, $pages );
 		$slice = array_slice( $ids, ( $paged - 1 ) * $per, $per );
 
 		if ( empty( $slice ) ) {
@@ -222,7 +227,91 @@ class M24_Catalog_Hub {
 				'no_found_rows'  => true,
 			) );
 		}
-		return compact( 'query', 'total', 'pages', 'paged', 'q', 'sort' );
+		return compact( 'query', 'total', 'pages', 'paged', 'q', 'sort', 'hub' );
+	}
+
+	/** Karten-Markup der aktuellen Seite (oder Leer-Hinweis). Server-Render UND AJAX nutzen dies. */
+	public static function cards_html( $list ) {
+		$lq = $list['query'];
+		if ( $lq->have_posts() && class_exists( 'M24_Catalog_Archive' ) ) {
+			ob_start();
+			while ( $lq->have_posts() ) {
+				$lq->the_post();
+				echo M24_Catalog_Archive::card_html( get_the_ID() ); // phpcs:ignore WordPress.Security.EscapeOutput
+			}
+			wp_reset_postdata();
+			return ob_get_clean();
+		}
+		$hub_url = self::url( $list['hub'] );
+		if ( '' !== $list['q'] ) {
+			return '<p class="m24hub-empty">Keine Treffer für „' . esc_html( $list['q'] ) . '". '
+				. '<a href="' . esc_url( $hub_url ) . '">Filter zurücksetzen</a> oder fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>';
+		}
+		return '<p class="m24hub-empty">Aktuell sind keine Teile für dieses Modell gelistet. Fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>';
+	}
+
+	/** Pagination-Nav (echte /seite/N/-Links; JS faengt Klicks ab — Progressive Enhancement). */
+	public static function pager_html( $list, $hub_url = '' ) {
+		$hub_url = $hub_url ?: self::url( $list['hub'] );
+		$links = paginate_links( array(
+			'base'      => $hub_url . '%_%',
+			'format'    => 'seite/%#%/',
+			'current'   => (int) $list['paged'],
+			'total'     => (int) $list['pages'],
+			'add_args'  => array_filter( array(
+				'q'    => '' !== $list['q'] ? $list['q'] : null,
+				'sort' => 'neu' !== $list['sort'] ? $list['sort'] : null,
+			) ),
+			'prev_text' => '‹',
+			'next_text' => '›',
+			'mid_size'  => 1,
+		) );
+		return $links ? '<nav class="m24hub-pager" aria-label="Seiten">' . $links . '</nav>' : '';
+	}
+
+	/** Zaehler-Label „{N} Teile · sortiert nach …". */
+	public static function count_label( $total, $sort ) {
+		$lbl = array( 'neu' => 'Neuheit', 'preis-auf' => 'Preis aufsteigend', 'preis-ab' => 'Preis absteigend' );
+		return sprintf( _n( '%s Teil', '%s Teile', $total, 'm24-plattform' ), number_format_i18n( $total ) )
+			. ' · sortiert nach ' . ( $lbl[ $sort ] ?? 'Neuheit' );
+	}
+
+	// ── AJAX (REST) ───────────────────────────────────────────────────────────
+	public static function register_rest() {
+		register_rest_route( 'm24/v1', '/hub-parts', array(
+			'methods'             => 'GET',
+			'permission_callback' => '__return_true', // oeffentliche Trefferliste (read-only)
+			'callback'            => array( __CLASS__, 'rest_parts' ),
+			'args'                => array(
+				'hub'   => array( 'required' => true ),
+				'q'     => array( 'default' => '' ),
+				'sort'  => array( 'default' => 'neu' ),
+				'paged' => array( 'default' => 1 ),
+			),
+		) );
+	}
+
+	public static function rest_parts( $req ) {
+		$hub = sanitize_key( (string) $req['hub'] );
+		if ( ! isset( self::hubs()[ $hub ] ) ) {
+			return new WP_Error( 'm24_bad_hub', 'unknown hub', array( 'status' => 404 ) );
+		}
+		$list = self::listing( $hub, (string) $req['q'], (string) $req['sort'], (int) $req['paged'] );
+		return rest_ensure_response( array(
+			'cards' => self::cards_html( $list ),
+			'pager' => self::pager_html( $list ),
+			'count' => self::count_label( (int) $list['total'], $list['sort'] ),
+			'total' => (int) $list['total'],
+			'paged' => (int) $list['paged'],
+			'pages' => (int) $list['pages'],
+		) );
+	}
+
+	/** tagDiv-Logo-H1 → div degradieren (nur Header-Ausgabe; genau 1 H1 = Seitentitel). */
+	public static function demote_logo_h1( $html ) {
+		if ( false === strpos( $html, 'tdb-logo' ) ) { return $html; }
+		if ( ! apply_filters( 'm24_hub_demote_logo_h1', true ) ) { return $html; }
+		return preg_replace( '#<h1\b([^>]*)>(\s*<(?:span|div|a)\b[^>]*tdb-logo.*?)</h1>#is', '<div$1>$2</div>', $html );
 	}
 
 	/** Term-Meta-Schluessel (ohne Praefix) → Admin/Seite teilen sich diese Liste. */

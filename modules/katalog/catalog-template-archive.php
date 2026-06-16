@@ -190,7 +190,8 @@ class M24_Catalog_Archive {
 		$price_block = $is_sold ? '' : '<span class="m24-card__pricewrap">' . self::price_html( $post_id ) . '</span>';
 
 		return sprintf(
-			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><h2 class="m24-card__title">%5$s</h2>%6$s%7$s</span></a></article>',
+			// Kartentitel als div (kein Heading) — H-Struktur sauber (genau 1 H1, Sektionen H2).
+			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%7$s</span></a></article>',
 			$is_sold ? ' m24-card--sold' : '',
 			esc_url( get_permalink( $post_id ) ),
 			$thumb,

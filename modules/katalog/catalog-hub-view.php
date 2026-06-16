@@ -22,13 +22,14 @@ $crumb  = home_url( '/gebrauchtteile/' );
 
 // Paginierte/gefilterte Teile-Liste (Suche ?q=, Sortierung ?sort=, 15%-Verkauft-Deckel).
 $list   = M24_Catalog_Hub::listing( $hub );
-$lq     = $list['query'];
 $ltotal = (int) $list['total'];
 $lq_q   = $list['q'];
 $lsort  = $list['sort'];
-$sortlbl = array( 'neu' => 'Neuheit', 'preis-auf' => 'Preis aufsteigend', 'preis-ab' => 'Preis absteigend' );
 
+// Header puffern, damit die tagDiv-Logo-H1 zu <div> degradiert wird (genau 1 H1 = Seitentitel).
+ob_start();
 get_header();
+echo M24_Catalog_Hub::demote_logo_h1( ob_get_clean() ); // phpcs:ignore WordPress.Security.EscapeOutput
 
 // BreadcrumbList (eine Quelle aus dem Plugin).
 $ld = array(
@@ -91,9 +92,31 @@ $ld = array(
 .m24hub .m24hub-sortwrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
 .m24hub .m24hub-sortwrap select{font-family:inherit;font-size:14px;padding:9px 30px 9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer}
 .m24hub .m24hub-resetq{font-size:13px;color:var(--blue);white-space:nowrap}
-.m24hub .m24-archiv__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-@media(max-width:900px){.m24hub .m24-archiv__grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:560px){.m24hub .m24-archiv__grid{grid-template-columns:1fr}}
+.m24hub .m24hub-controls-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+/* Ansicht-Umschalter (Segmented Control) */
+.m24hub .m24hub-viewsw{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.m24hub .m24hub-viewsw button{border:none;background:#fff;padding:8px 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600}
+.m24hub .m24hub-viewsw button:first-child{border-left:none}
+.m24hub .m24hub-viewsw button.on{background:var(--blue);color:#fff}
+.m24hub .m24hub-viewsw button:hover:not(.on){background:#f0f0ee}
+.m24hub .m24hub-viewsw svg{fill:currentColor;flex:0 0 auto}
+/* Grid mit Ansichten (Default 4 Spalten) */
+.m24hub .m24hub-grid{display:grid;gap:22px}
+.m24hub .m24hub-grid.view-3{grid-template-columns:repeat(3,1fr)}
+.m24hub .m24hub-grid.view-4{grid-template-columns:repeat(4,1fr)}
+.m24hub .m24hub-grid.view-list{grid-template-columns:1fr;gap:12px}
+@media(max-width:900px){.m24hub .m24hub-grid.view-3,.m24hub .m24hub-grid.view-4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.m24hub .m24hub-grid.view-3,.m24hub .m24hub-grid.view-4{grid-template-columns:1fr}}
+/* Übergangseffekt beim Ansichts-/Sortierwechsel (Stagger) */
+@keyframes m24hubCardIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.m24hub .m24hub-grid.anim .m24-card{animation:m24hubCardIn .34s ease both}
+@media(prefers-reduced-motion:reduce){.m24hub .m24hub-grid.anim .m24-card{animation:none}}
+/* Listenansicht: Bild links, Text rechts */
+.m24hub .m24hub-grid.view-list .m24-card__link{flex-direction:row;align-items:stretch}
+.m24hub .m24hub-grid.view-list .m24-card__media{flex:0 0 200px;width:200px;aspect-ratio:4/3}
+@media(max-width:560px){.m24hub .m24hub-grid.view-list .m24-card__media{flex:0 0 120px;width:120px}}
+.m24hub .m24hub-grid.view-list .m24-card__body{justify-content:center}
+.m24hub .m24hub-grid.view-list .m24-card__title{min-height:0}
 /* Pagination */
 .m24hub .m24hub-pager{margin-top:34px}
 .m24hub .m24hub-pager .page-numbers{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 12px;margin:0 3px 6px 0;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--text);font-weight:600;font-size:14px}
@@ -168,52 +191,34 @@ $ld = array(
 	<section class="m24hub-parts"><div class="m24hub-wrap">
 		<div class="head">
 			<h2>Teile passend für BMW <?php echo esc_html( $modell ); ?></h2>
-			<span class="count"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $ltotal, 'm24-plattform' ), number_format_i18n( $ltotal ) ) ); ?> · sortiert nach <?php echo esc_html( $sortlbl[ $lsort ] ?? 'Neuheit' ); ?></span>
+			<span class="count" id="m24hub-count"><?php echo esc_html( M24_Catalog_Hub::count_label( $ltotal, $lsort ) ); ?></span>
 		</div>
 
-		<form class="m24hub-controls" method="get" action="<?php echo esc_url( $hub_url ); ?>" role="search">
+		<form class="m24hub-controls" id="m24hub-controls" method="get" action="<?php echo esc_url( $hub_url ); ?>" role="search">
 			<div class="m24hub-search">
 				<svg class="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
 				<input id="m24hub-q" name="q" type="search" value="<?php echo esc_attr( $lq_q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen …' ); ?>" aria-label="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen' ); ?>">
 			</div>
-			<div class="m24hub-sortwrap">
-				<label for="m24hub-sort">Sortieren:</label>
-				<select id="m24hub-sort" name="sort" onchange="this.form.submit()">
-					<option value="neu"<?php selected( $lsort, 'neu' ); ?>>Neueste zuerst</option>
-					<option value="preis-auf"<?php selected( $lsort, 'preis-auf' ); ?>>Günstigste zuerst</option>
-					<option value="preis-ab"<?php selected( $lsort, 'preis-ab' ); ?>>Teuerste zuerst</option>
-				</select>
-				<noscript><button type="submit" class="m24hub-resetq">Anwenden</button></noscript>
+			<div class="m24hub-controls-right">
+				<div class="m24hub-viewsw" id="m24hub-viewsw" role="group" aria-label="Ansicht wählen">
+					<button type="button" data-view="view-3" title="3 Spalten" aria-label="3 Spalten"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2" width="3.2" height="12" rx="1"></rect><rect x="6.4" y="2" width="3.2" height="12" rx="1"></rect><rect x="11.8" y="2" width="3.2" height="12" rx="1"></rect></svg>3</button>
+					<button type="button" data-view="view-4" class="on" title="4 Spalten" aria-label="4 Spalten"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="0.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="4.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="8.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="12.5" y="2" width="2.6" height="12" rx="0.8"></rect></svg>4</button>
+					<button type="button" data-view="view-list" title="Listenansicht" aria-label="Listenansicht"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2.5" width="14" height="2.4" rx="1"></rect><rect x="1" y="6.8" width="14" height="2.4" rx="1"></rect><rect x="1" y="11.1" width="14" height="2.4" rx="1"></rect></svg>Liste</button>
+				</div>
+				<div class="m24hub-sortwrap">
+					<label for="m24hub-sort">Sortieren:</label>
+					<select id="m24hub-sort" name="sort">
+						<option value="neu"<?php selected( $lsort, 'neu' ); ?>>Neueste zuerst</option>
+						<option value="preis-auf"<?php selected( $lsort, 'preis-auf' ); ?>>Günstigste zuerst</option>
+						<option value="preis-ab"<?php selected( $lsort, 'preis-ab' ); ?>>Teuerste zuerst</option>
+					</select>
+					<noscript><button type="submit" class="m24hub-resetq">Anwenden</button></noscript>
+				</div>
 			</div>
 		</form>
 
-		<?php
-		if ( $lq->have_posts() && class_exists( 'M24_Catalog_Archive' ) ) : ?>
-			<div class="m24-archiv__grid">
-				<?php while ( $lq->have_posts() ) : $lq->the_post(); echo M24_Catalog_Archive::card_html( get_the_ID() ); /* phpcs:ignore WordPress.Security.EscapeOutput */ endwhile; ?>
-			</div>
-			<?php
-			$pager = paginate_links( array(
-				'base'      => $hub_url . '%_%',
-				'format'    => 'seite/%#%/',
-				'current'   => (int) $list['paged'],
-				'total'     => (int) $list['pages'],
-				'add_args'  => array_filter( array(
-					'q'    => '' !== $lq_q ? $lq_q : null,
-					'sort' => 'neu' !== $lsort ? $lsort : null,
-				) ),
-				'prev_text' => '‹',
-				'next_text' => '›',
-				'mid_size'  => 1,
-			) );
-			if ( $pager ) : ?>
-				<nav class="m24hub-pager" aria-label="Seiten"><?php echo wp_kses_post( $pager ); ?></nav>
-			<?php endif; ?>
-		<?php elseif ( '' !== $lq_q ) : ?>
-			<p class="m24hub-empty">Keine Treffer für „<?php echo esc_html( $lq_q ); ?>". <a href="<?php echo esc_url( $hub_url ); ?>">Filter zurücksetzen</a> oder fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>
-		<?php else : ?>
-			<p class="m24hub-empty">Aktuell sind keine Teile für dieses Modell gelistet. Fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>
-		<?php endif; wp_reset_postdata(); ?>
+		<div class="m24hub-grid view-4" id="m24hub-grid"><?php echo M24_Catalog_Hub::cards_html( $list ); /* phpcs:ignore WordPress.Security.EscapeOutput */ ?></div>
+		<div id="m24hub-pagerwrap"><?php echo M24_Catalog_Hub::pager_html( $list, $hub_url ); /* phpcs:ignore WordPress.Security.EscapeOutput */ ?></div>
 	</div></section>
 
 	<?php
