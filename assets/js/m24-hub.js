@@ -1,11 +1,12 @@
 /**
- * M24 Plattform — Modell-Hub Frontend (View-Umschalter + AJAX-Sortierung/Suche + Effekt)
+ * M24 Plattform — Modell-Hub Frontend (Ansicht + Kategorie/Sort/Suche ohne Reload)
  * Datei: assets/js/m24-hub.js  ·  Enqueue: modules/katalog/catalog-assets.php (nur Hubs)
  *
- * Progressive Enhancement: Die Seite funktioniert ohne JS (Server-Render von ?sort=/?q=
- * + echte /seite/N/-Pagination). Dieses Script veredelt nur — faengt Klicks/Changes ab,
- * tauscht das Grid per REST (ueber den GANZEN Bestand), aktualisiert die URL via pushState.
- * View-Umschalter (3/4/Liste) ist rein clientseitig (localStorage), Default = 4 Spalten.
+ * Progressive Enhancement: Seite funktioniert ohne JS (Server-Render von
+ * ?kat=/?sort=/?q= + echte /seite/N/-Pagination). JS veredelt — faengt
+ * Klicks/Changes ab, tauscht das Grid per REST (ueber den GANZEN Bestand),
+ * aktualisiert die URL via pushState. Ansicht (3/4/Liste) + Kategorie-Wahl in
+ * localStorage; ?kat= im URL hat Vorrang.
  */
 ( function () {
 	'use strict';
@@ -13,14 +14,18 @@
 	if ( ! grid ) { return; }
 	var cfg       = window.M24Hub || {};
 	var sw        = document.getElementById( 'm24hub-viewsw' );
+	var katsw     = document.getElementById( 'm24hub-katsw' );
 	var sortSel   = document.getElementById( 'm24hub-sort' );
 	var qInput    = document.getElementById( 'm24hub-q' );
 	var countEl   = document.getElementById( 'm24hub-count' );
 	var pagerWrap = document.getElementById( 'm24hub-pagerwrap' );
 	var form      = document.getElementById( 'm24hub-controls' );
 	var VIEW_KEY  = 'm24_view_gebrauchtteile';
+	var KAT_KEY   = 'm24_kat_hub';
 	var VIEWS     = [ 'view-3', 'view-4', 'view-list' ];
+	var KATS      = [ 'rennsport', 'gebraucht', 'alle' ];
 	var reduce    = window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+	var curKat    = ( KATS.indexOf( cfg.kat ) >= 0 ) ? cfg.kat : 'alle'; // serverseitig gerendert
 
 	/* ── Ansicht (rein clientseitig, localStorage, Default view-4) ───────────── */
 	function applyView( v ) {
@@ -44,6 +49,25 @@
 			applyView( v );
 			try { localStorage.setItem( VIEW_KEY, v ); } catch ( e2 ) {}
 			animate();
+		} );
+	}
+
+	/* ── Kategorie-Switch (Rennsport | Gebraucht | Alle) ─────────────────────── */
+	function setKatActive( k ) {
+		if ( ! katsw ) { return; }
+		[].forEach.call( katsw.querySelectorAll( 'a[data-kat]' ), function ( a ) {
+			a.classList.toggle( 'on', a.getAttribute( 'data-kat' ) === k );
+		} );
+	}
+	if ( katsw ) {
+		katsw.addEventListener( 'click', function ( e ) {
+			var a = e.target.closest( 'a[data-kat]' );
+			if ( ! a ) { return; }
+			e.preventDefault();
+			curKat = a.getAttribute( 'data-kat' );
+			setKatActive( curKat );
+			try { localStorage.setItem( KAT_KEY, curKat ); } catch ( e2 ) {}
+			fetchParts( { paged: 1 } );
 		} );
 	}
 
@@ -72,6 +96,7 @@
 		var url   = cfg.restUrl + '?hub=' + encodeURIComponent( cfg.hub ) +
 			'&sort=' + encodeURIComponent( sort ) +
 			'&q=' + encodeURIComponent( q ) +
+			'&kat=' + encodeURIComponent( curKat ) +
 			'&paged=' + paged;
 		busy = true;
 		grid.setAttribute( 'aria-busy', 'true' );
@@ -84,18 +109,21 @@
 				busy = false;
 				grid.removeAttribute( 'aria-busy' );
 				if ( opts.anim !== false ) { animate(); }
-				if ( ! opts.noPush ) { pushUrl( sort, q, d.paged ); }
+				if ( ! opts.noPush ) { pushUrl( sort, q, d.paged, opts.replace ); }
 			} )
 			.catch( function () { busy = false; grid.removeAttribute( 'aria-busy' ); } );
 	}
 
-	function pushUrl( sort, q, paged ) {
+	function pushUrl( sort, q, paged, replace ) {
 		if ( ! window.history || ! history.pushState || ! cfg.hubUrl ) { return; }
 		var base = cfg.hubUrl + ( paged > 1 ? ( 'seite/' + paged + '/' ) : '' );
 		var p = [];
 		if ( q ) { p.push( 'q=' + encodeURIComponent( q ) ); }
 		if ( sort && sort !== 'neu' ) { p.push( 'sort=' + encodeURIComponent( sort ) ); }
-		history.pushState( { m24: 1 }, '', base + ( p.length ? ( '?' + p.join( '&' ) ) : '' ) );
+		if ( curKat && curKat !== 'alle' ) { p.push( 'kat=' + encodeURIComponent( curKat ) ); }
+		var full = base + ( p.length ? ( '?' + p.join( '&' ) ) : '' );
+		if ( replace ) { history.replaceState( { m24: 1 }, '', full ); }
+		else { history.pushState( { m24: 1 }, '', full ); }
 	}
 
 	/* ── Sortierung (mit Effekt) ─────────────────────────────────────────────── */
@@ -140,10 +168,30 @@
 		var u = new URL( window.location.href );
 		var sort = u.searchParams.get( 'sort' ) || 'neu';
 		var q = u.searchParams.get( 'q' ) || '';
+		var kat = u.searchParams.get( 'kat' ) || 'alle';
 		var pm = /seite\/(\d+)/.exec( u.pathname );
 		var paged = pm ? parseInt( pm[ 1 ], 10 ) : 1;
 		if ( sortSel ) { sortSel.value = sort; }
 		if ( qInput ) { qInput.value = q; }
+		curKat = ( KATS.indexOf( kat ) >= 0 ) ? kat : 'alle';
+		setKatActive( curKat );
 		fetchParts( { paged: paged, anim: false, noPush: true } );
 	} );
+
+	/* ── Initiale Kategorie: ?kat= (Vorrang) → sonst localStorage ────────────── */
+	setKatActive( curKat );
+	( function initKat() {
+		var urlKat = new URL( window.location.href ).searchParams.get( 'kat' );
+		if ( urlKat && KATS.indexOf( urlKat ) >= 0 ) {
+			try { localStorage.setItem( KAT_KEY, urlKat ); } catch ( e ) {} // URL gewinnt, merken
+			return;
+		}
+		var saved;
+		try { saved = localStorage.getItem( KAT_KEY ); } catch ( e ) {}
+		if ( saved && KATS.indexOf( saved ) >= 0 && saved !== curKat ) {
+			curKat = saved;
+			setKatActive( curKat );
+			fetchParts( { paged: 1, anim: false, replace: true } ); // stilles Anwenden, URL ersetzen
+		}
+	}() );
 }() );

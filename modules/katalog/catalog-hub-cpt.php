@@ -4,7 +4,7 @@
  * Modul: modules/katalog/catalog-hub-cpt.php
  *
  * Ein Post = ein Modell-Hub. EINZIGE Quelle fuer Slug, Term-Mapping, Telemetrie,
- * Intro/SEO-Text, Bilder und Cross-Links. Frontend bleibt /modelle/{slug}/
+ * Intro/SEO-Text, Bilder und Cross-Links. Frontend bleibt /teile/{slug}/
  * (CPT selbst hat keine eigene oeffentliche URL). M24_Catalog_Hub liest hieraus.
  *
  * Enthaelt den einmaligen Seeder (Flag-geschuetzt), der die 5 Hubs aus den
@@ -21,6 +21,7 @@ class M24_Catalog_Hub_CPT {
 	const BACKFILL_FLAG = 'm24_modellhub_terms_backfill_v1';
 	const FIX_FLAG      = 'm24_modellhub_terms_fix_v2'; // Korrektur: flacher statt hierarchischer Term
 	const MIGRATE_FLAG  = 'm24_modellhub_modelle_v1';   // Base /modelle/ + bmw-Slugs + Z4 + default_kat + Menue
+	const MIGRATE2_FLAG = 'm24_modellhub_teile_v1';     // 0.8.0: Base /teile/, H1 neutral, default_kat=alle, _m24_typ-Backfill
 
 	/** Editierbare Felder (Schluessel ohne Prefix). */
 	public static function text_fields() {
@@ -35,6 +36,7 @@ class M24_Catalog_Hub_CPT {
 		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 16 );
 		add_action( 'init', array( __CLASS__, 'maybe_fix_terms' ), 17 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_modelle' ), 18 );
+		add_action( 'init', array( __CLASS__, 'maybe_migrate_teile' ), 19 );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
@@ -99,17 +101,18 @@ class M24_Catalog_Hub_CPT {
 			<div class="row">
 				<label class="l" for="m24_hub_slug">URL-Slug</label>
 				<input type="text" id="m24_hub_slug" name="m24_hub_slug" value="<?php echo esc_attr( $slug ); ?>" placeholder="z. B. bmw-m3-e30">
-				<p class="d">Frontend-URL: <code><?php echo esc_html( home_url( '/modelle/' ) ); ?><strong><?php echo esc_html( $slug ?: '{slug}' ); ?></strong>/</code> · leer ⇒ aus Titel. Nach Slug-Änderung Permalinks neu speichern.</p>
+				<p class="d">Frontend-URL: <code><?php echo esc_html( home_url( '/teile/' ) ); ?><strong><?php echo esc_html( $slug ?: '{slug}' ); ?></strong>/</code> · leer ⇒ aus Titel. Nach Slug-Änderung Permalinks neu speichern.</p>
 			</div>
 
 			<div class="row">
 				<label class="l" for="m24_hub_default_kat">Standard-Kategorie (Selektor-Default)</label>
-				<?php $dk = self::get( $id, 'default_kat' ) ?: 'gebraucht'; ?>
+				<?php $dk = self::get( $id, 'default_kat' ) ?: 'alle'; ?>
 				<select id="m24_hub_default_kat" name="m24_hub_default_kat">
-					<option value="gebraucht"<?php selected( $dk, 'gebraucht' ); ?>>Gebrauchtteile</option>
+					<option value="alle"<?php selected( $dk, 'alle' ); ?>>Alle</option>
 					<option value="rennsport"<?php selected( $dk, 'rennsport' ); ?>>Rennsport-Teile</option>
+					<option value="gebraucht"<?php selected( $dk, 'gebraucht' ); ?>>Gebrauchtteile</option>
 				</select>
-				<p class="d">Steuert später den Kategorie-Selektor-Default dieses Hubs.</p>
+				<p class="d">Default des Kategorie-Selektors („Rennsport | Gebraucht | Alle") dieses Hubs.</p>
 			</div>
 
 			<div class="row">
@@ -241,7 +244,7 @@ class M24_Catalog_Hub_CPT {
 		}
 		if ( isset( $_POST['m24_hub_default_kat'] ) ) {
 			$dk = sanitize_key( wp_unslash( $_POST['m24_hub_default_kat'] ) );
-			update_post_meta( $post_id, self::META . 'default_kat', in_array( $dk, array( 'gebraucht', 'rennsport' ), true ) ? $dk : 'gebraucht' );
+			update_post_meta( $post_id, self::META . 'default_kat', in_array( $dk, array( 'alle', 'gebraucht', 'rennsport' ), true ) ? $dk : 'alle' );
 		}
 		if ( isset( $_POST['m24_hub_terms'] ) ) {
 			$ids = array_values( array_filter( array_map( 'intval', (array) wp_unslash( $_POST['m24_hub_terms'] ) ) ) );
@@ -404,6 +407,102 @@ class M24_Catalog_Hub_CPT {
 
 		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
 		flush_rewrite_rules( false );
+	}
+
+	/**
+	 * 0.8.0-Migration (einmalig, init:19): H1 neutralisieren, default_kat='alle',
+	 * _m24_typ-Backfill (=gebraucht), Cross-Links/Menue auf /teile/, Z4-Alt-Post noindex.
+	 * Base /teile/ kommt aus M24_Catalog_Hub::BASE — Slugs bleiben unveraendert.
+	 */
+	public static function maybe_migrate_teile() {
+		if ( get_option( self::MIGRATE2_FLAG ) ) { return; }
+		if ( ! taxonomy_exists( self::TAX ) || ! post_type_exists( self::CPT ) ) { return; }
+		update_option( self::MIGRATE2_FLAG, gmdate( 'c' ) );
+
+		// 1) H1 neutralisieren (M3 + Sonstige; Z4 bleibt „Rennsport-Teile …").
+		$h1 = array(
+			'bmw-m3-e30'             => 'Teile passend für BMW M3 E30',
+			'bmw-m3-e36'             => 'Teile passend für BMW M3 E36',
+			'bmw-m3-e46'             => 'Teile passend für BMW M3 E46',
+			'bmw-m3-e9x'             => 'Teile passend für BMW M3 E9x',
+			'sonstige-bmw-m-modelle' => 'Teile passend für sonstige BMW M-Modelle',
+		);
+		foreach ( $h1 as $slug => $val ) {
+			$p = self::find_by_slug( $slug );
+			if ( $p ) { update_post_meta( $p->ID, self::META . 'h1', $val ); }
+		}
+
+		// 2) default_kat = 'alle' fuer ALLE Hubs (zeigt vorhandenen Bestand, keine Leerstaende).
+		foreach ( get_posts( array( 'post_type' => self::CPT, 'post_status' => 'any', 'numberposts' => -1 ) ) as $p ) {
+			update_post_meta( $p->ID, self::META . 'default_kat', 'alle' );
+		}
+
+		// 3) _m24_typ-Backfill: bestehende Teile ohne Typ = 'gebraucht' (aktueller Bestand).
+		$untyped = get_posts( array(
+			'post_type'   => 'm24_teil', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids',
+			'meta_query'  => array( array( 'key' => '_m24_typ', 'compare' => 'NOT EXISTS' ) ),
+		) );
+		foreach ( $untyped as $pid ) { update_post_meta( $pid, '_m24_typ', 'gebraucht' ); }
+
+		// 4) Cross-Links + Menue auf /teile/ (geteilte Legacy-Map), Z4-Doppelpunkt entfernen.
+		self::rewrite_links_to_teile();
+		self::cleanup_z4_menu();
+
+		// 5) Z4-Alt-Post (17805) auf noindex (filterbar).
+		$alt = (int) apply_filters( 'm24_z4_legacy_post_id', 17805 );
+		if ( $alt && get_post( $alt ) ) { update_post_meta( $alt, '_yoast_wpseo_meta-robots-noindex', '1' ); }
+
+		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+		flush_rewrite_rules( false );
+	}
+
+	/** Cross-Links (alle Hubs) UND Menue-Items auf /teile/-URLs umschreiben (geteilte Legacy-Map). */
+	private static function rewrite_links_to_teile() {
+		if ( ! class_exists( 'M24_Catalog_Hub' ) ) { return; }
+		$map = M24_Catalog_Hub::legacy_paths(); // alle Alt-Pfade → /teile/{slug}
+		// Cross-Links.
+		foreach ( get_posts( array( 'post_type' => self::CPT, 'post_status' => 'any', 'numberposts' => -1 ) ) as $p ) {
+			$cross = get_post_meta( $p->ID, self::META . 'cross_links', true );
+			if ( ! is_array( $cross ) || empty( $cross ) ) { continue; }
+			$dirty = false;
+			foreach ( $cross as &$cl ) {
+				$u    = isset( $cl['url'] ) ? (string) $cl['url'] : '';
+				$path = (string) wp_parse_url( $u, PHP_URL_PATH );
+				foreach ( $map as $old => $new ) {
+					if ( $path === $old || $path === $old . '/' || 0 === strpos( $path, $old . '/' ) ) {
+						$cl['url'] = $new . substr( $path, strlen( $old ) );
+						$dirty = true; break;
+					}
+				}
+			}
+			unset( $cl );
+			if ( $dirty ) { update_post_meta( $p->ID, self::META . 'cross_links', $cross ); }
+		}
+		// Menue-Items (generisch per URL; M2/M4 nicht im Map → unberuehrt).
+		foreach ( get_posts( array( 'post_type' => 'nav_menu_item', 'post_status' => 'any', 'numberposts' => -1 ) ) as $it ) {
+			$u = (string) get_post_meta( $it->ID, '_menu_item_url', true );
+			if ( '' === $u ) { continue; }
+			$path = (string) wp_parse_url( $u, PHP_URL_PATH );
+			foreach ( $map as $old => $new ) {
+				if ( $path === $old || $path === $old . '/' || 0 === strpos( $path, $old . '/' ) ) {
+					update_post_meta( $it->ID, '_menu_item_url', home_url( $new . substr( $path, strlen( $old ) ) ) );
+					break;
+				}
+			}
+		}
+	}
+
+	/** Redundanten „Rennsport Teile passend für Z4 GT3"-Menüpunkt entfernen (Hub-Punkt bleibt). */
+	private static function cleanup_z4_menu() {
+		$hub_url = home_url( '/teile/bmw-z4-gt3/' );
+		foreach ( get_posts( array( 'post_type' => 'nav_menu_item', 'post_status' => 'any', 'numberposts' => -1 ) ) as $it ) {
+			$title = get_the_title( $it->ID );
+			$u     = home_url( (string) wp_parse_url( (string) get_post_meta( $it->ID, '_menu_item_url', true ), PHP_URL_PATH ) );
+			// „Rennsport … Z4 GT3"-Punkt löschen, ABER NICHT den schlichten „BMW Z4 GT3"-Hub-Punkt.
+			if ( false !== stripos( $title, 'Z4 GT3' ) && false !== stripos( $title, 'Rennsport' ) && $u === $hub_url ) {
+				wp_delete_post( $it->ID, true );
+			}
+		}
 	}
 
 	/** Z4-GT3-Hub + zugehoerigen Modell-Term idempotent anlegen. */
@@ -575,7 +674,7 @@ class M24_Catalog_Hub_CPT {
 			array(
 				'slug' => 'bmw-m3-e30', 'terms' => array( 'm3-e30' ),
 				'modell' => 'M3 E30', 'motor' => 'S14 2,3 / 2,5 L', 'baujahre' => '1986–1991',
-				'h1' => 'Gebrauchtteile passend für BMW M3 E30',
+				'h1' => 'Teile passend für BMW M3 E30',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
 				'intro_h2' => 'Teile mit Historie — aus eigenen Rennsport-Umbauten',
 				'intro' => $p( 'Unsere Gebrauchtteile passend für den BMW M3 E30 stammen überwiegend aus unseren eigenen Rennsport-Umbauten: Wenn wir einen M3 E30 für den Renneinsatz auf- oder umbauen, werden hochwertige Originalteile fachgerecht ausgebaut, geprüft und hier mit klarer Herkunft angeboten. Dazu kommen ausgewählte Aftermarket-Teile passend für den M3 E30.' )
@@ -592,7 +691,7 @@ class M24_Catalog_Hub_CPT {
 			array(
 				'slug' => 'bmw-m3-e36', 'terms' => array( 'm3-e36' ),
 				'modell' => 'M3 E36', 'motor' => 'S50 3,0 / 3,2 L', 'baujahre' => '1992–1999',
-				'h1' => 'Gebrauchtteile passend für BMW M3 E36',
+				'h1' => 'Teile passend für BMW M3 E36',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
 				'intro_h2' => '',
 				'intro' => $p( 'Unsere Gebrauchtteile passend für den BMW M3 E36 stammen aus eigenen Rennsport-Umbauten und geprüften Beständen. Der E36 M3 markierte den Sprung vom Vierzylinder zum Reihensechszylinder: zunächst der 3,0-Liter-S50B30 mit 286 PS, ab 1995 der 3,2-Liter-S50B32 mit 321 PS. Wir führen Teile rund um den S50-Motor, Fahrwerk, Bremse, Karosserie und Interieur.' )
@@ -609,7 +708,7 @@ class M24_Catalog_Hub_CPT {
 			array(
 				'slug' => 'bmw-m3-e46', 'terms' => array( 'm3-e46' ),
 				'modell' => 'M3 E46', 'motor' => 'S54B32 3,2 L', 'baujahre' => '2000–2006',
-				'h1' => 'Gebrauchtteile passend für BMW M3 E46',
+				'h1' => 'Teile passend für BMW M3 E46',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
 				'intro_h2' => '',
 				'intro' => $p( 'Unsere Gebrauchtteile passend für den BMW M3 E46 kommen aus eigenen Rennsport-Umbauten und geprüften Beständen. Herzstück ist der hochdrehende 3,2-Liter-Reihensechszylinder S54B32 mit 343 PS — im leichtgewichtigen M3 CSL bis 360 PS. Wir führen Teile rund um den S54, Antrieb (inkl. SMG II), Fahrwerk, Bremse, Karosserie und Interieur.' )
@@ -626,7 +725,7 @@ class M24_Catalog_Hub_CPT {
 			array(
 				'slug' => 'bmw-m3-e9x', 'terms' => array( 'm3-e9x' ),
 				'modell' => 'M3 E9x (E90/E92/E93)', 'motor' => 'S65B40 V8 4,0 L', 'baujahre' => '2007–2013',
-				'h1' => 'Gebrauchtteile passend für BMW M3 E9x',
+				'h1' => 'Teile passend für BMW M3 E9x',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
 				'intro_h2' => '',
 				'intro' => $p( 'Unsere Gebrauchtteile passend für den BMW M3 E9x (E90 Limousine, E92 Coupé, E93 Cabrio) stammen aus eigenen Rennsport-Umbauten und geprüften Beständen. Der E9x ist der einzige M3 mit V8: der 4,0-Liter-S65B40 leistet 420 PS und dreht bis rund 8.400/min. Wir führen Teile rund um den S65, Antrieb (inkl. DKG), Fahrwerk, Bremse, Karosserie und Interieur.' )
@@ -643,7 +742,7 @@ class M24_Catalog_Hub_CPT {
 			array(
 				'slug' => 'sonstige-bmw-m-modelle', 'terms' => array( 'sonstige-bmw-m-modelle' ),
 				'modell' => 'weitere BMW M-Modelle', 'motor' => '', 'baujahre' => '',
-				'h1' => 'Gebrauchte Teile passend für weitere BMW M-Modelle',
+				'h1' => 'Teile passend für sonstige BMW M-Modelle',
 				'sub' => 'Aus eigenen Rennsport-Umbauten – geprüft – mit Historie plus unsere Auswahl an eigenen gebrauchten Rennsport-Teilen.',
 				'intro_h2' => '',
 				'intro' => $p( 'Hier finden Sie Gebrauchtteile passend für weitere BMW M-Modelle, die keinen eigenen Modell-Hub haben — unter anderem M2, M4, M5, M6, Z4 M sowie M-Varianten der X-Reihe. Die Teile stammen aus eigenen Rennsport-Umbauten und geprüften Beständen.' )

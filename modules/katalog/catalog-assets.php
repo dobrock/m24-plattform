@@ -44,6 +44,7 @@ class M24_Catalog_Assets {
 				'nonce'   => wp_create_nonce( 'wp_rest' ),
 				'hub'     => $hub,
 				'hubUrl'  => M24_Catalog_Hub::url( $hub ),
+				'kat'     => M24_Catalog_Hub::effective_kat( $hub ), // serverseitig gerenderte Kategorie
 			) );
 		}
 	}

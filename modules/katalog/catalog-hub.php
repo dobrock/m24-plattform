@@ -18,8 +18,8 @@ class M24_Catalog_Hub {
 	const TAX = 'm24_fahrzeugkat';
 	const CPT = 'm24_modellhub';
 	const META = '_m24_hub_';
-	const BASE = 'modelle';                     // neutrale URL-Basis /modelle/{slug}/ (vorher gebrauchtteile)
-	const REWRITE_FLAG = 'm24_hub_rewrites_v4'; // v4: Base /gebrauchtteile/ → /modelle/
+	const BASE = 'teile';                       // neutrale URL-Basis /teile/{slug}/ (Hubs zeigen neu+gebraucht)
+	const REWRITE_FLAG = 'm24_hub_rewrites_v5'; // v5: Base /modelle/ → /teile/
 	const PER_PAGE = 24;                        // Teile pro Seite (Auftrag: 24–36)
 
 	/** @var array|null Registry-Cache: slug => post_id (veroeffentlichte Hubs). */
@@ -97,21 +97,44 @@ class M24_Catalog_Hub {
 	}
 
 	/**
-	 * 301 von alten Hub-Pfaden auf die neuen /modelle/-URLs (Base- + Slug-Umzug).
-	 * Erhaelt Subpfade (/seite/N/) UND Querystrings (?sort=/?q=). Matcht NUR diese
-	 * Pfad-Praefixe — Teile-Archiv /gebrauchtteile/ und Detailseiten bleiben unberuehrt.
+	 * Alle Alt-Pfade → neue /teile/-URL (direkt, kein Doppel-Hop). Geteilt von 301-Redirect
+	 * und Menue-/Cross-Link-Migration. M2/M4 (g82/f82/f87-f22) bewusst NICHT enthalten.
+	 */
+	public static function legacy_paths() {
+		return apply_filters( 'm24_hub_legacy_paths', array(
+			// Gebrauchtteile-Alt
+			'/gebrauchtteile/m3-e30'                 => '/teile/bmw-m3-e30',
+			'/gebrauchtteile/m3-e36'                 => '/teile/bmw-m3-e36',
+			'/gebrauchtteile/m3-e46'                 => '/teile/bmw-m3-e46',
+			'/gebrauchtteile/m3-e9x'                 => '/teile/bmw-m3-e9x',
+			'/gebrauchtteile/sonstige-bmw-m-modelle' => '/teile/sonstige-bmw-m-modelle',
+			'/gebrauchtteile/m-sonstige'             => '/teile/sonstige-bmw-m-modelle',
+			// Modelle-Zwischenstand
+			'/modelle/bmw-m3-e30'                    => '/teile/bmw-m3-e30',
+			'/modelle/bmw-m3-e36'                    => '/teile/bmw-m3-e36',
+			'/modelle/bmw-m3-e46'                    => '/teile/bmw-m3-e46',
+			'/modelle/bmw-m3-e9x'                    => '/teile/bmw-m3-e9x',
+			'/modelle/sonstige-bmw-m-modelle'        => '/teile/sonstige-bmw-m-modelle',
+			'/modelle/bmw-z4-gt3'                    => '/teile/bmw-z4-gt3',
+			// Rennsport-Alt-Seiten (nur M3 + Z4 — NICHT M2/M4 g82/f82/f87-f22)
+			'/rennsport-teile-passend-fur-m3-e30'    => '/teile/bmw-m3-e30',
+			'/rennsport-teile-passend-fur-e36'       => '/teile/bmw-m3-e36',
+			'/rennsport-teile-passend-fur-m3-e46'    => '/teile/bmw-m3-e46',
+			'/rennsport-teile-fur-e90'               => '/teile/bmw-m3-e9x',
+			'/rennsport-teile-passend-fur-m3-e92'    => '/teile/bmw-m3-e9x',
+			'/rennsport-teile-passend-fur-z4-gt3'    => '/teile/bmw-z4-gt3',
+		) );
+	}
+
+	/**
+	 * 301 von allen Alt-Pfaden auf die neuen /teile/-URLs. Erhaelt Subpfade (/seite/N/)
+	 * UND Querystrings (?sort=/?q=/?kat=). Matcht NUR diese Pfade — Teile-Archiv
+	 * /gebrauchtteile/, /rennsport-teile/ und Detailseiten bleiben unberuehrt.
 	 */
 	public static function legacy_redirect() {
 		$path = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) : '';
 		if ( '' === $path ) { return; }
-		$map = apply_filters( 'm24_hub_legacy_paths', array(
-			'/gebrauchtteile/m3-e30'                 => '/modelle/bmw-m3-e30',
-			'/gebrauchtteile/m3-e36'                 => '/modelle/bmw-m3-e36',
-			'/gebrauchtteile/m3-e46'                 => '/modelle/bmw-m3-e46',
-			'/gebrauchtteile/m3-e9x'                 => '/modelle/bmw-m3-e9x',
-			'/gebrauchtteile/sonstige-bmw-m-modelle' => '/modelle/sonstige-bmw-m-modelle',
-			'/gebrauchtteile/m-sonstige'             => '/modelle/sonstige-bmw-m-modelle', // sehr alt
-		) );
+		$map = self::legacy_paths();
 		foreach ( $map as $old => $new ) {
 			if ( $path === $old || 0 === strpos( $path, $old . '/' ) ) {
 				$tail = substr( $path, strlen( $old ) ); // '/seite/2/' o. '' o. '/'
@@ -140,6 +163,19 @@ class M24_Catalog_Hub {
 		return in_array( $s, array( 'preis-auf', 'preis-ab' ), true ) ? $s : 'neu';
 	}
 	public static function current_paged() { return max( 1, (int) get_query_var( 'paged' ) ); }
+	/** ?kat= im Request (rennsport|gebraucht|alle) oder '' (⇒ Hub-Default greift). */
+	public static function current_kat() {
+		$k = isset( $_GET['kat'] ) ? sanitize_key( wp_unslash( $_GET['kat'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		return in_array( $k, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $k : '';
+	}
+	/** Effektive Kategorie eines Hubs: ?kat= (Vorrang) → Hub-Default (default_kat) → 'alle'. */
+	public static function effective_kat( $hub = '' ) {
+		$k = self::current_kat();
+		if ( '' !== $k ) { return $k; }
+		$c = self::config( $hub );
+		$dk = $c['default_kat'] ?? 'alle';
+		return in_array( $dk, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $dk : 'alle';
+	}
 
 	/** Rewrite-Regeln einmalig flushen (nach Deploy), ohne Activation-Hook. */
 	public static function maybe_flush() {
@@ -212,9 +248,23 @@ class M24_Catalog_Hub {
 	 * Verkauft-Teile auf max. 15 % des Sets gedeckelt. Bei Preissortierung Verkauft ans Ende,
 	 * bei „neueste" nach Datum eingemischt.
 	 */
-	public static function ordered_ids( $hub, $sort, $q ) {
+	/** kat (rennsport|gebraucht|alle) → _m24_typ-Klausel; 'alle'/leer ⇒ keine. */
+	private static function typ_clause( $kat ) {
+		if ( 'rennsport' === $kat ) { return array( 'key' => '_m24_typ', 'value' => 'neu' ); }
+		if ( 'gebraucht' === $kat ) {
+			// gebraucht = _m24_typ != 'neu' (deckt auch ungesetzte Alt-Teile ab).
+			return array( 'relation' => 'OR',
+				array( 'key' => '_m24_typ', 'value' => 'neu', 'compare' => '!=' ),
+				array( 'key' => '_m24_typ', 'compare' => 'NOT EXISTS' ),
+			);
+		}
+		return null; // alle
+	}
+
+	public static function ordered_ids( $hub, $sort, $q, $kat = 'alle' ) {
 		$ids = self::term_ids( $hub );
 		if ( empty( $ids ) ) { return array(); }
+		$typ  = self::typ_clause( $kat );
 		$base = array(
 			'post_type'      => 'm24_teil',
 			'post_status'    => 'publish',
@@ -225,9 +275,10 @@ class M24_Catalog_Hub {
 		);
 		if ( '' !== $q ) { $base['s'] = $q; }
 
-		// Aktive Teile (sortiert).
+		// Aktive Teile (sortiert) + optionaler Kategorie-Filter.
 		$a = $base;
-		$a['meta_query'] = array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
+		$a['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
+		if ( $typ ) { $a['meta_query'][] = $typ; }
 		if ( 'preis-auf' === $sort || 'preis-ab' === $sort ) {
 			$a['meta_key'] = '_m24_preis_netto';
 			$a['orderby']  = 'meta_value_num';
@@ -240,7 +291,8 @@ class M24_Catalog_Hub {
 
 		// Verkaufte Teile (Datum DESC), auf 15 % des Sets gedeckelt: sold <= aktiv * 3/17.
 		$s = $base;
-		$s['meta_query'] = array( array( 'key' => '_m24_status', 'value' => 'verkauft' ) );
+		$s['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'verkauft' ) );
+		if ( $typ ) { $s['meta_query'][] = $typ; }
 		$s['orderby']    = 'date';
 		$s['order']      = 'DESC';
 		$sold = ( new WP_Query( $s ) )->posts;
@@ -267,11 +319,12 @@ class M24_Catalog_Hub {
 	 * Paginierte Liste fuers Grid. Parameter optional explizit (REST/AJAX); sonst aus dem
 	 * Request (Server-Render). Rueckgabe: query (aktuelle Seite), total, pages, paged, q, sort, hub.
 	 */
-	public static function listing( $hub = '', $q = null, $sort = null, $paged = null ) {
+	public static function listing( $hub = '', $q = null, $sort = null, $paged = null, $kat = null ) {
 		$hub   = $hub ?: self::current();
 		$q     = ( null === $q )    ? self::current_q()    : trim( (string) $q );
 		$sort  = ( null === $sort ) ? self::current_sort() : ( in_array( $sort, array( 'preis-auf', 'preis-ab' ), true ) ? $sort : 'neu' );
-		$ids   = self::ordered_ids( $hub, $sort, $q );
+		$kat   = ( null === $kat )  ? self::effective_kat( $hub ) : ( in_array( $kat, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $kat : 'alle' );
+		$ids   = self::ordered_ids( $hub, $sort, $q, $kat );
 		$total = count( $ids );
 		$per   = self::PER_PAGE;
 		$pages = max( 1, (int) ceil( $total / $per ) );
@@ -291,7 +344,7 @@ class M24_Catalog_Hub {
 				'no_found_rows'  => true,
 			) );
 		}
-		return compact( 'query', 'total', 'pages', 'paged', 'q', 'sort', 'hub' );
+		return compact( 'query', 'total', 'pages', 'paged', 'q', 'sort', 'kat', 'hub' );
 	}
 
 	/** Karten-Markup der aktuellen Seite (oder Leer-Hinweis). Server-Render UND AJAX nutzen dies. */
@@ -325,6 +378,7 @@ class M24_Catalog_Hub {
 			'add_args'  => array_filter( array(
 				'q'    => '' !== $list['q'] ? $list['q'] : null,
 				'sort' => 'neu' !== $list['sort'] ? $list['sort'] : null,
+				'kat'  => ( '' !== self::current_kat() ) ? $list['kat'] : null, // nur wenn explizit im URL
 			) ),
 			'prev_text' => '‹',
 			'next_text' => '›',
@@ -351,6 +405,7 @@ class M24_Catalog_Hub {
 				'q'     => array( 'default' => '' ),
 				'sort'  => array( 'default' => 'neu' ),
 				'paged' => array( 'default' => 1 ),
+				'kat'   => array( 'default' => 'alle' ),
 			),
 		) );
 	}
@@ -360,7 +415,9 @@ class M24_Catalog_Hub {
 		if ( ! self::post_id( $hub ) ) {
 			return new WP_Error( 'm24_bad_hub', 'unknown hub', array( 'status' => 404 ) );
 		}
-		$list = self::listing( $hub, (string) $req['q'], (string) $req['sort'], (int) $req['paged'] );
+		$kat  = sanitize_key( (string) $req['kat'] );
+		$kat  = in_array( $kat, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $kat : 'alle';
+		$list = self::listing( $hub, (string) $req['q'], (string) $req['sort'], (int) $req['paged'], $kat );
 		return rest_ensure_response( array(
 			'cards' => self::cards_html( $list ),
 			'pager' => self::pager_html( $list ),
@@ -368,6 +425,7 @@ class M24_Catalog_Hub {
 			'total' => (int) $list['total'],
 			'paged' => (int) $list['paged'],
 			'pages' => (int) $list['pages'],
+			'kat'   => $list['kat'],
 		) );
 	}
 
@@ -421,7 +479,8 @@ class M24_Catalog_Hub {
 	public static function h1( $hub = '' ) {
 		$c = self::config( $hub );
 		if ( ! empty( $c['h1'] ) ) { return $c['h1']; }
-		return 'Gebrauchtteile passend für BMW ' . ( $c['modell'] ?? '' );
+		// Neutral (Hubs zeigen neu+gebraucht): „Teile passend für BMW {Modell}".
+		return 'Teile passend für BMW ' . ( $c['modell'] ?? '' );
 	}
 
 	/** Erste N Teilebilder des Hubs (Featured Images aktiver Teile) — Slideshow-Fallback. */
@@ -457,7 +516,7 @@ class M24_Catalog_Hub {
 			$src = wp_get_attachment_image_src( $id, 'full' );
 			if ( ! is_array( $src ) || empty( $src[0] ) ) { continue; }
 			$alt = trim( (string) get_post_meta( $id, '_wp_attachment_image_alt', true ) );
-			if ( '' === $alt ) { $alt = 'Gebrauchtteile passend für BMW ' . ( $c['modell'] ?? '' ); }
+			if ( '' === $alt ) { $alt = 'Teile passend für BMW ' . ( $c['modell'] ?? '' ); }
 			$out[] = array( 'id' => (int) $id, 'url' => $src[0], 'w' => (int) ( $src[1] ?? 0 ), 'h' => (int) ( $src[2] ?? 0 ), 'alt' => $alt );
 		}
 		return $out;
@@ -506,8 +565,9 @@ class M24_Catalog_Hub {
 	}
 	public static function seo_robots( $robots )   {
 		if ( ! self::is_hub() ) { return $robots; }
-		// Filter-/Sortier-Querystrings sind nicht indexierbar (Duplicate-Schutz).
-		return ( '' !== self::current_q() || 'neu' !== self::current_sort() ) ? 'noindex, follow' : 'index, follow';
+		// Filter-/Sortier-/Kategorie-Querystrings sind nicht indexierbar (Duplicate-Schutz).
+		$param = ( '' !== self::current_q() || 'neu' !== self::current_sort() || '' !== self::current_kat() );
+		return $param ? 'noindex, follow' : 'index, follow';
 	}
 	public static function seo_canonical( $url )    {
 		if ( ! self::is_hub() ) { return $url; }

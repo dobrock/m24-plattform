@@ -39,6 +39,7 @@ class M24_Catalog_SEO {
 		// Title/Description/OG dynamisch aus dem AKTUELLEN Titel ausgeben (kein veralteter
 		// Snapshot, z.B. Auto-Draft) — manuelle Overrides bleiben verbatim.
 		add_filter( 'wpseo_set_desc',         array( __CLASS__, 'filter_desc' ),        20, 1 );
+		add_filter( 'wpseo_set_title',        array( __CLASS__, 'front_title' ),        99, 1 ); // Startseite: fixer Title, keine Dopplung
 		add_filter( 'wpseo_set_title',        array( __CLASS__, 'force_detail_title' ), 99, 1 );
 		// SEO #2: Index-Schalter fuer Teile-Detailseiten (Default noindex,follow bis zum Flip).
 		add_filter( 'wpseo_set_robots',       array( __CLASS__, 'filter_robots' ),      99, 1 );
@@ -49,6 +50,14 @@ class M24_Catalog_SEO {
 		// sync_post() uebersprungen; der Status-Uebergang in einen echten Status generiert neu.
 		add_action( 'save_post_' . self::PT,    array( __CLASS__, 'on_save' ), 30, 1 );
 		add_action( 'transition_post_status',   array( __CLASS__, 'on_transition' ), 20, 3 );
+	}
+
+	/** Startseite: exakter, einfacher Title (kein angehaengter Site-Name → keine Dopplung). */
+	public static function front_title( $title ) {
+		if ( is_front_page() ) {
+			return (string) apply_filters( 'm24_front_title', 'MOTORSPORT24 seit 2006 - Hochwertige Fahrzeuge + Rennsport Teile' );
+		}
+		return $title;
 	}
 
 	// ── Title-Kaskade ────────────────────────────────────────────────────
