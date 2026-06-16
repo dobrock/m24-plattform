@@ -36,9 +36,12 @@
 .m24-card__badge { position: absolute; top: 10px; left: 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 6px; color: #fff; text-transform: uppercase; }
 .m24-card__badge--sold { background: var(--red); }
 .m24-card__body { display: flex; flex-direction: column; gap: 6px; padding: 14px 15px 16px; flex: 1; }
-.m24-card__title { font-size: 16px; line-height: 1.3; font-weight: 600; margin: 0; }
+/* Titel auf 2 Zeilen klammern (Ueberlauf …); min-height haelt Karten buendig. */
+.m24-card__title { font-size: 15px; line-height: 1.35; font-weight: 600; margin: 0; min-height: 42px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .m24-card__meta { font-size: 12.5px; color: var(--muted); }
 .m24-card__pricewrap { margin-top: auto; padding-top: 8px; display: flex; flex-direction: column; }
 .m24-card__price { font-size: 19px; font-weight: 700; color: var(--brass); }
 .m24-card__price--ask { font-size: 16px; }
 .m24-card__pricenote { font-size: 11.5px; color: var(--muted); }
+/* Verkauft-Karte: kein Preis → Art.-Nr. ans untere Ende (buendig mit Preiszeile aktiver Karten). */
+.m24-card--sold .m24-card__meta { margin-top: auto; }

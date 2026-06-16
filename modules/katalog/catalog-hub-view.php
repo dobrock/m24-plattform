@@ -13,11 +13,20 @@ $hub    = M24_Catalog_Hub::current();
 $cfg    = M24_Catalog_Hub::config( $hub );
 $modell = $cfg['modell'] ?? '';
 $h1     = M24_Catalog_Hub::h1( $hub );
-$count  = M24_Catalog_Hub::count( $hub );
+$count  = M24_Catalog_Hub::count( $hub );                  // Live-Zähler (aktiv) — Telemetrie
 $images = M24_Catalog_Hub::images( $hub );                 // Term-Meta-Bilder (leer ⇒ Platzhalter)
 $ph     = max( 1, (int) apply_filters( 'm24_hub_slide_count', 3, $hub ) ); // Platzhalter-Anzahl ohne Bilder
 $slides = ! empty( $images ) ? count( $images ) : $ph;
+$hub_url = M24_Catalog_Hub::url( $hub );
 $crumb  = home_url( '/gebrauchtteile/' );
+
+// Paginierte/gefilterte Teile-Liste (Suche ?q=, Sortierung ?sort=, 15%-Verkauft-Deckel).
+$list   = M24_Catalog_Hub::listing( $hub );
+$lq     = $list['query'];
+$ltotal = (int) $list['total'];
+$lq_q   = $list['q'];
+$lsort  = $list['sort'];
+$sortlbl = array( 'neu' => 'Neuheit', 'preis-auf' => 'Preis aufsteigend', 'preis-ab' => 'Preis absteigend' );
 
 get_header();
 
@@ -73,11 +82,33 @@ $ld = array(
 .m24hub .m24hub-parts .head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:24px}
 .m24hub .m24hub-parts h2{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
 .m24hub .m24hub-parts .count{color:var(--muted);font-size:14px}
+/* Such-/Sortier-Leiste */
+.m24hub .m24hub-controls{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:24px}
+.m24hub .m24hub-search{position:relative;flex:1 1 320px;max-width:440px}
+.m24hub .m24hub-search input{width:100%;padding:11px 14px 11px 40px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:var(--text)}
+.m24hub .m24hub-search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(23,99,173,.12)}
+.m24hub .m24hub-search .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.m24hub .m24hub-sortwrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
+.m24hub .m24hub-sortwrap select{font-family:inherit;font-size:14px;padding:9px 30px 9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer}
+.m24hub .m24hub-resetq{font-size:13px;color:var(--blue);white-space:nowrap}
 .m24hub .m24-archiv__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
 @media(max-width:900px){.m24hub .m24-archiv__grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.m24hub .m24-archiv__grid{grid-template-columns:1fr}}
-.m24hub .m24hub-legal{background:var(--surface);border-top:1px solid var(--line)}
-.m24hub .m24hub-legal .m24hub-wrap{padding:20px 24px;font-size:12.5px;color:var(--muted);max-width:1000px}
+/* Pagination */
+.m24hub .m24hub-pager{margin-top:34px}
+.m24hub .m24hub-pager .page-numbers{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 12px;margin:0 3px 6px 0;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--text);font-weight:600;font-size:14px}
+.m24hub .m24hub-pager a.page-numbers:hover{border-color:var(--blue);color:var(--blue)}
+.m24hub .m24hub-pager .page-numbers.current{background:var(--blue);border-color:var(--blue);color:#fff}
+.m24hub .m24hub-pager .page-numbers.dots{border:none;min-width:auto;padding:0 4px}
+/* SEO-Textblock (unter dem Raster, über dem Markenhinweis) */
+.m24hub .m24hub-seo{background:#fff;border-top:1px solid var(--line)}
+.m24hub .m24hub-seo .m24hub-wrap{padding:32px 24px;max-width:880px}
+.m24hub .m24hub-seo h2{font-size:20px;font-weight:700;margin-bottom:10px}
+.m24hub .m24hub-seo p{color:#33373d;font-size:15.5px;margin-bottom:10px}
+.m24hub .m24hub-seo a{color:var(--blue)}
+/* Markenhinweis: eckiges Vollbreiten-Band, Textspalte = Content-Breite (1180px) */
+.m24hub .m24hub-legal{background:var(--surface);border-top:1px solid var(--line);border-radius:0}
+.m24hub .m24hub-legal .m24hub-wrap{padding:20px 24px;font-size:12.5px;color:var(--muted)}
 .m24hub .m24hub-empty{color:var(--muted);font-style:italic;padding:18px 0}
 </style>
 
@@ -135,17 +166,64 @@ $ld = array(
 	</div></div>
 
 	<section class="m24hub-parts"><div class="m24hub-wrap">
-		<div class="head"><h2>Teile passend für BMW <?php echo esc_html( $modell ); ?></h2><span class="count"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $count, 'm24-plattform' ), number_format_i18n( $count ) ) ); ?> · sortiert nach Neuheit</span></div>
-		<?php
-		$pq = M24_Catalog_Hub::parts_query( $hub );
-		if ( $pq->have_posts() && class_exists( 'M24_Catalog_Archive' ) ) : ?>
-			<div class="m24-archiv__grid">
-				<?php while ( $pq->have_posts() ) : $pq->the_post(); echo M24_Catalog_Archive::card_html( get_the_ID() ); /* phpcs:ignore */ endwhile; ?>
+		<div class="head">
+			<h2>Teile passend für BMW <?php echo esc_html( $modell ); ?></h2>
+			<span class="count"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $ltotal, 'm24-plattform' ), number_format_i18n( $ltotal ) ) ); ?> · sortiert nach <?php echo esc_html( $sortlbl[ $lsort ] ?? 'Neuheit' ); ?></span>
+		</div>
+
+		<form class="m24hub-controls" method="get" action="<?php echo esc_url( $hub_url ); ?>" role="search">
+			<div class="m24hub-search">
+				<svg class="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+				<input id="m24hub-q" name="q" type="search" value="<?php echo esc_attr( $lq_q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen …' ); ?>" aria-label="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen' ); ?>">
 			</div>
+			<div class="m24hub-sortwrap">
+				<label for="m24hub-sort">Sortieren:</label>
+				<select id="m24hub-sort" name="sort" onchange="this.form.submit()">
+					<option value="neu"<?php selected( $lsort, 'neu' ); ?>>Neueste zuerst</option>
+					<option value="preis-auf"<?php selected( $lsort, 'preis-auf' ); ?>>Günstigste zuerst</option>
+					<option value="preis-ab"<?php selected( $lsort, 'preis-ab' ); ?>>Teuerste zuerst</option>
+				</select>
+				<noscript><button type="submit" class="m24hub-resetq">Anwenden</button></noscript>
+			</div>
+		</form>
+
+		<?php
+		if ( $lq->have_posts() && class_exists( 'M24_Catalog_Archive' ) ) : ?>
+			<div class="m24-archiv__grid">
+				<?php while ( $lq->have_posts() ) : $lq->the_post(); echo M24_Catalog_Archive::card_html( get_the_ID() ); /* phpcs:ignore WordPress.Security.EscapeOutput */ endwhile; ?>
+			</div>
+			<?php
+			$pager = paginate_links( array(
+				'base'      => $hub_url . '%_%',
+				'format'    => 'seite/%#%/',
+				'current'   => (int) $list['paged'],
+				'total'     => (int) $list['pages'],
+				'add_args'  => array_filter( array(
+					'q'    => '' !== $lq_q ? $lq_q : null,
+					'sort' => 'neu' !== $lsort ? $lsort : null,
+				) ),
+				'prev_text' => '‹',
+				'next_text' => '›',
+				'mid_size'  => 1,
+			) );
+			if ( $pager ) : ?>
+				<nav class="m24hub-pager" aria-label="Seiten"><?php echo wp_kses_post( $pager ); ?></nav>
+			<?php endif; ?>
+		<?php elseif ( '' !== $lq_q ) : ?>
+			<p class="m24hub-empty">Keine Treffer für „<?php echo esc_html( $lq_q ); ?>". <a href="<?php echo esc_url( $hub_url ); ?>">Filter zurücksetzen</a> oder fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>
 		<?php else : ?>
 			<p class="m24hub-empty">Aktuell sind keine Teile für dieses Modell gelistet. Fragen Sie uns — wir haben mehr im Bestand, als online steht.</p>
 		<?php endif; wp_reset_postdata(); ?>
 	</div></section>
+
+	<?php
+	// SEO-Textblock (editierbar via Term-Meta; Fallback wie Mockup). Über dem Markenhinweis.
+	$seo_html = ! empty( $cfg['seo_text_html'] )
+		? wpautop( $cfg['seo_text_html'] )
+		: '<h2>' . esc_html( $h1 ) . ' — laufend wechselnder Bestand</h2>'
+			. '<p>' . sprintf( esc_html__( 'Bei MOTORSPORT24 finden Sie regelmäßig wechselnde Gebrauchtteile passend für den BMW %s — von Motorperipherie über Fahrwerk und Bremse bis zu Karosserie- und Interieur-Teilen. Da viele Teile aus einzelnen Rennsport-Umbauten stammen, lohnt sich ein regelmäßiger Blick oder eine gezielte Anfrage zu einem konkreten Teil.', 'm24-plattform' ), esc_html( $modell ) ) . '</p>';
+	?>
+	<section class="m24hub-seo"><div class="m24hub-wrap"><?php echo wp_kses_post( $seo_html ); ?></div></section>
 
 	<div class="m24hub-legal"><div class="m24hub-wrap">Alle genannten Marken- und Modellbezeichnungen (z. B. BMW, M3) sind Eigentum der jeweiligen Rechteinhaber und dienen ausschließlich der Beschreibung der Passgenauigkeit bzw. Herkunft der angebotenen Teile. MOTORSPORT24 steht in keiner Geschäftsverbindung zur BMW AG und ist kein autorisierter Händler.</div></div>
 </div>

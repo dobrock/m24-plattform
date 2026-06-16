@@ -174,7 +174,8 @@ class M24_Catalog_Archive {
 			? get_the_post_thumbnail( $post_id, 'medium_large', array( 'loading' => 'lazy', 'alt' => esc_attr( $title ) ) )
 			: '<span class="m24-card__noimg m24-card__noimg--ph" aria-hidden="true" style="background-image:url(\'' . esc_url( $noimg ) . '\')"></span>';
 
-		$badge = ( 'verkauft' === $status )
+		$is_sold = ( 'verkauft' === $status );
+		$badge   = $is_sold
 			? '<span class="m24-card__badge m24-card__badge--sold">Verkauft</span>'
 			: '';
 
@@ -185,14 +186,18 @@ class M24_Catalog_Archive {
 			? '<span class="m24-card__meta">' . implode( ' · ', $meta ) . '</span>'
 			: '';
 
+		// Verkauft: kein Preisblock (Art.-Nr. rueckt per CSS ans untere Ende).
+		$price_block = $is_sold ? '' : '<span class="m24-card__pricewrap">' . self::price_html( $post_id ) . '</span>';
+
 		return sprintf(
-			'<article class="m24-card"><a class="m24-card__link" href="%1$s"><span class="m24-card__media">%2$s%3$s</span><span class="m24-card__body"><h2 class="m24-card__title">%4$s</h2>%5$s<span class="m24-card__pricewrap">%6$s</span></span></a></article>',
+			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><h2 class="m24-card__title">%5$s</h2>%6$s%7$s</span></a></article>',
+			$is_sold ? ' m24-card--sold' : '',
 			esc_url( get_permalink( $post_id ) ),
 			$thumb,
 			$badge,
 			esc_html( $title ),
 			$meta_html,
-			self::price_html( $post_id )
+			$price_block
 		);
 	}
 

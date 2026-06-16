@@ -16,7 +16,8 @@ class M24_Catalog_Hub {
 
 	const QV  = 'm24_hub';
 	const TAX = 'm24_fahrzeugkat';
-	const REWRITE_FLAG = 'm24_hub_rewrites_v1';
+	const REWRITE_FLAG = 'm24_hub_rewrites_v2'; // v2: + /seite/N/-Pagination
+	const PER_PAGE = 24;                        // Teile pro Seite (Auftrag: 24–36)
 
 	/** Hub-Slug → Konfiguration (gemappte Term-Slugs + redaktionelle Seed-Defaults). */
 	public static function hubs() {
@@ -47,6 +48,7 @@ class M24_Catalog_Hub {
 		add_filter( 'rewrite_rules_array', array( __CLASS__, 'prepend_rule' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
+		add_action( 'wp', array( __CLASS__, 'fix_status' ) ); // 404/Canonical-Schutz fuer /seite/N/
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
 		// SEO (wpSEO-Filter): nur auf Hub-Seiten.
 		add_filter( 'wpseo_set_title',     array( __CLASS__, 'seo_title' ), 99, 1 );
@@ -61,17 +63,38 @@ class M24_Catalog_Hub {
 
 	public static function add_rewrite() {
 		$slugs = implode( '|', array_map( 'preg_quote', array_keys( self::hubs() ) ) );
+		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$', 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]', 'top' );
 		add_rewrite_rule( '^gebrauchtteile/(' . $slugs . ')/?$', 'index.php?' . self::QV . '=$matches[1]', 'top' );
 	}
 
 	public static function query_vars( $vars ) { $vars[] = self::QV; return $vars; }
 
-	/** Hub-Regel garantiert an den Anfang des Rule-Arrays (gewinnt vor Detail-Regel). */
+	/** Hub-Regeln garantiert an den Anfang des Rule-Arrays (gewinnen vor Detail-Regel). */
 	public static function prepend_rule( $rules ) {
 		$slugs = implode( '|', array_map( 'preg_quote', array_keys( self::hubs() ) ) );
-		$hub = array( '^gebrauchtteile/(' . $slugs . ')/?$' => 'index.php?' . self::QV . '=$matches[1]' );
+		$hub = array(
+			'^gebrauchtteile/(' . $slugs . ')/seite/([0-9]+)/?$' => 'index.php?' . self::QV . '=$matches[1]&paged=$matches[2]',
+			'^gebrauchtteile/(' . $slugs . ')/?$'                => 'index.php?' . self::QV . '=$matches[1]',
+		);
 		return $hub + (array) $rules;
 	}
+
+	/** Hub-Seiten nie 404 (auch /seite/N/) + Theme-Canonical-Redirect aus. */
+	public static function fix_status() {
+		if ( ! self::is_hub() ) { return; }
+		global $wp_query;
+		$wp_query->is_404 = false;
+		status_header( 200 );
+		remove_action( 'template_redirect', 'redirect_canonical' );
+	}
+
+	/** Request-Parameter (serverseitig, wirken ueber die ganze Liste inkl. Pagination). */
+	public static function current_q()     { return isset( $_GET['q'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['q'] ) ) ) : ''; } // phpcs:ignore WordPress.Security.NonceVerification
+	public static function current_sort()  {
+		$s = isset( $_GET['sort'] ) ? sanitize_key( wp_unslash( $_GET['sort'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		return in_array( $s, array( 'preis-auf', 'preis-ab' ), true ) ? $s : 'neu';
+	}
+	public static function current_paged() { return max( 1, (int) get_query_var( 'paged' ) ); }
 
 	/** Rewrite-Regeln einmalig flushen (nach Deploy), ohne Activation-Hook. */
 	public static function maybe_flush() {
@@ -119,26 +142,93 @@ class M24_Catalog_Hub {
 		return $n;
 	}
 
-	/** WP_Query der Hub-Teile (alle aktiven, Neuheit zuerst) — fuers Grid. */
-	public static function parts_query( $hub = '' ) {
+	/**
+	 * Voll geordnete Teile-ID-Liste des Hubs: Suche (q) + Sortierung (neu/preis-auf/-ab),
+	 * Verkauft-Teile auf max. 15 % des Sets gedeckelt. Bei Preissortierung Verkauft ans Ende,
+	 * bei „neueste" nach Datum eingemischt.
+	 */
+	public static function ordered_ids( $hub, $sort, $q ) {
 		$ids = self::term_ids( $hub );
-		if ( empty( $ids ) ) { return new WP_Query( array( 'post__in' => array( 0 ) ) ); }
-		return new WP_Query( array(
+		if ( empty( $ids ) ) { return array(); }
+		$base = array(
 			'post_type'      => 'm24_teil',
 			'post_status'    => 'publish',
-			'posts_per_page' => 60,
-			'orderby'        => 'date',
-			'order'          => 'DESC',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'tax_query'      => array( array( 'taxonomy' => self::TAX, 'terms' => $ids ) ),
-			'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
+		);
+		if ( '' !== $q ) { $base['s'] = $q; }
+
+		// Aktive Teile (sortiert).
+		$a = $base;
+		$a['meta_query'] = array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
+		if ( 'preis-auf' === $sort || 'preis-ab' === $sort ) {
+			$a['meta_key'] = '_m24_preis_netto';
+			$a['orderby']  = 'meta_value_num';
+			$a['order']    = ( 'preis-auf' === $sort ) ? 'ASC' : 'DESC';
+		} else {
+			$a['orderby'] = 'date';
+			$a['order']   = 'DESC';
+		}
+		$active = ( new WP_Query( $a ) )->posts;
+
+		// Verkaufte Teile (Datum DESC), auf 15 % des Sets gedeckelt: sold <= aktiv * 3/17.
+		$s = $base;
+		$s['meta_query'] = array( array( 'key' => '_m24_status', 'value' => 'verkauft' ) );
+		$s['orderby']    = 'date';
+		$s['order']      = 'DESC';
+		$sold = ( new WP_Query( $s ) )->posts;
+		$cap  = (int) floor( count( $active ) * 3 / 17 );
+		$sold = array_slice( $sold, 0, max( 0, $cap ) );
+
+		if ( empty( $sold ) ) { return $active; }
+		if ( 'preis-auf' === $sort || 'preis-ab' === $sort ) {
+			return array_merge( $active, $sold ); // Verkauft ans Ende
+		}
+		// „neueste": aktiv + verkauft nach Datum mischen.
+		return get_posts( array(
+			'post_type'      => 'm24_teil',
+			'post__in'       => array_merge( $active, $sold ),
+			'posts_per_page' => -1,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
 		) );
+	}
+
+	/** Paginierte Liste fuers Grid: query (aktuelle Seite), total, pages, paged, q, sort. */
+	public static function listing( $hub = '' ) {
+		$hub   = $hub ?: self::current();
+		$q     = self::current_q();
+		$sort  = self::current_sort();
+		$ids   = self::ordered_ids( $hub, $sort, $q );
+		$total = count( $ids );
+		$per   = self::PER_PAGE;
+		$pages = max( 1, (int) ceil( $total / $per ) );
+		$paged = min( self::current_paged(), $pages );
+		$slice = array_slice( $ids, ( $paged - 1 ) * $per, $per );
+
+		if ( empty( $slice ) ) {
+			$query = new WP_Query( array( 'post__in' => array( 0 ) ) );
+		} else {
+			$query = new WP_Query( array(
+				'post_type'      => 'm24_teil',
+				'post_status'    => 'publish',
+				'post__in'       => $slice,
+				'orderby'        => 'post__in', // exakte Reihenfolge aus ordered_ids halten
+				'posts_per_page' => $per,
+				'no_found_rows'  => true,
+			) );
+		}
+		return compact( 'query', 'total', 'pages', 'paged', 'q', 'sort' );
 	}
 
 	/** Term-Meta-Schluessel (ohne Praefix) → Admin/Seite teilen sich diese Liste. */
 	const META_PREFIX = '_m24_hub_';
 	public static function meta_keys() {
-		return array( 'h1', 'sub', 'intro_h2', 'intro', 'modell', 'motor', 'baujahre', 'seo_title', 'seo_desc', 'images' );
+		return array( 'h1', 'sub', 'intro_h2', 'intro', 'modell', 'motor', 'baujahre', 'seo_title', 'seo_desc', 'seo_text', 'images' );
 	}
 
 	/** Primaerer Term eines Hubs (erster existierender gemappter Slug) — traegt die Term-Meta. */
@@ -180,7 +270,8 @@ class M24_Catalog_Hub {
 			foreach ( array( 'modell', 'motor', 'baujahre', 'sub', 'intro_h2', 'h1', 'seo_title', 'seo_desc' ) as $k ) {
 				if ( '' !== $m( $k ) ) { $cfg[ $k ] = $m( $k ); }
 			}
-			if ( '' !== $m( 'intro' ) ) { $cfg['intro_html'] = $m( 'intro' ); } // WYSIWYG-Override (HTML)
+			if ( '' !== $m( 'intro' ) ) { $cfg['intro_html'] = $m( 'intro' ); }       // WYSIWYG-Override (HTML)
+			if ( '' !== $m( 'seo_text' ) ) { $cfg['seo_text_html'] = $m( 'seo_text' ); } // SEO-Textblock unter dem Grid
 			if ( '' !== $m( 'images' ) ) {
 				$cfg['images'] = array_values( array_filter( array_map( 'intval', explode( ',', $m( 'images' ) ) ) ) );
 			}
@@ -254,8 +345,18 @@ class M24_Catalog_Hub {
 		if ( '' !== $intro ) { return mb_substr( $intro, 0, 158 ); }
 		return self::h1() . ' — geprüft, mit Historie, weltweiter Versand bei MOTORSPORT24 seit 2006.';
 	}
-	public static function seo_robots( $robots )   { return self::is_hub() ? 'index, follow' : $robots; }
-	public static function seo_canonical( $url )    { return self::is_hub() ? self::url( self::current() ) : $url; }
+	public static function seo_robots( $robots )   {
+		if ( ! self::is_hub() ) { return $robots; }
+		// Filter-/Sortier-Querystrings sind nicht indexierbar (Duplicate-Schutz).
+		return ( '' !== self::current_q() || 'neu' !== self::current_sort() ) ? 'noindex, follow' : 'index, follow';
+	}
+	public static function seo_canonical( $url )    {
+		if ( ! self::is_hub() ) { return $url; }
+		// Self-canonical je Seite (Pagination), OHNE ?q=/?sort= — NICHT auf Seite 1 zusammenfassen.
+		$base  = self::url( self::current() );
+		$paged = self::current_paged();
+		return $paged > 1 ? $base . 'seite/' . $paged . '/' : $base;
+	}
 
 	private static function build_title() {
 		$base = self::h1();

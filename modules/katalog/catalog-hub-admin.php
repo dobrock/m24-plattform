@@ -107,6 +107,20 @@ class M24_Catalog_Hub_Admin {
 			</td>
 		</tr>
 
+		<tr class="form-field">
+			<th scope="row"><label for="m24_hub_seo_text">SEO-Textblock (unter dem Raster)</label></th>
+			<td>
+				<?php
+				wp_editor(
+					self::val( $tid, 'seo_text' ),
+					'm24_hub_seo_text',
+					array( 'textarea_name' => 'm24_hub_seo_text', 'textarea_rows' => 6, 'media_buttons' => false, 'teeny' => true )
+				);
+				?>
+				<p class="description">Unique Modell-Text mit ggf. internen Links — erscheint unter dem Teile-Raster, über dem Markenhinweis. Leer ⇒ Fallback-Text.</p>
+			</td>
+		</tr>
+
 		<style>
 		.m24-hub-imgs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;padding:0;list-style:none}
 		.m24-hub-img{position:relative;width:84px;height:64px;border:1px solid #c3c4c7;border-radius:6px;overflow:hidden;cursor:grab;background:#f0f0f1}
@@ -176,6 +190,9 @@ class M24_Catalog_Hub_Admin {
 		}
 		if ( isset( $_POST['m24_hub_intro'] ) ) {
 			self::store( $term_id, 'intro', wp_kses_post( wp_unslash( $_POST['m24_hub_intro'] ) ) );
+		}
+		if ( isset( $_POST['m24_hub_seo_text'] ) ) {
+			self::store( $term_id, 'seo_text', wp_kses_post( wp_unslash( $_POST['m24_hub_seo_text'] ) ) );
 		}
 	}
 
