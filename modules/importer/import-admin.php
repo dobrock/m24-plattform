@@ -73,10 +73,13 @@ class M24_Import_Admin {
 			// Worklist-TTL grosszuegig: Media laeuft 1-Bild-pro-Call → viele Calls/lange Laufzeit.
 			$ttl = ( 'media' === $type ) ? 2 * HOUR_IN_SECONDS : 20 * MINUTE_IN_SECONDS;
 
-			// Start: Worklist bauen + cachen.
-			if ( 0 === $offset || '' === $token ) {
-				$token = substr( md5( uniqid( $type, true ) ), 0, 12 );
-				$items = self::worklist( $type );
+			// Start NUR bei leerem Token (JS sendet '' im ersten Call). NICHT an offset===0
+			// koppeln: beim Media-Flow bleibt offset=0, solange ein Produkt mehrere Bilder
+			// laedt — sonst wuerde JEDER Call den Token neu wuerfeln + endlos re-seeden.
+			if ( '' === $token ) {
+				$token  = substr( md5( uniqid( $type, true ) ), 0, 12 );
+				$offset = 0;
+				$items  = self::worklist( $type );
 				set_transient( self::WL_PREFIX . $token, $items, $ttl );
 			} else {
 				$items = get_transient( self::WL_PREFIX . $token );

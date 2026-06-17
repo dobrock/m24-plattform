@@ -199,36 +199,44 @@ class M24_Shopware_Media {
 	public static function rebuild_step( $post_id, $run_token, $timeout = 12 ) {
 		$post_id   = (int) $post_id;
 		$run_token = (string) $run_token;
-		$seed      = (string) get_post_meta( $post_id, '_m24_media_seed', true );
 
-		// Phase 1 — Seeding: einmal pro Lauf die Bild-URLs aus Shopware holen (kein Download).
-		if ( $seed !== $run_token ) {
-			$sw_id = (string) get_post_meta( $post_id, '_m24_sw_id', true );
-			$imgs  = array();
-			$err   = '';
-			if ( '' === $sw_id ) {
-				$err = 'kein _m24_sw_id';
-			} elseif ( ! class_exists( 'M24_Shopware_Client' ) ) {
-				$err = 'Shopware-Client fehlt';
-			} else {
-				M24_Import_Log::log( sprintf( 'media #%d: seed — Shopware-Fetch sw_id=%s', $post_id, $sw_id ) );
-				try {
-					$prods = ( new M24_Shopware_Client() )->fetch_products_by_ids( array( $sw_id ) );
-					$p     = ( is_array( $prods ) && isset( $prods[0] ) ) ? $prods[0] : null;
-					if ( $p ) { $imgs = self::extract( $p ); } else { $err = 'Shopware: Produkt nicht gefunden'; }
-				} catch ( Exception $e ) {
-					$err = 'Shopware-Fetch: ' . $e->getMessage();
-				}
-			}
-			self::store_pending( $post_id, $imgs );
-			update_post_meta( $post_id, '_m24_media_seed', $run_token );
-			$pending = count( $imgs );
-			M24_Import_Log::log( sprintf( 'media #%d: seed fertig — %d Bilder pending%s', $post_id, $pending, '' !== $err ? ( ' · ' . $err ) : '' ) );
-			return array( 'stage' => 'seed', 'product_done' => ( 0 === $pending ), 'pending' => $pending, 'new' => 0, 'error' => $err );
+		// VORRANG: Existiert eine Pending-Liste, wird IMMER genau 1 Bild geladen — nie neu
+		// geseedet. Das ist immun gegen Token-Wechsel und garantiert Fortschritt (seed→download).
+		if ( ! empty( self::get_pending( $post_id ) ) ) {
+			return self::download_one( $post_id, $timeout );
 		}
 
-		// Phase 2 — genau EIN Bild laden.
-		return self::download_one( $post_id, $timeout );
+		// Pending leer: entweder in DIESEM Lauf schon geseedet (→ Produkt fertig) ODER noch nicht.
+		$seed = (string) get_post_meta( $post_id, '_m24_media_seed', true );
+		if ( $seed === $run_token ) {
+			return array( 'stage' => 'image', 'product_done' => true, 'pending' => 0, 'new' => 0, 'error' => '' );
+		}
+
+		// Phase 1 — Seeding: einmal pro Lauf die Bild-URLs aus Shopware holen (kein Download).
+		$sw_id = (string) get_post_meta( $post_id, '_m24_sw_id', true );
+		$imgs  = array();
+		$err   = '';
+		if ( '' === $sw_id ) {
+			$err = 'kein _m24_sw_id';
+		} elseif ( ! class_exists( 'M24_Shopware_Client' ) ) {
+			$err = 'Shopware-Client fehlt';
+		} else {
+			M24_Import_Log::log( sprintf( 'media #%d: seed — Shopware-Fetch sw_id=%s', $post_id, $sw_id ) );
+			try {
+				$prods = ( new M24_Shopware_Client() )->fetch_products_by_ids( array( $sw_id ) );
+				$p     = ( is_array( $prods ) && isset( $prods[0] ) ) ? $prods[0] : null;
+				if ( $p ) { $imgs = self::extract( $p ); } else { $err = 'Shopware: Produkt nicht gefunden'; }
+			} catch ( Exception $e ) {
+				$err = 'Shopware-Fetch: ' . $e->getMessage();
+			}
+		}
+		// WICHTIG: Seed-Marker IMMER setzen (auch bei leerer/fehlgeschlagener Liste) → ein
+		// Produkt ohne Bilder wird beim naechsten Call als „fertig" erkannt, nie endlos re-geseedet.
+		self::store_pending( $post_id, $imgs );
+		update_post_meta( $post_id, '_m24_media_seed', $run_token );
+		$pending = count( $imgs );
+		M24_Import_Log::log( sprintf( 'media #%d: seed fertig — %d Bilder pending%s', $post_id, $pending, '' !== $err ? ( ' · ' . $err ) : '' ) );
+		return array( 'stage' => 'seed', 'product_done' => ( 0 === $pending ), 'pending' => $pending, 'new' => 0, 'error' => $err );
 	}
 
 	/**
