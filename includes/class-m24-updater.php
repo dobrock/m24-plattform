@@ -44,6 +44,13 @@ class M24_Updater {
 		// schreibt → der naechste Request kompiliert frisch. (Unabhaengig von PUC.)
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'on_upgrade_complete' ), 9, 2 );
 
+		// SELBSTHEILUNG (0.9.24): bricht die OPcache-Henne-Ei-Falle. get_file_data() liest den
+		// Versions-Header als TEXT (frisch, am OPcache vorbei); M24_PLATTFORM_VERSION ist der
+		// kompilierte Bytecode-Wert (stale, wenn OPcache nicht resettet wurde). Differenz ⇒
+		// alter Bytecode läuft trotz neuer Datei ⇒ opcache_reset(). Greift nach JEDEM Deploy
+		// (auch Git-Pull/FTP, nicht nur PUC) beim ersten Admin-Seitenaufruf.
+		add_action( 'admin_init', array( __CLASS__, 'selfheal_opcache' ) );
+
 		$lib = M24_PLATTFORM_DIR . 'vendor/plugin-update-checker/plugin-update-checker.php';
 		if ( ! file_exists( $lib ) ) {
 			return;
@@ -157,6 +164,21 @@ class M24_Updater {
 			M24_Import_Log::log( sprintf( 'opcache_reset(%s) → %s', $reason, $ok ? 'OK' : ( function_exists( 'opcache_reset' ) ? 'fehlgeschlagen/deaktiviert' : 'Funktion fehlt' ) ) );
 		}
 		return (bool) $ok;
+	}
+
+	/**
+	 * Selbstheilung gegen stale OPcache: Datei-Versions-Header (Text, frisch) vs. geladene
+	 * Konstante (Bytecode). Bei Differenz wird der alte Bytecode trotz neuer Datei serviert
+	 * → opcache_reset(). Einmal pro Mismatch (nach Reset kompiliert der naechste Request frisch,
+	 * Konstante == Datei → kein erneuter Reset). Nur Admin (leichtgewichtig, 1 Datei-Read).
+	 */
+	public static function selfheal_opcache() {
+		if ( ! function_exists( 'opcache_reset' ) || ! function_exists( 'get_file_data' ) ) { return; }
+		$data     = get_file_data( M24_PLATTFORM_FILE, array( 'v' => 'Version' ) );
+		$file_ver = isset( $data['v'] ) ? trim( (string) $data['v'] ) : '';
+		if ( '' !== $file_ver && $file_ver !== (string) M24_PLATTFORM_VERSION ) {
+			self::reset_opcache( sprintf( 'Selbstheilung: Datei v%s != geladen v%s (stale Bytecode)', $file_ver, M24_PLATTFORM_VERSION ) );
+		}
 	}
 
 	/** OPcache-Status/Config fuer das Diagnose-Panel (Timeout-vs-Stale-Bytecode sichtbar). */
