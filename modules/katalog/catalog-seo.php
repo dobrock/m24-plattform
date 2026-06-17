@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class M24_Catalog_SEO {
 
 	const PT             = 'm24_teil';
-	const TITLE_MAX      = 65;   // Soft-Cap: SERP-tauglich. Reicht der Platz nicht, wird zuerst das Boilerplate
+	const TITLE_MAX      = 70;   // Soft-Cap: SERP-tauglich. Reicht der Platz nicht, wird zuerst das Boilerplate
 	                            //   reduziert — zuletzt ganz weggelassen (nur {Titel}), nie die Teilenummern.
 	const TITLE_HARD_MAX = 100;  // Hard-Cap: erst hier wird der Titel SELBST gekuerzt — an Wortgrenze, nie in einer Nummer
 
@@ -101,14 +101,19 @@ class M24_Catalog_SEO {
 	// ── Description-Kaskade ─────────────────────────────────────────────
 	public static function build_desc( $titel, $typ ) {
 		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
-		$tail  = ( 'neu' === $typ )
-			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ jetzt anfragen bei MOTORSPORT24 seit 2006'
-			: ' ✓ Original gebraucht ✓ geprüft ✓ sofort verfügbar ✓ fair kaufen bei MOTORSPORT24 seit 2006';
-		$max          = 160;
+		// 0.9.20-Templates (typabhängig). Hart auf ~155 Zeichen: zuerst den Titel an der
+		// Wortgrenze kürzen, Wertversprechen (Häkchen) bleiben erhalten.
+		$tail = ( 'neu' === $typ )
+			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ B2B-Großhandel'
+			: ' – Original gebraucht ✓ geprüft ✓ B2B-Großhandel ✓ weltweiter Versand';
+		$max          = 155;
 		$title_budget = $max - mb_strlen( $tail );
 		if ( $title_budget < 12 ) { $title_budget = 12; }
 		if ( mb_strlen( $titel ) > $title_budget ) {
-			$titel = rtrim( mb_substr( $titel, 0, $title_budget - 1 ) ) . '…';
+			$cut = mb_substr( $titel, 0, $title_budget - 1 );
+			$sp  = mb_strrpos( $cut, ' ' );
+			if ( false !== $sp && $sp > 0 ) { $cut = mb_substr( $cut, 0, $sp ); }
+			$titel = rtrim( $cut ) . '…';
 		}
 		return $titel . $tail;
 	}
@@ -122,24 +127,13 @@ class M24_Catalog_SEO {
 	 * @return string filled|resynced|manual
 	 */
 	private static function sync_field( $post_id, $field_key, $marker_key, $new_value, $adopt_unmarked = false ) {
-		$current = (string) get_post_meta( $post_id, $field_key, true );
-		$marker  = (string) get_post_meta( $post_id, $marker_key, true );
-
-		if ( '' === $current ) {
-			update_post_meta( $post_id, $field_key, $new_value );
-			update_post_meta( $post_id, $marker_key, sha1( $new_value ) );
-			return 'filled';
-		}
-		$is_auto = ( '' !== $marker && sha1( $current ) === $marker )
-				|| ( $adopt_unmarked && '' === $marker );
-		if ( $is_auto ) {
-			if ( $current !== $new_value ) {
-				update_post_meta( $post_id, $field_key, $new_value );
-			}
-			update_post_meta( $post_id, $marker_key, sha1( $new_value ) );
-			return 'resynced';
-		}
-		return 'manual';
+		// ENTSCHEIDUNG 0.9.20: Single Source of Truth = post_title. Das wpSEO-Feld ist nur
+		// ein sichtbarer Spiegel und wird IMMER bedingungslos aus post_title überschrieben
+		// (keine „manuell editiert"-Schonung mehr — alte Import-Werte sind falsch). Plain-
+		// Text-Meta → kein JSON-Escape, ß/ä bleiben intakt.
+		update_post_meta( $post_id, $field_key, $new_value );
+		update_post_meta( $post_id, $marker_key, sha1( $new_value ) ); // nur noch informativ
+		return ( '' === (string) get_post_meta( $post_id, $field_key, true ) ) ? 'filled' : 'resynced';
 	}
 
 	/**
@@ -204,6 +198,38 @@ class M24_Catalog_SEO {
 		self::sync_post( (int) $post_id, false );
 	}
 
+	/** Alle m24_teil-IDs (deterministisch) für den Backfill. */
+	public static function all_ids() {
+		$ids = get_posts( array(
+			'post_type' => self::PT, 'post_status' => 'any', 'posts_per_page' => -1,
+			'fields' => 'ids', 'no_found_rows' => true, 'orderby' => 'ID', 'order' => 'ASC',
+		) );
+		return array_map( 'intval', (array) $ids );
+	}
+
+	/**
+	 * Backfill-Chunk: SEO-Title + Description je Teil bedingungslos aus post_title neu
+	 * erzeugen (Single Source). Idempotent, persist je Teil. Für den Admin-Button + CLI.
+	 *
+	 * @return array { processed, new, skipped, errors, unresolved, img_pending }
+	 */
+	public static function resync_chunk( array $post_ids ) {
+		$r = array( 'processed' => 0, 'new' => 0, 'skipped' => 0, 'errors' => 0, 'unresolved' => 0, 'img_pending' => 0 );
+		foreach ( $post_ids as $pid ) {
+			$pid = (int) $pid;
+			$r['processed']++;
+			if ( self::is_placeholder_state( $pid ) ) {
+				$r['skipped']++;
+				if ( class_exists( 'M24_Import_Log' ) ) { M24_Import_Log::log( sprintf( 'SEO #%d: übersprungen (Platzhalter-/Auto-Draft-Titel)', $pid ) ); }
+				continue;
+			}
+			self::sync_post( $pid, false ); // bedingungsloses Overwrite (sync_field schreibt immer)
+			$r['new']++;
+			if ( class_exists( 'M24_Import_Log' ) ) { M24_Import_Log::log( sprintf( 'SEO #%d: Titel+Description neu generiert', $pid ) ); }
+		}
+		return $r;
+	}
+
 	/**
 	 * Detail-<title>/og:title: MANUELLER Override (Feld != Marker) verbatim, sonst DYNAMISCH
 	 * aus dem aktuellen Post-Titel — so kann nie ein veralteter Auto-Snapshot (z.B. Auto-Draft)
@@ -226,19 +252,11 @@ class M24_Catalog_SEO {
 		if ( ! is_singular( self::PT ) ) {
 			return $title;
 		}
-		$id = get_queried_object_id();
-		if ( self::is_manual_override( $id, self::FIELD_TITLE, self::MARKER_TITLE ) ) {
-			return trim( (string) get_post_meta( $id, self::FIELD_TITLE, true ) );
-		}
+		// Single Source = post_title: IMMER frisch bauen (kein „manuell editiert"-Branch).
+		// Dieser eine Filter unterdrückt zugleich den wpSEO-Blogname-Append (exakter Titel).
+		$id  = get_queried_object_id();
 		$typ = ( 'neu' === get_post_meta( $id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
 		return self::build_title( get_the_title( $id ), $typ );
-	}
-
-	/** Feld nicht-leer UND != Marker-Hash → bewusst manuell editiert (verbatim ausgeben). */
-	private static function is_manual_override( $post_id, $field_key, $marker_key ) {
-		$field  = trim( (string) get_post_meta( $post_id, $field_key, true ) );
-		$marker = (string) get_post_meta( $post_id, $marker_key, true );
-		return ( '' !== $field && '' !== $marker && sha1( $field ) !== $marker );
 	}
 
 	/**
@@ -253,10 +271,7 @@ class M24_Catalog_SEO {
 				: 'Original gebrauchte BMW-Teile ✓ geprüft ✓ sofort lieferbar ✓ eindeutig per Teilenummer — MOTORSPORT24 seit 2006';
 		}
 		if ( is_singular( self::PT ) ) {
-			$id = get_queried_object_id();
-			if ( self::is_manual_override( $id, self::FIELD_DESC, self::MARKER_DESC ) ) {
-				return trim( (string) get_post_meta( $id, self::FIELD_DESC, true ) );
-			}
+			$id  = get_queried_object_id();
 			$typ = ( 'neu' === get_post_meta( $id, '_m24_typ', true ) ) ? 'neu' : 'gebraucht';
 			return self::build_desc( get_the_title( $id ), $typ );
 		}
@@ -274,9 +289,6 @@ class M24_Catalog_SEO {
 			return self::filter_desc( $desc );
 		}
 		$id = get_queried_object_id();
-		if ( self::is_manual_override( $id, self::FIELD_DESC, self::MARKER_DESC ) ) {
-			return trim( (string) get_post_meta( $id, self::FIELD_DESC, true ) );
-		}
 		$real = trim( wp_strip_all_tags( html_entity_decode( (string) get_post_meta( $id, '_m24_beschreibung_de', true ), ENT_QUOTES, 'UTF-8' ) ) );
 		if ( '' !== $real ) {
 			$real = preg_replace( '/\s+/', ' ', $real );
@@ -299,6 +311,21 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	 *   wp m24 fix-seo-autodraft --dry-run
 	 *   wp m24 fix-seo-autodraft [--yes]
 	 */
+	/**
+	 * Backfill: SEO-Title + Description ALLER Teile bedingungslos aus post_title neu
+	 * erzeugen (Single Source of Truth). Gegenstück zum Admin-Button „SEO-Titel neu
+	 * generieren". Usage: wp m24 resync-seo-titles --all [--yes]
+	 */
+	WP_CLI::add_command( 'm24 resync-seo-titles', function ( $args, $assoc ) {
+		$ids = M24_Catalog_SEO::all_ids();
+		if ( empty( $ids ) ) { WP_CLI::log( 'Keine m24_teil-Posts gefunden.' ); return; }
+		if ( empty( $assoc['yes'] ) ) {
+			WP_CLI::confirm( sprintf( 'SEO-Title + Description auf %d Teilen bedingungslos aus dem Artikel-Titel neu erzeugen?', count( $ids ) ) );
+		}
+		$r = M24_Catalog_SEO::resync_chunk( $ids );
+		WP_CLI::success( sprintf( 'Fertig: %d verarbeitet · %d neu generiert · %d übersprungen (Platzhalter).', $r['processed'], $r['new'], $r['skipped'] ) );
+	} );
+
 	WP_CLI::add_command( 'm24 fix-seo-autodraft', function ( $args, $assoc ) {
 		$dry = ! empty( $assoc['dry-run'] );
 		$yes = ! empty( $assoc['yes'] );

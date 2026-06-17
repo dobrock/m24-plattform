@@ -82,7 +82,7 @@ class M24_Import_Admin {
 			$offset = isset( $_POST['offset'] ) ? max( 0, (int) $_POST['offset'] ) : 0;
 			$token  = isset( $_POST['token'] ) ? sanitize_key( wp_unslash( $_POST['token'] ) ) : '';
 			self::$force = ! empty( $_POST['force'] ); // Varianten: Force-Resync überschreibt auch gepflegte
-			if ( ! in_array( $type, array( 'gebraucht', 'rennsport', 'media', 'varianten' ), true ) ) { self::json_error( 'unbekannter Typ' ); }
+			if ( ! in_array( $type, array( 'gebraucht', 'rennsport', 'media', 'varianten', 'seotitel' ), true ) ) { self::json_error( 'unbekannter Typ' ); }
 
 			// Worklist-TTL grosszuegig: Media laeuft 1-Bild-pro-Call → viele Calls/lange Laufzeit.
 			$ttl = ( 'media' === $type ) ? 2 * HOUR_IN_SECONDS : 20 * MINUTE_IN_SECONDS;
@@ -188,6 +188,7 @@ class M24_Import_Admin {
 		if ( 'gebraucht' === $type ) { return M24_Shopware_Gebraucht::build_worklist(); }
 		if ( 'rennsport' === $type ) { return M24_Shopware_Rennsport::build_worklist( array( 'z4-gt3', 'e30', 'e36', 'e46', 'e90', 'e92' ) ); }
 		if ( 'varianten' === $type ) { return M24_Shopware_Variants::build_worklist(); }
+		if ( 'seotitel' === $type ) { return M24_Catalog_SEO::all_ids(); }
 		// media: Galerie-Rebuild — alle Teile (neu+gebraucht) mit unvollst. Galerie/offenen Bildern.
 		return M24_Shopware_Media::rebuild_worklist();
 	}
@@ -197,6 +198,7 @@ class M24_Import_Admin {
 		if ( 'gebraucht' === $type ) { return M24_Shopware_Gebraucht::process_chunk( $chunk ); }
 		if ( 'rennsport' === $type ) { return M24_Shopware_Rennsport::process_chunk( $chunk ); }
 		if ( 'varianten' === $type ) { return M24_Shopware_Variants::process_chunk( $chunk, self::$force ); }
+		if ( 'seotitel' === $type ) { return M24_Catalog_SEO::resync_chunk( $chunk ); }
 		// media: Galerie-Rebuild aus Shopware (idempotent, Hash-Dedupe; 12s Bild-Timeout + Per-Produkt-Deadline).
 		return M24_Shopware_Media::rebuild_chunk( $chunk, 12, $deadline );
 	}
@@ -216,6 +218,10 @@ class M24_Import_Admin {
 			<p style="margin-top:4px">
 				<button class="button" data-m24imp="varianten">Varianten aus Shopware übernehmen</button>
 				<label style="margin-left:10px;font-size:13px;color:#555"><input type="checkbox" id="m24imp-force"> Force-Resync <span style="color:#888">(überschreibt auch handgepflegte Varianten)</span></label>
+			</p>
+			<p style="margin-top:4px">
+				<button class="button" data-m24imp="seotitel">SEO-Titel neu generieren</button>
+				<span style="margin-left:8px;font-size:13px;color:#888">erzeugt &lt;title&gt; + Meta-Description aller Teile neu aus dem Artikel-Titel</span>
 			</p>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
@@ -276,7 +282,7 @@ class M24_Import_Admin {
 				if(!resp.ok && !('success' in d)){ throw new Error('HTTP '+resp.status); }
 				return d;
 			}
-			function label(t){ return t==='gebraucht'?'Gebraucht':(t==='rennsport'?'Rennsport':(t==='varianten'?'Varianten':'Bilder / Galerie')); }
+			function label(t){ return t==='gebraucht'?'Gebraucht':(t==='rennsport'?'Rennsport':(t==='varianten'?'Varianten':(t==='seotitel'?'SEO-Titel':'Bilder / Galerie'))); }
 			async function run(type){
 				if(busy) return; setBusy(true); wrap.style.display='';
 				var token='', offset=0, total=0, retries=0, calls=0, acc={new:0,skipped:0,img_pending:0,unresolved:0,errors:0};
