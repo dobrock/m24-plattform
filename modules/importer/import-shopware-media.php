@@ -105,8 +105,8 @@ class M24_Shopware_Media {
 	 *
 	 * @return array { products:int, done:int, still_pending:int }
 	 */
-	public static function repair_all( $timeout = self::DEFAULT_TIMEOUT, $cb = null ) {
-		$ids = self::pending_post_ids();
+	public static function repair_all( $timeout = self::DEFAULT_TIMEOUT, $cb = null, $typ = 'neu' ) {
+		$ids = self::pending_post_ids( $typ );
 		$total = count( $ids );
 		$done = 0; $still = 0;
 		foreach ( $ids as $i => $pid ) {
@@ -118,14 +118,14 @@ class M24_Shopware_Media {
 		return array( 'products' => $total, 'done' => $done, 'still_pending' => $still );
 	}
 
-	/** Produkt-IDs (_m24_typ=neu) mit nicht-leerem _m24_img_pending. */
-	public static function pending_post_ids() {
+	/** Produkt-IDs (_m24_typ=$typ) mit nicht-leerem _m24_img_pending. */
+	public static function pending_post_ids( $typ = 'neu' ) {
 		$q = get_posts( array(
 			'post_type'      => 'm24_teil', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids',
 			'no_found_rows'  => true,
 			'meta_query'     => array(
 				'relation' => 'AND',
-				array( 'key' => '_m24_typ', 'value' => 'neu' ),
+				array( 'key' => '_m24_typ', 'value' => (string) $typ ),
 				array( 'key' => self::PENDING_META, 'compare' => 'EXISTS' ),
 				array( 'key' => self::PENDING_META, 'value' => '', 'compare' => '!=' ),
 				array( 'key' => self::PENDING_META, 'value' => '[]', 'compare' => '!=' ),
@@ -134,12 +134,12 @@ class M24_Shopware_Media {
 		return array_map( 'intval', $q );
 	}
 
-	/** Statistik fuer --status: total neu · mit Featured · mit offenem Pending. */
-	public static function media_stats() {
+	/** Statistik fuer --status: total ($typ) · mit Featured · mit offenem Pending. */
+	public static function media_stats( $typ = 'neu' ) {
 		$neu = get_posts( array(
 			'post_type' => 'm24_teil', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids',
 			'no_found_rows' => true,
-			'meta_query' => array( array( 'key' => '_m24_typ', 'value' => 'neu' ) ),
+			'meta_query' => array( array( 'key' => '_m24_typ', 'value' => (string) $typ ) ),
 		) );
 		$featured = 0; $pending = 0;
 		foreach ( $neu as $id ) {

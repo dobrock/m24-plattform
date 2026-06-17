@@ -296,6 +296,19 @@ WP_CLI::add_command( 'm24 import-status', array( 'M24_Shopware_Queue', 'cli_stat
 if ( class_exists( 'M24_Shopware_Rennsport' ) ) {
 	WP_CLI::add_command( 'm24 import-rennsport', array( 'M24_Shopware_Rennsport', 'cli' ) );
 }
+// Gebraucht-Import (robust, entkoppelt). Logik in import-shopware-gebraucht.php.
+if ( class_exists( 'M24_Shopware_Gebraucht' ) ) {
+	WP_CLI::add_command( 'm24 import-gebraucht', array( 'M24_Shopware_Gebraucht', 'cli' ) );
+}
+// Read-only Diagnose (paste-sicher, kein führendes wp nötig): Dubletten-Status nach typ.
+WP_CLI::add_command( 'm24 import-typ-status', function ( $args, $assoc ) {
+	foreach ( array( 'gebraucht', 'neu' ) as $typ ) {
+		$ids = get_posts( array( 'post_type' => 'm24_teil', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'no_found_rows' => true,
+			'meta_query' => array( array( 'key' => '_m24_typ', 'value' => $typ ) ) ) );
+		$mit = 0; foreach ( $ids as $id ) { if ( '' !== (string) get_post_meta( $id, '_m24_sw_id', true ) ) { $mit++; } }
+		WP_CLI::log( sprintf( 'typ=%-9s total=%d · mit _m24_sw_id=%d · ohne=%d', $typ, count( $ids ), $mit, count( $ids ) - $mit ) );
+	}
+} );
 
 /**
  * Extrahiert BMW-Teilenummern aus den Beschreibungen aller m24_teil-Posts und schreibt
