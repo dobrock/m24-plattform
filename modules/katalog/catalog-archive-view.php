@@ -43,16 +43,15 @@ $pag = paginate_links( array(
 	</header>
 
 	<div class="m24-archiv__toolbar">
-		<?php echo M24_Catalog_Archive::controls_form(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
-		<?php echo M24_Catalog_Archive::grid_toggle(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php echo M24_Catalog_Archive::toolbar(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 	</div>
 
 	<?php if ( have_posts() ) : ?>
-		<div class="m24-archiv__grid m24-archiv__grid--3" id="m24-grid">
+		<div class="m24-archiv__grid m24-archiv__grid--4" id="m24-grid">
 			<?php
 			while ( have_posts() ) :
 				the_post();
-				echo M24_Catalog_Archive::card_html( get_the_ID() ); // phpcs:ignore WordPress.Security.EscapeOutput
+				echo M24_Catalog_Archive::card_html( get_the_ID(), true ); // phpcs:ignore WordPress.Security.EscapeOutput
 			endwhile;
 			?>
 		</div>
@@ -97,6 +96,20 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 .m24-filter__label{font-size:14px;font-weight:600;}
 .m24-filter__select{font:inherit;padding:8px 30px 8px 12px;border:1px solid #cfd2d6;border-radius:8px;background:#fff;color:var(--m24-ink);cursor:pointer;}
 .m24-filter__select:focus{outline:2px solid var(--m24-blue);outline-offset:1px;}
+/* Hub-artige Toolbar (Typ-Archive) */
+.m24-atb{display:flex;flex-direction:column;gap:14px;width:100%;}
+.m24-atb__form{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0;}
+.m24-atb__search{position:relative;flex:1 1 280px;min-width:220px;display:flex;align-items:center;}
+.m24-atb__search .m24-atb__si{position:absolute;left:12px;color:var(--m24-muted);pointer-events:none;}
+.m24-atb__search input{width:100%;font:inherit;padding:9px 12px 9px 34px;border:1px solid #cfd2d6;border-radius:8px;background:#fff;color:var(--m24-ink);}
+.m24-atb__search input:focus{outline:2px solid var(--m24-blue);outline-offset:1px;}
+.m24-atb__selects{display:flex;flex-wrap:wrap;align-items:center;gap:16px;}
+.m24-atb__row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;}
+.m24-atb__kat{display:flex;gap:4px;background:var(--m24-surface);padding:4px;border-radius:10px;}
+.m24-atb__katbtn{font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;color:var(--m24-muted);text-decoration:none;line-height:1;white-space:nowrap;}
+.m24-atb__katbtn.on{background:#fff;color:var(--m24-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+.m24-atb__n{color:var(--m24-muted);font-weight:500;}
+.m24-atb__katbtn.on .m24-atb__n{color:var(--m24-blue);}
 .m24-gridswitch{display:flex;gap:4px;background:var(--m24-surface);padding:4px;border-radius:10px;}
 .m24-gridswitch__btn{font:inherit;font-size:13px;font-weight:600;min-width:38px;padding:7px 10px;border:0;border-radius:7px;background:transparent;color:var(--m24-muted);cursor:pointer;line-height:1;}
 .m24-gridswitch__btn[aria-pressed="true"]{background:#fff;color:var(--m24-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
@@ -110,6 +123,9 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 .m24-archiv__grid--list .m24-card__link{flex-direction:row;align-items:stretch;}
 .m24-archiv__grid--list .m24-card__media{width:200px;flex:0 0 200px;aspect-ratio:4/3;}
 .m24-archiv__grid--list .m24-card__body{justify-content:center;}
+/* Beschreibung: nur in der Listenansicht, hart auf 2 Zeilen geklemmt. */
+.m24-card__desc{display:none;}
+.m24-archiv__grid--list .m24-card__desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;color:var(--m24-muted);font-size:14px;line-height:1.45;margin-top:6px;}
 .m24-pagination{margin-top:34px;}
 .m24-pagination ul{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0;padding:0;justify-content:center;}
 .m24-pagination a,.m24-pagination span{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 12px;border:1px solid #d7dadf;border-radius:8px;text-decoration:none;color:var(--m24-ink);font-weight:600;}
@@ -132,11 +148,12 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 	var grid = document.getElementById('m24-grid');
 	var sw   = document.querySelector('.m24-gridswitch');
 	if(!grid || !sw){ return; }
-	var KEY = 'm24_grid';
-	var classes = ['list','2','3','4'];
+	// KEY v2: alte „2er"-Stände (Schlüssel m24_grid) werden ignoriert → Default 4.
+	var KEY = 'm24_grid2';
+	var classes = ['list','3','4'];
 	function apply(v){
-		if(classes.indexOf(v) === -1){ v = '3'; }
-		classes.forEach(function(c){ grid.classList.remove('m24-archiv__grid--'+c); });
+		if(v === '2' || classes.indexOf(v) === -1){ v = '4'; } // „2" → 4 (nie wiederherstellen)
+		['list','2','3','4'].forEach(function(c){ grid.classList.remove('m24-archiv__grid--'+c); });
 		grid.classList.add('m24-archiv__grid--'+v);
 		sw.querySelectorAll('.m24-gridswitch__btn').forEach(function(b){
 			b.setAttribute('aria-pressed', b.getAttribute('data-grid') === v ? 'true' : 'false');
@@ -144,7 +161,7 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 	}
 	var saved = null;
 	try { saved = localStorage.getItem(KEY); } catch(e){}
-	apply(saved || '3');
+	apply(saved || '4');
 	sw.addEventListener('click', function(e){
 		var b = e.target.closest('.m24-gridswitch__btn');
 		if(!b){ return; }

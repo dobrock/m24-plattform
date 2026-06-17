@@ -428,10 +428,15 @@ class M24_Catalog_Template_Detail {
 						<div class="m24-preis-anfrage"><?php esc_html_e( 'Preis auf Anfrage', 'm24-plattform' ); ?></div>
 					<?php else :
 						$pos_n = count( $pos_list );
+						// Varianten-„ab": mehrere Varianten mit UNTERSCHIEDLICHEN Preisen + keine
+						// Variante gewaehlt (Default „Variante wählen") → „ab {min}". JS schaltet
+						// bei Auswahl auf den Variantenpreis um (und „ab" weg).
+						$vp      = function_exists( 'm24_variant_price_info' ) ? m24_variant_price_info( $id ) : array();
+						$ab_mode = ! empty( $vp['hat_varianten'] ) && empty( $vp['alle_gleich'] );
 						?>
-						<div class="pbr"><span class="m24-brutto-val"><?php echo esc_html( $preis['brutto_fmt'] ); ?></span><sup class="pstar">*</sup></div>
+						<div class="pbr" data-ab-min="<?php echo esc_attr( $ab_mode ? $vp['min_fmt'] : '' ); ?>"><span class="m24-ab-prefix"<?php echo $ab_mode ? '' : ' hidden'; ?>>ab&nbsp;</span><span class="m24-brutto-val"><?php echo esc_html( $ab_mode ? $vp['min_fmt'] : $preis['brutto_fmt'] ); ?></span><sup class="pstar">*</sup></div>
 						<?php if ( ! empty( $preis['netto_fmt'] ) ) : ?>
-							<div class="pnet">Netto <span class="m24-netto-val"><?php echo esc_html( $preis['netto_fmt'] ); ?></span>
+							<div class="pnet"<?php echo $ab_mode ? ' style="display:none"' : ''; ?>>Netto <span class="m24-netto-val"><?php echo esc_html( $preis['netto_fmt'] ); ?></span>
 								<?php if ( ! empty( $preis['netto_hinweis'] ) ) : ?>
 									<span class="m24-tt-wrap" style="margin-left:7px;font-size:11.5px;color:var(--mut)">
 										<button type="button" class="m24-tt-trigger" aria-describedby="m24tt-netto-<?php echo (int) $id; ?>" aria-expanded="false">
@@ -657,12 +662,16 @@ class M24_Catalog_Template_Detail {
 			if (varSel) {
 				varSel.addEventListener('change', function(){
 					var o = varSel.selectedOptions[0]; if(!o) return;
+						var pbrEl=root.querySelector('.pbr'),abEl=root.querySelector('.m24-ab-prefix'),pnetEl=root.querySelector('.pnet');
+						if(!o.value){var abmin=pbrEl?pbrEl.getAttribute('data-ab-min'):'';if(abmin){if(abEl)abEl.hidden=false;var b0=root.querySelector('.m24-brutto-val');if(b0)b0.textContent=abmin;if(pnetEl)pnetEl.style.display='none';}return;}
 					var bruttoFmt = o.dataset.bruttoFmt || '';
 					var nettoFmt  = o.dataset.nettoFmt  || '';
 					var artnr     = o.dataset.artnr     || '';
 					var label     = o.dataset.label     || '';
+						if(abEl)abEl.hidden=true;
 					var bEl = root.querySelector('.m24-brutto-val'); if(bEl) bEl.textContent = bruttoFmt;
 					var nEl = root.querySelector('.m24-netto-val');  if(nEl && nettoFmt) nEl.textContent = nettoFmt;
+						if(pnetEl&&nettoFmt)pnetEl.style.display='';
 					var aEl = root.querySelector('.m24-artnr-value'); if(aEl && artnr) aEl.textContent = artnr;
 					root.querySelectorAll('.m24-frage, .m24-merken').forEach(function(btn){
 						if(artnr)    btn.setAttribute('data-artnr', artnr);

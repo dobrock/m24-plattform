@@ -19,6 +19,9 @@ class M24_Catalog_Archive {
 	const TAXONOMY  = 'm24_fahrzeugkat';
 	const PER_PAGE  = 24;
 
+	/** @var string Aktueller Suchbegriff (fuer den posts_where-Filter der Hauptabfrage). */
+	private static $search = '';
+
 	public static function init() {
 		add_action( 'pre_get_posts', array( __CLASS__, 'pre_get_posts' ) );
 		add_action( 'wp', array( __CLASS__, 'fix_status' ) );
@@ -44,11 +47,43 @@ class M24_Catalog_Archive {
 	}
 
 	public static function heading() {
+		if ( 'alle' === self::current_kat() ) { return 'Alle Teile'; }
 		return ( 'neu' === self::current_typ() ) ? 'Rennsport-Teile' : 'Gebrauchte Teile';
 	}
 
 	public static function current_modell() {
 		return sanitize_title( (string) get_query_var( 'm24_modell' ) );
+	}
+
+	/**
+	 * Aktive Kategorie (rennsport|gebraucht|alle). Default = Typ aus dem Pfad. „alle"
+	 * (nur via ?kat=alle) hebt den Typ-Filter auf und zeigt Renn- + Gebrauchtteile.
+	 */
+	public static function current_kat() {
+		$k = isset( $_GET['kat'] ) ? sanitize_key( wp_unslash( $_GET['kat'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( in_array( $k, array( 'rennsport', 'gebraucht', 'alle' ), true ) ) { return $k; }
+		return ( 'neu' === self::current_typ() ) ? 'rennsport' : 'gebraucht';
+	}
+
+	/** Aktueller Suchbegriff aus ?q=. */
+	public static function current_q() {
+		return isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+	}
+
+	/** Counts je Kategorie (aktive Teile) — eine DB-Abfrage fuer den Umschalter. */
+	public static function kat_counts() {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT t.meta_value AS typ, COUNT(*) AS n
+			FROM {$wpdb->posts} p
+			JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = '_m24_status' AND s.meta_value = 'aktiv'
+			JOIN {$wpdb->postmeta} t ON t.post_id = p.ID AND t.meta_key = '_m24_typ'
+			WHERE p.post_type = '" . esc_sql( self::POST_TYPE ) . "' AND p.post_status = 'publish'
+			GROUP BY t.meta_value" ); // phpcs:ignore WordPress.DB
+		$neu = 0; $geb = 0;
+		foreach ( (array) $rows as $r ) {
+			if ( 'neu' === $r->typ ) { $neu = (int) $r->n; } elseif ( 'gebraucht' === $r->typ ) { $geb = (int) $r->n; }
+		}
+		return array( 'rennsport' => $neu, 'gebraucht' => $geb, 'alle' => $neu + $geb );
 	}
 
 	public static function query_vars( $vars ) {
@@ -82,11 +117,13 @@ class M24_Catalog_Archive {
 			$q->set( 'order', 'DESC' );
 		}
 
-		$q->set( 'meta_query', array(
-			'relation' => 'AND',
-			array( 'key' => '_m24_typ', 'value' => self::current_typ() ),
-			array( 'key' => '_m24_status', 'value' => 'aktiv' ),
-		) );
+		// Kategorie: rennsport→neu, gebraucht→gebraucht, alle→kein Typ-Filter (beide).
+		$kat  = self::current_kat();
+		$meta = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
+		if ( 'alle' !== $kat ) {
+			$meta[] = array( 'key' => '_m24_typ', 'value' => ( 'gebraucht' === $kat ) ? 'gebraucht' : 'neu' );
+		}
+		$q->set( 'meta_query', $meta );
 
 		$modell = self::current_modell();
 		if ( $modell ) {
@@ -96,6 +133,27 @@ class M24_Catalog_Archive {
 				'terms'    => $modell,
 			) ) );
 		}
+
+		// Suche (?q=): Titel ODER Artikel-/BMW-Nummer/Beschreibung. Eigener posts_where-Filter
+		// (kein WP-'s'), strikt auf die Haupt-Archivabfrage begrenzt.
+		self::$search = self::current_q();
+		if ( '' !== self::$search ) {
+			add_filter( 'posts_where', array( __CLASS__, 'where_search' ), 10, 2 );
+		}
+	}
+
+	/** Such-WHERE NUR fuer die Haupt-Archivabfrage (Titel + Art-Nr/BMW-Nr/Beschreibung). */
+	public static function where_search( $where, $query ) {
+		if ( ! $query instanceof WP_Query || ! $query->is_main_query() || ! self::is_archive() || '' === self::$search ) {
+			return $where;
+		}
+		global $wpdb;
+		$like = '%' . $wpdb->esc_like( self::$search ) . '%';
+		$where .= $wpdb->prepare(
+			" AND ( {$wpdb->posts}.post_title LIKE %s OR {$wpdb->posts}.ID IN ( SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key IN ('_m24_artikelnummer','_m24_bmw_teilenummer','_m24_beschreibung_de') AND meta_value LIKE %s ) )",
+			$like, $like
+		); // phpcs:ignore WordPress.DB
+		return $where;
 	}
 
 	/** Leeres Archiv darf nicht 404 werfen. */
@@ -120,7 +178,10 @@ class M24_Catalog_Archive {
 	/* ---------- SEO ---------- */
 
 	public static function robots( $robots ) {
-		if ( self::is_archive() && ( self::current_modell() || 'neueste' !== self::current_sort() ) ) {
+		// Filter-/Such-Facetten nicht indexieren (Duplicate-Schutz): Modell, Sortierung,
+		// Suche, „alle"-Mischansicht.
+		$faceted = self::current_modell() || 'neueste' !== self::current_sort() || '' !== self::current_q() || 'alle' === ( isset( $_GET['kat'] ) ? sanitize_key( wp_unslash( $_GET['kat'] ) ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( self::is_archive() && $faceted ) {
 			$robots['noindex'] = true;
 			$robots['follow']  = true;
 		}
@@ -155,14 +216,22 @@ class M24_Catalog_Archive {
 		}
 		$is25a = ( 'paragraf25a' === $p['modus'] );
 		$note  = $is25a ? 'inkl. MwSt. (§25a)' : 'inkl. 19&nbsp;% MwSt.';
+
+		// Mehrere Varianten mit UNTERSCHIEDLICHEN Preisen → „ab {min}" (server-seitig).
+		$vp  = function_exists( 'm24_variant_price_info' ) ? m24_variant_price_info( $post_id ) : array();
+		$ab  = ( ! empty( $vp['hat_varianten'] ) && empty( $vp['alle_gleich'] ) );
+		$val = $ab ? $vp['min_fmt'] : $p['brutto_fmt'];
+		$pre = $ab ? '<span class="m24-card__ab">ab&nbsp;</span>' : '';
+
 		return sprintf(
-			'<span class="m24-card__price">%s</span><span class="m24-card__pricenote">%s</span>',
-			esc_html( $p['brutto_fmt'] ),
+			'<span class="m24-card__price">%s%s</span><span class="m24-card__pricenote">%s</span>',
+			$pre,
+			esc_html( $val ),
 			$note
 		);
 	}
 
-	public static function card_html( $post_id ) {
+	public static function card_html( $post_id, $with_desc = false ) {
 		$title  = get_the_title( $post_id );
 		$artnr  = get_post_meta( $post_id, '_m24_artikelnummer', true );
 		$oem    = get_post_meta( $post_id, '_m24_bmw_teilenummer', true );
@@ -189,17 +258,79 @@ class M24_Catalog_Archive {
 		// Verkauft: kein Preisblock (Art.-Nr. rueckt per CSS ans untere Ende).
 		$price_block = $is_sold ? '' : '<span class="m24-card__pricewrap">' . self::price_html( $post_id ) . '</span>';
 
+		// Beschreibung NUR fuer die Listenansicht (per CSS auf 2 Zeilen geklemmt). Wird nur
+		// gerendert, wenn explizit angefordert (Archiv-Loop) → Hub/Related bleiben unveraendert.
+		$desc_html = '';
+		if ( $with_desc ) {
+			$desc = trim( preg_replace( '/\s+/', ' ', (string) wp_strip_all_tags( (string) get_post_meta( $post_id, '_m24_beschreibung_de', true ) ) ) );
+			if ( '' !== $desc ) {
+				$desc_html = '<div class="m24-card__desc">' . esc_html( $desc ) . '</div>';
+			}
+		}
+
 		return sprintf(
 			// Kartentitel als div (kein Heading) — H-Struktur sauber (genau 1 H1, Sektionen H2).
-			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%7$s</span></a></article>',
+			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%8$s%7$s</span></a></article>',
 			$is_sold ? ' m24-card--sold' : '',
 			esc_url( get_permalink( $post_id ) ),
 			$thumb,
 			$badge,
 			esc_html( $title ),
 			$meta_html,
-			$price_block
+			$price_block,
+			$desc_html
 		);
+	}
+
+	/**
+	 * Hub-artige Toolbar fuer die Typ-Archive: Suche · Kategorie-Umschalter (Rennsport·
+	 * Gebraucht·Alle mit Counts) · Modell-/Sortier-Select · Ansicht (3·4·Liste).
+	 * Server-seitig (Links/GET) → eindeutige, verlinkbare Filter-URLs, kein REST/AJAX.
+	 */
+	public static function toolbar() {
+		$kat    = self::current_kat();
+		$q      = self::current_q();
+		$sort   = self::current_sort();
+		$counts = self::kat_counts();
+		$base   = home_url( '/' . self::current_prefix() . '/' );
+		$label  = ( 'alle' === $kat ) ? 'allen Teilen' : ( ( 'gebraucht' === $kat ) ? 'Gebrauchtteilen' : 'Rennsport-Teilen' );
+
+		// q + Sortierung in den Umschalter-Links erhalten (linkbar/kopierbar).
+		$keep = array();
+		if ( '' !== $q ) { $keep['q'] = $q; }
+		if ( 'neueste' !== $sort ) { $keep['m24_sort'] = $sort; }
+		$kats = array(
+			'rennsport' => array( 'Rennsport', add_query_arg( $keep, home_url( '/rennsport-teile/' ) ), $counts['rennsport'] ),
+			'gebraucht' => array( 'Gebraucht', add_query_arg( $keep, home_url( '/gebrauchtteile/' ) ),  $counts['gebraucht'] ),
+			'alle'      => array( 'Alle',      add_query_arg( array_merge( $keep, array( 'kat' => 'alle' ) ), $base ), $counts['alle'] ),
+		);
+
+		ob_start();
+		?>
+		<div class="m24-atb">
+			<form class="m24-atb__form" method="get" action="<?php echo esc_url( $base ); ?>" role="search">
+				<?php if ( 'alle' === $kat ) : ?><input type="hidden" name="kat" value="alle"><?php endif; ?>
+				<div class="m24-atb__search">
+					<svg class="m24-atb__si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+					<input id="m24-atb-q" name="q" type="search" value="<?php echo esc_attr( $q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $label . ' suchen …' ); ?>" aria-label="Teile durchsuchen">
+				</div>
+				<div class="m24-atb__selects">
+					<?php echo self::modell_select(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					<?php echo self::sort_select();   // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					<noscript><button type="submit" class="m24-filter__go">Anwenden</button></noscript>
+				</div>
+			</form>
+			<div class="m24-atb__row">
+				<div class="m24-atb__kat" role="group" aria-label="Kategorie wählen">
+					<?php foreach ( $kats as $kv => $d ) : ?>
+						<a href="<?php echo esc_url( $d[1] ); ?>" class="m24-atb__katbtn<?php echo $kat === $kv ? ' on' : ''; ?>" rel="nofollow"><?php echo esc_html( $d[0] ); ?> <span class="m24-atb__n">(<?php echo esc_html( number_format_i18n( $d[2] ) ); ?>)</span></a>
+					<?php endforeach; ?>
+				</div>
+				<?php echo self::grid_toggle(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 
 	public static function controls_form() {
@@ -282,11 +413,11 @@ class M24_Catalog_Archive {
 	}
 
 	public static function grid_toggle() {
+		// „2" entfernt (Vorgabe 0.9.14) — nur noch 3 · 4 · Liste, Default 4 (View-JS).
 		$btns = array(
-			'list' => 'Liste',
-			'2'    => '2',
 			'3'    => '3',
 			'4'    => '4',
+			'list' => 'Liste',
 		);
 		$out = '<div class="m24-gridswitch" role="group" aria-label="Darstellung">';
 		foreach ( $btns as $val => $label ) {
