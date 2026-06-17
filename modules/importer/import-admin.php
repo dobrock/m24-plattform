@@ -104,7 +104,7 @@ class M24_Import_Admin {
 				// Produkt-Cursor: offset bleibt stehen, bis das Produkt fertig ist (alle Bilder).
 				$new   = 0; $pending = 0; $errors = 0; $stage = ''; $err = '';
 				if ( $offset < $total ) {
-					$res     = M24_Shopware_Media::rebuild_step( (int) $items[ $offset ], $token, 12 );
+					$res     = M24_Shopware_Media::rebuild_step( (int) $items[ $offset ], $token, 8 );
 					$stage   = (string) $res['stage'];
 					$new     = (int) $res['new'];
 					$pending = (int) $res['pending'];

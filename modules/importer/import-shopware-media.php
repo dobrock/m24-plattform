@@ -210,7 +210,7 @@ class M24_Shopware_Media {
 	 *
 	 * @return array { stage:'seed'|'image', product_done:bool, pending:int, new:int, error:string }
 	 */
-	public static function rebuild_step( $post_id, $run_token, $timeout = 12 ) {
+	public static function rebuild_step( $post_id, $run_token, $timeout = 8 ) {
 		$post_id   = (int) $post_id;
 		$run_token = (string) $run_token;
 
@@ -282,23 +282,35 @@ class M24_Shopware_Media {
 	 *
 	 * @return array { stage:'image', product_done:bool, pending:int, new:int, error:string }
 	 */
-	public static function download_one( $post_id, $timeout = 12 ) {
+	public static function download_one( $post_id, $timeout = 8 ) {
 		$post_id = (int) $post_id;
 		$pending = self::get_pending( $post_id, true ); // fresh: stale „pending=0" darf nicht faelschlich „fertig" melden
 		if ( empty( $pending ) ) {
 			return array( 'stage' => 'image', 'product_done' => true, 'pending' => 0, 'new' => 0, 'error' => '' );
 		}
 
-		$gallery      = array_values( array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $post_id, '_m24_galerie', true ) ) ) ) );
-		$has_featured = (int) get_post_thumbnail_id( $post_id );
-
-		$img  = array_shift( $pending ); // erstes Bild — wird so oder so aus Pending entfernt
+		$img  = array_shift( $pending ); // erstes Bild
 		$url  = (string) ( $img['url'] ?? '' );
 		$hash = (string) ( $img['hash'] ?? '' );
-		$new  = 0; $error = '';
 
-		if ( '' !== $url ) {
-			M24_Import_Log::log( sprintf( 'media #%d: lade Bild %s (mem %s / limit %s · pending vor: %d)', $post_id, $url, size_format( memory_get_usage( true ) ), ini_get( 'memory_limit' ), count( $pending ) + 1 ) );
+		// KRITISCH: verkleinerte Pending-Liste SOFORT persistieren — BEVOR der Download
+		// fatalen kann. Killt max_execution_time den Request mitten im Download, ist das
+		// Bild bereits raus → kein Endlos-Retry auf einem kaputten Bild. (Vorher wurde
+		// store_pending erst am Ende aufgerufen → bei Fatal blieb pending unveraendert.)
+		self::store_pending( $post_id, $pending );
+
+		$new = 0; $error = '';
+
+		if ( '' === $url ) {
+			$error = 'leere URL';
+		} elseif ( self::looks_malformed( $url ) ) {
+			// Shopware-Verkettungsfehler (z.B. „…png1705164100516.jpeg") → gar nicht erst laden.
+			$error = 'URL verdaechtig (Doppel-Endung) — uebersprungen';
+			M24_Import_Log::log( sprintf( 'media #%d: SKIP malformed %s', $post_id, $url ) );
+		} else {
+			$gallery      = array_values( array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $post_id, '_m24_galerie', true ) ) ) ) );
+			$has_featured = (int) get_post_thumbnail_id( $post_id );
+			M24_Import_Log::log( sprintf( 'media #%d: lade Bild %s (mem %s/%s · pending nach drop: %d · timeout %ds)', $post_id, $url, size_format( memory_get_usage( true ) ), ini_get( 'memory_limit' ), count( $pending ), $timeout ) );
 			$t0  = microtime( true );
 			try {
 				$att = self::download_attach( $url, $post_id, $hash, $timeout );
@@ -313,6 +325,10 @@ class M24_Shopware_Media {
 				} elseif ( $att !== $has_featured && ! in_array( $att, $gallery, true ) ) {
 					$gallery[] = $att;
 				}
+				// Featured-Fallback: kein Cover, aber Galerie vorhanden → erstes Bild.
+				if ( ! $has_featured && ! empty( $gallery ) ) { set_post_thumbnail( $post_id, (int) $gallery[0] ); }
+				update_post_meta( $post_id, '_m24_galerie', implode( ',', $gallery ) );
+				self::cache_flush( $post_id );
 				M24_Import_Log::log( sprintf( 'media #%d: OK att=%d in %dms (peak %s)', $post_id, $att, $ms, size_format( memory_get_peak_usage( true ) ) ) );
 			} else {
 				$error = '' !== $error ? $error : 'Download/Sideload fehlgeschlagen';
@@ -320,13 +336,18 @@ class M24_Shopware_Media {
 			}
 		}
 
-		// Featured-Fallback: kein Cover, aber Galerie vorhanden → erstes Bild.
-		if ( ! $has_featured && ! empty( $gallery ) ) { set_post_thumbnail( $post_id, (int) $gallery[0] ); }
-		update_post_meta( $post_id, '_m24_galerie', implode( ',', $gallery ) );
-		self::store_pending( $post_id, $pending ); // Rest ohne das eben verarbeitete Bild
 		unset( $img );
-
 		return array( 'stage' => 'image', 'product_done' => empty( $pending ), 'pending' => count( $pending ), 'new' => $new, 'error' => $error );
+	}
+
+	/**
+	 * Heuristik fuer kaputte Shopware-Media-URLs: doppelte Bild-Endung im Pfad
+	 * (z.B. „…/foo.png1705164100516.jpeg" = falsch verkettete Dateinamen). Solche
+	 * URLs haengen beim Download bis ins max_execution_time-Fatal → vorab skippen.
+	 */
+	private static function looks_malformed( $url ) {
+		$path = (string) wp_parse_url( (string) $url, PHP_URL_PATH );
+		return (bool) preg_match( '/\.(png|jpe?g|gif|webp|bmp|tiff?)[^\/]*\.(png|jpe?g|gif|webp|bmp|tiff?)$/i', $path );
 	}
 
 	/** Statistik fuer --status: total ($typ) · mit Featured · mit offenem Pending. */
@@ -359,7 +380,7 @@ class M24_Shopware_Media {
 		require_once ABSPATH . 'wp-admin/includes/media.php';
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 
-		$tmp = download_url( $url, (int) $timeout ); // kurzer Timeout statt 300s
+		$tmp = self::fetch_to_tmp( $url, (int) $timeout );
 		if ( is_wp_error( $tmp ) ) { return 0; }
 
 		$name = basename( (string) wp_parse_url( $url, PHP_URL_PATH ) );
@@ -372,5 +393,32 @@ class M24_Shopware_Media {
 		}
 		if ( '' !== $hash ) { update_post_meta( (int) $att, '_m24_sw_media_hash', $hash ); }
 		return (int) $att;
+	}
+
+	/**
+	 * Bild in eine Temp-Datei laden mit HART begrenzter Gesamtzeit. Ersetzt download_url(),
+	 * dessen Default-redirection (5) den Timeout pro Hop vervielfacht (ein kaputter Redirect-
+	 * Chain lief 33s ins 30s-Fatal). Hier: redirection=1 → Worst-Case ≈ 2×$timeout, plus
+	 * non-2xx wird sofort als Fehler behandelt. Wirft NIE — WP_Error|Tmp-Pfad.
+	 */
+	private static function fetch_to_tmp( $url, $timeout ) {
+		$timeout = max( 3, (int) $timeout );
+		$tmp = wp_tempnam( $url );
+		if ( ! $tmp ) { return new WP_Error( 'm24_tmp', 'kein Tempfile' ); }
+		$resp = wp_safe_remote_get( $url, array(
+			'timeout'             => $timeout,   // cURL CURLOPT_TIMEOUT (Gesamttransfer pro Hop)
+			'redirection'         => 1,          // max 1 Redirect → Zeit nicht vervielfachen
+			'stream'              => true,
+			'filename'            => $tmp,
+			'limit_response_size' => 25 * MB_IN_BYTES,
+			'headers'             => array( 'Accept' => 'image/*' ),
+		) );
+		if ( is_wp_error( $resp ) ) { if ( file_exists( $tmp ) ) { @unlink( $tmp ); } return $resp; } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		$code = (int) wp_remote_retrieve_response_code( $resp );
+		if ( $code < 200 || $code >= 300 ) {
+			if ( file_exists( $tmp ) ) { @unlink( $tmp ); } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			return new WP_Error( 'm24_http', 'HTTP ' . $code );
+		}
+		return $tmp;
 	}
 }
