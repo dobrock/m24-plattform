@@ -57,7 +57,7 @@ class M24_Shopware_Media {
 	 *
 	 * @return array { done:int, remaining:int }  (wirft NIE)
 	 */
-	public static function attempt( $post_id, $timeout = self::DEFAULT_TIMEOUT ) {
+	public static function attempt( $post_id, $timeout = self::DEFAULT_TIMEOUT, $deadline = 0.0 ) {
 		$post_id = (int) $post_id;
 		$pending = self::get_pending( $post_id );
 		if ( empty( $pending ) ) { return array( 'done' => 0, 'remaining' => 0 ); }
@@ -71,6 +71,9 @@ class M24_Shopware_Media {
 			$url  = (string) ( $img['url'] ?? '' );
 			$hash = (string) ( $img['hash'] ?? '' );
 			if ( '' === $url ) { continue; }
+			// Per-Produkt-Deadline: kein neuer Download mehr nach Ablauf → Rest bleibt pending
+			// (resumierbar), schuetzt vor Einzel-Produkt das den Call sprengt (viele tote Bilder).
+			if ( $deadline > 0 && microtime( true ) >= $deadline ) { $remaining[] = $img; continue; }
 			try {
 				$att = self::download_attach( $url, $post_id, $hash, $timeout );
 			} catch ( Exception $e ) {
@@ -158,7 +161,7 @@ class M24_Shopware_Media {
 	 * _m24_img_pending = ALLE Medien und laedt sie (idempotent, Hash-Dedupe → nur
 	 * fehlende Downloads). Wirft NIE pro Produkt.
 	 */
-	public static function rebuild_chunk( array $post_ids, $timeout = self::DEFAULT_TIMEOUT ) {
+	public static function rebuild_chunk( array $post_ids, $timeout = self::DEFAULT_TIMEOUT, $deadline = 0.0 ) {
 		$r = array( 'processed' => 0, 'new' => 0, 'img_pending' => 0, 'skipped' => 0, 'unresolved' => 0, 'errors' => 0 );
 		if ( empty( $post_ids ) || ! class_exists( 'M24_Shopware_Client' ) ) { return $r; }
 		$sw = array();
@@ -175,10 +178,11 @@ class M24_Shopware_Media {
 			if ( null === $p ) { $r['errors']++; continue; }
 			try {
 				self::store_pending( (int) $pid, self::extract( $p ) ); // Pending = ALLE Medien
-				$a = self::attempt( (int) $pid, $timeout );
+				$a = self::attempt( (int) $pid, $timeout, $deadline );
 				$r['new'] += (int) $a['done'];
 				if ( (int) $a['remaining'] > 0 ) { $r['img_pending']++; }
 			} catch ( Exception $e ) { $r['errors']++; }
+			if ( $deadline > 0 && microtime( true ) >= $deadline ) { break; } // Call-Budget erreicht
 		}
 		return $r;
 	}
