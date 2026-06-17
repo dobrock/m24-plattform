@@ -155,8 +155,12 @@ class M24_Catalog_Template_Detail {
 		if ( $artnr ) {
 			$product_ld['sku'] = $artnr;
 		}
+		// mpn = Teilenummer: BMW-Teilenummer bevorzugt, sonst Artikelnummer (= sku).
+		$mpn = $bmwnr ? $bmwnr : $artnr;
+		if ( $mpn ) {
+			$product_ld['mpn'] = $mpn;
+		}
 		if ( $bmwnr ) {
-			$product_ld['mpn']   = $bmwnr;
 			$product_ld['brand'] = array( '@type' => 'Brand', 'name' => 'BMW' );
 		}
 		if ( $imgs ) {
