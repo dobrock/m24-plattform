@@ -14,8 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Dedup_Cleanup {
 
-	const TIME_BUDGET = 20.0;
-	const DELETE_CAP  = 40; // wp_delete_attachment ist schwer (Datei + alle Größen)
+	const TIME_BUDGET = 20.0;  // Dry-Run (keine Löschungen)
+	const EXEC_BUDGET = 15.0;  // 0.9.28: Execute hart unter max_execution_time=30s halten
+	const DELETE_CAP  = 10;    // 0.9.28: wp_delete_attachment ist schwer (~40 unlinks je) → klein
 
 	/**
 	 * @param bool $execute false = Dry-Run (Plan, ändert nichts). true = Hard-Delete (gated).
@@ -42,11 +43,14 @@ class M24_Dedup_Cleanup {
 			fputcsv( $fh, array( 'gruppe_key', 'keeper_id', 'dupe_id', 'aktion', 'feld', 'teil_post_id', 'ergebnis', 'flag' ) );
 		}
 
-		$rewire = 0; $delete = 0; $skip_e36 = 0; $skip_ref = 0; $groups_done = 0; $resume = 0; $hit_limit = false;
-		$gstart = $execute ? 0 : (int) $offset; // Execute: idempotent von vorn (gelöschte fallen aus analyze())
+		$rewire = 0; $delete = 0; $skip_e36 = 0; $skip_ref = 0; $err = 0; $groups_done = 0; $resume = 0; $hit_limit = false;
+		$gstart   = $execute ? 0 : (int) $offset; // Execute: idempotent von vorn (gelöschte fallen aus analyze())
+		$budget   = $execute ? self::EXEC_BUDGET : self::TIME_BUDGET;
+		$exec_cap = self::DELETE_CAP;
+		$stop     = false;
 
-		for ( $gi = $gstart; $gi < $gtotal; $gi++ ) {
-			if ( ( microtime( true ) - $start ) >= self::TIME_BUDGET || ( $execute && $delete >= self::DELETE_CAP ) ) {
+		for ( $gi = $gstart; $gi < $gtotal && ! $stop; $gi++ ) {
+			if ( ( microtime( true ) - $start ) >= $budget || ( $execute && $delete >= $exec_cap ) ) {
 				$resume = $execute ? 1 : $gi; $hit_limit = true; break;
 			}
 			$g = $analysis[ $gi ];
@@ -60,35 +64,47 @@ class M24_Dedup_Cleanup {
 			foreach ( $g['ids'] as $dupe ) {
 				$dupe = (int) $dupe;
 				if ( $dupe === $keeper ) { continue; }
-				$refs = array(
-					'thumbnail' => isset( $idx['thumb'][ $dupe ] ) ? $idx['thumb'][ $dupe ] : array(),
-					'galerie'   => isset( $idx['gal'][ $dupe ] ) ? $idx['gal'][ $dupe ] : array(),
-					'content'   => isset( $idx['content'][ $dupe ] ) ? $idx['content'][ $dupe ] : array(),
-				);
-				foreach ( array( 'thumbnail', 'galerie', 'content' ) as $feld ) {
-					foreach ( $refs[ $feld ] as $pid ) {
-						$rewire++;
-						if ( $execute ) {
-							self::rewire( $feld, (int) $pid, $dupe, $keeper );
-							self::log( sprintf( 'rewire #%d→#%d %s · Teil #%d', $dupe, $keeper, $feld, $pid ) );
+				// E) Pro Attachment gekapselt — ein Problemdatensatz killt nie den Chunk.
+				try {
+					$refs = array(
+						'thumbnail' => isset( $idx['thumb'][ $dupe ] ) ? $idx['thumb'][ $dupe ] : array(),
+						'galerie'   => isset( $idx['gal'][ $dupe ] ) ? $idx['gal'][ $dupe ] : array(),
+						'content'   => isset( $idx['content'][ $dupe ] ) ? $idx['content'][ $dupe ] : array(),
+					);
+					foreach ( array( 'thumbnail', 'galerie', 'content' ) as $feld ) {
+						foreach ( $refs[ $feld ] as $pid ) {
+							$rewire++;
+							if ( $execute ) {
+								self::rewire( $feld, (int) $pid, $dupe, $keeper );
+								self::log( sprintf( 'rewire #%d→#%d %s · Teil #%d', $dupe, $keeper, $feld, $pid ) );
+							}
+							if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, $execute ? 'rewire' : 'would_rewire', $feld, $pid, 'dupe→keeper', '' ) ); }
 						}
-						if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, $execute ? 'rewire' : 'would_rewire', $feld, $pid, 'dupe→keeper', '' ) ); }
 					}
-				}
-				if ( $execute ) {
-					$still = self::refs( $dupe );
-					if ( empty( $still['thumbnail'] ) && empty( $still['galerie'] ) && empty( $still['content'] ) ) {
-						wp_delete_attachment( $dupe, true ); $delete++;
-						self::log( sprintf( 'DELETE #%d (verwaist nach Umbiegen, Keeper #%d)', $dupe, $keeper ) );
-						if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'delete', '', '', 'gelöscht', '' ) ); }
+					if ( $execute ) {
+						$still = self::refs( $dupe );
+						if ( empty( $still['thumbnail'] ) && empty( $still['galerie'] ) && empty( $still['content'] ) ) {
+							@wp_delete_attachment( $dupe, true ); // phpcs:ignore — B) unlink-Rauschen fehlender Größen-Dateien tolerieren
+							$delete++;
+							self::log( sprintf( 'DELETE #%d (verwaist nach Umbiegen, Keeper #%d)', $dupe, $keeper ) );
+							if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'delete', '', '', 'gelöscht', '' ) ); }
+						} else {
+							$skip_ref++;
+							self::log( sprintf( 'SKIP #%d — noch referenziert, NICHT gelöscht', $dupe ) );
+							if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'skip', '', '', 'noch referenziert', 'referenziert' ) ); }
+						}
 					} else {
-						$skip_ref++;
-						self::log( sprintf( 'SKIP #%d — noch referenziert, NICHT gelöscht', $dupe ) );
-						if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'skip', '', '', 'noch referenziert', 'referenziert' ) ); }
+						$delete++; // would_delete: nach Umbiegen aller Refs wäre der Dupe verwaist
+						if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'would_delete', '', '', 'wäre verwaist', '' ) ); }
 					}
-				} else {
-					$delete++; // would_delete: nach Umbiegen aller Refs wäre der Dupe verwaist
-					if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'would_delete', '', '', 'wäre verwaist', '' ) ); }
+				} catch ( Throwable $t ) {
+					$err++;
+					self::log( sprintf( 'FEHLER bei #%d — übersprungen: %s', $dupe, $t->getMessage() ) );
+					if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'error', '', '', $t->getMessage(), 'fehler' ) ); }
+				}
+				// D) Elapsed-Guard PRO ATTACHMENT: nach JEDER Löschung Zeit/Cap prüfen → persist + raus.
+				if ( $execute && ( ( microtime( true ) - $start ) >= $budget || $delete >= $exec_cap ) ) {
+					$stop = true; $hit_limit = true; $resume = 1; break;
 				}
 			}
 		}
@@ -111,6 +127,7 @@ class M24_Dedup_Cleanup {
 			'delete'                => $delete,   // execute: gelöscht · dry: would_delete
 			'skip_e36'              => $skip_e36,
 			'skip_referenziert'     => $skip_ref,
+			'errors'                => $err,
 			'platzhalter_geloescht' => $ph['deleted'],
 			'platzhalter_skip_ref'  => $ph['skipped'],
 			'csv_pfad'              => $csv_path,
@@ -174,11 +191,11 @@ class M24_Dedup_Cleanup {
 		$ids = M24_Dedup_Report::placeholder_ids();
 		$del = 0; $skip = 0; $more = false;
 		foreach ( $ids as $pid ) {
-			if ( $execute && ( ( microtime( true ) - $start ) >= self::TIME_BUDGET || $del >= self::DELETE_CAP ) ) { $more = true; break; }
+			if ( $execute && ( ( microtime( true ) - $start ) >= self::EXEC_BUDGET || $del >= self::DELETE_CAP ) ) { $more = true; break; }
 			$r = self::refs( (int) $pid );
 			$orphan = empty( $r['thumbnail'] ) && empty( $r['galerie'] ) && empty( $r['content'] );
 			if ( $orphan ) {
-				if ( $execute ) { wp_delete_attachment( (int) $pid, true ); self::log( sprintf( 'DELETE Platzhalter #%d (0 Refs)', $pid ) ); }
+				if ( $execute ) { @wp_delete_attachment( (int) $pid, true ); self::log( sprintf( 'DELETE Platzhalter #%d (0 Refs)', $pid ) ); } // phpcs:ignore
 				$del++;
 				if ( $fh ) { fputcsv( $fh, array( 'platzhalter', '', $pid, $execute ? 'delete' : 'would_delete', '', '', $execute ? 'gelöscht' : 'wäre löschbar', 'platzhalter' ) ); }
 			} else {

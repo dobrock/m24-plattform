@@ -213,17 +213,19 @@ class M24_Import_Admin {
 		}
 	}
 
-	/** JSON-Erfolg: Output-Puffer verwerfen (Notices/echo/BOM) → sauberes JSON. */
+	/** JSON-Erfolg: ALLE Output-Puffer verwerfen (Notices/Warnings/echo/BOM) → sauberes JSON. */
 	private static function json_success( $data ) {
 		self::$responded = true;
-		if ( ob_get_length() ) { ob_end_clean(); }
+		while ( ob_get_level() > 0 ) { ob_end_clean(); }
+		if ( ! headers_sent() ) { nocache_headers(); }
 		wp_send_json_success( $data );
 	}
 
-	/** JSON-Fehler: immer {message}, Puffer verwerfen. */
+	/** JSON-Fehler: immer {message}, ALLE Puffer verwerfen. */
 	private static function json_error( $msg, $code = 200 ) {
 		self::$responded = true;
-		if ( ob_get_length() ) { ob_end_clean(); }
+		while ( ob_get_level() > 0 ) { ob_end_clean(); }
+		if ( ! headers_sent() ) { nocache_headers(); }
 		wp_send_json_error( array( 'message' => (string) $msg ), $code );
 	}
 
@@ -427,7 +429,7 @@ class M24_Import_Admin {
 			async function cleanRun(execute){
 				clDry.disabled=true; clExec.disabled=true; clOut.style.display='';
 				clOut.textContent=execute?'AUSFÜHREN … (löscht endgültig)':'Erstelle Plan … (read-only)';
-				var off=0, acc={rw:0,del:0,e36:0,ref:0,ph:0,phs:0}, last=null, guard=0;
+				var off=0, acc={rw:0,del:0,e36:0,ref:0,ph:0,phs:0,err:0}, last=null, guard=0;
 				try{
 					do{
 						var fd=new FormData(); fd.append('action','m24_dedup_cleanup'); fd.append('_nonce',NONCE); fd.append('offset',off);
@@ -435,7 +437,7 @@ class M24_Import_Admin {
 						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
 						var d=JSON.parse(await r.text());
 						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
-						d=d.data; acc.rw+=d.rewire; acc.del+=d.delete; acc.e36+=d.skip_e36; acc.ref+=d.skip_referenziert; acc.ph+=d.platzhalter_geloescht; acc.phs+=d.platzhalter_skip_ref; last=d; off=d.resume_offset|0;
+						d=d.data; acc.rw+=d.rewire; acc.del+=d.delete; acc.e36+=d.skip_e36; acc.ref+=d.skip_referenziert; acc.ph+=d.platzhalter_geloescht; acc.phs+=d.platzhalter_skip_ref; acc.err+=(d.errors||0); last=d; off=d.resume_offset|0;
 						clOut.textContent=(execute?'AUSFÜHREN':'Plan')+' … Gruppen '+d.gruppen_verarbeitet+'/'+d.gruppen_gesamt;
 					} while(off>0 && ++guard<5000);
 					var csv=AJAX+'?action=m24_dedup_csv&file='+encodeURIComponent(last.csv_name)+'&_wpnonce='+encodeURIComponent(NONCE);
@@ -443,7 +445,7 @@ class M24_Import_Admin {
 						'Gruppen: '+last.gruppen_gesamt+'<br>'+
 						(execute?'umgebogen':'würde umbiegen')+': '+acc.rw+'<br>'+
 						(execute?'gelöscht':'würde löschen')+': '+acc.del+'<br>'+
-						'übersprungen E36: '+acc.e36+' · noch referenziert: '+acc.ref+'<br>'+
+						'übersprungen E36: '+acc.e36+' · noch referenziert: '+acc.ref+' · Fehler: '+acc.err+'<br>'+
 						'Platzhalter '+(execute?'gelöscht':'löschbar')+': '+acc.ph+' (referenziert übersprungen: '+acc.phs+')<br>'+
 						'<a href="'+csv+'">CSV (Plan) herunterladen</a> ('+last.csv_name+')';
 				}catch(e){ clOut.textContent='Abgebrochen: '+e.message; }
