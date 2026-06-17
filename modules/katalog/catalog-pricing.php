@@ -55,12 +55,46 @@ class M24_Catalog_Pricing {
 	 */
 	public static function clean_label( $s ) {
 		$s = (string) $s;
+		$cb = function ( $m ) { return mb_convert_encoding( pack( 'H*', $m[1] ), 'UTF-8', 'UTF-16BE' ); };
+		// 1) Backslash-Form \uXXXX (eindeutig Escape) → Zeichen.
 		if ( false !== strpos( $s, '\\u' ) ) {
-			$s = preg_replace_callback( '/\\\\u([0-9a-fA-F]{4})/', function ( $m ) {
-				return mb_convert_encoding( pack( 'H*', $m[1] ), 'UTF-8', 'UTF-16BE' );
-			}, $s );
+			$s = preg_replace_callback( '/\\\\u([0-9a-fA-F]{4})/', $cb, $s );
+		}
+		// 2) Backslash-LOSE Form (Prod-Daten haben den Backslash verloren). Konservativ NUR
+		//    Latin-1-Supplement u00XX → deckt deutsche Umlaute/ß ab, keine Falsch-Treffer bei u+Hex.
+		if ( preg_match( '/u00[0-9a-fA-F]{2}/', $s ) ) {
+			$s = preg_replace_callback( '/u(00[0-9a-fA-F]{2})/', $cb, $s );
 		}
 		return trim( (string) $s );
+	}
+
+	/**
+	 * EINMALIGE Reparatur bereits gespeicherter Varianten-Labels: dekodiert u-Escapes
+	 * (mit/ohne Backslash) in `_m24_preisoptionen` und schreibt geaenderte Posts zurueck.
+	 * Gezielt ueber meta LIKE '%u00%' → nur betroffene Posts. Idempotent.
+	 *
+	 * @return array { scanned:int, fixed:int }
+	 */
+	public static function repair_labels() {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_m24_preisoptionen' AND meta_value LIKE '%u00%'" ); // phpcs:ignore WordPress.DB
+		$scanned = 0; $fixed = 0;
+		foreach ( (array) $rows as $row ) {
+			$scanned++;
+			$arr = json_decode( (string) $row->meta_value, true );
+			if ( ! is_array( $arr ) ) { continue; }
+			$dirty = false;
+			foreach ( $arr as &$opt ) {
+				if ( ! is_array( $opt ) || ! isset( $opt['label'] ) ) { continue; }
+				$clean = self::clean_label( (string) $opt['label'] );
+				if ( $clean !== (string) $opt['label'] ) { $opt['label'] = $clean; $dirty = true; }
+			}
+			unset( $opt );
+			// JSON_UNESCAPED_UNICODE: echte Zeichen speichern — sonst entfernt update_post_meta()
+			// via wp_unslash() den Backslash aus ü und die bare Form „u00fc" bliebe bestehen.
+			if ( $dirty ) { update_post_meta( (int) $row->post_id, '_m24_preisoptionen', wp_json_encode( $arr, JSON_UNESCAPED_UNICODE ) ); $fixed++; }
+		}
+		return array( 'scanned' => $scanned, 'fixed' => $fixed );
 	}
 
 	/**

@@ -314,6 +314,13 @@ if ( class_exists( 'M24_Shopware_Media' ) ) {
 		WP_CLI::success( sprintf( '%d Teile · %d Bilder geladen · %d mit offenen Bildern · %d Fehler.', $total, $done, $pend, $err ) );
 	} );
 }
+// Einmalige Reparatur kaputter Varianten-Labels (u-Escapes) im Bestand.
+if ( class_exists( 'M24_Catalog_Pricing' ) ) {
+	WP_CLI::add_command( 'm24 fix-variant-labels', function ( $args, $assoc ) {
+		$r = M24_Catalog_Pricing::repair_labels();
+		WP_CLI::success( sprintf( '%d betroffene Posts geprüft · %d repariert.', $r['scanned'], $r['fixed'] ) );
+	} );
+}
 // Read-only Diagnose (paste-sicher, kein führendes wp nötig): Dubletten-Status nach typ.
 WP_CLI::add_command( 'm24 import-typ-status', function ( $args, $assoc ) {
 	foreach ( array( 'gebraucht', 'neu' ) as $typ ) {

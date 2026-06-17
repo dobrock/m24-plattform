@@ -20,10 +20,24 @@ class M24_Catalog_Fields {
 	public static function init() {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_box' ) );
 		add_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'save' ), 10, 2 );
+		// Einmalige Reparatur kaputter Varianten-Labels (u-Escapes ohne Backslash) im Bestand.
+		add_action( 'admin_init', array( __CLASS__, 'maybe_repair_variant_labels' ) );
 		// T22b: BMW-Teilenummer im Titel kompakten (prio 15, VOR auto_slug).
 		add_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'compact_bmw_in_title' ), 15, 2 );
 		// T8: Auto-Slug bei Titel-Change (prio 25, NACH save() bei prio 10).
 		add_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'auto_slug_from_title' ), 25, 2 );
+	}
+
+	/** Einmalig (flag-geschuetzt): Bestands-Varianten-Labels mit u-Escapes reparieren. */
+	public static function maybe_repair_variant_labels() {
+		if ( get_option( 'm24_variant_labels_repaired_v1' ) ) { return; }
+		update_option( 'm24_variant_labels_repaired_v1', gmdate( 'c' ) ); // zuerst sperren
+		if ( class_exists( 'M24_Catalog_Pricing' ) ) {
+			$r = M24_Catalog_Pricing::repair_labels();
+			if ( $r['fixed'] > 0 && class_exists( 'M24_Logger' ) ) {
+				M24_Logger::info( 'katalog', sprintf( 'Varianten-Labels repariert: %d/%d Posts.', $r['fixed'], $r['scanned'] ) );
+			}
+		}
 	}
 
 	public static function add_box() {
@@ -398,7 +412,7 @@ class M24_Catalog_Fields {
 				'brutto' => round( $brutto, 2 ),
 			);
 		}
-		update_post_meta( $post_id, '_m24_preisoptionen', wp_json_encode( $options ) );
+		update_post_meta( $post_id, '_m24_preisoptionen', wp_json_encode( $options, JSON_UNESCAPED_UNICODE ) );
 
 		// Single-Preis-Feld (legacy) synchron halten: erster Option-Preis als netto.
 		// Bei §25a ist das die brutto-Basis (wie alte Pricing-Konvention).
