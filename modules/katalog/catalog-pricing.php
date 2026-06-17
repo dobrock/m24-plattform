@@ -50,6 +50,20 @@ class M24_Catalog_Pricing {
 	}
 
 	/**
+	 * Varianten-Label saeubern: literal \uXXXX-Escapes → echtes Zeichen (z.B.
+	 * „Stoßstangen" → „Stoßstangen"). Quelle + Render nutzen dies (eine Stelle).
+	 */
+	public static function clean_label( $s ) {
+		$s = (string) $s;
+		if ( false !== strpos( $s, '\\u' ) ) {
+			$s = preg_replace_callback( '/\\\\u([0-9a-fA-F]{4})/', function ( $m ) {
+				return mb_convert_encoding( pack( 'H*', $m[1] ), 'UTF-8', 'UTF-16BE' );
+			}, $s );
+		}
+		return trim( (string) $s );
+	}
+
+	/**
 	 * Liest und parsed `_m24_preisoptionen`. Liefert IMMER ein Array (ggf. leer).
 	 * Jede Option ist normalisiert auf {label, art_nr, netto|null, brutto}.
 	 */
@@ -66,7 +80,7 @@ class M24_Catalog_Pricing {
 		foreach ( $arr as $opt ) {
 			if ( ! is_array( $opt ) ) { continue; }
 			$out[] = array(
-				'label'  => isset( $opt['label'] )  ? (string) $opt['label']  : '',
+				'label'  => isset( $opt['label'] )  ? self::clean_label( (string) $opt['label'] )  : '',
 				'art_nr' => isset( $opt['art_nr'] ) ? (string) $opt['art_nr'] : '',
 				'netto'  => ( isset( $opt['netto'] ) && '' !== $opt['netto'] && null !== $opt['netto'] ) ? (float) $opt['netto'] : null,
 				'brutto' => ( isset( $opt['brutto'] ) && '' !== $opt['brutto'] && null !== $opt['brutto'] ) ? (float) $opt['brutto'] : 0.0,

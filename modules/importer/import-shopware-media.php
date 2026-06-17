@@ -78,10 +78,10 @@ class M24_Shopware_Media {
 			}
 			if ( $att > 0 ) {
 				$done++;
-				if ( ! empty( $img['cover'] ) && ! $has_featured ) {
-					set_post_thumbnail( $post_id, $att );
-					$has_featured = $att;
-				} elseif ( ! in_array( $att, $gallery, true ) ) {
+				if ( ! empty( $img['cover'] ) ) {
+					// Cover → Featured (wenn leer); NIE zusaetzlich in die Galerie (kein Strip-Duplikat).
+					if ( ! $has_featured ) { set_post_thumbnail( $post_id, $att ); $has_featured = $att; }
+				} elseif ( $att !== $has_featured && ! in_array( $att, $gallery, true ) ) {
 					$gallery[] = $att;
 				}
 			} else {
@@ -132,6 +132,55 @@ class M24_Shopware_Media {
 			),
 		) );
 		return array_map( 'intval', $q );
+	}
+
+	/**
+	 * REBUILD-Worklist: Teile mit _m24_sw_id, deren Galerie unvollstaendig wirkt
+	 * (≤1 Bild) ODER offene Pending haben. Fuer Backfill der ALT-importierten
+	 * Cover-only-Teile (deren Galerie der --media-Pending-Pass nicht erreicht).
+	 */
+	public static function rebuild_worklist() {
+		$ids = get_posts( array(
+			'post_type' => 'm24_teil', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'no_found_rows' => true,
+			'meta_query' => array( array( 'key' => '_m24_sw_id', 'compare' => 'EXISTS' ) ),
+		) );
+		$out = array();
+		foreach ( $ids as $id ) {
+			$gal  = array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $id, '_m24_galerie', true ) ) ) );
+			$pend = self::get_pending( $id );
+			if ( count( $gal ) <= 1 || ! empty( $pend ) ) { $out[] = (int) $id; }
+		}
+		return array_values( (array) apply_filters( 'm24_media_rebuild_worklist', $out ) );
+	}
+
+	/**
+	 * REBUILD-Chunk: holt die Produkte (per _m24_sw_id) neu aus Shopware, setzt
+	 * _m24_img_pending = ALLE Medien und laedt sie (idempotent, Hash-Dedupe → nur
+	 * fehlende Downloads). Wirft NIE pro Produkt.
+	 */
+	public static function rebuild_chunk( array $post_ids, $timeout = self::DEFAULT_TIMEOUT ) {
+		$r = array( 'processed' => 0, 'new' => 0, 'img_pending' => 0, 'skipped' => 0, 'unresolved' => 0, 'errors' => 0 );
+		if ( empty( $post_ids ) || ! class_exists( 'M24_Shopware_Client' ) ) { return $r; }
+		$sw = array();
+		foreach ( $post_ids as $pid ) { $s = (string) get_post_meta( (int) $pid, '_m24_sw_id', true ); if ( '' !== $s ) { $sw[ $s ] = (int) $pid; } }
+		if ( empty( $sw ) ) { return $r; }
+		try { $products = ( new M24_Shopware_Client() )->fetch_products_by_ids( array_keys( $sw ) ); }
+		catch ( Exception $e ) { $r['errors'] = count( $post_ids ); return $r; }
+		$by = array();
+		foreach ( $products as $p ) { $by[ (string) ( $p['id'] ?? '' ) ] = $p; }
+		foreach ( $post_ids as $pid ) {
+			$r['processed']++;
+			$s = (string) get_post_meta( (int) $pid, '_m24_sw_id', true );
+			$p = isset( $by[ $s ] ) ? $by[ $s ] : null;
+			if ( null === $p ) { $r['errors']++; continue; }
+			try {
+				self::store_pending( (int) $pid, self::extract( $p ) ); // Pending = ALLE Medien
+				$a = self::attempt( (int) $pid, $timeout );
+				$r['new'] += (int) $a['done'];
+				if ( (int) $a['remaining'] > 0 ) { $r['img_pending']++; }
+			} catch ( Exception $e ) { $r['errors']++; }
+		}
+		return $r;
 	}
 
 	/** Statistik fuer --status: total ($typ) · mit Featured · mit offenem Pending. */

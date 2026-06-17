@@ -300,6 +300,20 @@ if ( class_exists( 'M24_Shopware_Rennsport' ) ) {
 if ( class_exists( 'M24_Shopware_Gebraucht' ) ) {
 	WP_CLI::add_command( 'm24 import-gebraucht', array( 'M24_Shopware_Gebraucht', 'cli' ) );
 }
+// Galerie-Rebuild aus Shopware (alle Teile mit unvollst. Galerie). Logik in import-shopware-media.php.
+if ( class_exists( 'M24_Shopware_Media' ) ) {
+	WP_CLI::add_command( 'm24 import-media-rebuild', function ( $args, $assoc ) {
+		$ids = M24_Shopware_Media::rebuild_worklist();
+		$total = count( $ids ); $done = 0; $pend = 0; $err = 0; $i = 0;
+		WP_CLI::log( '── Galerie-Rebuild: ' . $total . ' Teile mit unvollständiger Galerie ──' );
+		foreach ( array_chunk( $ids, 10 ) as $chunk ) {
+			$r = M24_Shopware_Media::rebuild_chunk( $chunk );
+			$done += (int) $r['new']; $pend += (int) $r['img_pending']; $err += (int) $r['errors']; $i += count( $chunk );
+			WP_CLI::log( sprintf( '  %d/%d · +%d Bilder · offen %d', $i, $total, $r['new'], $r['img_pending'] ) );
+		}
+		WP_CLI::success( sprintf( '%d Teile · %d Bilder geladen · %d mit offenen Bildern · %d Fehler.', $total, $done, $pend, $err ) );
+	} );
+}
 // Read-only Diagnose (paste-sicher, kein führendes wp nötig): Dubletten-Status nach typ.
 WP_CLI::add_command( 'm24 import-typ-status', function ( $args, $assoc ) {
 	foreach ( array( 'gebraucht', 'neu' ) as $typ ) {

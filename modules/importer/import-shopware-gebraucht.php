@@ -74,6 +74,40 @@ class M24_Shopware_Gebraucht {
 
 	public static function init() { /* Per-Produkt synchron; kein eigener AS-Hook noetig. */ }
 
+	/** Worklist fuer den Admin-Chunk-Loop: neue (noch nicht importierte) Gebraucht-sw_ids. */
+	public static function build_worklist() {
+		$client   = new M24_Shopware_Client();
+		$existing = self::existing_sw_ids();
+		$ids      = self::collect_ids( $client );
+		sort( $ids );
+		$new = array();
+		foreach ( $ids as $id ) { if ( ! isset( $existing[ $id ] ) ) { $new[] = $id; } }
+		return $new;
+	}
+
+	/** Verarbeitet einen Chunk sw_ids (Admin-AJAX). Gibt Zaehler zurueck. */
+	public static function process_chunk( array $sw_ids, $force = false ) {
+		$r = array( 'processed' => 0, 'new' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
+		if ( empty( $sw_ids ) ) { return $r; }
+		$client   = new M24_Shopware_Client();
+		$products = $client->fetch_products_by_ids( $sw_ids );
+		$by = array();
+		foreach ( $products as $p ) { $by[ (string) ( $p['id'] ?? '' ) ] = $p; }
+		foreach ( $sw_ids as $swid ) {
+			$r['processed']++;
+			$p = isset( $by[ $swid ] ) ? $by[ $swid ] : null;
+			if ( null === $p ) { $r['errors']++; continue; }
+			$res = self::import_one( $p, $force );
+			if ( in_array( $res['status'], array( 'created', 'updated' ), true ) ) {
+				$r['new']++;
+				if ( '' === $res['src'] ) { $r['unresolved']++; }
+			} elseif ( 'skipped_neu' === $res['status'] ) { $r['skipped']++; }
+			else { $r['errors']++; }
+			if ( is_array( $res['img'] ) && (int) $res['img']['remaining'] > 0 ) { $r['img_pending']++; }
+		}
+		return $r;
+	}
+
 	/** EIN Query: Set aller bereits importierten _m24_sw_id (typ-uebergreifend). */
 	private static function existing_sw_ids() {
 		global $wpdb;

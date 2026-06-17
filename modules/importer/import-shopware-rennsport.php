@@ -360,6 +360,45 @@ class M24_Shopware_Rennsport {
 		return $tot;
 	}
 
+	/** Worklist fuer den Admin-Chunk-Loop: neue Items [{id,term}] der gewaehlten Kategorien. */
+	public static function build_worklist( $keys = array() ) {
+		$map      = self::category_map();
+		$keys     = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
+		$client   = new M24_Shopware_Client();
+		$existing = self::existing_sw_ids();
+		$items    = array();
+		foreach ( $keys as $key ) {
+			$cfg = $map[ $key ];
+			$ids = self::collect_ids( $client, $cfg['cat'] );
+			sort( $ids );
+			foreach ( $ids as $id ) { if ( ! isset( $existing[ $id ] ) ) { $items[] = array( 'id' => $id, 'term' => $cfg['term'] ); } }
+		}
+		return $items;
+	}
+
+	/** Verarbeitet einen Chunk [{id,term}] (Admin-AJAX). Gibt Zaehler zurueck. */
+	public static function process_chunk( array $items, $force = false ) {
+		$r = array( 'processed' => 0, 'new' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
+		if ( empty( $items ) ) { return $r; }
+		$client = new M24_Shopware_Client();
+		$ids    = array();
+		foreach ( $items as $it ) { $ids[] = $it['id']; }
+		$products = $client->fetch_products_by_ids( $ids );
+		$by = array();
+		foreach ( $products as $p ) { $by[ (string) ( $p['id'] ?? '' ) ] = $p; }
+		foreach ( $items as $it ) {
+			$r['processed']++;
+			$p = isset( $by[ $it['id'] ] ) ? $by[ $it['id'] ] : null;
+			if ( null === $p ) { $r['errors']++; continue; }
+			$res = self::import_one( $p, $it['term'], $force );
+			if ( in_array( $res['status'], array( 'created', 'updated' ), true ) ) { $r['new']++; }
+			elseif ( 'skipped_gebraucht' === $res['status'] ) { $r['skipped']++; }
+			else { $r['errors']++; }
+			if ( is_array( $res['img'] ) && (int) $res['img']['remaining'] > 0 ) { $r['img_pending']++; }
+		}
+		return $r;
+	}
+
 	/** EIN Query: Set aller bereits in der DB vorhandenen _m24_sw_id (O(1)-Lookup im Lauf). */
 	private static function existing_sw_ids() {
 		global $wpdb;

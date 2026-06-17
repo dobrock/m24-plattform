@@ -460,11 +460,19 @@ class M24_Catalog_Template_Detail {
 					</div>
 
 						<div class="m24-actions-group">
-						<?php if ( ! $verkauft && ! $preis_auf_anfrage && ! empty( $pos_list ) && count( $pos_list ) > 1 ) : ?>
+						<?php
+						// Bug A: Dropdown listet AUSSCHLIESSLICH vom Nutzer eingegebene Varianten-Labels.
+						// Optionen ohne Label (Basis-/SKU-Auto-Option) werden NICHT als wählbarer Eintrag
+						// gezeigt; der Basis-Preis bleibt der Default. Original-Index als value (JS-Swap).
+						$variant_opts = array();
+						foreach ( $pos_list as $oi => $opt ) { if ( '' !== trim( (string) $opt['label'] ) ) { $variant_opts[ $oi ] = $opt; } }
+						?>
+						<?php if ( ! $verkauft && ! $preis_auf_anfrage && ! empty( $variant_opts ) ) : ?>
 							<div class="m24-varianten-wrap">
 								<label class="slabel" for="m24-varianten-<?php echo (int) $id; ?>">VARIANTE</label>
 								<select class="m24-varianten" id="m24-varianten-<?php echo (int) $id; ?>">
-									<?php foreach ( $pos_list as $oi => $opt ) : ?>
+									<option value="" disabled selected>Variante wählen …</option>
+									<?php foreach ( $variant_opts as $oi => $opt ) : ?>
 										<option value="<?php echo (int) $oi; ?>"
 											data-brutto="<?php echo esc_attr( (string) $opt['brutto'] ); ?>"
 											data-brutto-fmt="<?php echo esc_attr( $opt['brutto_fmt'] ); ?>"
@@ -472,7 +480,7 @@ class M24_Catalog_Template_Detail {
 											data-netto-fmt="<?php echo esc_attr( null !== $opt['netto_fmt'] ? $opt['netto_fmt'] : '' ); ?>"
 											data-artnr="<?php echo esc_attr( $opt['art_nr'] ); ?>"
 											data-label="<?php echo esc_attr( $opt['label'] ); ?>"
-										><?php echo esc_html( '' !== $opt['label'] ? $opt['label'] : ( $opt['art_nr'] ?: 'Option ' . ( $oi + 1 ) ) ); ?></option>
+										><?php echo esc_html( $opt['label'] ); ?></option>
 									<?php endforeach; ?>
 								</select>
 							</div>

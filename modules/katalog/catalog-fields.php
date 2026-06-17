@@ -379,7 +379,7 @@ class M24_Catalog_Fields {
 		$options  = array();
 		foreach ( $raw_opts as $r ) {
 			if ( ! is_array( $r ) ) { continue; }
-			$label  = isset( $r['label'] )  ? sanitize_text_field( (string) $r['label'] )  : '';
+			$label  = isset( $r['label'] )  ? M24_Catalog_Pricing::clean_label( sanitize_text_field( (string) $r['label'] ) )  : '';
 			$art_nr = isset( $r['art_nr'] ) ? sanitize_text_field( (string) $r['art_nr'] ) : '';
 			$brutto = isset( $r['brutto'] ) && '' !== $r['brutto'] ? (float) str_replace( ',', '.', (string) $r['brutto'] ) : 0.0;
 			$netto_raw = isset( $r['netto'] ) && '' !== $r['netto'] ? (float) str_replace( ',', '.', (string) $r['netto'] ) : null;
