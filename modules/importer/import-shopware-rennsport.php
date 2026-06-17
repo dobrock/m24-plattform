@@ -37,7 +37,12 @@ class M24_Shopware_Rennsport {
 	/** Quelle (Shopware-Kategorie-UUID) → Ziel-Modell-Term-Name (Hub-Term). Filterbar. */
 	public static function category_map() {
 		return apply_filters( 'm24_rennsport_category_map', array(
-			'z4-gt3' => array( 'cat' => '9a43ce428ef14ef6b2f5ca95da656f96', 'term' => 'Z4 GT3', 'label' => 'Z4 GT3' ),
+			// direct=true: zusätzlich die DIREKT am Kategorie-Knoten zugeordneten Produkte
+			// einsammeln (Shopware categoriesRo.path enthält NUR Vorfahren, nicht den Knoten
+			// selbst → sonst fehlen direkt zugeordnete Teile wie „Bodykit Paket"). NUR Z4 GT3,
+			// Straßenmodelle bleiben unverändert (path-only). Kategorie-UUID via Admin-API
+			// verifiziert = „Rennsport Teile passend für Z4 GT3".
+			'z4-gt3' => array( 'cat' => '9a43ce428ef14ef6b2f5ca95da656f96', 'term' => 'Z4 GT3', 'label' => 'Z4 GT3', 'direct' => true ),
 			'e30'    => array( 'cat' => 'be308dd9d7224d6294aaaa5c94b2bfb5', 'term' => 'M3 E30', 'label' => 'E30 / Gruppe A / DTM' ),
 			'e36'    => array( 'cat' => '1e561a3bba884c06b31b23968fce1d35', 'term' => 'M3 E36', 'label' => 'E36 / GT / DTM / STW' ),
 			'e46'    => array( 'cat' => 'e34b137d0cb94c14ac43e6411b2c417e', 'term' => 'M3 E46', 'label' => 'E46 / GTR / WTC' ),
@@ -95,7 +100,7 @@ class M24_Shopware_Rennsport {
 
 		foreach ( $keys as $key ) {
 			$cfg  = $map[ $key ];
-			$ids  = self::collect_ids( $client, $cfg['cat'] );
+			$ids  = self::collect_ids( $client, $cfg['cat'], ! empty( $cfg['direct'] ) );
 			$per_cat[ $key ] = count( $ids );
 			foreach ( array_chunk( $ids, $batch_size ) as $i => $batch_ids ) {
 				as_enqueue_async_action( self::HOOK,
@@ -205,8 +210,12 @@ class M24_Shopware_Rennsport {
 		return array( 'run' => $run, 'as' => $as );
 	}
 
-	/** Alle parentId=null-Produkt-IDs einer Kategorie seitenweise sammeln. */
-	private static function collect_ids( $client, $cat_uuid ) {
+	/**
+	 * Alle parentId=null-Produkt-IDs einer Kategorie seitenweise sammeln.
+	 * $include_direct=true ergänzt die DIREKT am Knoten zugeordneten Produkte
+	 * (categories.id == $uuid) — die categoriesRo.path NICHT erfasst (Pfad = nur Vorfahren).
+	 */
+	private static function collect_ids( $client, $cat_uuid, $include_direct = false ) {
 		$ids = array(); $page = 1; $size = 100;
 		while ( true ) {
 			$res  = $client->search_category_product_ids( $cat_uuid, $page, $size );
@@ -216,7 +225,31 @@ class M24_Shopware_Rennsport {
 			if ( count( $data ) < $size ) { break; }
 			$page++;
 		}
+		if ( $include_direct ) {
+			$ids = array_merge( $ids, self::collect_direct_ids( $client, $cat_uuid ) );
+		}
 		return array_values( array_unique( $ids ) );
+	}
+
+	/** Produkt-IDs, die DIREKT an der Kategorie hängen (categories.id == $uuid, parentId=null). */
+	private static function collect_direct_ids( $client, $cat_uuid ) {
+		$ids = array(); $page = 1; $size = 100;
+		while ( true ) {
+			$res = $client->post( '/api/search/product', array(
+				'filter'   => array(
+					array( 'type' => 'equals', 'field' => 'parentId',      'value' => null ),
+					array( 'type' => 'equals', 'field' => 'categories.id', 'value' => (string) $cat_uuid ),
+				),
+				'includes' => array( 'product' => array( 'id' ) ),
+				'page'     => $page, 'limit' => $size, 'total-count-mode' => 1,
+			) );
+			$data = isset( $res['data'] ) && is_array( $res['data'] ) ? $res['data'] : array();
+			if ( empty( $data ) ) { break; }
+			foreach ( $data as $p ) { $id = (string) ( $p['id'] ?? '' ); if ( '' !== $id ) { $ids[] = $id; } }
+			if ( count( $data ) < $size ) { break; }
+			$page++;
+		}
+		return $ids;
 	}
 
 	/**
@@ -317,7 +350,7 @@ class M24_Shopware_Rennsport {
 
 		foreach ( $keys as $key ) {
 			$cfg = $map[ $key ];
-			$ids = self::collect_ids( $client, $cfg['cat'] );
+			$ids = self::collect_ids( $client, $cfg['cat'], ! empty( $cfg['direct'] ) );
 			sort( $ids ); // deterministische Reihenfolge → monotoner Fortschritt
 			$n = count( $ids ); $i = 0; $c = 0; $u = 0; $s = 0; $se = 0;
 
@@ -369,7 +402,7 @@ class M24_Shopware_Rennsport {
 		$items    = array();
 		foreach ( $keys as $key ) {
 			$cfg = $map[ $key ];
-			$ids = self::collect_ids( $client, $cfg['cat'] );
+			$ids = self::collect_ids( $client, $cfg['cat'], ! empty( $cfg['direct'] ) );
 			sort( $ids );
 			foreach ( $ids as $id ) { if ( ! isset( $existing[ $id ] ) ) { $items[] = array( 'id' => $id, 'term' => $cfg['term'] ); } }
 		}
