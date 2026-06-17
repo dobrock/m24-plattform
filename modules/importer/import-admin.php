@@ -34,6 +34,24 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_dedup_report', array( __CLASS__, 'ajax_dedup_report' ) );
 		add_action( 'wp_ajax_m24_dedup_csv', array( __CLASS__, 'ajax_dedup_csv' ) );
 		add_action( 'wp_ajax_m24_dedup_cleanup', array( __CLASS__, 'ajax_dedup_cleanup' ) );
+		add_action( 'wp_ajax_m24_impact_report', array( __CLASS__, 'ajax_impact_report' ) );
+	}
+
+	/** Cleanup-Impact-Report (READ-ONLY, Always-JSON). Backup↔Live-Diff, Resume via offset. */
+	public static function ajax_impact_report() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$offset  = isset( $_POST['offset'] ) ? max( 0, (int) $_POST['offset'] ) : 0;
+			$summary = M24_Impact_Report::run( $offset );
+			if ( ! empty( $summary['error'] ) ) { self::json_error( $summary['error'] ); }
+			self::json_success( $summary );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
 	}
 
 	/** Dubletten-Cleanup Phase 2 (Always-JSON). Dry-Run default; Execute nur mit confirm=1. */
@@ -75,7 +93,7 @@ class M24_Import_Admin {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'keine Berechtigung', '', array( 'response' => 403 ) ); }
 		check_admin_referer( self::NONCE );
 		$file = isset( $_GET['file'] ) ? basename( sanitize_file_name( wp_unslash( $_GET['file'] ) ) ) : '';
-		if ( ! preg_match( '/^dedup-report-[0-9\-]+\.csv$/', $file ) ) { wp_die( 'ungültige Datei', '', array( 'response' => 400 ) ); }
+		if ( ! preg_match( '/^(dedup-report|dedup-cleanup-(plan|exec)|impact-report)-[0-9\-]+\.csv$/', $file ) ) { wp_die( 'ungültige Datei', '', array( 'response' => 400 ) ); }
 		$dir  = class_exists( 'M24_Import_Log' ) ? M24_Import_Log::dir() : trailingslashit( wp_upload_dir()['basedir'] ) . 'm24-logs';
 		$path = trailingslashit( $dir ) . $file;
 		if ( ! is_readable( $path ) ) { wp_die( 'nicht gefunden', '', array( 'response' => 404 ) ); }
@@ -296,6 +314,12 @@ class M24_Import_Admin {
 				</div>
 				<div id="m24clean-out" style="display:none;margin-top:10px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
 			</div>
+
+			<p style="margin-top:14px">
+				<button type="button" class="button" id="m24impact-btn">Cleanup-Impact-Report (read-only)</button>
+				<span style="margin-left:8px;font-size:13px;color:#888">Backup↔Live-Diff aller Bild-Zuordnungen · ändert nichts</span>
+			</p>
+			<div id="m24impact-out" style="display:none;max-width:760px;margin-top:8px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
 					<div id="m24imp-bar" style="background:linear-gradient(135deg,#1f74c4,#0e447e);height:100%;width:0;transition:width .2s"></div>
@@ -453,6 +477,29 @@ class M24_Import_Admin {
 			}
 			if(clDry){ clDry.addEventListener('click',function(){ cleanRun(false); }); }
 			if(clExec){ clExec.addEventListener('click',function(){ if(!clConf.checked) return; if(!confirm('Endgültig löschen? Nur nach-Umbiegen-verwaiste Dubletten, nie E36, nie referenzierte.')) return; cleanRun(true); }); }
+			// Cleanup-Impact-Report (read-only): loopt offset (HEAD-Checks), zeigt Summary + CSV.
+			var imBtn=document.getElementById('m24impact-btn'), imOut=document.getElementById('m24impact-out');
+			if(imBtn){ imBtn.addEventListener('click',async function(){
+				imBtn.disabled=true; imOut.style.display=''; imOut.textContent='Vergleiche Backup ↔ Live … (read-only)';
+				var off=0, acc={v:0,np:0,f:0}, last=null, types=null, guard=0;
+				try{
+					do{
+						var fd=new FormData(); fd.append('action','m24_impact_report'); fd.append('_nonce',NONCE); fd.append('offset',off);
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=JSON.parse(await r.text());
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						d=d.data; acc.v+=d.vorhanden; acc.np+=d.nur_photon; acc.f+=d.fehlt; last=d; if(off===0)types=d.betroffene_posts_je_typ; off=d.resume_offset|0;
+						imOut.textContent='Prüfe gelöschte Attachments … '+d.geprueft+'/'+d.geloeschte_gesamt;
+					} while(off>0 && ++guard<5000);
+					var csv=AJAX+'?action=m24_dedup_csv&file='+encodeURIComponent(last.csv_name)+'&_wpnonce='+encodeURIComponent(NONCE);
+					var th=''; if(types){ for(var k in types){ th+='&nbsp;&nbsp;'+k+': '+types[k]+'<br>'; } }
+					imOut.innerHTML='<strong>Impact-Report (read-only) · Backup '+last.backup_db+'</strong><br>'+
+						'Betroffene Posts je Typ:<br>'+(th||'&nbsp;&nbsp;—<br>')+
+						'Gelöschte Attachments: '+last.geloeschte_gesamt+' · vorhanden '+acc.v+' · nur_photon '+acc.np+' · fehlt '+acc.f+'<br>'+
+						'<a href="'+csv+'">CSV herunterladen</a> ('+last.csv_name+')';
+				}catch(e){ imOut.textContent='Abgebrochen: '+e.message; }
+				imBtn.disabled=false;
+			}); }
 		})();
 		</script>
 		<?php
