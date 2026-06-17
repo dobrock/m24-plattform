@@ -89,7 +89,7 @@ class M24_Shopware_Media {
 			// (resumierbar), schuetzt vor Einzel-Produkt das den Call sprengt (viele tote Bilder).
 			if ( $deadline > 0 && microtime( true ) >= $deadline ) { $remaining[] = $img; continue; }
 			try {
-				$att = self::download_attach( $url, $post_id, $hash, $timeout );
+				$att = self::get_or_create_attachment( $hash, $url, $post_id, $timeout );
 			} catch ( Exception $e ) {
 				$att = 0;
 			}
@@ -313,7 +313,7 @@ class M24_Shopware_Media {
 			M24_Import_Log::log( sprintf( 'media #%d: lade Bild %s (mem %s/%s · pending nach drop: %d · timeout %ds)', $post_id, $url, size_format( memory_get_usage( true ) ), ini_get( 'memory_limit' ), count( $pending ), $timeout ) );
 			$t0  = microtime( true );
 			try {
-				$att = self::download_attach( $url, $post_id, $hash, $timeout );
+				$att = self::get_or_create_attachment( $hash, $url, $post_id, $timeout );
 			} catch ( Exception $e ) {
 				$att = 0; $error = $e->getMessage();
 			}
@@ -366,15 +366,55 @@ class M24_Shopware_Media {
 	}
 
 	/**
+	 * EINE Quelle der Wahrheit (Dedup-Guard 0.9.26): Attachment per Shopware-Media-Hash
+	 * GLOBAL wiederverwenden ODER neu anlegen. BEIDE Pfade (Erstimport + Galerie-Nachladen)
+	 * laufen hier durch → kein neuer Dubletten-Nachschub. Hash ist PRE-Download bestimmbar
+	 * (media.metaData.hash) → Guard greift VOR dem Download (spart Bandbreite + 30s-Budget).
+	 * Aendert/merged KEINE bestehenden Attachments — verhindert nur Neuanlagen.
+	 *
+	 * @return int Attachment-ID (0 = Platzhalter uebersprungen ODER Download-Fehler).
+	 */
+	public static function get_or_create_attachment( $hash, $url, $post_id, $timeout = self::DEFAULT_TIMEOUT ) {
+		$hash = (string) $hash;
+		// 1) GLOBAL wiederverwenden (niedrigste ID = Keeper-Regel des Reports 0.9.25).
+		if ( '' !== $hash ) {
+			$ex = self::find_by_hash( $hash );
+			if ( $ex > 0 ) { return $ex; }
+		}
+		// 2) „Bild folgt"-Platzhalter NIE als Attachment anlegen (Frontend-Platzhalter-Rendering folgt).
+		if ( self::is_placeholder_url( $url ) ) {
+			if ( class_exists( 'M24_Import_Log' ) ) { M24_Import_Log::log( sprintf( 'media #%d: Platzhalter uebersprungen (kein Attachment) — %s', (int) $post_id, $url ) ); }
+			return 0;
+		}
+		// 3) Neu anlegen (Download + Sideload; _m24_sw_media_hash wird dabei gesetzt — Pflicht).
+		return self::download_attach( $url, (int) $post_id, $hash, $timeout );
+	}
+
+	/** Niedrigste Attachment-ID mit diesem Shopware-Media-Hash (Keeper-Regel) — 0 = keine. */
+	public static function find_by_hash( $hash ) {
+		$hash = (string) $hash;
+		if ( '' === $hash ) { return 0; }
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_m24_sw_media_hash' AND meta_value = %s ORDER BY post_id ASC LIMIT 1", $hash
+		) ); // phpcs:ignore WordPress.DB
+	}
+
+	/** Platzhalter-Quelle „Bild folgt" erkennen → nie als Attachment anlegen. */
+	public static function is_placeholder_url( $url ) {
+		return (bool) preg_match( '/bild[-_]?folgt/i', (string) $url );
+	}
+
+	/**
 	 * Bild laden (kurzer Timeout) + an Produkt haengen, Hash-Dedupe. Gibt Attachment-ID
 	 * oder 0 zurueck. Wirft NIE — WP_Error/Timeout → 0, Tempfile aufgeraeumt.
+	 * Direkter Aufruf nur via get_or_create_attachment() (zentraler Guard).
 	 */
 	private static function download_attach( $url, $post_id, $hash, $timeout ) {
-		// Hash-Dedupe: existierenden Anhang wiederverwenden.
+		// Hash-Dedupe (Belt; Guard hat i.d.R. schon dedupliziert) — niedrigste ID = Keeper.
 		if ( '' !== $hash ) {
-			$ex = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'numberposts' => 1, 'fields' => 'ids', 'no_found_rows' => true,
-				'meta_query' => array( array( 'key' => '_m24_sw_media_hash', 'value' => $hash ) ) ) );
-			if ( ! empty( $ex ) ) { return (int) $ex[0]; }
+			$ex = self::find_by_hash( $hash );
+			if ( $ex > 0 ) { return $ex; }
 		}
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/media.php';

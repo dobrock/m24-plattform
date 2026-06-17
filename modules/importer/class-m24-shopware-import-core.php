@@ -107,7 +107,8 @@ trait M24_Shopware_Import_Core {
 		$hash = (string) ( $mob['metaData']['hash'] ?? '' );
 		if ( '' === $url ) { return false; }
 
-		$att = $this->sideload_image( $url, $post_id, $hash );
+		// Dedup-Guard 0.9.26: globaler Wiederverwendungs-/Platzhalter-Schutz (eine Quelle).
+		$att = class_exists( 'M24_Shopware_Media' ) ? M24_Shopware_Media::get_or_create_attachment( $hash, $url, $post_id ) : $this->sideload_image( $url, $post_id, $hash );
 		if ( $att > 0 ) {
 			set_post_thumbnail( $post_id, $att );
 			if ( defined( 'WP_CLI' ) && WP_CLI ) { WP_CLI::log( '   → Cover gesetzt (ID ' . $att . ')' ); }
@@ -473,9 +474,13 @@ trait M24_Shopware_Import_Core {
 				$att_id = $hash_idx[ $hash ];
 				$reused++;
 			} else {
-				$att_id = $this->sideload_image( $url, $post_id, $hash );
+				// Dedup-Guard 0.9.26: GLOBALE Wiederverwendung (nicht nur post-lokal) → kein
+				// neues Attachment, wenn der Hash bereits irgendwo existiert. Platzhalter werden
+				// uebersprungen (att_id=0). Eine Quelle der Wahrheit fuer beide Import-Pfade.
+				$existing = ( '' !== $hash && class_exists( 'M24_Shopware_Media' ) ) ? M24_Shopware_Media::find_by_hash( $hash ) : 0;
+				$att_id   = class_exists( 'M24_Shopware_Media' ) ? M24_Shopware_Media::get_or_create_attachment( $hash, $url, $post_id ) : $this->sideload_image( $url, $post_id, $hash );
 				if ( $att_id > 0 ) {
-					$imported++;
+					if ( $existing > 0 ) { $reused++; } else { $imported++; }
 					if ( '' !== $hash ) { $hash_idx[ $hash ] = $att_id; }
 				} else {
 					$errors++;
