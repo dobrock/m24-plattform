@@ -70,13 +70,25 @@ class M24_Catalog_Archive {
 		return isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 	}
 
-	/** Counts je Kategorie (aktive Teile) — eine DB-Abfrage fuer den Umschalter. */
-	public static function kat_counts() {
+	/**
+	 * Counts je Kategorie (aktive Teile) — eine DB-Abfrage fuer den Umschalter.
+	 * $modell (Term-Slug) eingeschraenkt: respektiert die aktuelle Modell-Auswahl.
+	 */
+	public static function kat_counts( $modell = '' ) {
 		global $wpdb;
-		$rows = $wpdb->get_results( "SELECT t.meta_value AS typ, COUNT(*) AS n
-			FROM {$wpdb->posts} p
-			JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = '_m24_status' AND s.meta_value = 'aktiv'
-			JOIN {$wpdb->postmeta} t ON t.post_id = p.ID AND t.meta_key = '_m24_typ'
+		$join  = "JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = '_m24_status' AND s.meta_value = 'aktiv'
+			JOIN {$wpdb->postmeta} t ON t.post_id = p.ID AND t.meta_key = '_m24_typ'";
+		if ( '' !== $modell ) {
+			$ttids = $wpdb->get_col( $wpdb->prepare(
+				"SELECT tt.term_taxonomy_id FROM {$wpdb->term_taxonomy} tt JOIN {$wpdb->terms} te ON te.term_id = tt.term_id WHERE tt.taxonomy = %s AND te.slug = %s",
+				self::TAXONOMY, $modell
+			) ); // phpcs:ignore WordPress.DB
+			if ( empty( $ttids ) ) { return array( 'rennsport' => 0, 'gebraucht' => 0, 'alle' => 0 ); }
+			$in    = implode( ',', array_map( 'intval', $ttids ) );
+			$join .= " JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID AND tr.term_taxonomy_id IN ($in)";
+		}
+		$rows = $wpdb->get_results( "SELECT t.meta_value AS typ, COUNT(DISTINCT p.ID) AS n
+			FROM {$wpdb->posts} p $join
 			WHERE p.post_type = '" . esc_sql( self::POST_TYPE ) . "' AND p.post_status = 'publish'
 			GROUP BY t.meta_value" ); // phpcs:ignore WordPress.DB
 		$neu = 0; $geb = 0;
@@ -283,22 +295,25 @@ class M24_Catalog_Archive {
 	}
 
 	/**
-	 * Hub-artige Toolbar fuer die Typ-Archive: Suche · Kategorie-Umschalter (Rennsport·
-	 * Gebraucht·Alle mit Counts) · Modell-/Sortier-Select · Ansicht (3·4·Liste).
-	 * Server-seitig (Links/GET) → eindeutige, verlinkbare Filter-URLs, kein REST/AJAX.
+	 * Toolbar fuer die Typ-Archive — optisch 1:1 zur Modell-Hub-Leiste: dieselben
+	 * Klassen (m24hub-controls/search/katsw/viewsw/sortwrap) und dasselbe CSS (in der
+	 * Archiv-View unter .m24-archiv gespiegelt). EINE Reihe: Suche · Rennsport/Gebraucht/
+	 * Alle · 3/4/Liste · Modell + Sortieren. Server-seitig (Links/GET) → linkbare URLs.
 	 */
 	public static function toolbar() {
 		$kat    = self::current_kat();
 		$q      = self::current_q();
 		$sort   = self::current_sort();
-		$counts = self::kat_counts();
+		$modell = self::current_modell();
+		$counts = self::kat_counts( $modell ); // Counts respektieren die Modell-Auswahl
 		$base   = home_url( '/' . self::current_prefix() . '/' );
 		$label  = ( 'alle' === $kat ) ? 'allen Teilen' : ( ( 'gebraucht' === $kat ) ? 'Gebrauchtteilen' : 'Rennsport-Teilen' );
 
-		// q + Sortierung in den Umschalter-Links erhalten (linkbar/kopierbar).
+		// q + Sortierung + Modell in den Umschalter-Links erhalten (linkbar/kopierbar).
 		$keep = array();
 		if ( '' !== $q ) { $keep['q'] = $q; }
 		if ( 'neueste' !== $sort ) { $keep['m24_sort'] = $sort; }
+		if ( '' !== $modell ) { $keep['m24_modell'] = $modell; }
 		$kats = array(
 			'rennsport' => array( 'Rennsport', add_query_arg( $keep, home_url( '/rennsport-teile/' ) ), $counts['rennsport'] ),
 			'gebraucht' => array( 'Gebraucht', add_query_arg( $keep, home_url( '/gebrauchtteile/' ) ),  $counts['gebraucht'] ),
@@ -307,30 +322,69 @@ class M24_Catalog_Archive {
 
 		ob_start();
 		?>
-		<div class="m24-atb">
-			<form class="m24-atb__form" method="get" action="<?php echo esc_url( $base ); ?>" role="search">
-				<?php if ( 'alle' === $kat ) : ?><input type="hidden" name="kat" value="alle"><?php endif; ?>
-				<div class="m24-atb__search">
-					<svg class="m24-atb__si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
-					<input id="m24-atb-q" name="q" type="search" value="<?php echo esc_attr( $q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $label . ' suchen …' ); ?>" aria-label="Teile durchsuchen">
-				</div>
-				<div class="m24-atb__selects">
-					<?php echo self::modell_select(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
-					<?php echo self::sort_select();   // phpcs:ignore WordPress.Security.EscapeOutput ?>
-					<noscript><button type="submit" class="m24-filter__go">Anwenden</button></noscript>
-				</div>
-			</form>
-			<div class="m24-atb__row">
-				<div class="m24-atb__kat" role="group" aria-label="Kategorie wählen">
+		<form class="m24hub-controls" method="get" action="<?php echo esc_url( $base ); ?>" role="search">
+			<?php if ( 'alle' === $kat ) : ?><input type="hidden" name="kat" value="alle"><?php endif; ?>
+			<div class="m24hub-search">
+				<svg class="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+				<input id="m24-atb-q" name="q" type="search" value="<?php echo esc_attr( $q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $label . ' suchen …' ); ?>" aria-label="Teile durchsuchen">
+			</div>
+			<div class="m24hub-controls-right">
+				<div class="m24hub-katsw" role="group" aria-label="Kategorie wählen">
 					<?php foreach ( $kats as $kv => $d ) : ?>
-						<a href="<?php echo esc_url( $d[1] ); ?>" class="m24-atb__katbtn<?php echo $kat === $kv ? ' on' : ''; ?>" rel="nofollow"><?php echo esc_html( $d[0] ); ?> <span class="m24-atb__n">(<?php echo esc_html( number_format_i18n( $d[2] ) ); ?>)</span></a>
+						<a href="<?php echo esc_url( $d[1] ); ?>" data-kat="<?php echo esc_attr( $kv ); ?>" class="<?php echo $kat === $kv ? 'on' : ''; ?>" rel="nofollow"><?php echo esc_html( $d[0] ); ?> <span class="m24hub-katn">(<?php echo esc_html( number_format_i18n( $d[2] ) ); ?>)</span></a>
 					<?php endforeach; ?>
 				</div>
-				<?php echo self::grid_toggle(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+				<div class="m24hub-viewsw" id="m24-archiv-viewsw" role="group" aria-label="Ansicht wählen">
+					<button type="button" data-view="view-3" title="3 Spalten" aria-label="3 Spalten"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2" width="3.2" height="12" rx="1"></rect><rect x="6.4" y="2" width="3.2" height="12" rx="1"></rect><rect x="11.8" y="2" width="3.2" height="12" rx="1"></rect></svg>3</button>
+					<button type="button" data-view="view-4" class="on" title="4 Spalten" aria-label="4 Spalten"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="0.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="4.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="8.5" y="2" width="2.6" height="12" rx="0.8"></rect><rect x="12.5" y="2" width="2.6" height="12" rx="0.8"></rect></svg>4</button>
+					<button type="button" data-view="view-list" title="Listenansicht" aria-label="Listenansicht"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2.5" width="14" height="2.4" rx="1"></rect><rect x="1" y="6.8" width="14" height="2.4" rx="1"></rect><rect x="1" y="11.1" width="14" height="2.4" rx="1"></rect></svg>Liste</button>
+				</div>
+				<div class="m24hub-sortwrap">
+					<label for="m24-modell">Modell:</label>
+					<select id="m24-modell" name="m24_modell" onchange="this.form.submit()"><?php echo self::modell_options( $modell ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
+					<label for="m24-sort">Sortieren:</label>
+					<select id="m24-sort" name="m24_sort" onchange="this.form.submit()"><?php echo self::sort_options( $sort ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
+					<noscript><button type="submit" class="m24hub-resetq">Anwenden</button></noscript>
+				</div>
 			</div>
-		</div>
+		</form>
 		<?php
 		return ob_get_clean();
+	}
+
+	/** Nur die <option>-Liste fuer den Modell-Select (Optgroups Eltern/Kind). */
+	public static function modell_options( $current = '' ) {
+		$terms = get_terms( array( 'taxonomy' => self::TAXONOMY, 'hide_empty' => true, 'orderby' => 'name' ) );
+		$out   = '<option value=""' . selected( $current, '', false ) . '>Alle Modelle</option>';
+		if ( is_wp_error( $terms ) || empty( $terms ) ) { return $out; }
+		$by_parent = array();
+		foreach ( $terms as $t ) { $by_parent[ (int) $t->parent ][] = $t; }
+		$roots = isset( $by_parent[0] ) ? $by_parent[0] : array();
+		foreach ( $roots as $root ) {
+			$children = isset( $by_parent[ $root->term_id ] ) ? $by_parent[ $root->term_id ] : array();
+			if ( $children ) {
+				$out .= '<optgroup label="' . esc_attr( $root->name ) . '">' . self::option( $root, $current );
+				foreach ( $children as $child ) { $out .= self::option( $child, $current ); }
+				$out .= '</optgroup>';
+			} else {
+				$out .= self::option( $root, $current );
+			}
+		}
+		return $out;
+	}
+
+	/** Nur die <option>-Liste fuer den Sortier-Select. */
+	public static function sort_options( $current = '' ) {
+		$sorts = array(
+			'neueste'   => 'Neueste zuerst',
+			'preis_auf' => 'Günstigste zuerst',
+			'preis_ab'  => 'Teuerste zuerst',
+		);
+		$out = '';
+		foreach ( $sorts as $val => $lbl ) {
+			$out .= '<option value="' . esc_attr( $val ) . '"' . selected( $current, $val, false ) . '>' . esc_html( $lbl ) . '</option>';
+		}
+		return $out;
 	}
 
 	public static function controls_form() {

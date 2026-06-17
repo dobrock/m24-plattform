@@ -96,23 +96,35 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 .m24-filter__label{font-size:14px;font-weight:600;}
 .m24-filter__select{font:inherit;padding:8px 30px 8px 12px;border:1px solid #cfd2d6;border-radius:8px;background:#fff;color:var(--m24-ink);cursor:pointer;}
 .m24-filter__select:focus{outline:2px solid var(--m24-blue);outline-offset:1px;}
-/* Hub-artige Toolbar (Typ-Archive) */
-.m24-atb{display:flex;flex-direction:column;gap:14px;width:100%;}
-.m24-atb__form{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0;}
-.m24-atb__search{position:relative;flex:1 1 280px;min-width:220px;display:flex;align-items:center;}
-.m24-atb__search .m24-atb__si{position:absolute;left:12px;color:var(--m24-muted);pointer-events:none;}
-.m24-atb__search input{width:100%;font:inherit;padding:9px 12px 9px 34px;border:1px solid #cfd2d6;border-radius:8px;background:#fff;color:var(--m24-ink);}
-.m24-atb__search input:focus{outline:2px solid var(--m24-blue);outline-offset:1px;}
-.m24-atb__selects{display:flex;flex-wrap:wrap;align-items:center;gap:16px;}
-.m24-atb__row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;}
-.m24-atb__kat{display:flex;gap:4px;background:var(--m24-surface);padding:4px;border-radius:10px;}
-.m24-atb__katbtn{font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;color:var(--m24-muted);text-decoration:none;line-height:1;white-space:nowrap;}
-.m24-atb__katbtn.on{background:#fff;color:var(--m24-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
-.m24-atb__n{color:var(--m24-muted);font-weight:500;}
-.m24-atb__katbtn.on .m24-atb__n{color:var(--m24-blue);}
-.m24-gridswitch{display:flex;gap:4px;background:var(--m24-surface);padding:4px;border-radius:10px;}
-.m24-gridswitch__btn{font:inherit;font-size:13px;font-weight:600;min-width:38px;padding:7px 10px;border:0;border-radius:7px;background:transparent;color:var(--m24-muted);cursor:pointer;line-height:1;}
-.m24-gridswitch__btn[aria-pressed="true"]{background:#fff;color:var(--m24-ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+/* Toolbar 1:1 zur Modell-Hub-Leiste — identische Klassen + CSS (aus catalog-hub-view.php
+   gespiegelt, unter .m24-archiv gescoped, damit der Hub unangetastet bleibt). */
+.m24-archiv{--m24hub-ctl-h:38px;}
+.m24-archiv .m24hub-controls{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0;}
+.m24-archiv .m24hub-search{position:relative;flex:1 1 240px;min-width:180px;max-width:360px;}
+.m24-archiv .m24hub-search input{width:100%;height:var(--m24hub-ctl-h);padding:0 14px 0 40px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:var(--text);box-sizing:border-box;}
+.m24-archiv .m24hub-search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(23,99,173,.12);}
+.m24-archiv .m24hub-search .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);}
+.m24-archiv .m24hub-controls-right{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:wrap;}
+.m24-archiv .m24hub-sortwrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap;flex:0 0 auto;}
+.m24-archiv .m24hub-sortwrap select{height:var(--m24hub-ctl-h);font-family:inherit;font-size:14px;line-height:1.2;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer;box-sizing:border-box;}
+.m24-archiv .m24hub-resetq{font-size:13px;color:var(--blue);white-space:nowrap;}
+.m24-archiv .m24hub-katsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box;}
+.m24-archiv .m24hub-katsw a{display:inline-flex;align-items:center;padding:0 14px;cursor:pointer;color:var(--muted);border-left:1px solid var(--line);font-size:13px;font-weight:600;text-decoration:none;}
+.m24-archiv .m24hub-katsw a:first-child{border-left:none;}
+.m24-archiv .m24hub-katsw a.on{background:var(--blue);color:#fff;}
+.m24-archiv .m24hub-katsw a:hover:not(.on){background:#f0f0ee;}
+.m24-archiv .m24hub-katsw .m24hub-katn{font-weight:500;opacity:.7;font-size:12px;margin-left:1px;}
+.m24-archiv .m24hub-viewsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box;}
+.m24-archiv .m24hub-viewsw button{border:none;background:#fff;padding:0 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600;}
+.m24-archiv .m24hub-viewsw button:first-child{border-left:none;}
+.m24-archiv .m24hub-viewsw button.on{background:var(--blue);color:#fff;}
+.m24-archiv .m24hub-viewsw button:hover:not(.on){background:#f0f0ee;}
+.m24-archiv .m24hub-viewsw svg{fill:currentColor;flex:0 0 auto;}
+@media(max-width:680px){
+	.m24-archiv .m24hub-controls{gap:12px;}
+	.m24-archiv .m24hub-search{flex:1 1 100%;max-width:none;order:-1;}
+	.m24-archiv .m24hub-controls-right{width:100%;justify-content:flex-start;}
+}
 .m24-archiv__grid{display:grid;gap:22px;}
 .m24-archiv__grid--2{grid-template-columns:repeat(2,1fr);}
 .m24-archiv__grid--3{grid-template-columns:repeat(3,1fr);}
@@ -146,28 +158,31 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 <script>
 (function(){
 	var grid = document.getElementById('m24-grid');
-	var sw   = document.querySelector('.m24-gridswitch');
+	var sw   = document.getElementById('m24-archiv-viewsw');
 	if(!grid || !sw){ return; }
 	// KEY v2: alte „2er"-Stände (Schlüssel m24_grid) werden ignoriert → Default 4.
 	var KEY = 'm24_grid2';
-	var classes = ['list','3','4'];
-	function apply(v){
-		if(v === '2' || classes.indexOf(v) === -1){ v = '4'; } // „2" → 4 (nie wiederherstellen)
+	var map = { 'view-3':'3', 'view-4':'4', 'view-list':'list' };
+	function apply(view){
+		// Legacy-Werte (0.9.14: '3'/'4'/'list', alt '2') auf view-* normalisieren.
+		if(view==='3'||view==='4'||view==='list'){ view='view-'+view; }
+		if(!map[view]){ view='view-4'; } // „2"/unbekannt → 4 (nie wiederherstellen)
+		var v = map[view];
 		['list','2','3','4'].forEach(function(c){ grid.classList.remove('m24-archiv__grid--'+c); });
 		grid.classList.add('m24-archiv__grid--'+v);
-		sw.querySelectorAll('.m24-gridswitch__btn').forEach(function(b){
-			b.setAttribute('aria-pressed', b.getAttribute('data-grid') === v ? 'true' : 'false');
+		sw.querySelectorAll('button[data-view]').forEach(function(b){
+			b.classList.toggle('on', b.getAttribute('data-view') === view);
 		});
 	}
 	var saved = null;
 	try { saved = localStorage.getItem(KEY); } catch(e){}
-	apply(saved || '4');
+	apply(saved || 'view-4');
 	sw.addEventListener('click', function(e){
-		var b = e.target.closest('.m24-gridswitch__btn');
+		var b = e.target.closest('button[data-view]');
 		if(!b){ return; }
-		var v = b.getAttribute('data-grid');
-		apply(v);
-		try { localStorage.setItem(KEY, v); } catch(e){}
+		var view = b.getAttribute('data-view');
+		apply(view);
+		try { localStorage.setItem(KEY, view); } catch(e){}
 	});
 })();
 </script>
