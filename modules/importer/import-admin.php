@@ -31,6 +31,41 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_import_log', array( __CLASS__, 'ajax_log' ) );
 		add_action( 'wp_ajax_m24_import_log_clear', array( __CLASS__, 'ajax_log_clear' ) );
 		add_action( 'wp_ajax_m24_opcache_reset', array( __CLASS__, 'ajax_opcache_reset' ) );
+		add_action( 'wp_ajax_m24_dedup_report', array( __CLASS__, 'ajax_dedup_report' ) );
+		add_action( 'wp_ajax_m24_dedup_csv', array( __CLASS__, 'ajax_dedup_csv' ) );
+	}
+
+	/** Bild-Dubletten-Report (READ-ONLY, Always-JSON). Resume via offset. */
+	public static function ajax_dedup_report() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$offset = isset( $_POST['offset'] ) ? max( 0, (int) $_POST['offset'] ) : 0;
+			$summary = M24_Dedup_Report::run( $offset );
+			self::json_success( $summary );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
+	}
+
+	/** CSV-Download des Reports (READ-ONLY, manage_options, Nonce). Nur dedup-report-*.csv aus m24-logs. */
+	public static function ajax_dedup_csv() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'keine Berechtigung', '', array( 'response' => 403 ) ); }
+		check_admin_referer( self::NONCE );
+		$file = isset( $_GET['file'] ) ? basename( sanitize_file_name( wp_unslash( $_GET['file'] ) ) ) : '';
+		if ( ! preg_match( '/^dedup-report-[0-9\-]+\.csv$/', $file ) ) { wp_die( 'ungültige Datei', '', array( 'response' => 400 ) ); }
+		$dir  = class_exists( 'M24_Import_Log' ) ? M24_Import_Log::dir() : trailingslashit( wp_upload_dir()['basedir'] ) . 'm24-logs';
+		$path = trailingslashit( $dir ) . $file;
+		if ( ! is_readable( $path ) ) { wp_die( 'nicht gefunden', '', array( 'response' => 404 ) ); }
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $file . '"' );
+		header( 'Content-Length: ' . filesize( $path ) );
+		readfile( $path ); // phpcs:ignore — read-only Auslieferung der Report-CSV
+		exit;
 	}
 
 	/** Manueller OPcache-Reset (Always-JSON). Gegen stale Bytecode nach Deploys. */
@@ -223,6 +258,11 @@ class M24_Import_Admin {
 				<button class="button" data-m24imp="seotitel">SEO-Titel neu generieren</button>
 				<span style="margin-left:8px;font-size:13px;color:#888">erzeugt &lt;title&gt; + Meta-Description aller Teile neu aus dem Artikel-Titel</span>
 			</p>
+			<p style="margin-top:4px">
+				<button type="button" class="button" id="m24dedup-btn">Dubletten-Report (read-only)</button>
+				<span style="margin-left:8px;font-size:13px;color:#888">analysiert Bild-Dubletten · ändert/löscht NICHTS</span>
+			</p>
+			<div id="m24dedup-out" style="display:none;max-width:760px;margin-top:8px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
 					<div id="m24imp-bar" style="background:linear-gradient(135deg,#1f74c4,#0e447e);height:100%;width:0;transition:width .2s"></div>
@@ -325,6 +365,30 @@ class M24_Import_Admin {
 				setTimeout(function(){ b.textContent=old; b.disabled=false; },2500); refreshLog();
 			});
 			refreshLog();
+			// Dubletten-Report (read-only): loopt mit offset bis fertig, zeigt Summary + CSV-Link.
+			var ddBtn=document.getElementById('m24dedup-btn'), ddOut=document.getElementById('m24dedup-out');
+			if(ddBtn){ ddBtn.addEventListener('click',async function(){
+				ddBtn.disabled=true; ddOut.style.display=''; ddOut.textContent='Analysiere Attachments … (read-only)';
+				var off=0, acc={u:0,e:0,v:0}, last=null, guard=0;
+				try{
+					do{
+						var fd=new FormData(); fd.append('action','m24_dedup_report'); fd.append('_nonce',NONCE); fd.append('offset',off);
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=JSON.parse(await r.text());
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						d=d.data; acc.u+=d.dubletten_ueberschuss; acc.e+=d.davon_eingebunden; acc.v+=d.davon_verwaist; last=d; off=d.resume_offset|0;
+						if(off){ ddOut.textContent='Analysiere … Gruppen bis '+d.gruppen_verarbeitet+' (read-only)'; }
+					} while(off>0 && ++guard<200);
+					var csv=AJAX+'?action=m24_dedup_csv&file='+encodeURIComponent(last.csv_name)+'&_wpnonce='+encodeURIComponent(NONCE);
+					ddOut.innerHTML='<strong>Dubletten-Report (read-only — nichts geändert)</strong><br>'+
+						'Attachments gesamt: '+last.total_attachments+'<br>'+
+						'Dedup-Gruppen: '+last.dedup_gruppen+'<br>'+
+						'Dubletten-Überschuss: '+acc.u+' (eingebunden '+acc.e+' · verwaiste Gruppen '+acc.v+')<br>'+
+						'„Bild folgt": '+last.platzhalter_attachments+' Attachments an '+last.platzhalter_an_teile+' Teilen<br>'+
+						'<a href="'+csv+'">CSV herunterladen</a> ('+last.csv_name+')';
+				}catch(e){ ddOut.textContent='Abgebrochen: '+e.message; }
+				ddBtn.disabled=false;
+			}); }
 		})();
 		</script>
 		<?php
