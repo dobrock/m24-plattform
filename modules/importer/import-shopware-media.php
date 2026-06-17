@@ -187,6 +187,105 @@ class M24_Shopware_Media {
 		return $r;
 	}
 
+	/**
+	 * EIN winziger Rebuild-Schritt fuer EIN Produkt — entweder Seeding (Pending-Liste
+	 * aus Shopware befuellen) ODER genau EIN Bild laden. Jeder Request bleibt klein
+	 * (1 Shopware-Fetch ODER 1 download_url+Sideload, wenige Sekunden) → weit unter
+	 * jedem FPM-/OOM-Limit, das den Shutdown-Handler umgeht. State zwischen Calls:
+	 *   _m24_img_pending (verbleibende Bilder) + _m24_media_seed (Run-Token).
+	 *
+	 * @return array { stage:'seed'|'image', product_done:bool, pending:int, new:int, error:string }
+	 */
+	public static function rebuild_step( $post_id, $run_token, $timeout = 12 ) {
+		$post_id   = (int) $post_id;
+		$run_token = (string) $run_token;
+		$seed      = (string) get_post_meta( $post_id, '_m24_media_seed', true );
+
+		// Phase 1 — Seeding: einmal pro Lauf die Bild-URLs aus Shopware holen (kein Download).
+		if ( $seed !== $run_token ) {
+			$sw_id = (string) get_post_meta( $post_id, '_m24_sw_id', true );
+			$imgs  = array();
+			$err   = '';
+			if ( '' === $sw_id ) {
+				$err = 'kein _m24_sw_id';
+			} elseif ( ! class_exists( 'M24_Shopware_Client' ) ) {
+				$err = 'Shopware-Client fehlt';
+			} else {
+				M24_Import_Log::log( sprintf( 'media #%d: seed — Shopware-Fetch sw_id=%s', $post_id, $sw_id ) );
+				try {
+					$prods = ( new M24_Shopware_Client() )->fetch_products_by_ids( array( $sw_id ) );
+					$p     = ( is_array( $prods ) && isset( $prods[0] ) ) ? $prods[0] : null;
+					if ( $p ) { $imgs = self::extract( $p ); } else { $err = 'Shopware: Produkt nicht gefunden'; }
+				} catch ( Exception $e ) {
+					$err = 'Shopware-Fetch: ' . $e->getMessage();
+				}
+			}
+			self::store_pending( $post_id, $imgs );
+			update_post_meta( $post_id, '_m24_media_seed', $run_token );
+			$pending = count( $imgs );
+			M24_Import_Log::log( sprintf( 'media #%d: seed fertig — %d Bilder pending%s', $post_id, $pending, '' !== $err ? ( ' · ' . $err ) : '' ) );
+			return array( 'stage' => 'seed', 'product_done' => ( 0 === $pending ), 'pending' => $pending, 'new' => 0, 'error' => $err );
+		}
+
+		// Phase 2 — genau EIN Bild laden.
+		return self::download_one( $post_id, $timeout );
+	}
+
+	/**
+	 * Laedt GENAU EIN Pending-Bild (das erste), haengt es an, entfernt es aus Pending.
+	 * Fehlgeschlagene Bilder werden VERWORFEN (nicht zurueckgelegt) — sonst Endlos-
+	 * schleife auf einem toten Bild. Reseeding (neuer Run) holt sie idempotent zurueck.
+	 * Speicher wird pro Request freigegeben (genau 1 media_handle_sideload).
+	 *
+	 * @return array { stage:'image', product_done:bool, pending:int, new:int, error:string }
+	 */
+	public static function download_one( $post_id, $timeout = 12 ) {
+		$post_id = (int) $post_id;
+		$pending = self::get_pending( $post_id );
+		if ( empty( $pending ) ) {
+			return array( 'stage' => 'image', 'product_done' => true, 'pending' => 0, 'new' => 0, 'error' => '' );
+		}
+
+		$gallery      = array_values( array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $post_id, '_m24_galerie', true ) ) ) ) );
+		$has_featured = (int) get_post_thumbnail_id( $post_id );
+
+		$img  = array_shift( $pending ); // erstes Bild — wird so oder so aus Pending entfernt
+		$url  = (string) ( $img['url'] ?? '' );
+		$hash = (string) ( $img['hash'] ?? '' );
+		$new  = 0; $error = '';
+
+		if ( '' !== $url ) {
+			M24_Import_Log::log( sprintf( 'media #%d: lade Bild %s (mem %s / limit %s · pending vor: %d)', $post_id, $url, size_format( memory_get_usage( true ) ), ini_get( 'memory_limit' ), count( $pending ) + 1 ) );
+			$t0  = microtime( true );
+			try {
+				$att = self::download_attach( $url, $post_id, $hash, $timeout );
+			} catch ( Exception $e ) {
+				$att = 0; $error = $e->getMessage();
+			}
+			$ms = (int) round( ( microtime( true ) - $t0 ) * 1000 );
+			if ( $att > 0 ) {
+				$new = 1;
+				if ( ! empty( $img['cover'] ) ) {
+					if ( ! $has_featured ) { set_post_thumbnail( $post_id, $att ); $has_featured = $att; }
+				} elseif ( $att !== $has_featured && ! in_array( $att, $gallery, true ) ) {
+					$gallery[] = $att;
+				}
+				M24_Import_Log::log( sprintf( 'media #%d: OK att=%d in %dms (peak %s)', $post_id, $att, $ms, size_format( memory_get_peak_usage( true ) ) ) );
+			} else {
+				$error = '' !== $error ? $error : 'Download/Sideload fehlgeschlagen';
+				M24_Import_Log::log( sprintf( 'media #%d: FEHLER %s nach %dms — verworfen (%s)', $post_id, $url, $ms, $error ) );
+			}
+		}
+
+		// Featured-Fallback: kein Cover, aber Galerie vorhanden → erstes Bild.
+		if ( ! $has_featured && ! empty( $gallery ) ) { set_post_thumbnail( $post_id, (int) $gallery[0] ); }
+		update_post_meta( $post_id, '_m24_galerie', implode( ',', $gallery ) );
+		self::store_pending( $post_id, $pending ); // Rest ohne das eben verarbeitete Bild
+		unset( $img );
+
+		return array( 'stage' => 'image', 'product_done' => empty( $pending ), 'pending' => count( $pending ), 'new' => $new, 'error' => $error );
+	}
+
 	/** Statistik fuer --status: total ($typ) · mit Featured · mit offenem Pending. */
 	public static function media_stats( $typ = 'neu' ) {
 		$neu = get_posts( array(
