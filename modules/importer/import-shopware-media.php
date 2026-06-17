@@ -40,13 +40,27 @@ class M24_Shopware_Media {
 
 	/** Pending-URLs am Produkt ablegen (überschreibt; Produkt existiert bereits). */
 	public static function store_pending( $post_id, array $images ) {
-		if ( empty( $images ) ) { delete_post_meta( (int) $post_id, self::PENDING_META ); return; }
-		update_post_meta( (int) $post_id, self::PENDING_META, wp_json_encode( array_values( $images ) ) );
+		if ( empty( $images ) ) { delete_post_meta( (int) $post_id, self::PENDING_META ); }
+		else { update_post_meta( (int) $post_id, self::PENDING_META, wp_json_encode( array_values( $images ) ) ); }
+		// Object-Cache (Redis/Memcached) hart invalidieren — sonst liefert der naechste
+		// Request stale „pending=0", obwohl der Seed gerade N Bilder schrieb (Prod-Bug 0.9.x).
+		wp_cache_delete( (int) $post_id, 'post_meta' );
 	}
 
-	/** Pending-Liste eines Produkts lesen. */
-	public static function get_pending( $post_id ) {
-		$raw = (string) get_post_meta( (int) $post_id, self::PENDING_META, true );
+	/**
+	 * Pending-Liste eines Produkts lesen. $fresh=true umgeht den Object-Cache (direkter
+	 * DB-Read) — Pflicht im Rebuild-Step, weil ein persistenter Object-Cache auf PROD
+	 * sonst stale „pending=0" zurueckgibt und der Step nie von seed → download springt.
+	 */
+	public static function get_pending( $post_id, $fresh = false ) {
+		$post_id = (int) $post_id;
+		if ( $fresh ) {
+			global $wpdb;
+			wp_cache_delete( $post_id, 'post_meta' ); // WP-Meta-Cache fuer diesen Post leeren
+			$raw = (string) $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id DESC LIMIT 1", $post_id, self::PENDING_META ) ); // phpcs:ignore WordPress.DB
+		} else {
+			$raw = (string) get_post_meta( $post_id, self::PENDING_META, true );
+		}
 		$arr = '' !== $raw ? json_decode( $raw, true ) : array();
 		return is_array( $arr ) ? $arr : array();
 	}
@@ -200,14 +214,24 @@ class M24_Shopware_Media {
 		$post_id   = (int) $post_id;
 		$run_token = (string) $run_token;
 
+		// GROUND-TRUTH: was liest der Storage am Step-START wirklich zurueck? (Prod-Diagnose:
+		// Seed schreibt N, naechster Step liest 0 → Object-Cache-Stale sofort sichtbar.)
+		$pending_now = self::get_pending( $post_id, true ); // fresh = direkter DB-Read, kein Cache
+		self::cache_flush( $post_id );
+		$seed = (string) get_post_meta( $post_id, '_m24_media_seed', true );
+		M24_Import_Log::log( sprintf(
+			'step start #%d: read pending=%d (key=%s · marker=%s · run=%s · ext_cache=%s)',
+			$post_id, count( $pending_now ), self::PENDING_META, '' !== $seed ? $seed : '(leer)', $run_token,
+			( function_exists( 'wp_using_ext_object_cache' ) && wp_using_ext_object_cache() ) ? 'JA' : 'nein'
+		) );
+
 		// VORRANG: Existiert eine Pending-Liste, wird IMMER genau 1 Bild geladen — nie neu
 		// geseedet. Das ist immun gegen Token-Wechsel und garantiert Fortschritt (seed→download).
-		if ( ! empty( self::get_pending( $post_id ) ) ) {
+		if ( ! empty( $pending_now ) ) {
 			return self::download_one( $post_id, $timeout );
 		}
 
 		// Pending leer: entweder in DIESEM Lauf schon geseedet (→ Produkt fertig) ODER noch nicht.
-		$seed = (string) get_post_meta( $post_id, '_m24_media_seed', true );
 		if ( $seed === $run_token ) {
 			return array( 'stage' => 'image', 'product_done' => true, 'pending' => 0, 'new' => 0, 'error' => '' );
 		}
@@ -234,9 +258,20 @@ class M24_Shopware_Media {
 		// Produkt ohne Bilder wird beim naechsten Call als „fertig" erkannt, nie endlos re-geseedet.
 		self::store_pending( $post_id, $imgs );
 		update_post_meta( $post_id, '_m24_media_seed', $run_token );
+		self::cache_flush( $post_id );
 		$pending = count( $imgs );
-		M24_Import_Log::log( sprintf( 'media #%d: seed fertig — %d Bilder pending%s', $post_id, $pending, '' !== $err ? ( ' · ' . $err ) : '' ) );
+		// SMOKING GUN: direkt aus der DB zurueckgelesen (umgeht Cache) — landete der Write?
+		global $wpdb;
+		$db_raw = (string) $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id DESC LIMIT 1", $post_id, self::PENDING_META ) ); // phpcs:ignore WordPress.DB
+		$db_marker = (string) $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id DESC LIMIT 1", $post_id, '_m24_media_seed' ) ); // phpcs:ignore WordPress.DB
+		$db_pending = is_array( $j = json_decode( $db_raw, true ) ) ? count( $j ) : 0;
+		M24_Import_Log::log( sprintf( 'media #%d: seed fertig — %d Bilder pending%s · DB-readback pending=%d marker=%s', $post_id, $pending, '' !== $err ? ( ' · ' . $err ) : '', $db_pending, '' !== $db_marker ? $db_marker : '(leer)' ) );
 		return array( 'stage' => 'seed', 'product_done' => ( 0 === $pending ), 'pending' => $pending, 'new' => 0, 'error' => $err );
+	}
+
+	/** Object-Cache (Redis/Memcached) fuer die Meta dieses Posts hart leeren — Prod-stale-fest. */
+	private static function cache_flush( $post_id ) {
+		wp_cache_delete( (int) $post_id, 'post_meta' );
 	}
 
 	/**
@@ -249,7 +284,7 @@ class M24_Shopware_Media {
 	 */
 	public static function download_one( $post_id, $timeout = 12 ) {
 		$post_id = (int) $post_id;
-		$pending = self::get_pending( $post_id );
+		$pending = self::get_pending( $post_id, true ); // fresh: stale „pending=0" darf nicht faelschlich „fertig" melden
 		if ( empty( $pending ) ) {
 			return array( 'stage' => 'image', 'product_done' => true, 'pending' => 0, 'new' => 0, 'error' => '' );
 		}
