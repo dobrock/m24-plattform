@@ -33,6 +33,25 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_opcache_reset', array( __CLASS__, 'ajax_opcache_reset' ) );
 		add_action( 'wp_ajax_m24_dedup_report', array( __CLASS__, 'ajax_dedup_report' ) );
 		add_action( 'wp_ajax_m24_dedup_csv', array( __CLASS__, 'ajax_dedup_csv' ) );
+		add_action( 'wp_ajax_m24_dedup_cleanup', array( __CLASS__, 'ajax_dedup_cleanup' ) );
+	}
+
+	/** Dubletten-Cleanup Phase 2 (Always-JSON). Dry-Run default; Execute nur mit confirm=1. */
+	public static function ajax_dedup_cleanup() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$offset  = isset( $_POST['offset'] ) ? max( 0, (int) $_POST['offset'] ) : 0;
+			// EXECUTE nur wenn BEIDES gesetzt ist (Button-Flag + Confirm-Checkbox) — sonst Dry-Run.
+			$execute = ! empty( $_POST['execute'] ) && ! empty( $_POST['confirm'] );
+			$summary = M24_Dedup_Cleanup::run( $execute, $offset );
+			self::json_success( $summary );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
 	}
 
 	/** Bild-Dubletten-Report (READ-ONLY, Always-JSON). Resume via offset. */
@@ -263,6 +282,18 @@ class M24_Import_Admin {
 				<span style="margin-left:8px;font-size:13px;color:#888">analysiert Bild-Dubletten · ändert/löscht NICHTS</span>
 			</p>
 			<div id="m24dedup-out" style="display:none;max-width:760px;margin-top:8px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
+
+			<div style="max-width:760px;margin-top:14px;border:1px solid #dcdcde;border-radius:6px;padding:12px;background:#fff">
+				<p style="margin:0 0 8px;font-weight:600">Dubletten-Cleanup (Phase 2)</p>
+				<p style="margin:0 0 8px">
+					<button type="button" class="button" id="m24clean-dry">Dubletten bereinigen — DRY-RUN (Plan, ändert nichts)</button>
+				</p>
+				<div style="border-top:1px dashed #dcdcde;margin-top:10px;padding-top:10px">
+					<label style="display:block;font-size:13px;color:#a00;margin-bottom:6px"><input type="checkbox" id="m24clean-confirm"> Ich habe ein <strong>DB- + uploads-Backup</strong> und will endgültig löschen.</label>
+					<button type="button" class="button" id="m24clean-exec" style="background:#a00;border-color:#a00;color:#fff" disabled>AUSFÜHREN — löscht endgültig</button>
+				</div>
+				<div id="m24clean-out" style="display:none;margin-top:10px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
+			</div>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
 					<div id="m24imp-bar" style="background:linear-gradient(135deg,#1f74c4,#0e447e);height:100%;width:0;transition:width .2s"></div>
@@ -389,6 +420,37 @@ class M24_Import_Admin {
 				}catch(e){ ddOut.textContent='Abgebrochen: '+e.message; }
 				ddBtn.disabled=false;
 			}); }
+			// Dubletten-Cleanup Phase 2: Dry-Run (offset-Resume) + Execute (confirm-gated, idempotent-Loop).
+			var clDry=document.getElementById('m24clean-dry'), clExec=document.getElementById('m24clean-exec'),
+			    clConf=document.getElementById('m24clean-confirm'), clOut=document.getElementById('m24clean-out');
+			if(clConf){ clConf.addEventListener('change',function(){ clExec.disabled=!clConf.checked; }); }
+			async function cleanRun(execute){
+				clDry.disabled=true; clExec.disabled=true; clOut.style.display='';
+				clOut.textContent=execute?'AUSFÜHREN … (löscht endgültig)':'Erstelle Plan … (read-only)';
+				var off=0, acc={rw:0,del:0,e36:0,ref:0,ph:0,phs:0}, last=null, guard=0;
+				try{
+					do{
+						var fd=new FormData(); fd.append('action','m24_dedup_cleanup'); fd.append('_nonce',NONCE); fd.append('offset',off);
+						if(execute){ fd.append('execute','1'); fd.append('confirm', clConf.checked?'1':''); }
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=JSON.parse(await r.text());
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						d=d.data; acc.rw+=d.rewire; acc.del+=d.delete; acc.e36+=d.skip_e36; acc.ref+=d.skip_referenziert; acc.ph+=d.platzhalter_geloescht; acc.phs+=d.platzhalter_skip_ref; last=d; off=d.resume_offset|0;
+						clOut.textContent=(execute?'AUSFÜHREN':'Plan')+' … Gruppen '+d.gruppen_verarbeitet+'/'+d.gruppen_gesamt;
+					} while(off>0 && ++guard<5000);
+					var csv=AJAX+'?action=m24_dedup_csv&file='+encodeURIComponent(last.csv_name)+'&_wpnonce='+encodeURIComponent(NONCE);
+					clOut.innerHTML='<strong>'+last.modus+' — '+(execute?'ausgeführt':'Plan erstellt (nichts geändert)')+'</strong><br>'+
+						'Gruppen: '+last.gruppen_gesamt+'<br>'+
+						(execute?'umgebogen':'würde umbiegen')+': '+acc.rw+'<br>'+
+						(execute?'gelöscht':'würde löschen')+': '+acc.del+'<br>'+
+						'übersprungen E36: '+acc.e36+' · noch referenziert: '+acc.ref+'<br>'+
+						'Platzhalter '+(execute?'gelöscht':'löschbar')+': '+acc.ph+' (referenziert übersprungen: '+acc.phs+')<br>'+
+						'<a href="'+csv+'">CSV (Plan) herunterladen</a> ('+last.csv_name+')';
+				}catch(e){ clOut.textContent='Abgebrochen: '+e.message; }
+				clDry.disabled=false; clExec.disabled=!clConf.checked;
+			}
+			if(clDry){ clDry.addEventListener('click',function(){ cleanRun(false); }); }
+			if(clExec){ clExec.addEventListener('click',function(){ if(!clConf.checked) return; if(!confirm('Endgültig löschen? Nur nach-Umbiegen-verwaiste Dubletten, nie E36, nie referenzierte.')) return; cleanRun(true); }); }
 		})();
 		</script>
 		<?php

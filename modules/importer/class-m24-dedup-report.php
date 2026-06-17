@@ -33,48 +33,8 @@ class M24_Dedup_Report {
 
 		$total = (int) $wpdb->get_var( "SELECT COUNT(ID) FROM {$wpdb->posts} WHERE post_type='attachment'" ); // phpcs:ignore WordPress.DB
 
-		// group_concat-Limit hochsetzen (große Gruppen) — Session-only, read-only.
-		$wpdb->query( 'SET SESSION group_concat_max_len = 1000000' ); // phpcs:ignore WordPress.DB
-
-		// 1) Hash-Gruppen (exakte Quelle) — rein SQL, kein WP_Post-Laden.
-		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT meta_value AS k, COUNT(*) AS n, GROUP_CONCAT(post_id ORDER BY post_id) AS ids
-			 FROM {$wpdb->postmeta} WHERE meta_key=%s AND meta_value<>''
-			 GROUP BY meta_value HAVING n>1 ORDER BY n DESC", self::SRC_KEY
-		) ); // phpcs:ignore WordPress.DB
-		$groups = array(); $hash_member_ids = array();
-		foreach ( (array) $rows as $r ) {
-			$ids = array_map( 'intval', explode( ',', (string) $r->ids ) );
-			$groups[] = array( 'key' => 'hash:' . $r->k, 'ids' => $ids );
-			foreach ( $ids as $id ) { $hash_member_ids[ $id ] = true; }
-		}
-
-		// 2) Dateinamen-Fallback: Attachments OHNE Hash, gruppiert nach normalisiertem Stamm.
-		$files = $wpdb->get_results( $wpdb->prepare(
-			"SELECT pm.post_id AS id, pm.meta_value AS f
-			 FROM {$wpdb->postmeta} pm
-			 LEFT JOIN {$wpdb->postmeta} h ON h.post_id=pm.post_id AND h.meta_key=%s
-			 WHERE pm.meta_key='_wp_attached_file' AND ( h.meta_value IS NULL OR h.meta_value='' )", self::SRC_KEY
-		) ); // phpcs:ignore WordPress.DB
-		$by_stem = array();
-		foreach ( (array) $files as $f ) {
-			$id = (int) $f->id;
-			if ( isset( $hash_member_ids[ $id ] ) ) { continue; }
-			$stem = self::normalize_stem( (string) $f->f );
-			if ( '' === $stem ) { continue; }
-			$by_stem[ $stem ][] = $id;
-		}
-		foreach ( $by_stem as $stem => $ids ) {
-			if ( count( $ids ) > 1 ) { sort( $ids ); $groups[] = array( 'key' => 'file:' . $stem, 'ids' => $ids ); }
-		}
-
-		// Einbindungs-Maps (einmalig, bounded) über ALLE Gruppen-Mitglieder.
-		$all_ids = array();
-		foreach ( $groups as $g ) { foreach ( $g['ids'] as $id ) { $all_ids[ $id ] = true; } }
-		$thumb_map   = self::thumbnail_map( array_keys( $all_ids ) ); // att_id => [teil_id,...]
-		$gal_map     = self::gallery_map( array_keys( $all_ids ) );   // att_id => [teil_id,...]
-		$content_map = self::content_map( $all_ids );                 // att_id => teil_id (1 Query statt N LIKE)
-		$e36_teile   = self::e36_teil_ids();                          // teil_id => true
+		// EINE Quelle: Gruppierung + Keeper + Einbindung (auch vom Cleanup 0.9.27 genutzt).
+		$analysis = self::analyze();
 
 		// CSV vorbereiten.
 		$dir = ( class_exists( 'M24_Import_Log' ) ? M24_Import_Log::dir() : trailingslashit( wp_upload_dir()['basedir'] ) . 'm24-logs' );
@@ -87,43 +47,26 @@ class M24_Dedup_Report {
 		}
 
 		$ueberschuss = 0; $eingebunden = 0; $verwaist = 0; $processed = 0; $resume = 0;
-		$gtotal = count( $groups );
+		$gtotal = count( $analysis );
 		for ( $gi = (int) $offset; $gi < $gtotal; $gi++ ) {
 			if ( ( microtime( true ) - $start ) >= self::TIME_BUDGET ) { $resume = $gi; break; }
-			$g   = $groups[ $gi ];
+			$g   = $analysis[ $gi ];
 			$ids = $g['ids'];
 			$ueberschuss += count( $ids ) - 1;
-
-			// Einbindung je Mitglied bestimmen.
-			$emb = array(); // id => ['als'=>thumbnail|galerie|content, 'teile'=>[id,...]]
+			if ( $g['orphan'] ) { $verwaist++; }
 			foreach ( $ids as $id ) {
-				$teile = array(); $als = '';
-				if ( ! empty( $thumb_map[ $id ] ) ) { $als = 'thumbnail'; $teile = $thumb_map[ $id ]; }
-				elseif ( ! empty( $gal_map[ $id ] ) ) { $als = 'galerie'; $teile = $gal_map[ $id ]; }
-				elseif ( ! empty( $content_map[ $id ] ) ) { $als = 'content'; $teile = array( $content_map[ $id ] ); }
-				if ( '' !== $als ) { $emb[ $id ] = array( 'als' => $als, 'teile' => $teile ); }
-			}
-
-			// Keeper: bevorzugt eingebundenes, sonst niedrigste ID. Mehrere eingebunden → niedrigste.
-			$embedded_ids = array_keys( $emb );
-			sort( $embedded_ids );
-			$is_orphan = empty( $embedded_ids );
-			$keeper = $is_orphan ? min( $ids ) : $embedded_ids[0];
-			if ( $is_orphan ) { $verwaist++; }
-
-			foreach ( $ids as $id ) {
-				if ( $id === $keeper ) { continue; }
-				$emb_here = isset( $emb[ $id ] );
+				if ( $id === $g['keeper'] ) { continue; }
+				$emb_here = isset( $g['emb'][ $id ] );
 				if ( $emb_here ) { $eingebunden++; }
-				$teile = $emb_here ? $emb[ $id ]['teile'] : array( 0 );
-				$als   = $emb_here ? $emb[ $id ]['als'] : '';
+				$teile = $emb_here ? $g['emb'][ $id ]['teile'] : array( 0 );
+				$als   = $emb_here ? $g['emb'][ $id ]['als'] : '';
 				foreach ( $teile as $tid ) {
 					$flag = array();
-					if ( $is_orphan ) { $flag[] = 'verwaist'; }
-					if ( $tid && isset( $e36_teile[ $tid ] ) ) { $flag[] = 'E36'; }
+					if ( $g['orphan'] ) { $flag[] = 'verwaist'; }
+					if ( $g['e36'] ) { $flag[] = 'E36'; }
 					if ( $fh ) {
 						fputcsv( $fh, array(
-							$g['key'], $keeper, $id, $emb_here ? 'ja' : 'nein', $als,
+							$g['key'], $g['keeper'], $id, $emb_here ? 'ja' : 'nein', $als,
 							$tid ?: '', $tid ? get_the_title( $tid ) : '', implode( '|', $flag ),
 						) );
 					}
@@ -150,6 +93,81 @@ class M24_Dedup_Report {
 			'resume_offset'        => $resume, // 0 = fertig, sonst hier fortsetzen
 			'seconds'              => round( microtime( true ) - $start, 1 ),
 		);
+	}
+
+	/**
+	 * KANONISCHE Gruppierung + Keeper + Einbindung (EINE Quelle für Report 0.9.25 UND
+	 * Cleanup 0.9.27). Liefert je Gruppe: key, ids[], keeper, orphan, e36 (Gruppen-Ebene),
+	 * emb[id] = ['als'=>thumbnail|galerie|content, 'teile'=>[teil_id,…]].
+	 */
+	public static function analyze() {
+		global $wpdb;
+		$wpdb->query( 'SET SESSION group_concat_max_len = 1000000' ); // phpcs:ignore WordPress.DB
+
+		// 1) Hash-Gruppen (exakte Quelle).
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT meta_value AS k, COUNT(*) AS n, GROUP_CONCAT(post_id ORDER BY post_id) AS ids
+			 FROM {$wpdb->postmeta} WHERE meta_key=%s AND meta_value<>''
+			 GROUP BY meta_value HAVING n>1 ORDER BY n DESC", self::SRC_KEY
+		) ); // phpcs:ignore WordPress.DB
+		$groups = array(); $hash_member_ids = array();
+		foreach ( (array) $rows as $r ) {
+			$ids = array_map( 'intval', explode( ',', (string) $r->ids ) );
+			$groups[] = array( 'key' => 'hash:' . $r->k, 'ids' => $ids );
+			foreach ( $ids as $id ) { $hash_member_ids[ $id ] = true; }
+		}
+
+		// 2) Dateinamen-Fallback (nur Attachments OHNE Hash).
+		$files = $wpdb->get_results( $wpdb->prepare(
+			"SELECT pm.post_id AS id, pm.meta_value AS f
+			 FROM {$wpdb->postmeta} pm
+			 LEFT JOIN {$wpdb->postmeta} h ON h.post_id=pm.post_id AND h.meta_key=%s
+			 WHERE pm.meta_key='_wp_attached_file' AND ( h.meta_value IS NULL OR h.meta_value='' )", self::SRC_KEY
+		) ); // phpcs:ignore WordPress.DB
+		$by_stem = array();
+		foreach ( (array) $files as $f ) {
+			$id = (int) $f->id;
+			if ( isset( $hash_member_ids[ $id ] ) ) { continue; }
+			$stem = self::normalize_stem( (string) $f->f );
+			if ( '' === $stem ) { continue; }
+			$by_stem[ $stem ][] = $id;
+		}
+		foreach ( $by_stem as $stem => $ids ) {
+			if ( count( $ids ) > 1 ) { sort( $ids ); $groups[] = array( 'key' => 'file:' . $stem, 'ids' => $ids ); }
+		}
+
+		// Einbindungs-Maps (einmalig, bounded).
+		$all_ids = array();
+		foreach ( $groups as $g ) { foreach ( $g['ids'] as $id ) { $all_ids[ $id ] = true; } }
+		$thumb_map   = self::thumbnail_map( array_keys( $all_ids ) );
+		$gal_map     = self::gallery_map( array_keys( $all_ids ) );
+		$content_map = self::content_map( $all_ids );
+		$e36_teile   = self::e36_teil_ids();
+
+		$out = array();
+		foreach ( $groups as $g ) {
+			$emb = array(); $teile_all = array();
+			foreach ( $g['ids'] as $id ) {
+				$als = ''; $teile = array();
+				if ( ! empty( $thumb_map[ $id ] ) ) { $als = 'thumbnail'; $teile = $thumb_map[ $id ]; }
+				elseif ( ! empty( $gal_map[ $id ] ) ) { $als = 'galerie'; $teile = $gal_map[ $id ]; }
+				elseif ( ! empty( $content_map[ $id ] ) ) { $als = 'content'; $teile = array( $content_map[ $id ] ); }
+				if ( '' !== $als ) { $emb[ $id ] = array( 'als' => $als, 'teile' => $teile ); foreach ( $teile as $t ) { $teile_all[ $t ] = true; } }
+			}
+			$embedded = array_keys( $emb ); sort( $embedded );
+			$orphan   = empty( $embedded );
+			$e36      = false;
+			foreach ( array_keys( $teile_all ) as $t ) { if ( isset( $e36_teile[ $t ] ) ) { $e36 = true; break; } }
+			$out[] = array(
+				'key'    => $g['key'],
+				'ids'    => $g['ids'],
+				'keeper' => $orphan ? min( $g['ids'] ) : $embedded[0],
+				'orphan' => $orphan,
+				'e36'    => $e36,
+				'emb'    => $emb,
+			);
+		}
+		return $out;
 	}
 
 	/** Dateinamen-Stamm normalisieren: Pfad/Endung weg, -scaled, Größen -WxH, WP-Suffix -N. */
@@ -217,15 +235,21 @@ class M24_Dedup_Report {
 		return $set;
 	}
 
-	/** „Bild folgt"-Platzhalter zählen + an wie viele Teile sie als Featured hängen. */
-	private static function placeholder_block() {
+	/** Attachment-IDs der „Bild folgt"-Platzhalter (Titel/Dateiname). Auch vom Cleanup genutzt. */
+	public static function placeholder_ids() {
 		global $wpdb;
 		$ids = $wpdb->get_col(
 			"SELECT p.ID FROM {$wpdb->posts} p
 			 LEFT JOIN {$wpdb->postmeta} f ON f.post_id=p.ID AND f.meta_key='_wp_attached_file'
 			 WHERE p.post_type='attachment'
 			 AND ( p.post_title LIKE 'bild%folgt%' OR f.meta_value LIKE '%bild-folgt%' )" ); // phpcs:ignore WordPress.DB
-		$ids = array_map( 'intval', (array) $ids );
+		return array_map( 'intval', (array) $ids );
+	}
+
+	/** „Bild folgt"-Platzhalter zählen + an wie viele Teile sie als Featured hängen. */
+	private static function placeholder_block() {
+		global $wpdb;
+		$ids = self::placeholder_ids();
 		if ( empty( $ids ) ) { return array( 'count' => 0, 'teile' => 0 ); }
 		$in = implode( ',', $ids );
 		$teile = (int) $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key='_thumbnail_id' AND meta_value IN ($in)" ); // phpcs:ignore WordPress.DB
