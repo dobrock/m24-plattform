@@ -27,13 +27,23 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_' . self::ACTION, array( __CLASS__, 'ajax' ) );
 		add_action( 'wp_ajax_m24_import_log', array( __CLASS__, 'ajax_log' ) );
 		add_action( 'wp_ajax_m24_import_log_clear', array( __CLASS__, 'ajax_log_clear' ) );
+		add_action( 'wp_ajax_m24_opcache_reset', array( __CLASS__, 'ajax_opcache_reset' ) );
+	}
+
+	/** Manueller OPcache-Reset (Always-JSON). Gegen stale Bytecode nach Deploys. */
+	public static function ajax_opcache_reset() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'keine Berechtigung' ) ); }
+		check_ajax_referer( self::NONCE, '_nonce' );
+		$ok = class_exists( 'M24_Updater' ) ? M24_Updater::reset_opcache( 'manuell (Diagnose-Button)' ) : ( function_exists( 'opcache_reset' ) && @opcache_reset() ); // phpcs:ignore
+		wp_send_json_success( array( 'ok' => (bool) $ok, 'message' => $ok ? 'OPcache geleert — Bytecode wird neu kompiliert.' : 'OPcache nicht aktiv / Funktion fehlt.' ) );
 	}
 
 	/** Diagnose: letzte Log-Zeilen + PHP-Limits (Timeout-vs-OOM ohne Konsole sichtbar). */
 	public static function ajax_log() {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( array( 'message' => 'keine Berechtigung' ) ); }
 		check_ajax_referer( self::NONCE, '_nonce' );
-		wp_send_json_success( array( 'lines' => M24_Import_Log::tail( 80 ), 'limits' => M24_Import_Log::limits() ) );
+		$opcache = class_exists( 'M24_Updater' ) ? M24_Updater::opcache_status() : array();
+		wp_send_json_success( array( 'lines' => M24_Import_Log::tail( 80 ), 'limits' => M24_Import_Log::limits(), 'opcache' => $opcache ) );
 	}
 
 	/** Diagnose-Log leeren. */
@@ -208,9 +218,11 @@ class M24_Import_Admin {
 			<details id="m24imp-diag" style="margin-top:18px;max-width:760px">
 				<summary style="cursor:pointer;font-weight:600">Diagnose / Import-Log <span style="color:#888;font-weight:400">(Timeout vs. Speicher)</span></summary>
 				<p id="m24imp-limits" style="color:#555;margin:8px 0;font-family:monospace;font-size:12px"></p>
+				<p id="m24imp-opcache" style="color:#555;margin:8px 0;font-family:monospace;font-size:12px"></p>
 				<p style="margin:6px 0">
 					<button type="button" class="button button-small" id="m24imp-log-refresh">Aktualisieren</button>
 					<button type="button" class="button button-small" id="m24imp-log-clear">Log leeren</button>
+					<button type="button" class="button button-small" id="m24imp-opcache-reset">OPcache leeren</button>
 				</p>
 				<pre id="m24imp-log" style="background:#1d2327;color:#c3c4c7;padding:10px;border-radius:6px;max-height:320px;overflow:auto;font-size:12px;line-height:1.5;white-space:pre-wrap">— noch keine Einträge —</pre>
 			</details>
@@ -221,7 +233,7 @@ class M24_Import_Admin {
 			var wrap=document.getElementById('m24imp-barwrap'), bar=document.getElementById('m24imp-bar'),
 			    st=document.getElementById('m24imp-status'), ct=document.getElementById('m24imp-counts');
 			var buttons=document.querySelectorAll('[data-m24imp]'), busy=false;
-			var logBox=document.getElementById('m24imp-log'), limBox=document.getElementById('m24imp-limits');
+			var logBox=document.getElementById('m24imp-log'), limBox=document.getElementById('m24imp-limits'), opBox=document.getElementById('m24imp-opcache');
 			function setBusy(b){ busy=b; buttons.forEach(function(x){x.disabled=b;}); }
 			function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 			// Diagnose-Log abrufen (Limits + letzte Zeilen).
@@ -233,6 +245,8 @@ class M24_Import_Admin {
 					if(d&&d.success){
 						var L=d.data.limits||{};
 						limBox.textContent='memory_limit='+L.memory_limit+' · max_execution_time='+L.max_execution_time+'s · post_max_size='+L.post_max_size+' · upload_max='+L.upload_max_filesize+' · peak='+L.memory_peak;
+						var O=d.data.opcache||{};
+						if(opBox){ opBox.textContent='OPcache: enable='+(O.enable||'?')+' · validate_timestamps='+(O.validate_timestamps||'?')+' · revalidate_freq='+(O.revalidate_freq||'?')+' · reset='+(O.reset_available||'?')+(O.validate_timestamps==='0'?'  ⚠ validate_timestamps=0 → Deploys brauchen OPcache-Reset':''); }
 						var lines=d.data.lines||[];
 						logBox.textContent=lines.length?lines.join('\n'):'— noch keine Einträge —';
 						logBox.scrollTop=logBox.scrollHeight;
@@ -284,6 +298,14 @@ class M24_Import_Admin {
 				var fd=new FormData(); fd.append('action','m24_import_log_clear'); fd.append('_nonce',NONCE);
 				try{ await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd}); }catch(e){}
 				refreshLog();
+			});
+			document.getElementById('m24imp-opcache-reset').addEventListener('click',async function(){
+				var b=this; b.disabled=true; var old=b.textContent; b.textContent='leere …';
+				var fd=new FormData(); fd.append('action','m24_opcache_reset'); fd.append('_nonce',NONCE);
+				try{ var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd}); var d=JSON.parse(await r.text());
+					b.textContent=(d&&d.success&&d.data&&d.data.ok)?'OPcache geleert ✓':'kein OPcache aktiv';
+				}catch(e){ b.textContent='Fehler'; }
+				setTimeout(function(){ b.textContent=old; b.disabled=false; },2500); refreshLog();
 			});
 			refreshLog();
 		})();

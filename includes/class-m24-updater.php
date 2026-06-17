@@ -37,6 +37,13 @@ class M24_Updater {
 			return;
 		}
 
+		// OPcache nach jedem Plugin-Update HART leeren — sonst serviert PHP (mit
+		// opcache.validate_timestamps=0 auf Prod) alten Bytecode weiter, obwohl die
+		// Datei + Versions-Header bereits neu sind. Genau das liess 0.9.10/0.9.11
+		// deployed, aber nie laufen. Hook feuert im SELBEN Request, der die Dateien
+		// schreibt → der naechste Request kompiliert frisch. (Unabhaengig von PUC.)
+		add_action( 'upgrader_process_complete', array( __CLASS__, 'on_upgrade_complete' ), 9, 2 );
+
 		$lib = M24_PLATTFORM_DIR . 'vendor/plugin-update-checker/plugin-update-checker.php';
 		if ( ! file_exists( $lib ) ) {
 			return;
@@ -120,6 +127,46 @@ class M24_Updater {
 
 	public static function checker() {
 		return self::$checker;
+	}
+
+	/**
+	 * upgrader_process_complete: nach einem Plugin-Update OPcache leeren. Resettet bei
+	 * JEDEM Plugin-Update (billig, korrekt) — vor allem aber bei unserem eigenen, dessen
+	 * neue Klassen-Dateien sonst als alter Bytecode haengen blieben.
+	 *
+	 * @param object $upgrader   WP_Upgrader-Instanz.
+	 * @param array  $hook_extra { type, action, plugins|plugin, ... }
+	 */
+	public static function on_upgrade_complete( $upgrader, $hook_extra ) {
+		$type = isset( $hook_extra['type'] ) ? (string) $hook_extra['type'] : '';
+		if ( '' !== $type && 'plugin' !== $type ) { return; } // nur Plugin-Updates (Themes/Core ignorieren)
+		self::reset_opcache( 'nach Plugin-Update (upgrader_process_complete)' );
+	}
+
+	/**
+	 * OPcache hart leeren. opcache_reset() verwirft den GESAMTEN kompilierten Bytecode →
+	 * jede PHP-Datei wird beim naechsten Request frisch kompiliert. Gibt true zurueck, wenn
+	 * ein Reset lief. Loggt ins Import-Diagnose-Log (falls vorhanden), nie ein Fatal.
+	 */
+	public static function reset_opcache( $reason = '' ) {
+		$ok = false;
+		if ( function_exists( 'opcache_reset' ) ) {
+			$ok = @opcache_reset(); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+		if ( class_exists( 'M24_Import_Log' ) ) {
+			M24_Import_Log::log( sprintf( 'opcache_reset(%s) → %s', $reason, $ok ? 'OK' : ( function_exists( 'opcache_reset' ) ? 'fehlgeschlagen/deaktiviert' : 'Funktion fehlt' ) ) );
+		}
+		return (bool) $ok;
+	}
+
+	/** OPcache-Status/Config fuer das Diagnose-Panel (Timeout-vs-Stale-Bytecode sichtbar). */
+	public static function opcache_status() {
+		return array(
+			'enable'             => (string) ini_get( 'opcache.enable' ),
+			'validate_timestamps'=> (string) ini_get( 'opcache.validate_timestamps' ),
+			'revalidate_freq'    => (string) ini_get( 'opcache.revalidate_freq' ),
+			'reset_available'    => function_exists( 'opcache_reset' ) ? 'ja' : 'nein',
+		);
 	}
 
 	/**
