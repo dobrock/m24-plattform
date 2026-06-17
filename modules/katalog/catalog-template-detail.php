@@ -592,8 +592,11 @@ class M24_Catalog_Template_Detail {
 			<div class="m24-lb">
 				<button class="m24-lb-close" aria-label="schließen">&times;</button>
 				<button class="m24-lb-prev" aria-label="zurück">&#10094;</button>
-				<div class="lb-stage"><img class="m24-lb-img" src="" alt=""></div>
-				<div class="m24-lb-rail"></div>
+				<div class="lb-stage"><img class="m24-lb-img" src="" alt="<?php echo esc_attr( get_the_title( $id ) ); ?>"></div>
+				<div class="m24-lb-rail"><?php foreach ( (array) $imgs as $i => $im ) :
+					// ALT serverseitig am Render-Punkt: erstes Bild = Titel, weitere „Titel – Ansicht n".
+					$lb_alt = ( 0 === (int) $i ) ? get_the_title( $id ) : get_the_title( $id ) . ' – Ansicht ' . ( (int) $i + 1 );
+					?><img src="<?php echo esc_url( $im['thumb'] ); ?>" data-i="<?php echo (int) $i; ?>" alt="<?php echo esc_attr( $lb_alt ); ?>" loading="lazy"><?php endforeach; ?></div>
 				<button class="m24-lb-next" aria-label="weiter">&#10095;</button>
 			</div>
 		</div>
@@ -692,6 +695,8 @@ class M24_Catalog_Template_Detail {
 			});});
 			// Galerie
 			var imgs=<?php echo wp_json_encode( $imgs ); ?>;
+			var partTitle=<?php echo wp_json_encode( get_the_title( $id ) ); ?>;
+			function railAlt(i){ return i===0?partTitle:partTitle+' – Ansicht '+(i+1); }
 			if(!imgs.length)return;
 			var idx=0,hovering=false;
 			var mainImg=root.querySelector('.m24-main-img');
@@ -737,10 +742,11 @@ class M24_Catalog_Template_Detail {
 			var ratio=root.querySelector('.ratio'),left=root.querySelector('.left');
 			if(ratio)ratio.addEventListener('click',function(){openLb(idx);});
 			if(left){left.addEventListener('mouseenter',function(){hovering=true;});left.addEventListener('mouseleave',function(){hovering=false;});}
-			imgs.forEach(function(im,i){var t=document.createElement('img');t.src=im.thumb;t.dataset.i=i;t.addEventListener('click',function(){lbSet(i);});rail.appendChild(t);});
+			// Rail ist serverseitig gerendert (mit ALT) — hier nur Klicks verdrahten.
+			rail.querySelectorAll('img').forEach(function(t){t.addEventListener('click',function(){lbSet(parseInt(t.dataset.i,10));});});
 			function openLb(i){lbSet(i);lb.style.display='flex';document.body.style.overflow='hidden';}
 			function closeLb(){lb.style.display='none';document.body.style.overflow='';}
-			function lbSet(i){idx=(i+imgs.length)%imgs.length;fadeSwap(lbImg,imgs[idx].full);if(mainImg)mainImg.src=imgs[idx].full;markStrip();markRail();}
+			function lbSet(i){idx=(i+imgs.length)%imgs.length;fadeSwap(lbImg,imgs[idx].full);lbImg.alt=railAlt(idx);if(mainImg)mainImg.src=imgs[idx].full;markStrip();markRail();}
 			lb.querySelector('.m24-lb-close').addEventListener('click',closeLb);
 			lb.querySelector('.m24-lb-prev').addEventListener('click',function(){lbSet(idx-1);});
 			lb.querySelector('.m24-lb-next').addEventListener('click',function(){lbSet(idx+1);});

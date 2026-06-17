@@ -333,6 +333,40 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	 * erzeugen (Single Source of Truth). Gegenstück zum Admin-Button „SEO-Titel neu
 	 * generieren". Usage: wp m24 resync-seo-titles --all [--yes]
 	 */
+	/**
+	 * Backfill (Plesk-tauglich): wpSEO-Title + Description ALLER Teile aus post_title neu
+	 * erzeugen — in Häppchen (25er-Chunks, ~20s-Elapsed-Guard), resümierbar (Offset-Option),
+	 * idempotent. Bild-ALT (Galerie/Lightbox) wird render-seitig aus post_title gesetzt und
+	 * braucht KEINEN DB-Backfill. Usage: wp m24 resync-seo-meta --all [--yes]
+	 */
+	WP_CLI::add_command( 'm24 resync-seo-meta', function ( $args, $assoc ) {
+		if ( empty( $assoc['all'] ) ) { WP_CLI::error( '--all erforderlich.' ); }
+		$ids   = M24_Catalog_SEO::all_ids();
+		$total = count( $ids );
+		if ( 0 === $total ) { WP_CLI::log( 'Keine m24_teil-Posts.' ); return; }
+		if ( empty( $assoc['yes'] ) ) {
+			WP_CLI::confirm( sprintf( 'wpSEO-Title + Description auf %d Teilen aus dem Artikel-Titel neu erzeugen?', $total ) );
+		}
+		$opt    = 'm24_resync_seo_meta_offset';
+		$offset = (int) get_option( $opt, 0 );
+		if ( $offset >= $total ) { $offset = 0; } // vorheriger Lauf fertig → frisch
+		$start = time(); $done = 0; $skip = 0;
+		while ( $offset < $total && ( time() - $start ) < 20 ) {
+			$slice  = array_slice( $ids, $offset, 25 );
+			$r      = M24_Catalog_SEO::resync_chunk( $slice );
+			$done  += (int) $r['new']; $skip += (int) $r['skipped'];
+			$offset += count( $slice );
+			update_option( $opt, $offset, false );
+			WP_CLI::log( sprintf( '  %d/%d · ok %d · skip %d', $offset, $total, $done, $skip ) );
+		}
+		if ( $offset >= $total ) {
+			delete_option( $opt );
+			WP_CLI::success( sprintf( 'Fertig: %d Teile · %d generiert · %d übersprungen (Platzhalter). Bild-ALT ist render-seitig (kein Backfill nötig).', $total, $done, $skip ) );
+		} else {
+			WP_CLI::warning( sprintf( '20s-Budget erreicht bei %d/%d — erneut ausführen: wp m24 resync-seo-meta --all --yes', $offset, $total ) );
+		}
+	} );
+
 	WP_CLI::add_command( 'm24 resync-seo-titles', function ( $args, $assoc ) {
 		$ids = M24_Catalog_SEO::all_ids();
 		if ( empty( $ids ) ) { WP_CLI::log( 'Keine m24_teil-Posts gefunden.' ); return; }
