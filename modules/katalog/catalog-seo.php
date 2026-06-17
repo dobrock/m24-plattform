@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class M24_Catalog_SEO {
 
 	const PT             = 'm24_teil';
-	const TITLE_MAX      = 70;   // Soft-Cap: SERP-tauglich. Reicht der Platz nicht, wird zuerst das Boilerplate
+	const TITLE_MAX      = 75;   // Soft-Cap: SERP-tauglich. Reicht der Platz nicht, wird zuerst das Boilerplate
 	                            //   reduziert — zuletzt ganz weggelassen (nur {Titel}), nie die Teilenummern.
 	const TITLE_HARD_MAX = 100;  // Hard-Cap: erst hier wird der Titel SELBST gekuerzt — an Wortgrenze, nie in einer Nummer
 
@@ -68,20 +68,14 @@ class M24_Catalog_SEO {
 		// Teilenummern haben SEO-Vorrang: der volle Beitragstitel bleibt erhalten. Nur wenn er ALLEIN
 		// den Hard-Cap reisst, an der naechsten Wortgrenze kuerzen (nie mitten in einer Nummer).
 		$titel = self::hard_cap_title( $titel, self::TITLE_HARD_MAX );
-		if ( 'neu' === $typ ) {
-			$variants = array(
-				$titel . ' | MOTORSPORT24 seit 2006',
-				$titel . ' | MOTORSPORT24',
-				$titel, // bare: Suffix weg, bevor der Titel/Teilenummern leiden
-			);
-		} else {
-			$variants = array(
-				$titel . ' Original gebraucht | MOTORSPORT24 seit 2006',
-				$titel . ' Original gebraucht | MOTORSPORT24',
-				$titel . ' | MOTORSPORT24',
-				$titel, // bare: Suffix weg, bevor der Titel/Teilenummern leiden
-			);
-		}
+		// 0.9.21: EINHEITLICHE Kaskade für beide Typen — „Original gebraucht" lebt in der
+		// Description, nicht mehr im Titel. $typ bleibt im Signatur-Vertrag (Aufrufer), wird
+		// hier aber nicht mehr verzweigt.
+		$variants = array(
+			$titel . ' | MOTORSPORT24 seit 2006',
+			$titel . ' | MOTORSPORT24',
+			$titel, // bar: Suffix weg, bevor der Titel/Teilenummern leiden
+		);
 		// Boilerplate zuerst opfern; Titel selbst wird hier NIE gekuerzt (steht ggf. ueber dem Soft-Cap).
 		foreach ( $variants as $v ) {
 			if ( mb_strlen( $v ) <= self::TITLE_MAX ) { return $v; }
@@ -101,21 +95,44 @@ class M24_Catalog_SEO {
 	// ── Description-Kaskade ─────────────────────────────────────────────
 	public static function build_desc( $titel, $typ ) {
 		$titel = trim( wp_strip_all_tags( html_entity_decode( (string) $titel, ENT_QUOTES, 'UTF-8' ) ) );
-		// 0.9.20-Templates (typabhängig). Hart auf ~155 Zeichen: zuerst den Titel an der
-		// Wortgrenze kürzen, Wertversprechen (Häkchen) bleiben erhalten.
-		$tail = ( 'neu' === $typ )
-			? ' ✓ Rennsportqualität ✓ Made in Germany ✓ B2B-Großhandel'
-			: ' – Original gebraucht ✓ geprüft ✓ B2B-Großhandel ✓ weltweiter Versand';
-		$max          = 155;
-		$title_budget = $max - mb_strlen( $tail );
-		if ( $title_budget < 12 ) { $title_budget = 12; }
-		if ( mb_strlen( $titel ) > $title_budget ) {
-			$cut = mb_substr( $titel, 0, $title_budget - 1 );
-			$sp  = mb_strrpos( $cut, ' ' );
-			if ( false !== $sp && $sp > 0 ) { $cut = mb_substr( $cut, 0, $sp ); }
-			$titel = rtrim( $cut ) . '…';
+		$max   = 155;
+		// 0.9.21-Templates. „Seit 2006" ist PFLICHT und wird NIE weggekürzt.
+		if ( 'neu' === $typ ) {
+			$lead    = $titel;
+			$bullets = array( 'Rennsportqualität', 'Made in Germany', 'Seit 2006', 'weltweiter Versand' );
+		} else {
+			$lead    = $titel . ' – Original gebraucht';
+			$bullets = array( 'geprüft', 'Seit 2006', 'weltweiter Versand' );
 		}
-		return $titel . $tail;
+		$protected = 'Seit 2006';
+		$compose   = function ( $lead, $bullets ) {
+			return $bullets ? ( $lead . ' ✓ ' . implode( ' ✓ ', $bullets ) ) : $lead;
+		};
+
+		// 1) Bei Überlänge ✓-Bullets von HINTEN droppen — „Seit 2006" überspringen/behalten.
+		while ( mb_strlen( $compose( $lead, $bullets ) ) > $max && count( $bullets ) > 1 ) {
+			$removed = false;
+			for ( $i = count( $bullets ) - 1; $i >= 0; $i-- ) {
+				if ( $bullets[ $i ] !== $protected ) { array_splice( $bullets, $i, 1 ); $removed = true; break; }
+			}
+			if ( ! $removed ) { break; } // nur noch „Seit 2006" übrig
+		}
+
+		// 2) Reicht noch nicht → Lead (post_title) an Wortgrenze kürzen, „✓ Seit 2006" behalten.
+		$full = $compose( $lead, $bullets );
+		if ( mb_strlen( $full ) > $max ) {
+			$suffix = in_array( $protected, $bullets, true ) ? ' ✓ ' . $protected : '';
+			$budget = $max - mb_strlen( $suffix );
+			if ( $budget < 12 ) { $budget = 12; }
+			if ( mb_strlen( $lead ) > $budget ) {
+				$cut = mb_substr( $lead, 0, $budget - 1 );
+				$sp  = mb_strrpos( $cut, ' ' );
+				if ( false !== $sp && $sp > 0 ) { $cut = mb_substr( $cut, 0, $sp ); }
+				$lead = rtrim( $cut ) . '…';
+			}
+			$full = $lead . $suffix;
+		}
+		return $full;
 	}
 
 	// ── Feld-Autofill + Marker-Auto-Sync ─────────────────────────────────
