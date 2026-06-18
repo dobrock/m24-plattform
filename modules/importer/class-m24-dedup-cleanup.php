@@ -23,6 +23,20 @@ class M24_Dedup_Cleanup {
 	 * @param int  $offset  Dry-Run: ab welcher Gruppe fortsetzen. Execute: ignoriert (idempotent).
 	 */
 	public static function run( $execute = false, $offset = 0 ) {
+		// 0.9.32: STILLGELEGT. Der Lösch-Pfad ist nicht mehr erreichbar (Early-Return). Report
+		// (read-only) + Dedup-Guard (verhindert neue Dubletten) bleiben aktiv. Reaktivieren
+		// nur durch bewusstes Entfernen dieses Blocks.
+		if ( class_exists( 'M24_Import_Log' ) ) { M24_Import_Log::log( 'cleanup: DEAKTIVIERT (0.9.32) — Aufruf ignoriert' ); }
+		return array(
+			'deaktiviert' => true, 'modus' => 'DEAKTIVIERT',
+			'gruppen_gesamt' => 0, 'gruppen_verarbeitet' => 0, 'rewire' => 0, 'delete' => 0,
+			'skip_e36' => 0, 'skip_referenziert' => 0, 'errors' => 0,
+			'platzhalter_geloescht' => 0, 'platzhalter_skip_ref' => 0,
+			'csv_pfad' => '', 'csv_name' => '', 'resume_offset' => 0, 'seconds' => 0,
+			'error' => 'Dubletten-Cleanup ist seit 0.9.32 deaktiviert (Lösch-Funktion entfernt).',
+		);
+		// phpcs:disable — ab hier toter Code (Lösch-Logik), bewusst belassen, aber unerreichbar.
+
 		$start = microtime( true );
 		@set_time_limit( 0 ); // phpcs:ignore
 		$analysis = M24_Dedup_Report::analyze();
@@ -84,7 +98,7 @@ class M24_Dedup_Cleanup {
 					if ( $execute ) {
 						$still = self::refs( $dupe );
 						if ( empty( $still['thumbnail'] ) && empty( $still['galerie'] ) && empty( $still['content'] ) ) {
-							@wp_delete_attachment( $dupe, true ); // phpcs:ignore — B) unlink-Rauschen fehlender Größen-Dateien tolerieren
+							/* 0.9.32 DEAKTIVIERT: @wp_delete_attachment( $dupe, true ); */ // Lösch-Aufruf entfernt
 							$delete++;
 							self::log( sprintf( 'DELETE #%d (verwaist nach Umbiegen, Keeper #%d)', $dupe, $keeper ) );
 							if ( $fh ) { fputcsv( $fh, array( $g['key'], $keeper, $dupe, 'delete', '', '', 'gelöscht', '' ) ); }
@@ -195,7 +209,7 @@ class M24_Dedup_Cleanup {
 			$r = self::refs( (int) $pid );
 			$orphan = empty( $r['thumbnail'] ) && empty( $r['galerie'] ) && empty( $r['content'] );
 			if ( $orphan ) {
-				if ( $execute ) { @wp_delete_attachment( (int) $pid, true ); self::log( sprintf( 'DELETE Platzhalter #%d (0 Refs)', $pid ) ); } // phpcs:ignore
+				if ( $execute ) { /* 0.9.32 DEAKTIVIERT: @wp_delete_attachment( (int) $pid, true ); */ self::log( sprintf( 'DELETE Platzhalter #%d (deaktiviert)', $pid ) ); }
 				$del++;
 				if ( $fh ) { fputcsv( $fh, array( 'platzhalter', '', $pid, $execute ? 'delete' : 'would_delete', '', '', $execute ? 'gelöscht' : 'wäre löschbar', 'platzhalter' ) ); }
 			} else {
