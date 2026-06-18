@@ -36,6 +36,22 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_dedup_cleanup', array( __CLASS__, 'ajax_dedup_cleanup' ) );
 		add_action( 'wp_ajax_m24_impact_report', array( __CLASS__, 'ajax_impact_report' ) );
 		add_action( 'wp_ajax_m24_restore_attach', array( __CLASS__, 'ajax_restore_attach' ) );
+		add_action( 'wp_ajax_m24_restore_undo', array( __CLASS__, 'ajax_restore_undo' ) );
+	}
+
+	/** Undo der Attachment-Rückholung (DB-only, Always-JSON). Dry-Run default; Execute mit confirm=1. */
+	public static function ajax_restore_undo() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$execute = ! empty( $_POST['execute'] ) && ! empty( $_POST['confirm'] );
+			self::json_success( M24_Attachment_Restore::undo( $execute ) );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
 	}
 
 	/** Attachment-Rückholung (ADD-ONLY, Always-JSON). Dry-Run default; Execute nur mit confirm=1. */
@@ -350,6 +366,15 @@ class M24_Import_Admin {
 					<button type="button" class="button button-primary" id="m24restore-exec" disabled>Execute — Attachments zurückschreiben</button>
 				</div>
 				<div id="m24restore-out" style="display:none;margin-top:10px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
+				<div style="border-top:1px dashed #dcdcde;margin-top:12px;padding-top:10px">
+					<p style="margin:0 0 6px;font-weight:600">Rückgängig (entfernt nur die eingefügten DB-Zeilen — Dateien bleiben)</p>
+					<p style="margin:0 0 6px">
+						<button type="button" class="button" id="m24undo-dry">Rückgängig (Dry-Run)</button>
+						<label style="margin-left:10px;font-size:13px;color:#555"><input type="checkbox" id="m24undo-confirm"> bestätigen</label>
+						<button type="button" class="button" id="m24undo-exec" style="margin-left:6px" disabled>Rückgängig ausführen</button>
+					</p>
+					<div id="m24undo-out" style="display:none;margin-top:8px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:10px"></div>
+				</div>
 			</div>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
@@ -559,6 +584,32 @@ class M24_Import_Admin {
 			}
 			if(reDry){ reDry.addEventListener('click',function(){ restoreRun(false); }); }
 			if(reExec){ reExec.addEventListener('click',function(){ if(!reConf.checked) return; restoreRun(true); }); }
+			// Undo (DB-only): Dry-Run + Execute (confirm-gated), loopt bis resume=0.
+			var unDry=document.getElementById('m24undo-dry'), unExec=document.getElementById('m24undo-exec'),
+			    unConf=document.getElementById('m24undo-confirm'), unOut=document.getElementById('m24undo-out');
+			if(unConf){ unConf.addEventListener('change',function(){ unExec.disabled=!unConf.checked; }); }
+			async function undoRun(execute){
+				unDry.disabled=true; unExec.disabled=true; unOut.style.display='';
+				unOut.textContent=execute?'Entferne eingefügte DB-Zeilen … (Dateien bleiben)':'Prüfe Undo-Log …';
+				var acc={rem:0}, last=null, guard=0, off=1;
+				try{
+					do{
+						var fd=new FormData(); fd.append('action','m24_restore_undo'); fd.append('_nonce',NONCE);
+						if(execute){ fd.append('execute','1'); fd.append('confirm', unConf.checked?'1':''); }
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=JSON.parse(await r.text());
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						d=d.data; acc.rem+=d.entfernt; last=d; off=d.resume_offset|0;
+						unOut.textContent=(execute?'Entferne':'Prüfe')+' … verbleibend Log '+d.verbleibend_log;
+					} while(execute && off>0 && ++guard<5000);
+					unOut.innerHTML='<strong>'+last.modus+'</strong><br>'+
+						'Undo-Log: '+last.log_gesamt+' · '+(execute?'entfernt: '+acc.rem:'würde entfernen: '+last.wuerde_entfernen)+' · übersprungen: '+last.uebersprungen+'<br>'+
+						'verbleibend im Log: '+last.verbleibend_log+' · <em>nur DB-Zeilen, Dateien unangetastet</em>';
+				}catch(e){ unOut.textContent='Abgebrochen: '+e.message; }
+				unDry.disabled=false; unExec.disabled=!unConf.checked;
+			}
+			if(unDry){ unDry.addEventListener('click',function(){ undoRun(false); }); }
+			if(unExec){ unExec.addEventListener('click',function(){ if(!unConf.checked) return; if(!confirm('Eingefügte Attachment-DB-Zeilen entfernen? Dateien bleiben.')) return; undoRun(true); }); }
 		})();
 		</script>
 		<?php
