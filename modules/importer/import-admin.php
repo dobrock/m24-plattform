@@ -35,6 +35,25 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_dedup_csv', array( __CLASS__, 'ajax_dedup_csv' ) );
 		add_action( 'wp_ajax_m24_dedup_cleanup', array( __CLASS__, 'ajax_dedup_cleanup' ) );
 		add_action( 'wp_ajax_m24_impact_report', array( __CLASS__, 'ajax_impact_report' ) );
+		add_action( 'wp_ajax_m24_restore_attach', array( __CLASS__, 'ajax_restore_attach' ) );
+	}
+
+	/** Attachment-Rückholung (ADD-ONLY, Always-JSON). Dry-Run default; Execute nur mit confirm=1. */
+	public static function ajax_restore_attach() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$offset  = isset( $_POST['offset'] ) ? max( 0, (int) $_POST['offset'] ) : 0;
+			$execute = ! empty( $_POST['execute'] ) && ! empty( $_POST['confirm'] );
+			$summary = M24_Attachment_Restore::run( $execute, $offset );
+			if ( ! empty( $summary['error'] ) ) { self::json_error( $summary['error'] ); }
+			self::json_success( $summary );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
 	}
 
 	/** Cleanup-Impact-Report (READ-ONLY, Always-JSON). Backup↔Live-Diff, Resume via offset. */
@@ -93,7 +112,7 @@ class M24_Import_Admin {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'keine Berechtigung', '', array( 'response' => 403 ) ); }
 		check_admin_referer( self::NONCE );
 		$file = isset( $_GET['file'] ) ? basename( sanitize_file_name( wp_unslash( $_GET['file'] ) ) ) : '';
-		if ( ! preg_match( '/^(dedup-report|dedup-cleanup-(plan|exec)|impact-report)-[0-9\-]+\.csv$/', $file ) ) { wp_die( 'ungültige Datei', '', array( 'response' => 400 ) ); }
+		if ( ! preg_match( '/^(dedup-report|dedup-cleanup-(plan|exec)|impact-report|attach-restore-(plan|exec))-[0-9\-]+\.csv$/', $file ) ) { wp_die( 'ungültige Datei', '', array( 'response' => 400 ) ); }
 		$dir  = class_exists( 'M24_Import_Log' ) ? M24_Import_Log::dir() : trailingslashit( wp_upload_dir()['basedir'] ) . 'm24-logs';
 		$path = trailingslashit( $dir ) . $file;
 		if ( ! is_readable( $path ) ) { wp_die( 'nicht gefunden', '', array( 'response' => 404 ) ); }
@@ -320,6 +339,18 @@ class M24_Import_Admin {
 				<span style="margin-left:8px;font-size:13px;color:#888">Backup↔Live-Diff aller Bild-Zuordnungen · ändert nichts</span>
 			</p>
 			<div id="m24impact-out" style="display:none;max-width:760px;margin-top:8px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
+
+			<div style="max-width:760px;margin-top:14px;border:1px solid #dcdcde;border-radius:6px;padding:12px;background:#fff">
+				<p style="margin:0 0 8px;font-weight:600">Attachment-Rückholung aus Backup-DB (ADD-ONLY — fügt nur hinzu)</p>
+				<p style="margin:0 0 8px">
+					<button type="button" class="button" id="m24restore-dry">Attachment-Rückholung (Dry-Run)</button>
+				</p>
+				<div style="border-top:1px dashed #dcdcde;margin-top:10px;padding-top:10px">
+					<label style="display:block;font-size:13px;color:#555;margin-bottom:6px"><input type="checkbox" id="m24restore-confirm"> Backup-DB ist konfiguriert &amp; geprüft — zurückschreiben (kein UPDATE/DELETE).</label>
+					<button type="button" class="button button-primary" id="m24restore-exec" disabled>Execute — Attachments zurückschreiben</button>
+				</div>
+				<div id="m24restore-out" style="display:none;margin-top:10px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px"></div>
+			</div>
 			<div id="m24imp-barwrap" style="display:none;max-width:640px">
 				<div style="background:#e4e4e0;border-radius:6px;overflow:hidden;height:22px;margin:8px 0">
 					<div id="m24imp-bar" style="background:linear-gradient(135deg,#1f74c4,#0e447e);height:100%;width:0;transition:width .2s"></div>
@@ -500,6 +531,34 @@ class M24_Import_Admin {
 				}catch(e){ imOut.textContent='Abgebrochen: '+e.message; }
 				imBtn.disabled=false;
 			}); }
+			// Attachment-Rückholung (ADD-ONLY): Dry-Run + Execute (confirm-gated), offset-Resume.
+			var reDry=document.getElementById('m24restore-dry'), reExec=document.getElementById('m24restore-exec'),
+			    reConf=document.getElementById('m24restore-confirm'), reOut=document.getElementById('m24restore-out');
+			if(reConf){ reConf.addEventListener('change',function(){ reExec.disabled=!reConf.checked; }); }
+			async function restoreRun(execute){
+				reDry.disabled=true; reExec.disabled=true; reOut.style.display='';
+				reOut.textContent=execute?'Schreibe Attachments zurück … (ADD-ONLY)':'Prüfe Backup ↔ Live + Dateien …';
+				var off=0, acc={v:0,f:0,r:0,sk:0,err:0}, last=null, guard=0;
+				try{
+					do{
+						var fd=new FormData(); fd.append('action','m24_restore_attach'); fd.append('_nonce',NONCE); fd.append('offset',off);
+						if(execute){ fd.append('execute','1'); fd.append('confirm', reConf.checked?'1':''); }
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=JSON.parse(await r.text());
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						d=d.data; acc.v=d.datei_vorhanden; acc.f=d.datei_fehlt; acc.r+=d.zurueckgeschrieben; acc.sk+=d.skip_existiert; acc.err+=d.errors; last=d; off=d.resume_offset|0;
+						reOut.textContent=(execute?'Rückschreiben':'Prüfen')+' … '+d.geprueft+'/'+d.fehlende_gesamt;
+					} while(off>0 && ++guard<5000);
+					var csv=AJAX+'?action=m24_dedup_csv&file='+encodeURIComponent(last.csv_name)+'&_wpnonce='+encodeURIComponent(NONCE);
+					reOut.innerHTML='<strong>'+last.modus+' · Backup '+last.backup+'</strong><br>'+
+						'Fehlende Attachments: '+last.fehlende_gesamt+' · Datei vorhanden '+last.datei_vorhanden+' · Datei fehlt '+last.datei_fehlt+'<br>'+
+						(execute?('Zurückgeschrieben: '+acc.r+' · skip(existiert): '+acc.sk+' · Fehler: '+acc.err+'<br>'):'')+
+						'<a href="'+csv+'">CSV herunterladen</a> ('+last.csv_name+')';
+				}catch(e){ reOut.textContent='Abgebrochen: '+e.message; }
+				reDry.disabled=false; reExec.disabled=!reConf.checked;
+			}
+			if(reDry){ reDry.addEventListener('click',function(){ restoreRun(false); }); }
+			if(reExec){ reExec.addEventListener('click',function(){ if(!reConf.checked) return; restoreRun(true); }); }
 		})();
 		</script>
 		<?php
