@@ -253,16 +253,32 @@ class M24_Catalog_SEO {
 	 * ausgegeben werden.
 	 */
 	/**
-	 * Robots fuer Teile-Detailseiten (wpSEO-Filter): per globalem Schalter index/noindex.
-	 * Default = noindex,follow (bis zum Flip). Andere Seiten unangetastet.
+	 * Robots fuer Teile-Detailseiten (wpSEO-Filter):
+	 *  - globaler Schalter m24_teile_index_enabled AN → ALLE Teile index (Override, Vorbereitung Flip);
+	 *  - sonst PER TERM: nur freigegebene Kategorien (E36 + Z4 GT3) index, übrige noindex,follow.
+	 * Reversibel über die Filter m24_indexable_term_slugs / m24_indexable_term_patterns.
 	 */
 	public static function filter_robots( $robots ) {
-		if ( is_singular( self::PT ) ) {
-			return function_exists( 'm24_teile_index_enabled' ) && m24_teile_index_enabled()
-				? 'index, follow'
-				: 'noindex, follow';
+		if ( ! is_singular( self::PT ) ) { return $robots; }
+		if ( function_exists( 'm24_teile_index_enabled' ) && m24_teile_index_enabled() ) { return 'index, follow'; }
+		return self::is_indexable_teil( get_queried_object_id() ) ? 'index, follow' : 'noindex, follow';
+	}
+
+	/**
+	 * Teil in einer index-freigegebenen Kategorie? Standard: E36 (m3-e36) + Z4 GT3 (z4-gt3/bmw-z4-gt3),
+	 * plus Slug-Muster e36 / z4-gt3 (fängt Serien-Terme wie „bmw-3er-e36" mit). Beides filterbar →
+	 * umkehrbar: leere Liste/Muster ⇒ wieder alle noindex.
+	 */
+	public static function is_indexable_teil( $post_id ) {
+		$slugs = wp_get_post_terms( (int) $post_id, 'm24_fahrzeugkat', array( 'fields' => 'slugs' ) );
+		if ( is_wp_error( $slugs ) || empty( $slugs ) ) { return false; }
+		$allow    = (array) apply_filters( 'm24_indexable_term_slugs', array( 'm3-e36', 'z4-gt3', 'bmw-z4-gt3' ) );
+		$patterns = (array) apply_filters( 'm24_indexable_term_patterns', array( 'e36', 'z4-gt3' ) );
+		foreach ( $slugs as $s ) {
+			if ( in_array( $s, $allow, true ) ) { return true; }
+			foreach ( $patterns as $p ) { if ( '' !== (string) $p && false !== stripos( (string) $s, (string) $p ) ) { return true; } }
 		}
-		return $robots;
+		return false;
 	}
 
 	public static function force_detail_title( $title ) {

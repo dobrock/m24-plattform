@@ -252,7 +252,7 @@ class M24_Catalog_Archive {
 		// Bildlos → zentraler Platzhalter als CSS-Background (kein <img> → nicht in Image-Sitemap).
 		$noimg = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
 		$thumb = has_post_thumbnail( $post_id )
-			? get_the_post_thumbnail( $post_id, 'medium_large', array( 'loading' => 'lazy', 'alt' => esc_attr( $title ) ) )
+			? get_the_post_thumbnail( $post_id, 'medium_large', array( 'loading' => 'lazy', 'alt' => esc_attr( $title ), 'sizes' => '(max-width:560px) 100vw, (max-width:900px) 50vw, 25vw' ) )
 			: '<span class="m24-card__noimg m24-card__noimg--ph" aria-hidden="true" style="background-image:url(\'' . esc_url( $noimg ) . '\')"></span>';
 
 		$is_sold = ( 'verkauft' === $status );

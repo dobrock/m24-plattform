@@ -161,7 +161,8 @@ class M24_Catalog_Related {
 	/** Kompaktes Anzeige-Item fuer Autocomplete + gespeicherte Pins. */
 	public static function item( $pid ) {
 		$tid   = get_post_thumbnail_id( $pid );
-		$thumb = $tid ? (string) wp_get_attachment_image_url( $tid, 'thumbnail' ) : '';
+		// 'medium' (≈200px) statt theme-kleinem 'thumbnail' (50×33) → scharf in „Weitere Teile".
+		$thumb = $tid ? (string) ( wp_get_attachment_image_url( $tid, 'medium' ) ?: wp_get_attachment_image_url( $tid, 'thumbnail' ) ) : '';
 		return array(
 			'id'    => (int) $pid,
 			'title' => html_entity_decode( get_the_title( $pid ), ENT_QUOTES, 'UTF-8' ),

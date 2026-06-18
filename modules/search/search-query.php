@@ -196,7 +196,10 @@ class M24_Search_Query {
 	private static function thumb( $post_id ) {
 		$tid = get_post_thumbnail_id( $post_id );
 		if ( ! $tid ) { return ''; }
-		$url = wp_get_attachment_image_url( $tid, 'thumbnail' );
+		// 'thumbnail' ist theme-seitig nur 50×33 → bei 52px-Anzeige (Retina) unscharf hochskaliert.
+		// 'medium' (≈200px) liefert ein auch auf Retina scharfes Such-Thumbnail.
+		$url = wp_get_attachment_image_url( $tid, 'medium' );
+		if ( ! $url ) { $url = wp_get_attachment_image_url( $tid, 'thumbnail' ); }
 		return $url ? (string) $url : '';
 	}
 
