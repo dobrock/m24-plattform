@@ -10,11 +10,14 @@
 
 /* 1. HERO — eckig, Beitragsbild als Hintergrund + dunkler Verlauf als Overlay */
 .m24fz-hero{position:relative;background:var(--dark);color:#fff;border-radius:0;overflow:hidden;padding:18px 22px 22px;display:flex;flex-direction:column;gap:26px;min-height:200px}
-.m24fz-hero.has-img{min-height:clamp(320px,46vw,560px);justify-content:space-between}
+.m24fz-hero.has-img{min-height:clamp(320px,46vw,560px);justify-content:space-between;padding-bottom:14px}
 .m24fz-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
-.m24fz-hero-ov{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(20,22,26,.55) 0%,rgba(20,22,26,.12) 34%,rgba(20,22,26,.30) 60%,rgba(20,22,26,.86) 100%)}
+/* Verlauf: klare Mitte, dunkel nur knapp am unteren Rand (verdeckt weniger Fahrzeug-Details) */
+.m24fz-hero-ov{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(20,22,26,.46) 0%,rgba(20,22,26,.05) 26%,rgba(20,22,26,0) 52%,rgba(20,22,26,.40) 82%,rgba(20,22,26,.80) 100%)}
 .m24fz-hero-top{display:flex;gap:8px;justify-content:center;position:relative;z-index:2}
-.m24fz-hero-foot{display:flex;flex-direction:column;gap:10px;align-items:flex-start;position:relative;z-index:2}
+.m24fz-hero-foot{display:flex;flex-direction:column;gap:8px;align-items:stretch;position:relative;z-index:2}
+.m24fz-hero-titlerow{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.m24fz-hero-titlerow .m24fz-gal-launch{flex:0 0 auto}
 .m24fz-bc{font-size:12px;color:rgba(255,255,255,.6)}.m24fz-bc a{color:rgba(255,255,255,.8);text-decoration:none}
 .m24fz-hero-title{font-size:30px;font-weight:700;line-height:1.1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .m24fz-pill{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
@@ -44,13 +47,12 @@
 .m24fz-views{color:var(--mut);font-size:13px;margin:2px 0 0}
 .m24fz-seller{display:flex;flex-direction:column;gap:4px}.m24fz-seller strong{font-size:15px}.m24fz-seller span{color:var(--mut);font-size:13px}
 
-/* 4. Bilder 3:2 */
-.m24fz-photos{display:grid;grid-template-columns:2fr 1fr;gap:14px}
-.m24fz-photos figure{margin:0;position:relative;border-radius:8px;overflow:hidden;background:#ededea}
-.m24fz-photos .big{aspect-ratio:3/2}.m24fz-photos .side{display:flex;flex-direction:column;gap:14px}
-.m24fz-photos .side figure{aspect-ratio:3/2}
+/* 4. Bilder — linke Kachel = Höhe(rechts oben)+Gap+Höhe(rechts unten), Böden bündig */
+.m24fz-photos{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:14px;align-items:stretch}
+.m24fz-photos figure{margin:0;position:relative;border-radius:8px;overflow:hidden;background:#ededea;min-height:0}
+.m24fz-photos .big{grid-column:1;grid-row:1 / span 2;aspect-ratio:3/2}
+.m24fz-photos .side{grid-column:2}
 .m24fz-img{width:100%;height:100%;object-fit:cover;display:block}
-.m24fz-photos .big .m24fz-pill{position:absolute;right:12px;bottom:12px}
 
 /* 5. Beschreibung — Flip-Out */
 .m24fz-desc-body.clamp{max-height:15.5em;overflow:hidden;transition:max-height .4s ease}
@@ -121,6 +123,7 @@
 /* Responsive ≤980 */
 @media(max-width:980px){
 	.m24fz-main,.m24fz-photos,.m24fz-5050{grid-template-columns:1fr}
+	.m24fz-photos{grid-template-rows:auto}.m24fz-photos .big{grid-row:auto}.m24fz-photos .side{grid-column:1}
 	.m24fz-side{position:static}
 	.m24fz-tel{grid-template-columns:repeat(3,1fr)}
 	.m24fz-mediagrid{grid-template-columns:repeat(2,1fr)}

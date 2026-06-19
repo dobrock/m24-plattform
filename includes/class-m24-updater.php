@@ -160,10 +160,46 @@ class M24_Updater {
 		if ( function_exists( 'opcache_reset' ) ) {
 			$ok = @opcache_reset(); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 		}
-		if ( class_exists( 'M24_Import_Log' ) ) {
-			M24_Import_Log::log( sprintf( 'opcache_reset(%s) → %s', $reason, $ok ? 'OK' : ( function_exists( 'opcache_reset' ) ? 'fehlgeschlagen/deaktiviert' : 'Funktion fehlt' ) ) );
+		// Zusätzlich: jede Plugin-Datei gezielt invalidieren (force=true). Das ist das korrekte
+		// Werkzeug bei opcache.validate_timestamps=0 und greift teils auch dort, wo ein globaler
+		// opcache_reset() durch opcache.restrict_api blockiert ist (oder erst beim 2. Request wirkt).
+		$inval = 0; $files = 0;
+		if ( function_exists( 'opcache_invalidate' ) ) {
+			foreach ( self::plugin_php_files() as $f ) {
+				$files++;
+				if ( @opcache_invalidate( $f, true ) ) { $inval++; } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			}
 		}
-		return (bool) $ok;
+		if ( class_exists( 'M24_Import_Log' ) ) {
+			$ra = (string) ini_get( 'opcache.restrict_api' );
+			M24_Import_Log::log( sprintf(
+				'opcache_reset(%s) → %s · invalidate %d/%d Dateien%s',
+				$reason,
+				$ok ? 'OK' : ( function_exists( 'opcache_reset' ) ? 'fehlgeschlagen/deaktiviert' : 'Funktion fehlt' ),
+				$inval, $files,
+				'' !== $ra ? ' · restrict_api=' . $ra : ''
+			) );
+		}
+		return (bool) $ok || $inval > 0;
+	}
+
+	/** Alle PHP-Dateien des Plugins (ohne vendor/) — für gezielte OPcache-Invalidierung. */
+	private static function plugin_php_files() {
+		$out = array();
+		$dir = rtrim( M24_PLATTFORM_DIR, '/' );
+		if ( ! is_dir( $dir ) ) { return $out; }
+		try {
+			$it = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS )
+			);
+			foreach ( $it as $f ) {
+				if ( ! $f->isFile() || 'php' !== strtolower( $f->getExtension() ) ) { continue; }
+				$path = $f->getPathname();
+				if ( false !== strpos( $path, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR ) ) { continue; }
+				$out[] = $path;
+			}
+		} catch ( \Throwable $e ) { return $out; }
+		return $out;
 	}
 
 	/**
@@ -187,7 +223,9 @@ class M24_Updater {
 			'enable'             => (string) ini_get( 'opcache.enable' ),
 			'validate_timestamps'=> (string) ini_get( 'opcache.validate_timestamps' ),
 			'revalidate_freq'    => (string) ini_get( 'opcache.revalidate_freq' ),
+			'restrict_api'       => (string) ini_get( 'opcache.restrict_api' ),
 			'reset_available'    => function_exists( 'opcache_reset' ) ? 'ja' : 'nein',
+			'invalidate_available' => function_exists( 'opcache_invalidate' ) ? 'ja' : 'nein',
 		);
 	}
 

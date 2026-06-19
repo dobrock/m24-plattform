@@ -387,12 +387,21 @@ class M24FZ_Editor_Screen {
 
 						<div class="fz-f">
 							<label>Bildergalerie (je Kategorie · ziehen zum Sortieren)</label>
+							<span class="fz-help">Messing-Rahmen = wird im Mosaik groß dargestellt · Nummer ①–③ (Außen) = Teaser-3er-Block oben im Inserat.</span>
 							<?php foreach ( array( '_m24fz_gal_aussen' => 'Außen', '_m24fz_gal_innen' => 'Innen', '_m24fz_gal_motor' => 'Motor', '_m24fz_gal_unterboden' => 'Unterboden' ) as $key => $label ) :
 								$ids = (array) get_post_meta( $id, $key, true ); ?>
 								<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
 									<strong><?php echo esc_html( $label ); ?></strong>
 									<span class="fz-galhint">Ziehen zum Sortieren — Bild 1 steht im Inserat vorn. (Titelbild = Beitragsbild oben.)</span>
-									<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'medium' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt="" loading="lazy"><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
+									<div class="fz-gal"><?php $gi = 0; foreach ( $ids as $aid ) {
+										$src = wp_get_attachment_image_src( $aid, 'medium' ); if ( ! $src ) { continue; }
+										$gi++;
+										$big    = ( (int) $src[1] >= (int) $src[2] );                      // Querformat → groß im Mosaik
+										$teaser = ( '_m24fz_gal_aussen' === $key && $gi <= 3 );           // erste 3 Außen → Frontend-3er-Block
+										$cls    = trim( ( $big ? 'is-big ' : '' ) . ( $teaser ? 'is-teaser' : '' ) );
+										printf( '<span data-id="%d" class="%s"><img src="%s" alt="" loading="lazy"><i class="rm">×</i>%s</span>',
+											(int) $aid, esc_attr( $cls ), esc_url( $src[0] ), $teaser ? '<i class="tnum">' . (int) $gi . '</i>' : '' );
+									} ?></div>
 									<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( implode( ',', array_map( 'intval', $ids ) ) ); ?>">
 									<button type="button" class="fz-out fz-gal-add">Bilder hinzufügen</button>
 								</div>
@@ -547,6 +556,10 @@ class M24FZ_Editor_Screen {
 .fz-gal span:hover:before{opacity:.95}
 .fz-gal img{width:100%;aspect-ratio:3/2;height:auto;object-fit:cover;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none}
 .fz-gal span:hover img{box-shadow:0 3px 10px rgba(0,0,0,.14)}
+/* Markierungen: Querformat = groß im Mosaik (Messing-Rand), erste 3 Außen = Frontend-3er-Block (Nummer) */
+.fz-gal span.is-big img{border:2px solid #9a6b25}
+.fz-gal span.is-teaser img{box-shadow:0 0 0 2px #9a6b25}
+.fz-gal .tnum{position:absolute;top:-7px;left:-7px;background:#9a6b25;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:12px;font-weight:700;z-index:2;border:2px solid #fff}
 .fz-gal .ui-sortable-helper{box-shadow:0 8px 20px rgba(0,0,0,.22);transform:scale(1.04)}
 .fz-gal-ph{visibility:visible!important;aspect-ratio:3/2;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
 .fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:13px;cursor:pointer;z-index:2}
@@ -590,12 +603,19 @@ jQuery(function($){
 	$('#fz-thumb-clear').on('click',function(e){ e.preventDefault(); $('input[name=_thumbnail_id]').val(''); $('.fz-thumb-prev').addClass('empty').html('<span class="fz-titel-tag">TITEL</span><span class="ph">Kein Titelbild</span>'); });
 	// Galerien.
 	function syncGal(box){ var ids=[]; box.find('.fz-gal span').each(function(){ ids.push($(this).data('id')); }); box.find('input[type=hidden]').val(ids.join(',')); }
-	$('.fz-gal').sortable({ placeholder:'fz-gal-ph', forcePlaceholderSize:true, cursor:'grabbing', tolerance:'pointer', opacity:.85, update:function(){ syncGal($(this).closest('[data-galkey]')); } });
-	$(document).on('click','.fz-gal .rm',function(){ var box=$(this).closest('[data-galkey]'); $(this).closest('span').remove(); syncGal(box); });
+	// Erste 3 Außen-Thumbs nummerieren (Teaser-3er-Block); nur die Außen-Box.
+	function reTeaser(box){ if(box.data('galkey')!=='_m24fz_gal_aussen'){ return; }
+		box.find('.fz-gal span').each(function(i){ var s=$(this);
+			if(i<3){ s.addClass('is-teaser'); if(!s.find('.tnum').length){ s.append('<i class="tnum"></i>'); } s.find('.tnum').text(i+1); }
+			else { s.removeClass('is-teaser'); s.find('.tnum').remove(); } }); }
+	function afterChange(box){ syncGal(box); reTeaser(box); }
+	$('.fz-gal').sortable({ placeholder:'fz-gal-ph', forcePlaceholderSize:true, cursor:'grabbing', tolerance:'pointer', opacity:.85, update:function(){ afterChange($(this).closest('[data-galkey]')); } });
+	$(document).on('click','.fz-gal .rm',function(){ var box=$(this).closest('[data-galkey]'); $(this).closest('span').remove(); afterChange(box); });
 	$('.fz-gal-add').on('click',function(e){ e.preventDefault();
 		var box=$(this).closest('[data-galkey]'), gal=box.find('.fz-gal');
 		var fr=wp.media({title:'Bilder hinzufügen',multiple:true,library:{type:'image'}});
-		fr.on('select',function(){ fr.state().get('selection').each(function(a){ a=a.toJSON(); var s=a.sizes||{}; var u=(s.medium&&s.medium.url)||(s.thumbnail&&s.thumbnail.url)||a.url; gal.append('<span data-id="'+a.id+'"><img src="'+u+'" alt="" loading="lazy"><i class="rm">×</i></span>'); }); syncGal(box); });
+		fr.on('select',function(){ fr.state().get('selection').each(function(a){ a=a.toJSON(); var s=a.sizes||{}; var u=(s.medium&&s.medium.url)||(s.thumbnail&&s.thumbnail.url)||a.url;
+			var big=(a.width&&a.height&&a.width>=a.height)?' is-big':''; gal.append('<span data-id="'+a.id+'" class="'+big.trim()+'"><img src="'+u+'" alt="" loading="lazy"><i class="rm">×</i></span>'); }); afterChange(box); });
 		fr.open();
 	});
 });

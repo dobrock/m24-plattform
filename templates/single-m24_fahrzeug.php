@@ -40,8 +40,10 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			</div>
 			<div class="m24fz-hero-foot">
 				<nav class="m24fz-bc"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">Start</a> › <a href="<?php echo esc_url( home_url( '/fahrzeuge/' ) ); ?>">Fahrzeuge</a> › <span><?php echo esc_html( $title ); ?></span></nav>
-				<div class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge"><?php echo esc_html( $badge ); ?></span><?php endif; ?></div>
-				<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
+				<div class="m24fz-hero-titlerow">
+					<div class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge"><?php echo esc_html( $badge ); ?></span><?php endif; ?></div>
+					<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
+				</div>
 			</div>
 		</section>
 
@@ -82,8 +84,8 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<!-- 4. Bilder (3er-Block: Außen ohne Beitragsbild-Dublette) -->
 		<?php $block = M24FZ_Template::block_images( $id, 3 ); if ( $block ) : ?>
 		<section class="m24fz-card m24fz-photos">
-			<figure class="big"><?php echo wp_get_attachment_image( $block[0], 'large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '(max-width:980px) 100vw, 66vw' ) ); ?><button class="m24fz-pill m24fz-gal-launch" type="button">Galerie öffnen</button></figure>
-			<div class="side"><?php foreach ( array_slice( $block, 1, 2 ) as $hi ) : ?><figure><?php echo wp_get_attachment_image( $hi, 'medium_large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '33vw' ) ); ?></figure><?php endforeach; ?></div>
+			<figure class="big"><?php echo wp_get_attachment_image( $block[0], 'large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '(max-width:980px) 100vw, 66vw' ) ); ?></figure>
+			<?php foreach ( array_slice( $block, 1, 2 ) as $hi ) : ?><figure class="side"><?php echo wp_get_attachment_image( $hi, 'medium_large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '33vw' ) ); ?></figure><?php endforeach; ?>
 		</section>
 		<?php endif; ?>
 
