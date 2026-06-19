@@ -17,22 +17,29 @@ class M24FZ_Similar {
 		$kat     = (string) get_post_meta( $post_id, '_m24fz_kat', true );
 		$out     = array();
 
-		// Reihenfolge der Versuche: Marke aktiv → Marke verkauft/reserviert → Kategorie aktiv.
-		$tries = array();
+		// Gleiche MARKE zuerst: aktiv (gelistet) → mit verkauften/reservierten auffüllen.
+		$brand_tries = array();
 		if ( '' !== $marke ) {
-			$tries[] = array( 'marke' => $marke, 'status' => array( 'gelistet' ) );
-			$tries[] = array( 'marke' => $marke, 'status' => array( 'verkauft', 'reserviert' ) );
+			$brand_tries[] = array( 'marke' => $marke, 'status' => array( 'gelistet' ) );
+			$brand_tries[] = array( 'marke' => $marke, 'status' => array( 'verkauft', 'reserviert' ) );
 		}
-		$tries[] = array( 'kat' => $kat, 'status' => array( 'gelistet' ) );
+		self::collect( $brand_tries, $post_id, $out, $limit );
 
-		foreach ( $tries as $t ) {
-			if ( count( $out ) >= $limit ) { break; }
-			foreach ( self::query( $t, $post_id, $out, $limit ) as $pid ) {
-				if ( ! in_array( $pid, $out, true ) ) { $out[] = $pid; }
-				if ( count( $out ) >= $limit ) { break; }
-			}
+		// Kategorie-Fallback (andere Marke) NUR, wenn die Marke GAR NICHTS liefert (§5).
+		if ( empty( $out ) ) {
+			self::collect( array( array( 'kat' => $kat, 'status' => array( 'gelistet' ) ) ), $post_id, $out, $limit );
 		}
 		return array_slice( $out, 0, $limit );
+	}
+
+	private static function collect( $tries, $post_id, &$out, $limit ) {
+		foreach ( $tries as $t ) {
+			if ( count( $out ) >= $limit ) { return; }
+			foreach ( self::query( $t, $post_id, $out, $limit ) as $pid ) {
+				if ( ! in_array( $pid, $out, true ) ) { $out[] = $pid; }
+				if ( count( $out ) >= $limit ) { return; }
+			}
+		}
 	}
 
 	private static function query( $args, $exclude, $already, $limit ) {

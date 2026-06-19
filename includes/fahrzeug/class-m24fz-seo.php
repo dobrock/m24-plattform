@@ -82,13 +82,8 @@ class M24FZ_SEO {
 		if ( ! $paf && $preis > 0 ) { $offer['price'] = $preis; }
 		$car['offers'] = $offer;
 
-		$bc = array( '@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => array(
-			array( '@type' => 'ListItem', 'position' => 1, 'name' => 'Start', 'item' => home_url( '/' ) ),
-			array( '@type' => 'ListItem', 'position' => 2, 'name' => 'Fahrzeuge', 'item' => home_url( '/fahrzeuge/' ) ),
-			array( '@type' => 'ListItem', 'position' => 3, 'name' => get_the_title( $id ) ),
-		) );
-
+		// BreadcrumbList kommt von wpSEO (Yoast/Newspaper) — KEIN zweites BreadcrumbList hier
+		// ausgeben (Duplicate Structured Data vermeiden). Nur das Car-Schema ist M24-eigen.
 		echo "\n" . '<script type="application/ld+json">' . wp_json_encode( $car ) . '</script>' . "\n";
-		echo '<script type="application/ld+json">' . wp_json_encode( $bc ) . '</script>' . "\n";
 	}
 }
