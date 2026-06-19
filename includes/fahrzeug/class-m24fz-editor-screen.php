@@ -498,7 +498,8 @@ class M24FZ_Editor_Screen {
 .fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff;border-left-color:#14161a}
 /* Fahrzeugtyp: exakte 50:50-Teilung, eine Mittellinie, kein weißer Streifen */
 .fz-seg-typ{display:grid;grid-template-columns:1fr 1fr;width:100%;align-items:stretch}
-.fz-seg-typ>label{position:relative;justify-content:center;text-align:center;height:100%}
+/* höhere Spezifität als „.fz-f label" (margin-bottom:6px) → Pill füllt volle Zellhöhe, kein weißer Streifen */
+.fz-seg.fz-seg-typ>label{position:relative;height:100%;margin:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center}
 .fz-seg-typ input{position:absolute;opacity:0;width:0;height:0}
 .fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
 .fz-note.ok{display:flex;align-items:center;gap:14px;background:#e6f4ea;border:1px solid #b6e0c2;color:#1a7f37;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:600}

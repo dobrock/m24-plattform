@@ -23,10 +23,14 @@ class M24FZ_Template {
 	public static function assets() {
 		if ( ! is_singular( M24FZ_CPT::PT ) ) { return; }
 		$css = 'assets/css/fahrzeug.css'; $js = 'assets/js/fahrzeug.js';
+		// Asset-Version = Plugin-Version + filemtime → bustet pro Release UND pro Dateiänderung
+		// (kein altes Stylesheet in Browser/WP-Rocket). filemtime fresh gelesen, OPcache-unabhängig.
+		$cver = M24_PLATTFORM_VERSION . '.' . (int) filemtime( M24_PLATTFORM_DIR . $css );
+		$jver = M24_PLATTFORM_VERSION . '.' . (int) filemtime( M24_PLATTFORM_DIR . $js );
 		// Saira NUR auf diesem Single-Template (scoped), als Dependency vor dem Template-CSS.
 		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
-		wp_enqueue_style( 'm24fz', plugins_url( $css, M24_PLATTFORM_FILE ), array( 'm24fz-saira' ), filemtime( M24_PLATTFORM_DIR . $css ) );
-		wp_enqueue_script( 'm24fz', plugins_url( $js, M24_PLATTFORM_FILE ), array(), filemtime( M24_PLATTFORM_DIR . $js ), true );
+		wp_enqueue_style( 'm24fz', plugins_url( $css, M24_PLATTFORM_FILE ), array( 'm24fz-saira' ), $cver );
+		wp_enqueue_script( 'm24fz', plugins_url( $js, M24_PLATTFORM_FILE ), array(), $jver, true );
 		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'pid' => get_queried_object_id() ) );
 	}
 
