@@ -497,8 +497,8 @@ class M24FZ_Editor_Screen {
 .fz-seg>span+span,.fz-seg>a+a,.fz-seg>label+label{border-left:1px solid #e2e2de}
 .fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff;border-left-color:#14161a}
 /* Fahrzeugtyp: exakte 50:50-Teilung, eine Mittellinie, kein weißer Streifen */
-.fz-seg-typ{display:grid;grid-template-columns:1fr 1fr;width:100%}
-.fz-seg-typ>label{position:relative;justify-content:center;text-align:center}
+.fz-seg-typ{display:grid;grid-template-columns:1fr 1fr;width:100%;align-items:stretch}
+.fz-seg-typ>label{position:relative;justify-content:center;text-align:center;height:100%}
 .fz-seg-typ input{position:absolute;opacity:0;width:0;height:0}
 .fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
 .fz-note.ok{display:flex;align-items:center;gap:14px;background:#e6f4ea;border:1px solid #b6e0c2;color:#1a7f37;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:600}
@@ -550,21 +550,19 @@ class M24FZ_Editor_Screen {
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
 .fz-galbox strong{display:block;font-size:13px;margin-bottom:2px}
 .fz-galhint{display:block;color:#8a9099;font-size:11px;margin-bottom:8px}
-.fz-gal{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:8px;min-height:12px}
+.fz-gal{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;min-height:12px;align-items:flex-end}
 .fz-gal span{position:relative;display:block;cursor:grab;transition:transform .1s,box-shadow .1s}
 .fz-gal span:active{cursor:grabbing}
 .fz-gal span:before{content:'⠿⠿';position:absolute;top:5px;left:6px;color:#fff;font-size:12px;letter-spacing:-2px;text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:0;transition:.12s;z-index:1;pointer-events:none}
 .fz-gal span:hover:before{opacity:.95}
-.fz-gal img{width:100%;aspect-ratio:3/2;height:auto;object-fit:cover;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none}
+.fz-gal img{height:115px;width:auto;max-width:240px;object-fit:contain;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none;background:#f3f3f1}
 .fz-gal span:hover img{box-shadow:0 3px 10px rgba(0,0,0,.14)}
 /* Markierung: erste 3 Außen = Frontend-3er-Block (Nummer + Messing-Kontur) */
 .fz-gal span.is-teaser img{box-shadow:0 0 0 2px #9a6b25}
 .fz-gal .tnum{position:absolute;top:-7px;left:-7px;background:#9a6b25;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:12px;font-weight:700;z-index:2;border:2px solid #fff}
 .fz-gal .ui-sortable-helper{box-shadow:0 8px 20px rgba(0,0,0,.22);transform:scale(1.04)}
-.fz-gal-ph{visibility:visible!important;aspect-ratio:3/2;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
+.fz-gal-ph{visibility:visible!important;height:115px;width:170px;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
 .fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:13px;cursor:pointer;z-index:2}
-@media(max-width:900px){.fz-gal{grid-template-columns:repeat(5,1fr)}}
-@media(max-width:600px){.fz-gal{grid-template-columns:repeat(3,1fr)}}
 #fz-keyfacts p,#fz-videos p{margin:0 0 8px}
 #fz-keyfacts input,#fz-videos input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
 .fz-foot{display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0ee}

@@ -41,7 +41,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<div class="m24fz-hero-foot">
 				<nav class="m24fz-bc"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">Start</a> › <a href="<?php echo esc_url( home_url( '/fahrzeuge/' ) ); ?>">Fahrzeuge</a> › <span><?php echo esc_html( $title ); ?></span></nav>
 				<div class="m24fz-hero-titlerow">
-					<div class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge"><?php echo esc_html( $badge ); ?></span><?php endif; ?></div>
+					<h1 class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge"><?php echo esc_html( $badge ); ?></span><?php endif; ?></h1>
 					<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
 				</div>
 			</div>
@@ -59,12 +59,10 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<!-- 3. 2/3 + 1/3 -->
 		<section class="m24fz-main">
 			<div class="m24fz-col">
-				<div class="m24fz-card">
-					<h1 class="m24fz-h1"><?php echo esc_html( $title ); ?></h1>
-					<?php $sub = array_filter( array( get_post_meta( $id, '_m24fz_karosserie', true ), get_post_meta( $id, '_m24fz_baujahr', true ), $marke ) ); ?>
-					<?php if ( $sub ) : ?><p class="m24fz-sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></p><?php endif; ?>
-					<?php if ( $keyf ) : ?><ul class="m24fz-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
-					<?php if ( $zusam ) : ?><div class="m24fz-zus"><?php echo wp_kses_post( wpautop( $zusam ) ); ?></div><?php endif; ?>
+				<div class="m24fz-card m24fz-infobox">
+					<span class="m24fz-kicker">Auf einen Blick</span>
+															<?php if ( $keyf ) : ?><ul class="m24fz-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
+					<?php if ( $zusam ) : ?><?php if ( $keyf ) : ?><hr class="m24fz-hr"><?php endif; ?><div class="m24fz-zus"><?php echo wp_kses_post( wpautop( $zusam ) ); ?></div><?php endif; ?>
 				</div>
 			</div>
 			<aside class="m24fz-side">
@@ -72,11 +70,10 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 					<?php echo M24FZ_Template::preis_html( $id ); // phpcs:ignore ?>
 					<button class="m24fz-btn" data-m24fz-track="anfrage" type="button">Jetzt anfragen</button>
 					<button class="m24fz-btn ghost" data-m24fz-track="merken" type="button">Auf den Merkzettel</button>
-					<p class="m24fz-views"><?php echo esc_html( number_format_i18n( $views ) ); ?> Aufrufe insgesamt</p>
-				</div>
-				<div class="m24fz-card m24fz-seller">
-					<strong>MOTORSPORT24 GmbH</strong>
-					<span>Internationaler Verkauf von Fahrzeugen seit 2006</span>
+					<div class="m24fz-seller">
+						<strong>MOTORSPORT24 GmbH</strong>
+						<span>Internationaler Verkauf von Fahrzeugen seit 2006</span>
+					</div>
 				</div>
 			</aside>
 		</section>
