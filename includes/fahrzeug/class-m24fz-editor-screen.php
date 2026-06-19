@@ -72,7 +72,8 @@ class M24FZ_Editor_Screen {
 		$req  = ! empty( $opts['req'] ) ? ' <span class="req">*</span>' : '';
 		$ph   = $opts['ph'] ?? '';
 		$help = $opts['help'] ?? '';
-		echo '<div class="fz-f">';
+		$cls  = ! empty( $opts['cls'] ) ? ' ' . $opts['cls'] : '';
+		echo '<div class="fz-f' . esc_attr( $cls ) . '">';
 		printf( '<label for="%1$s">%2$s%3$s</label><input type="%4$s" id="%1$s" name="%1$s" value="%5$s" placeholder="%6$s">',
 			esc_attr( $key ), esc_html( $label ), $req, esc_attr( $type ), esc_attr( self::g( $id, $key ) ), esc_attr( $ph ) ); // phpcs:ignore
 		if ( $help ) { printf( '<span class="fz-help">%s</span>', esc_html( $help ) ); }
@@ -115,7 +116,8 @@ class M24FZ_Editor_Screen {
 		// Bestandswert case-insensitiv + Alias auf den kanonischen Options-Wert abbilden (FIX 2).
 		$canon = '' !== $cur ? M24FZ_Telemetry::match_enum( $cur, array_keys( $assoc ), $opts['aliases'] ?? M24FZ_Telemetry::enum_aliases( $key ) ) : '';
 		$sel   = '' !== $canon ? $canon : $cur;
-		echo '<div class="fz-f"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . $req . '</label>'; // phpcs:ignore
+		$cls   = ! empty( $opts['cls'] ) ? ' ' . $opts['cls'] : '';
+		echo '<div class="fz-f' . esc_attr( $cls ) . '"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . $req . '</label>'; // phpcs:ignore
 		echo '<select id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">';
 		echo '<option value="">' . esc_html( $ph ) . '</option>';
 		foreach ( $assoc as $v => $l ) {
@@ -128,9 +130,9 @@ class M24FZ_Editor_Screen {
 	}
 
 	/** Toggle (Bool). */
-	private static function toggle( $id, $key, $label, $danger = false ) {
-		printf( '<label class="fz-toggle%s"><input type="checkbox" name="%s"%s><span></span> %s</label>',
-			$danger ? ' danger' : '', esc_attr( $key ), checked( 1, (int) self::g( $id, $key ), false ), esc_html( $label ) );
+	private static function toggle( $id, $key, $label, $danger = false, $cls = '' ) {
+		printf( '<label class="fz-toggle%s%s"><input type="checkbox" name="%s"%s><span></span> %s</label>',
+			$danger ? ' danger' : '', '' !== $cls ? ' ' . esc_attr( $cls ) : '', esc_attr( $key ), checked( 1, (int) self::g( $id, $key ), false ), esc_html( $label ) );
 	}
 
 	/* ── Render ──────────────────────────────────────────────────────────────── */
@@ -223,7 +225,7 @@ class M24FZ_Editor_Screen {
 									?>
 								</select>
 							</div>
-							<?php self::field( $id, '_m24fz_erstzulassung', 'Erstzulassung', array( 'ph' => 'MM/JJJJ' ) ); ?>
+							<?php self::field( $id, '_m24fz_erstzulassung', 'Erstzulassung', array( 'ph' => 'MM/JJJJ', 'cls' => 'fz-strasse-only' ) ); ?>
 						</div>
 						<div class="fz-row">
 							<?php
@@ -259,7 +261,7 @@ class M24FZ_Editor_Screen {
 						<?php self::checks( $id, '_m24fz_zustand', 'Zustand', M24FZ_Telemetry::zustand_options() ); ?>
 						<div class="fz-row fz-toggles">
 							<?php self::toggle( $id, '_m24fz_fahrbereit', 'Fahrbereit' ); ?>
-							<?php self::toggle( $id, '_m24fz_zugelassen', 'Zugelassen' ); ?>
+							<?php self::toggle( $id, '_m24fz_zugelassen', 'Zugelassen', false, 'fz-strasse-only' ); ?>
 							<?php self::toggle( $id, '_m24fz_matching_numbers', 'Matching Numbers' ); ?>
 						</div>
 					</section>
@@ -284,8 +286,8 @@ class M24FZ_Editor_Screen {
 						<div class="fz-row">
 							<?php
 							self::select( $id, '_m24fz_antrieb', 'Antrieb', M24FZ_Telemetry::antrieb_options(), array( 'default' => 'Heck' ) );
-							self::select( $id, '_m24fz_kraftstoff', 'Kraftstoff', M24FZ_Telemetry::kraftstoff_options(), array( 'default' => 'Benzin' ) );
-							self::select( $id, '_m24fz_lenkung', 'Lenkung', M24FZ_Telemetry::lenkung_options(), array( 'default' => 'Links' ) );
+							self::select( $id, '_m24fz_kraftstoff', 'Kraftstoff', M24FZ_Telemetry::kraftstoff_options(), array( 'default' => 'Benzin', 'cls' => 'fz-strasse-only' ) );
+							self::select( $id, '_m24fz_lenkung', 'Lenkung', M24FZ_Telemetry::lenkung_options(), array( 'default' => 'Links', 'cls' => 'fz-strasse-only' ) );
 							?>
 						</div>
 						<div class="fz-row">
@@ -381,6 +383,7 @@ class M24FZ_Editor_Screen {
 								$ids = (array) get_post_meta( $id, $key, true ); ?>
 								<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
 									<strong><?php echo esc_html( $label ); ?></strong>
+									<span class="fz-galhint">Ziehen zum Sortieren — Bild 1 steht im Inserat vorn. (Titelbild = Beitragsbild oben.)</span>
 									<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'thumbnail' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt=""><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
 									<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( implode( ',', array_map( 'intval', $ids ) ) ); ?>">
 									<button type="button" class="fz-out fz-gal-add">Bilder hinzufügen</button>
@@ -516,11 +519,18 @@ class M24FZ_Editor_Screen {
 .fz-titel-tag{position:absolute;top:8px;left:8px;background:#9a6b25;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:4px;z-index:2}
 .fz-thumb-btns{display:flex;flex-direction:column;gap:8px}
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
-.fz-galbox strong{display:block;font-size:13px;margin-bottom:6px}
-.fz-gal{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;min-height:8px}
-.fz-gal span{position:relative;display:inline-block}
-.fz-gal img{width:78px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #d9d9d6;cursor:move}
-.fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:12px;cursor:pointer}
+.fz-galbox strong{display:block;font-size:13px;margin-bottom:2px}
+.fz-galhint{display:block;color:#8a9099;font-size:11px;margin-bottom:8px}
+.fz-gal{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;min-height:12px}
+.fz-gal span{position:relative;display:inline-block;cursor:grab;transition:transform .1s,box-shadow .1s}
+.fz-gal span:active{cursor:grabbing}
+.fz-gal span:before{content:'⠿⠿';position:absolute;top:5px;left:6px;color:#fff;font-size:12px;letter-spacing:-2px;text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:0;transition:.12s;z-index:1;pointer-events:none}
+.fz-gal span:hover:before{opacity:.95}
+.fz-gal img{width:108px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none}
+.fz-gal span:hover img{box-shadow:0 3px 10px rgba(0,0,0,.14)}
+.fz-gal .ui-sortable-helper{box-shadow:0 8px 20px rgba(0,0,0,.22);transform:scale(1.04)}
+.fz-gal-ph{visibility:visible!important;width:108px;height:72px;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
+.fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:13px;cursor:pointer;z-index:2}
 #fz-keyfacts p,#fz-videos p{margin:0 0 8px}
 #fz-keyfacts input,#fz-videos input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
 .fz-foot{display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0ee}
@@ -537,8 +547,9 @@ jQuery(function($){
 		if(ps>0){ var v=(Math.round(ps*0.73549875*100)/100).toFixed(2).replace('.',','); $('#fz-kw').text(v+' kW ('+ps+' PS)'); }
 		else { $('#fz-kw').text('In PS — kW automatisch.'); } }
 	$('#_m24fz_leistung_ps').on('input',kw); kw();
-	// Renn-Block + Segmented-Typ.
-	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn'; $('[data-renn]').toggle(renn);
+	// Renn-Block + Segmented-Typ + Hide straßenspezifischer Felder bei Rennwagen.
+	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn';
+		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn);
 		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
 	// Zustand/Ausstattung Toggle-Chips.
@@ -558,7 +569,7 @@ jQuery(function($){
 	$('#fz-thumb-clear').on('click',function(e){ e.preventDefault(); $('input[name=_thumbnail_id]').val(''); $('.fz-thumb-prev').addClass('empty').html('<span class="fz-titel-tag">TITEL</span><span class="ph">Kein Titelbild</span>'); });
 	// Galerien.
 	function syncGal(box){ var ids=[]; box.find('.fz-gal span').each(function(){ ids.push($(this).data('id')); }); box.find('input[type=hidden]').val(ids.join(',')); }
-	$('.fz-gal').sortable({ update:function(){ syncGal($(this).closest('[data-galkey]')); } });
+	$('.fz-gal').sortable({ placeholder:'fz-gal-ph', forcePlaceholderSize:true, cursor:'grabbing', tolerance:'pointer', opacity:.85, update:function(){ syncGal($(this).closest('[data-galkey]')); } });
 	$(document).on('click','.fz-gal .rm',function(){ var box=$(this).closest('[data-galkey]'); $(this).closest('span').remove(); syncGal(box); });
 	$('.fz-gal-add').on('click',function(e){ e.preventDefault();
 		var box=$(this).closest('[data-galkey]'), gal=box.find('.fz-gal');
