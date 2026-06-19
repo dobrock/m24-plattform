@@ -112,9 +112,8 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<?php foreach ( $gals as $k => $g ) : $csv = implode( ',', array_map( 'intval', $g['ids'] ) ); ?>
 			<div class="m24fz-galcat" data-catwrap="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
 				<?php
-				// Jetpack hängt sich an [gallery] (Tiled-Galleries-Modul) → is-style-rectangular + Carousel.
-				// Reihenfolge = Backend-Sortierung (ids ⇒ orderby post__in). Fallback (kein Jetpack): WP-Standard.
-				echo do_shortcode( '[gallery ids="' . esc_attr( $csv ) . '" type="rectangular" columns="3" link="file"]' );
+				// Jetpack Tiled Gallery (rectangular) auf voller boxed Breite (Filter hebt content_width).
+				echo M24FZ_Template::tiled_gallery( $csv ); // phpcs:ignore WordPress.Security.EscapeOutput
 				?>
 			</div>
 			<?php endforeach; ?>

@@ -496,7 +496,10 @@ class M24FZ_Editor_Screen {
 .fz-seg>span,.fz-seg>a,.fz-seg>label{display:inline-flex;align-items:center;padding:10px 16px;margin:0;cursor:pointer;text-decoration:none;color:#50575e;background:#fff;border:0}
 .fz-seg>span+span,.fz-seg>a+a,.fz-seg>label+label{border-left:1px solid #e2e2de}
 .fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff;border-left-color:#14161a}
-.fz-seg-typ label{position:relative}.fz-seg-typ input{position:absolute;opacity:0;width:0;height:0}
+/* Fahrzeugtyp: exakte 50:50-Teilung, eine Mittellinie, kein weißer Streifen */
+.fz-seg-typ{display:grid;grid-template-columns:1fr 1fr;width:100%}
+.fz-seg-typ>label{position:relative;justify-content:center;text-align:center}
+.fz-seg-typ input{position:absolute;opacity:0;width:0;height:0}
 .fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
 .fz-note.ok{display:flex;align-items:center;gap:14px;background:#e6f4ea;border:1px solid #b6e0c2;color:#1a7f37;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:600}
 .fz-note.ok a{color:#0e6b2e;font-weight:700;text-decoration:underline}

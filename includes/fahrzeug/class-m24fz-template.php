@@ -46,6 +46,20 @@ class M24FZ_Template {
 		return $alt . '<span class="m24fz-preis">' . $fmt( $main ) . '</span><span class="m24fz-preis-note">' . $note . '</span>';
 	}
 
+	/**
+	 * Jetpack Tiled Gallery (rectangular) je Kategorie rendern. Hebt die Tiled-Content-Breite
+	 * auf die echte boxed Containerbreite (sonst rendert Classic-Tiled fix auf theme content_width
+	 * = 696px → ~2/3 gestaucht). Reihenfolge = Backend-Sortierung (ids ⇒ orderby post__in).
+	 */
+	public static function tiled_gallery( $csv ) {
+		$cw = (int) apply_filters( 'm24fz_gallery_content_width', 1036 );
+		$f  = static function () use ( $cw ) { return $cw; };
+		add_filter( 'tiled_gallery_content_width', $f, 999 );
+		$html = do_shortcode( '[gallery ids="' . esc_attr( $csv ) . '" type="rectangular" columns="3" link="file"]' );
+		remove_filter( 'tiled_gallery_content_width', $f, 999 );
+		return $html;
+	}
+
 	/** YouTube-Video-ID aus diversen URL-Formen (youtu.be / watch?v= / embed/ / shorts/). */
 	public static function yt_id( $url ) {
 		$url = trim( (string) $url );

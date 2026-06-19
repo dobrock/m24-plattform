@@ -124,12 +124,14 @@ class M24FZ_Telemetry {
 			$add( 'Laufleistung',  self::laufleistung( self::v( $id, '_m24fz_laufleistung' ), self::v( $id, '_m24fz_laufleistung_einheit' ) ) );
 			$add( 'Leistung',      self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe',      self::v( $id, '_m24fz_getriebe' ) );
-			$add( 'Farbe',         self::v( $id, '_m24fz_farbe' ) );
+			// 5. Zelle „Farbe" = originale Hersteller-Farbbezeichnung (leer ⇒ Zelle weg, kein generischer Name).
+			$add( 'Farbe',         self::v( $id, '_m24fz_farbbez_hersteller' ) );
 			$add( self::v( $id, '_m24fz_tel_opt_label' ), self::v( $id, '_m24fz_tel_opt_value' ) );
 		} else {
 			$add( 'Baujahr',  self::v( $id, '_m24fz_baujahr' ) );
 			$add( 'Leistung', self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe', self::v( $id, '_m24fz_getriebe' ) );
+			$add( 'Farbe',    self::v( $id, '_m24fz_farbbez_hersteller' ) );
 			if ( self::v( $id, '_m24fz_wagenpass' ) )    { $add( 'Wagenpass', 'vorhanden' ); }
 			if ( self::v( $id, '_m24fz_rennhistorie' ) ) { $add( 'Rennhistorie', 'dokumentiert' ); }
 			for ( $i = 1; $i <= 3; $i++ ) {

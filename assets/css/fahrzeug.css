@@ -5,7 +5,7 @@
 .m24fz-wrap{max-width:1164px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column;gap:18px}
 .m24fz-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px}
 .m24fz h1,.m24fz h2{font-weight:700;margin:0}
-.m24fz-h1{font-size:26px;line-height:1.15}
+.m24fz-h1{font-size:30px;font-weight:800;line-height:1.12;letter-spacing:-.01em}
 .m24fz h2{font-size:19px;margin-bottom:12px}
 
 /* 1. HERO — eckig, Beitragsbild als Hintergrund + dunkler Verlauf als Overlay */
@@ -32,10 +32,10 @@
 
 /* 3. 2/3 + 1/3 */
 .m24fz-main{display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start}
-.m24fz-sub{color:var(--mut);margin:6px 0 12px;font-size:15px}
-.m24fz-keyf{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:7px}
-.m24fz-keyf li{padding-left:24px;position:relative}.m24fz-keyf li:before{content:'✓';position:absolute;left:0;color:var(--brass);font-weight:700}
-.m24fz-zus{color:#33373d;line-height:1.6}
+.m24fz-sub{color:var(--mut);margin:8px 0 16px;font-size:15px;font-weight:500}
+.m24fz-keyf{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:10px}
+.m24fz-keyf li{padding-left:26px;position:relative;font-size:16.5px;font-weight:500}.m24fz-keyf li:before{content:'✓';position:absolute;left:0;color:var(--brass);font-weight:700}
+.m24fz-zus{color:#3a3f47;font-size:16px;font-weight:400;line-height:1.72;max-width:62ch}
 .m24fz-side{display:flex;flex-direction:column;gap:18px;position:sticky;top:96px}
 .m24fz-pricebox{display:flex;flex-direction:column;gap:10px}
 .m24fz-preis{color:var(--brass);font-size:28px;font-weight:700}
@@ -50,8 +50,8 @@
 /* 4. Bilder — linke Kachel = Höhe(rechts oben)+Gap+Höhe(rechts unten), Böden bündig */
 .m24fz-photos{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:14px;align-items:stretch}
 .m24fz-photos figure{margin:0;position:relative;border-radius:8px;overflow:hidden;background:#ededea;min-height:0}
-.m24fz-photos .big{grid-column:1;grid-row:1 / span 2;aspect-ratio:3/2}
-.m24fz-photos .side{grid-column:2}
+.m24fz-photos .big{grid-column:1;grid-row:1 / span 2}
+.m24fz-photos .side{grid-column:2;aspect-ratio:3/2}
 .m24fz-img{width:100%;height:100%;object-fit:cover;display:block}
 
 /* 5. Beschreibung — Flip-Out */
