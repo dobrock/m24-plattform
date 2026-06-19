@@ -22,6 +22,8 @@
 .m24fz-hero-titlerow .m24fz-gal-launch{flex:0 0 auto}
 .m24fz-bc{font-size:12px;color:rgba(255,255,255,.6)}.m24fz-bc a{color:rgba(255,255,255,.8);text-decoration:none}
 .m24fz-hero-title{font-size:30px;font-weight:700;line-height:1.1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* Hero-Titel ist jetzt ein <h1> → tagDiv-Theme-h1-Farbe (#111) überschreiben. Zwei Klassen + !important. */
+.m24fz-hero .m24fz-hero-title{color:#fff!important}
 .m24fz-pill{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
 .m24fz-pill:hover{background:rgba(255,255,255,.12)}
 
