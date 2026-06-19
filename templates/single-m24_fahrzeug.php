@@ -25,8 +25,12 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 <div class="m24fz td-container">
 	<div class="m24fz-wrap">
 
-		<!-- 1. HERO (eckig) -->
-		<section class="m24fz-hero">
+		<!-- 1. HERO (eckig) — Beitragsbild als Hintergrund, dunkler Verlauf als Overlay -->
+		<section class="m24fz-hero<?php echo $heroI ? ' has-img' : ''; ?>">
+			<?php if ( $heroI ) : ?>
+				<?php echo wp_get_attachment_image( $heroI[0], 'large', false, array( 'class' => 'm24fz-hero-img', 'fetchpriority' => 'high', 'loading' => 'eager', 'decoding' => 'async', 'sizes' => '100vw' ) ); // phpcs:ignore ?>
+				<span class="m24fz-hero-ov" aria-hidden="true"></span>
+			<?php endif; ?>
 			<div class="m24fz-hero-top">
 				<button class="m24fz-pill" data-m24fz-track="merken" type="button">♡ Merken</button>
 				<button class="m24fz-pill" data-m24fz-share type="button">↗ Teilen</button>
@@ -115,16 +119,16 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		</section>
 		<?php endif; ?>
 
-		<!-- 8. Ähnliche -->
-		<?php $sim = M24FZ_Similar::ids( $id, 3 ); if ( $sim ) : ?>
+		<!-- 8. Ähnliche (CPT + Alt-Beiträge) -->
+		<?php $sim = M24FZ_Similar::cards( $id, 3 ); if ( $sim ) : ?>
 		<section class="m24fz-card m24fz-similar">
 			<h2>Ähnliche Fahrzeuge</h2>
-			<div class="m24fz-simgrid"><?php foreach ( $sim as $sid ) :
-				$ssold = M24FZ_CPT::is_sold( $sid ); $scc = get_post_meta( $sid, '_m24fz_standort', true ); ?>
-				<a class="m24fz-simcard" href="<?php echo esc_url( get_permalink( $sid ) ); ?>">
-					<span class="img"><?php echo has_post_thumbnail( $sid ) ? wp_get_attachment_image( get_post_thumbnail_id( $sid ), 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ) : ''; ?><?php if ( $ssold ) : ?><span class="m24fz-badge sm">Verkauft</span><?php endif; ?></span>
-					<span class="meta"><?php echo esc_html( trim( M24FZ_Telemetry::flag( $scc ) . ' ' . get_post_meta( $sid, '_m24fz_baujahr', true ) ) ); ?></span>
-					<span class="t"><?php echo esc_html( get_the_title( $sid ) ); ?></span>
+			<div class="m24fz-simgrid"><?php foreach ( $sim as $c ) :
+				$smeta = trim( ( $c['cc'] ? M24FZ_Telemetry::flag( $c['cc'] ) . ' ' : '' ) . $c['baujahr'] ); ?>
+				<a class="m24fz-simcard" href="<?php echo esc_url( $c['url'] ); ?>">
+					<span class="img"><?php echo $c['thumb'] ? wp_get_attachment_image( $c['thumb'], 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ) : ''; ?><?php if ( $c['sold'] ) : ?><span class="m24fz-badge sm">Verkauft</span><?php endif; ?></span>
+					<?php if ( $smeta ) : ?><span class="meta"><?php echo esc_html( $smeta ); ?></span><?php endif; ?>
+					<span class="t"><?php echo esc_html( $c['title'] ); ?></span>
 				</a>
 			<?php endforeach; ?></div>
 			<?php if ( $marke ) : ?><a class="m24fz-allmarke" href="<?php echo esc_url( home_url( '/fahrzeuge/' ) ); ?>">Alle <?php echo esc_html( $marke ); ?> ansehen</a><?php endif; ?>
