@@ -78,11 +78,11 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			</aside>
 		</section>
 
-		<!-- 4. Bilder -->
-		<?php if ( $heroI ) : ?>
+		<!-- 4. Bilder (3er-Block: Außen ohne Beitragsbild-Dublette) -->
+		<?php $block = M24FZ_Template::block_images( $id, 3 ); if ( $block ) : ?>
 		<section class="m24fz-card m24fz-photos">
-			<figure class="big"><?php echo wp_get_attachment_image( $heroI[0], 'large', false, array( 'class' => 'm24fz-img', 'fetchpriority' => 'high', 'sizes' => '(max-width:980px) 100vw, 66vw' ) ); ?><button class="m24fz-pill m24fz-gal-launch" type="button">Galerie öffnen</button></figure>
-			<div class="side"><?php foreach ( array_slice( $heroI, 1, 2 ) as $hi ) : ?><figure><?php echo wp_get_attachment_image( $hi, 'medium_large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '33vw' ) ); ?></figure><?php endforeach; ?></div>
+			<figure class="big"><?php echo wp_get_attachment_image( $block[0], 'large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '(max-width:980px) 100vw, 66vw' ) ); ?><button class="m24fz-pill m24fz-gal-launch" type="button">Galerie öffnen</button></figure>
+			<div class="side"><?php foreach ( array_slice( $block, 1, 2 ) as $hi ) : ?><figure><?php echo wp_get_attachment_image( $hi, 'medium_large', false, array( 'class' => 'm24fz-img', 'loading' => 'lazy', 'sizes' => '33vw' ) ); ?></figure><?php endforeach; ?></div>
 		</section>
 		<?php endif; ?>
 
@@ -108,7 +108,12 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				<?php foreach ( $gals as $k => $g ) : foreach ( $g['ids'] as $aid ) : ?>
 					<a href="<?php echo esc_url( wp_get_attachment_image_url( $aid, 'large' ) ); ?>" class="m24fz-mitem" data-cat="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>><?php echo wp_get_attachment_image( $aid, 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ); ?></a>
 				<?php endforeach; endforeach; ?>
-				<?php foreach ( $vids as $vu ) : ?><a href="<?php echo esc_url( $vu ); ?>" class="m24fz-mitem m24fz-video" data-cat="video" hidden target="_blank" rel="noopener">▶ Video</a><?php endforeach; ?>
+				<?php foreach ( $vids as $vu ) : $yid = M24FZ_Template::yt_id( $vu ); if ( ! $yid ) { continue; } ?>
+					<button type="button" class="m24fz-mitem m24fz-video" data-cat="video" data-ytid="<?php echo esc_attr( $yid ); ?>" hidden aria-label="Video abspielen">
+						<img src="https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/hqdefault.jpg" alt="Video-Vorschau" loading="lazy" width="480" height="360" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/mqdefault.jpg'">
+						<span class="m24fz-play" aria-hidden="true">▶</span>
+					</button>
+				<?php endforeach; ?>
 			</div>
 		</section>
 		<?php endif; ?>
@@ -168,6 +173,6 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 	</div>
 
 	<?php // Lightbox-Container (JS füllt) ?>
-	<div class="m24fz-lb" hidden><button class="m24fz-lb-close" type="button">&times;</button><img src="" alt=""><button class="m24fz-lb-prev" type="button">‹</button><button class="m24fz-lb-next" type="button">›</button></div>
+	<div class="m24fz-lb" hidden><button class="m24fz-lb-close" type="button">&times;</button><img src="" alt=""><div class="m24fz-lb-frame"></div><button class="m24fz-lb-prev" type="button">‹</button><button class="m24fz-lb-next" type="button">›</button></div>
 </div>
 <?php get_footer();

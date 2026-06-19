@@ -29,25 +29,37 @@ class M24FZ_Telemetry {
 	/** Zustand-Mehrfachauswahl (slug => Label). Filterbar. */
 	public static function zustand_options() {
 		return apply_filters( 'm24fz_zustand_options', array(
-			'beschaedigt'        => 'Beschädigt',
-			'restaurationsobjekt' => 'Restaurationsobjekt',
-			'teilrestauriert'    => 'Teilrestauriert',
-			'unfallfrei'         => 'Unfallfrei',
-			'vollrestauriert'    => 'Vollrestauriert',
+			'beschaedigt'           => 'Beschädigt',
+			'unfallfrei'            => 'Unfallfrei',
+			'restaurationsobjekt'   => 'Restaurationsobjekt',
+			'teilrestauriert'       => 'Teilrestauriert',
+			'vollrestauriert'       => 'Vollrestauriert',
+			'unrestauriert-original' => 'Unrestaurierter Originalzustand',
 		) );
 	}
 
 	/** Ausstattung-Mehrfachauswahl (slug => Label). Filterbar/erweiterbar. */
 	public static function ausstattung_options() {
 		return apply_filters( 'm24fz_ausstattung_options', array(
-			'abs'              => 'ABS',
-			'airbag'           => 'Airbag',
-			'klimaanlage'      => 'Klimaanlage',
-			'navigationssystem' => 'Navigationssystem',
-			'schiebedach'      => 'Schiebedach',
-			'servolenkung'     => 'Servolenkung',
+			'abs'          => 'ABS',
+			'airbag'       => 'Airbag',
+			'klimaanlage'  => 'Klimaanlage',
+			'schiebedach'  => 'Schiebedach',
+			'servolenkung' => 'Servolenkung',
 		) );
 	}
+
+	/* ── Enum-Sets für Auswahlfelder (value == gespeicherter Wert) ───────────── */
+	public static function neu_gebraucht_options() { return array( 'Gebraucht', 'Neu' ); }
+	public static function antrieb_options()       { return array( 'Heck', 'Front', 'Allrad' ); }
+	public static function kraftstoff_options()    { return array( 'Benzin', 'Diesel' ); }
+	public static function lenkung_options()       { return array( 'Links', 'Rechts' ); }
+	public static function innenmaterial_options() { return array( 'Velours', 'Stoff', 'Kunstleder', 'Leder', 'Vollleder', 'Teilleder / Stoff' ); }
+	public static function innenfarbe_options()    { return array( 'Grau', 'Schwarz', 'Bordeauxrot', 'Rot', 'Weiß', 'Grün', 'Blau' ); }
+	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Cabriolet', 'Touring', '2-türige Limousine' ); }
+
+	/** Fahrzeugtyp-Label (A3 „Bezeichnungen übernehmen"). */
+	public static function typ_label( $typ ) { return ( 'renn' === $typ ) ? 'Rennwagen' : 'Straßenfahrzeug'; }
 
 	/** Währungssymbol/-kürzel. EUR → „€", CHF → „CHF". */
 	public static function currency_symbol( $code ) {

@@ -88,15 +88,42 @@ class M24FZ_Editor_Screen {
 		echo '</select></div>';
 	}
 
-	/** Checkbox-Gruppe (Mehrfachauswahl) für Array-Metas. */
+	/** Toggle-Chip-Gruppe (Mehrfachauswahl) für Array-Metas. */
 	private static function checks( $id, $key, $label, $options ) {
 		$cur = (array) get_post_meta( $id, $key, true );
 		echo '<div class="fz-f"><label>' . esc_html( $label ) . '</label><div class="fz-checks">';
 		foreach ( $options as $slug => $l ) {
-			printf( '<label class="fz-check"><input type="checkbox" name="%s[]" value="%s"%s> %s</label>',
-				esc_attr( $key ), esc_attr( $slug ), in_array( $slug, $cur, true ) ? ' checked' : '', esc_html( $l ) );
+			$on = in_array( $slug, $cur, true );
+			printf( '<label class="fz-chip%s"><input type="checkbox" name="%s[]" value="%s"%s><span class="dot"></span>%s</label>',
+				$on ? ' on' : '', esc_attr( $key ), esc_attr( $slug ), $on ? ' checked' : '', esc_html( $l ) );
 		}
 		echo '</div></div>';
+	}
+
+	/**
+	 * Auswahlfeld. $options als Liste (value==label) ODER assoc (value=>label).
+	 * Default ($opts['default']) greift NUR bei Neuanlage (id=0). Bestehende, nicht in der
+	 * Enum enthaltene Werte bleiben erhalten und werden als „… (individuell)" angezeigt (F-Migration).
+	 */
+	private static function select( $id, $key, $label, $options, $opts = array() ) {
+		$cur = (string) self::g( $id, $key );
+		if ( '' === $cur && 0 === (int) $id && ! empty( $opts['default'] ) ) { $cur = (string) $opts['default']; }
+		$req = ! empty( $opts['req'] ) ? ' <span class="req">*</span>' : '';
+		$ph  = $opts['ph'] ?? 'Bitte wählen';
+		// Liste → assoc.
+		$assoc = array(); foreach ( $options as $k => $v ) { if ( is_int( $k ) ) { $assoc[ $v ] = $v; } else { $assoc[ $k ] = $v; } }
+		echo '<div class="fz-f"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . $req . '</label>'; // phpcs:ignore
+		echo '<select id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">';
+		echo '<option value="">' . esc_html( $ph ) . '</option>';
+		$known = false;
+		foreach ( $assoc as $v => $l ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $cur, $v, false ), esc_html( $l ) );
+			if ( $cur === (string) $v ) { $known = true; }
+		}
+		if ( '' !== $cur && ! $known ) {
+			printf( '<option value="%s" selected>%s</option>', esc_attr( $cur ), esc_html( $cur . ' (individuell)' ) );
+		}
+		echo '</select></div>';
 	}
 
 	/** Toggle (Bool). */
@@ -122,7 +149,7 @@ class M24FZ_Editor_Screen {
 		$thumbU  = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
 		$pdraft  = $post && 'draft' === $post->post_status;
 		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
-		$yearNow = (int) gmdate( 'Y' ) + 1;
+		$yearNow = (int) gmdate( 'Y' );
 		?>
 		<style><?php echo self::css(); // phpcs:ignore ?></style>
 		<div class="fz-screen">
@@ -146,6 +173,17 @@ class M24FZ_Editor_Screen {
 				</header>
 
 				<div class="fz-body">
+					<?php if ( $id && isset( $_GET['updated'] ) ) : ?>
+						<div class="fz-note ok">
+							<?php if ( $pdraft ) : ?>
+								<span>✓ Als Entwurf gespeichert.</span>
+								<a href="<?php echo esc_url( get_preview_post_link( $id ) ); ?>" target="_blank" rel="noopener">Vorschau öffnen ↗</a>
+							<?php else : ?>
+								<span>✓ Veröffentlicht.</span>
+								<a href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank" rel="noopener">Inserat ansehen ↗</a>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
 					<div class="fz-titlebar">
 						<label for="fz_title">Fahrzeug-Titel <span class="req">*</span></label>
 						<input type="text" id="fz_title" name="post_title" value="<?php echo esc_attr( $title ); ?>" placeholder="z. B. BMW M3 E30 EVO II — Diamantschwarz" required>
@@ -159,8 +197,8 @@ class M24FZ_Editor_Screen {
 							<div class="fz-f">
 								<label>Fahrzeugtyp</label>
 								<div class="fz-seg fz-seg-typ">
-									<label class="<?php echo 'renn' === $typ ? '' : 'on'; ?>"><input type="radio" name="_m24fz_template_typ" value="strasse" <?php checked( $typ, 'strasse' ); ?>> Straße</label>
-									<label class="<?php echo 'renn' === $typ ? 'on' : ''; ?>"><input type="radio" name="_m24fz_template_typ" value="renn" <?php checked( $typ, 'renn' ); ?>> Renn</label>
+									<label class="<?php echo 'renn' === $typ ? '' : 'on'; ?>"><input type="radio" name="_m24fz_template_typ" value="strasse" <?php checked( $typ, 'strasse' ); ?>> Straßenfahrzeug</label>
+									<label class="<?php echo 'renn' === $typ ? 'on' : ''; ?>"><input type="radio" name="_m24fz_template_typ" value="renn" <?php checked( $typ, 'renn' ); ?>> Rennwagen</label>
 								</div>
 							</div>
 							<div class="fz-f">
@@ -175,8 +213,13 @@ class M24FZ_Editor_Screen {
 							<?php self::field( $id, '_m24fz_marke', 'Marke', array( 'req' => true, 'ph' => 'BMW', 'help' => 'Steuert „Ähnliche Fahrzeuge".' ) ); ?>
 							<div class="fz-f">
 								<label for="_m24fz_baujahr">Baujahr</label>
-								<select id="_m24fz_baujahr" name="_m24fz_baujahr"><option value="">—</option>
-									<?php $by = (int) self::g( $id, '_m24fz_baujahr' ); for ( $y = $yearNow; $y >= 1950; $y-- ) { printf( '<option value="%1$d"%2$s>%1$d</option>', $y, selected( $by, $y, false ) ); } ?>
+								<select id="_m24fz_baujahr" name="_m24fz_baujahr"><option value="">Bitte wählen</option>
+									<?php
+									$by = (int) self::g( $id, '_m24fz_baujahr' );
+									if ( $by > 0 && $by > $yearNow ) { printf( '<option value="%1$d" selected>%1$d</option>', $by ); }
+									for ( $y = $yearNow; $y >= 1970; $y-- ) { printf( '<option value="%1$d"%2$s>%1$d</option>', $y, selected( $by, $y, false ) ); }
+									if ( $by > 0 && $by < 1970 ) { printf( '<option value="%1$d" selected>%1$d</option>', $by ); }
+									?>
 								</select>
 							</div>
 							<?php self::field( $id, '_m24fz_erstzulassung', 'Erstzulassung', array( 'ph' => 'MM/JJJJ' ) ); ?>
@@ -187,6 +230,9 @@ class M24FZ_Editor_Screen {
 							self::field( $id, '_m24fz_modell', 'Modell', array( 'req' => true, 'ph' => 'z. B. M3 EVO II' ) );
 							self::field( $id, '_m24fz_fin', 'FIN' );
 							?>
+						</div>
+						<div class="fz-row">
+							<?php self::select( $id, '_m24fz_karosserie', 'Karosserie', M24FZ_Telemetry::karosserie_options() ); ?>
 						</div>
 					</section>
 
@@ -206,8 +252,7 @@ class M24FZ_Editor_Screen {
 						</div>
 						<div class="fz-row">
 							<?php self::country_field( $id, '_m24fz_standort', 'Fahrzeugstandort (Land)' ); ?>
-							<?php self::field( $id, '_m24fz_standort_ort', 'Standort (Ort)', array( 'ph' => 'z. B. Stuttgart' ) ); ?>
-							<?php self::field( $id, '_m24fz_neu_gebraucht', 'Neu / Gebraucht', array( 'req' => true, 'ph' => 'Gebraucht' ) ); ?>
+							<?php self::select( $id, '_m24fz_neu_gebraucht', 'Neu / Gebraucht', M24FZ_Telemetry::neu_gebraucht_options(), array( 'req' => true, 'default' => 'Gebraucht' ) ); ?>
 						</div>
 						<?php self::checks( $id, '_m24fz_zustand', 'Zustand', M24FZ_Telemetry::zustand_options() ); ?>
 						<div class="fz-row fz-toggles">
@@ -236,22 +281,21 @@ class M24FZ_Editor_Screen {
 						</div>
 						<div class="fz-row">
 							<?php
-							self::field( $id, '_m24fz_antrieb', 'Antrieb', array( 'ph' => 'Heck / Allrad' ) );
-							self::field( $id, '_m24fz_kraftstoff', 'Kraftstoff', array( 'ph' => 'Benzin' ) );
-							self::field( $id, '_m24fz_karosserie', 'Karosserie', array( 'ph' => 'z. B. Coupé' ) );
+							self::select( $id, '_m24fz_antrieb', 'Antrieb', M24FZ_Telemetry::antrieb_options(), array( 'default' => 'Heck' ) );
+							self::select( $id, '_m24fz_kraftstoff', 'Kraftstoff', M24FZ_Telemetry::kraftstoff_options(), array( 'default' => 'Benzin' ) );
+							self::select( $id, '_m24fz_lenkung', 'Lenkung', M24FZ_Telemetry::lenkung_options(), array( 'default' => 'Links' ) );
 							?>
 						</div>
 						<div class="fz-row">
 							<?php
 							self::field( $id, '_m24fz_aussenfarbe', 'Außenfarbe', array( 'req' => true ) );
 							self::field( $id, '_m24fz_farbbez_hersteller', 'Hersteller-Farbbez. (außen)' );
-							self::field( $id, '_m24fz_lenkung', 'Lenkung', array( 'ph' => 'Links / Rechts' ) );
 							?>
 						</div>
 						<div class="fz-row">
 							<?php
-							self::field( $id, '_m24fz_innenmaterial', 'Innenmaterial' );
-							self::field( $id, '_m24fz_innenfarbe', 'Innenfarbe', array( 'req' => true ) );
+							self::select( $id, '_m24fz_innenmaterial', 'Innenmaterial', M24FZ_Telemetry::innenmaterial_options() );
+							self::select( $id, '_m24fz_innenfarbe', 'Innenfarbe', M24FZ_Telemetry::innenfarbe_options(), array( 'req' => true ) );
 							?>
 						</div>
 
@@ -425,6 +469,8 @@ class M24FZ_Editor_Screen {
 .fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff}
 .fz-seg-typ label{position:relative}.fz-seg-typ input{position:absolute;opacity:0}
 .fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
+.fz-note.ok{display:flex;align-items:center;gap:14px;background:#e6f4ea;border:1px solid #b6e0c2;color:#1a7f37;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:600}
+.fz-note.ok a{color:#0e6b2e;font-weight:700;text-decoration:underline}
 .fz-save{font:inherit;font-weight:700;border:0;border-radius:8px;padding:11px 20px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e);font-size:14px}
 .fz-out{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px solid #9a6b25;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block}
 .fz-out.ghost{color:#6b7077;border-color:#d4d4d0}
@@ -445,8 +491,12 @@ class M24FZ_Editor_Screen {
 .fz-f input:focus,.fz-f select:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 .fz-help{font-weight:400;color:#8a9099;font-size:12px}
 .fz-inline{display:flex;gap:8px}.fz-inline input{flex:1}.fz-unit{width:84px;flex:0 0 auto}
-.fz-checks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px}
-.fz-check{display:flex;align-items:center;gap:7px;font-weight:500;font-size:14px;color:#14161a;margin:0}
+.fz-checks{display:flex;flex-wrap:wrap;gap:10px}
+.fz-chip{display:inline-flex;align-items:center;gap:9px;border:1.5px solid #d9d9d6;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;color:#50575e;background:#fff;cursor:pointer;user-select:none;transition:.15s}
+.fz-chip input{position:absolute;opacity:0;width:0;height:0}
+.fz-chip .dot{width:16px;height:16px;border-radius:50%;border:2px solid #c9c9c4;background:#fff;flex:0 0 auto;transition:.15s}
+.fz-chip.on{background:#f6efe3;border-color:#9a6b25;color:#9a6b25}
+.fz-chip.on .dot{border-color:#9a6b25;background:#9a6b25;box-shadow:inset 0 0 0 3px #fff}
 .fz-toggles{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
 .fz-toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;color:#14161a}
 .fz-toggle input{position:absolute;opacity:0}
@@ -489,6 +539,8 @@ jQuery(function($){
 	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn'; $('[data-renn]').toggle(renn);
 		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
+	// Zustand/Ausstattung Toggle-Chips.
+	$(document).on('change','.fz-chip input',function(){ $(this).closest('.fz-chip').toggleClass('on',this.checked); });
 	// Repeater.
 	$('#fz-kf-add').on('click',function(){ $('#fz-keyfacts').append('<p><input type="text" name="_m24fz_keyfacts[]" placeholder="Highlight"></p>'); });
 	$('#fz-vid-add').on('click',function(){ $('#fz-videos').append('<p><input type="url" name="_m24fz_videos[]" placeholder="https://youtu.be/…"></p>'); });

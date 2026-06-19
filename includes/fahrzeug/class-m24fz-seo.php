@@ -64,6 +64,14 @@ class M24FZ_SEO {
 		if ( $g( '_m24fz_aussenfarbe' ) ){ $car['color'] = $g( '_m24fz_aussenfarbe' ); }
 		if ( $g( '_m24fz_getriebe' ) )   { $car['vehicleTransmission'] = $g( '_m24fz_getriebe' ); }
 		if ( $g( '_m24fz_neu_gebraucht' ) ) { $car['itemCondition'] = ( false !== stripos( $g( '_m24fz_neu_gebraucht' ), 'neu' ) ) ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition'; }
+		// Neue Enums → schema.org (F).
+		if ( $g( '_m24fz_kraftstoff' ) )    { $car['fuelType'] = $g( '_m24fz_kraftstoff' ); }
+		$drive = array( 'Heck' => 'RearWheelDriveConfiguration', 'Front' => 'FrontWheelDriveConfiguration', 'Allrad' => 'AllWheelDriveConfiguration' );
+		if ( isset( $drive[ $g( '_m24fz_antrieb' ) ] ) ) { $car['driveWheelConfiguration'] = 'https://schema.org/' . $drive[ $g( '_m24fz_antrieb' ) ]; }
+		$steer = array( 'Links' => 'LeftHandDriving', 'Rechts' => 'RightHandDriving' );
+		if ( isset( $steer[ $g( '_m24fz_lenkung' ) ] ) ) { $car['steeringPosition'] = 'https://schema.org/' . $steer[ $g( '_m24fz_lenkung' ) ]; }
+		if ( $g( '_m24fz_innenmaterial' ) ) { $car['vehicleInteriorType'] = $g( '_m24fz_innenmaterial' ); }
+		if ( $g( '_m24fz_innenfarbe' ) )    { $car['vehicleInteriorColor'] = $g( '_m24fz_innenfarbe' ); }
 		$lauf = (int) preg_replace( '/\D/', '', $g( '_m24fz_laufleistung' ) );
 		if ( $lauf > 0 ) {
 			$munit = ( 'mi' === strtolower( $g( '_m24fz_laufleistung_einheit' ) ) ) ? 'SMI' : 'KMT';

@@ -64,7 +64,12 @@
 .m24fz-mediagrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .m24fz-mitem{display:block;aspect-ratio:3/2;border-radius:8px;overflow:hidden;background:#ededea}
 .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
-.m24fz-video{display:flex;align-items:center;justify-content:center;color:#fff;background:#222;font-weight:700;text-decoration:none}
+/* Video-Kachel: 50% (2-spaltig), YouTube-Poster + Play-Overlay */
+.m24fz-video{position:relative;grid-column:span 2;aspect-ratio:16/9;padding:0;border:0;cursor:pointer;background:#000}
+.m24fz-video img{width:100%;height:100%;object-fit:cover;display:block}
+.m24fz-play{position:absolute;inset:0;margin:auto;width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:rgba(20,22,26,.7);color:#fff;border-radius:50%;font-size:24px;padding-left:5px;pointer-events:none;transition:.15s}
+.m24fz-video:hover .m24fz-play{background:var(--red);transform:scale(1.06)}
+@media(max-width:700px){.m24fz-video{grid-column:span 2}}
 
 /* 7. Fahrzeugdaten */
 .m24fz-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
@@ -98,6 +103,10 @@
 /* Lightbox */
 .m24fz-lb{position:fixed;inset:0;background:rgba(10,12,15,.94);z-index:99999;display:flex;align-items:center;justify-content:center}
 .m24fz-lb img{max-width:92vw;max-height:88vh;object-fit:contain}
+.m24fz-lb-frame{display:none;width:min(92vw,1280px);aspect-ratio:16/9}
+.m24fz-lb-frame iframe{width:100%;height:100%;border:0;border-radius:8px}
+.m24fz-lb.video img,.m24fz-lb.video .m24fz-lb-prev,.m24fz-lb.video .m24fz-lb-next{display:none}
+.m24fz-lb.video .m24fz-lb-frame{display:block}
 .m24fz-lb button{position:absolute;background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:50%;width:46px;height:46px;font-size:24px;cursor:pointer}
 .m24fz-lb-close{top:18px;right:22px}.m24fz-lb-prev{left:14px;top:50%;transform:translateY(-50%)}.m24fz-lb-next{right:14px;top:50%;transform:translateY(-50%)}
 

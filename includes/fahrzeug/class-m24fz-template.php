@@ -46,6 +46,15 @@ class M24FZ_Template {
 		return $alt . '<span class="m24fz-preis">' . $fmt( $main ) . '</span><span class="m24fz-preis-note">' . $note . '</span>';
 	}
 
+	/** YouTube-Video-ID aus diversen URL-Formen (youtu.be / watch?v= / embed/ / shorts/). */
+	public static function yt_id( $url ) {
+		$url = trim( (string) $url );
+		if ( '' === $url ) { return ''; }
+		if ( preg_match( '~(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|v/))([A-Za-z0-9_-]{11})~', $url, $m ) ) { return $m[1]; }
+		if ( preg_match( '~^[A-Za-z0-9_-]{11}$~', $url ) ) { return $url; }
+		return '';
+	}
+
 	/** Ausgewählte Labels einer Mehrfach-Meta (Zustand/Ausstattung) — nur gültige Slugs. */
 	public static function chips( $id, $key, $options ) {
 		$out = array();
@@ -60,6 +69,19 @@ class M24FZ_Template {
 		foreach ( $map as $k => $label ) {
 			$ids = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $id, '_m24fz_gal_' . $k, true ) ) ) );
 			if ( $ids ) { $out[ $k ] = array( 'label' => $label, 'ids' => $ids ); }
+		}
+		return $out;
+	}
+
+	/** 3er-Block: erste Außen-Bilder OHNE das Beitragsbild (Hero zeigt es bereits — keine Dublette). */
+	public static function block_images( $id, $limit = 3 ) {
+		$f      = (int) get_post_thumbnail_id( $id );
+		$aussen = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $id, '_m24fz_gal_aussen', true ) ) ) );
+		$out    = array();
+		foreach ( $aussen as $a ) {
+			if ( $a === $f ) { continue; }
+			$out[] = $a;
+			if ( count( $out ) >= $limit ) { break; }
 		}
 		return $out;
 	}
@@ -102,7 +124,6 @@ class M24FZ_Template {
 			$cc = trim( (string) get_post_meta( $id, $k, true ) );
 			if ( '' === $cc ) { continue; }
 			$txt = M24FZ_Telemetry::flag( $cc ) . ' ' . M24FZ_Telemetry::country_name( $cc );
-			if ( '_m24fz_standort' === $k && get_post_meta( $id, '_m24fz_standort_ort', true ) ) { $txt .= ', ' . get_post_meta( $id, '_m24fz_standort_ort', true ); }
 			$rows[] = array( 'label' => $label, 'value' => $txt );
 		}
 		return $rows;
