@@ -61,15 +61,23 @@
 .m24fz-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .m24fz-chip{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--mut);cursor:pointer}
 .m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.m24fz-mediagrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.m24fz-mitem{display:block;aspect-ratio:3/2;border-radius:8px;overflow:hidden;background:#ededea}
-.m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
-/* Video-Kachel: 50% (2-spaltig), YouTube-Poster + Play-Overlay */
-.m24fz-video{position:relative;grid-column:span 2;aspect-ratio:16/9;padding:0;border:0;cursor:pointer;background:#000}
+.m24fz-chip .n{display:inline-block;background:rgba(0,0,0,.08);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
+.m24fz-chip.on .n{background:rgba(255,255,255,.22)}
+/* Justified-Mosaik: Querformat 3:2, Hochformat 2:3, keine Quadrate */
+.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px}
+.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;flex-grow:1;border-radius:8px;overflow:hidden;background:#ededea;display:block}
+.m24fz-mosaic .m24fz-land{flex-basis:345px} /* 3:2 × 230 */
+.m24fz-mosaic .m24fz-port{flex-basis:153px} /* 2:3 × 230 */
+.m24fz-mosaic .m24fz-mitem.x-hide{display:none}
+.m24fz-mosaic .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
+.m24fz-more-badge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,22,26,.62);color:#fff;font-size:26px;font-weight:700}
+/* Video separat: 2 pro Reihe, 16:9, YouTube-Poster + Play-Overlay */
+.m24fz-videos{display:flex;flex-wrap:wrap;gap:10px}
+.m24fz-video{position:relative;flex:1 1 calc(50% - 5px);max-width:calc(50% - 5px);aspect-ratio:16/9;padding:0;border:0;border-radius:8px;overflow:hidden;cursor:pointer;background:#000}
 .m24fz-video img{width:100%;height:100%;object-fit:cover;display:block}
 .m24fz-play{position:absolute;inset:0;margin:auto;width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:rgba(20,22,26,.7);color:#fff;border-radius:50%;font-size:24px;padding-left:5px;pointer-events:none;transition:.15s}
 .m24fz-video:hover .m24fz-play{background:var(--red);transform:scale(1.06)}
-@media(max-width:700px){.m24fz-video{grid-column:span 2}}
+@media(max-width:700px){.m24fz-mosaic .m24fz-mitem{height:160px}.m24fz-mosaic .m24fz-land{flex-basis:240px}.m24fz-mosaic .m24fz-port{flex-basis:107px}.m24fz-video{flex-basis:100%;max-width:100%}}
 
 /* 7. Fahrzeugdaten */
 .m24fz-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}

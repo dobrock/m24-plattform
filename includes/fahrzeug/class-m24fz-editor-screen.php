@@ -151,6 +151,7 @@ class M24FZ_Editor_Screen {
 		$thumb   = $id ? (int) get_post_thumbnail_id( $id ) : 0;
 		$thumbU  = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
 		$pdraft  = $post && 'draft' === $post->post_status;
+		$pdate   = $post ? mysql2date( 'Y-m-d\TH:i', $post->post_date ) : current_time( 'Y-m-d\TH:i' );
 		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
 		$yearNow = (int) gmdate( 'Y' );
 		?>
@@ -357,6 +358,13 @@ class M24FZ_Editor_Screen {
 							<label class="fz-toggle"><input type="checkbox" name="_m24fz_preis_auf_anfrage" <?php checked( 1, $paf ); ?>><span></span> Preis nur auf Anfrage</label>
 						</div>
 
+						<div class="fz-row">
+							<div class="fz-f">
+								<label for="fz_post_date">Veröffentlichungsdatum <span class="fz-help">Backdating für migrierte Inserate möglich.</span></label>
+								<input type="datetime-local" id="fz_post_date" name="fz_post_date" value="<?php echo esc_attr( $pdate ); ?>">
+							</div>
+						</div>
+
 						<div class="fz-f">
 							<label>YouTube-Videos</label>
 							<div id="fz-videos"><?php foreach ( array_pad( (array) get_post_meta( $id, '_m24fz_videos', true ), 1, '' ) as $v ) : ?>
@@ -384,7 +392,7 @@ class M24FZ_Editor_Screen {
 								<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
 									<strong><?php echo esc_html( $label ); ?></strong>
 									<span class="fz-galhint">Ziehen zum Sortieren — Bild 1 steht im Inserat vorn. (Titelbild = Beitragsbild oben.)</span>
-									<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'thumbnail' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt=""><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
+									<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'medium' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt="" loading="lazy"><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
 									<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( implode( ',', array_map( 'intval', $ids ) ) ); ?>">
 									<button type="button" class="fz-out fz-gal-add">Bilder hinzufügen</button>
 								</div>
@@ -422,6 +430,14 @@ class M24FZ_Editor_Screen {
 		$pstat = ! empty( $_POST['fz_draft'] ) ? 'draft' : 'publish';
 
 		$arr = array( 'post_type' => M24FZ_CPT::PT, 'post_title' => $title, 'post_status' => $pstat );
+		// Veröffentlichungsdatum (Backdating/Vorausdatierung) → post_date.
+		$pd = (string) wp_unslash( $_POST['fz_post_date'] ?? '' );
+		if ( preg_match( '/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/', $pd, $m ) ) {
+			$mysql = $m[1] . ' ' . $m[2] . ':00';
+			$arr['post_date']     = $mysql;
+			$arr['post_date_gmt'] = get_gmt_from_date( $mysql );
+			$arr['edit_date']     = true;
+		}
 		if ( $id && M24FZ_CPT::PT === get_post_type( $id ) ) {
 			$arr['ID'] = $id;
 			wp_update_post( $arr ); // → save_post_m24_fahrzeug → M24FZ_Meta::save() (bestehende Felder).
@@ -469,10 +485,11 @@ class M24FZ_Editor_Screen {
 .fz-tb-status{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
 .fz-tb-status.pub{background:#e6f4ea;color:#1a7f37}.fz-tb-status.draft{background:#fff4d6;color:#9a6b25}
 .fz-tb-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.fz-seg{display:inline-flex;border:1px solid #d4d4d0;border-radius:8px;overflow:hidden;font-size:13px;font-weight:600}
-.fz-seg>span,.fz-seg>a,.fz-seg>label{padding:8px 14px;cursor:pointer;text-decoration:none;color:#50575e;background:#fff;border:0}
-.fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff}
-.fz-seg-typ label{position:relative}.fz-seg-typ input{position:absolute;opacity:0}
+.fz-seg{display:inline-flex;align-items:stretch;vertical-align:top;border:1px solid #d4d4d0;border-radius:8px;overflow:hidden;font-size:13px;font-weight:600;background:#fff;line-height:1}
+.fz-seg>span,.fz-seg>a,.fz-seg>label{display:inline-flex;align-items:center;padding:10px 16px;margin:0;cursor:pointer;text-decoration:none;color:#50575e;background:#fff;border:0}
+.fz-seg>span+span,.fz-seg>a+a,.fz-seg>label+label{border-left:1px solid #e2e2de}
+.fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff;border-left-color:#14161a}
+.fz-seg-typ label{position:relative}.fz-seg-typ input{position:absolute;opacity:0;width:0;height:0}
 .fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
 .fz-note.ok{display:flex;align-items:center;gap:14px;background:#e6f4ea;border:1px solid #b6e0c2;color:#1a7f37;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:600}
 .fz-note.ok a{color:#0e6b2e;font-weight:700;text-decoration:underline}
@@ -495,13 +512,15 @@ class M24FZ_Editor_Screen {
 .fz-f input,.fz-f select,.fz-f textarea{font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px;background:#fff;width:100%}
 .fz-f input:focus,.fz-f select:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 .fz-help{font-weight:400;color:#8a9099;font-size:12px}
-.fz-inline{display:flex;gap:8px;align-items:stretch}.fz-inline input{flex:1 1 auto;min-width:120px;width:100%}.fz-unit{width:84px;flex:0 0 84px}
+.fz-inline{display:flex;gap:8px;align-items:stretch}.fz-inline input{flex:1 1 auto;min-width:0;width:100%}.fz-unit{width:60px;flex:0 0 60px;padding:10px 6px}
 .fz-checks{display:flex;flex-wrap:wrap;gap:10px}
 .fz-chip{display:inline-flex;align-items:center;gap:9px;border:1.5px solid #d9d9d6;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;color:#50575e;background:#fff;cursor:pointer;user-select:none;transition:.15s}
 .fz-chip input{position:absolute;opacity:0;width:0;height:0}
-.fz-chip .dot{width:16px;height:16px;border-radius:50%;border:2px solid #c9c9c4;background:#fff;flex:0 0 auto;transition:.15s}
+/* Checkmark-Box (eckig) signalisiert Mehrfachauswahl — nicht Radio */
+.fz-chip .dot{position:relative;width:17px;height:17px;border-radius:5px;border:2px solid #c9c9c4;background:#fff;flex:0 0 auto;transition:.15s}
 .fz-chip.on{background:#f6efe3;border-color:#9a6b25;color:#9a6b25}
-.fz-chip.on .dot{border-color:#9a6b25;background:#9a6b25;box-shadow:inset 0 0 0 3px #fff}
+.fz-chip.on .dot{border-color:#9a6b25;background:#9a6b25}
+.fz-chip.on .dot:after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1}
 .fz-toggles{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
 .fz-toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;color:#14161a}
 .fz-toggle input{position:absolute;opacity:0}
@@ -521,16 +540,18 @@ class M24FZ_Editor_Screen {
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
 .fz-galbox strong{display:block;font-size:13px;margin-bottom:2px}
 .fz-galhint{display:block;color:#8a9099;font-size:11px;margin-bottom:8px}
-.fz-gal{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;min-height:12px}
-.fz-gal span{position:relative;display:inline-block;cursor:grab;transition:transform .1s,box-shadow .1s}
+.fz-gal{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:8px;min-height:12px}
+.fz-gal span{position:relative;display:block;cursor:grab;transition:transform .1s,box-shadow .1s}
 .fz-gal span:active{cursor:grabbing}
 .fz-gal span:before{content:'⠿⠿';position:absolute;top:5px;left:6px;color:#fff;font-size:12px;letter-spacing:-2px;text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:0;transition:.12s;z-index:1;pointer-events:none}
 .fz-gal span:hover:before{opacity:.95}
-.fz-gal img{width:108px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none}
+.fz-gal img{width:100%;aspect-ratio:3/2;height:auto;object-fit:cover;border-radius:8px;border:1px solid #d9d9d6;display:block;pointer-events:none}
 .fz-gal span:hover img{box-shadow:0 3px 10px rgba(0,0,0,.14)}
 .fz-gal .ui-sortable-helper{box-shadow:0 8px 20px rgba(0,0,0,.22);transform:scale(1.04)}
-.fz-gal-ph{visibility:visible!important;width:108px;height:72px;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
+.fz-gal-ph{visibility:visible!important;aspect-ratio:3/2;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
 .fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:13px;cursor:pointer;z-index:2}
+@media(max-width:900px){.fz-gal{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:600px){.fz-gal{grid-template-columns:repeat(3,1fr)}}
 #fz-keyfacts p,#fz-videos p{margin:0 0 8px}
 #fz-keyfacts input,#fz-videos input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
 .fz-foot{display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0ee}
@@ -574,7 +595,7 @@ jQuery(function($){
 	$('.fz-gal-add').on('click',function(e){ e.preventDefault();
 		var box=$(this).closest('[data-galkey]'), gal=box.find('.fz-gal');
 		var fr=wp.media({title:'Bilder hinzufügen',multiple:true,library:{type:'image'}});
-		fr.on('select',function(){ fr.state().get('selection').each(function(a){ a=a.toJSON(); var u=(a.sizes&&a.sizes.thumbnail)?a.sizes.thumbnail.url:a.url; gal.append('<span data-id="'+a.id+'"><img src="'+u+'" alt=""><i class="rm">×</i></span>'); }); syncGal(box); });
+		fr.on('select',function(){ fr.state().get('selection').each(function(a){ a=a.toJSON(); var s=a.sizes||{}; var u=(s.medium&&s.medium.url)||(s.thumbnail&&s.thumbnail.url)||a.url; gal.append('<span data-id="'+a.id+'"><img src="'+u+'" alt="" loading="lazy"><i class="rm">×</i></span>'); }); syncGal(box); });
 		fr.open();
 	});
 });

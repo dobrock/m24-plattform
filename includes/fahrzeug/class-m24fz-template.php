@@ -105,6 +105,9 @@ class M24FZ_Template {
 			'_m24fz_farbbez_hersteller' => 'Farbbez. Hersteller', '_m24fz_innenfarbe' => 'Innenfarbe',
 			'_m24fz_innenmaterial' => 'Innenmaterial', '_m24fz_fin' => 'FIN', '_m24fz_neu_gebraucht' => 'Zustand',
 		);
+		// Rennwagen: straßenspezifische Felder nicht ausgeben (Werte bleiben gespeichert).
+		$is_renn = ( 'renn' === get_post_meta( $id, '_m24fz_template_typ', true ) );
+		if ( $is_renn ) { unset( $fields['_m24fz_erstzulassung'], $fields['_m24fz_kraftstoff'], $fields['_m24fz_lenkung'] ); }
 		$rows = array();
 		foreach ( $fields as $k => $label ) {
 			$v = trim( (string) get_post_meta( $id, $k, true ) );
@@ -116,7 +119,9 @@ class M24FZ_Template {
 		// Optionale Zusatzfelder (leer ⇒ ausgeblendet).
 		$halter = (int) get_post_meta( $id, '_m24fz_anzahl_halter', true );
 		if ( $halter > 0 ) { $rows[] = array( 'label' => 'Fahrzeughalter', 'value' => (string) $halter ); }
-		foreach ( array( '_m24fz_matching_numbers' => 'Matching Numbers', '_m24fz_fahrbereit' => 'Fahrbereit', '_m24fz_zugelassen' => 'Zugelassen' ) as $k => $label ) {
+		$toggles = array( '_m24fz_matching_numbers' => 'Matching Numbers', '_m24fz_fahrbereit' => 'Fahrbereit', '_m24fz_zugelassen' => 'Zugelassen' );
+		if ( $is_renn ) { unset( $toggles['_m24fz_zugelassen'] ); }
+		foreach ( $toggles as $k => $label ) {
 			if ( (int) get_post_meta( $id, $k, true ) ) { $rows[] = array( 'label' => $label, 'value' => 'Ja' ); }
 		}
 		// Land Erstauslieferung / Standort mit Flagge.

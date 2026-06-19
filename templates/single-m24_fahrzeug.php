@@ -16,6 +16,7 @@ $keyf  = (array) get_post_meta( $id, '_m24fz_keyfacts', true );
 $zusam = trim( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) );
 $besch = trim( (string) get_post_meta( $id, '_m24fz_beschreibung', true ) );
 $gals  = M24FZ_Template::galleries( $id );
+$vids  = array_values( array_filter( (array) get_post_meta( $id, '_m24fz_videos', true ) ) );
 $heroI = M24FZ_Template::hero_images( $id );
 $daten = M24FZ_Template::daten_rows( $id );
 $zust  = M24FZ_Template::chips( $id, '_m24fz_zustand', M24FZ_Telemetry::zustand_options() );
@@ -95,26 +96,41 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		</section>
 		<?php endif; ?>
 
-		<!-- 6. Mediagalerie mit Chips -->
-		<?php if ( $gals ) : ?>
+		<!-- 6. Mediagalerie — Justified-Mosaik je Kategorie (orientierungsbewusst) + Video separat -->
+		<?php if ( $gals || $vids ) : ?>
+		<?php $first = $gals ? array_key_first( $gals ) : 'video'; $cap = 10; ?>
 		<section class="m24fz-card m24fz-media">
 			<div class="m24fz-chips">
-				<?php $first = array_key_first( $gals ); foreach ( $gals as $k => $g ) : ?>
-					<button type="button" class="m24fz-chip<?php echo $k === $first ? ' on' : ''; ?>" data-cat="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $g['label'] ); ?></button>
+				<?php foreach ( $gals as $k => $g ) : ?>
+					<button type="button" class="m24fz-chip<?php echo $k === $first ? ' on' : ''; ?>" data-cat="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $g['label'] ); ?> <span class="n"><?php echo count( $g['ids'] ); ?></span></button>
 				<?php endforeach; ?>
-				<?php $vids = array_filter( (array) get_post_meta( $id, '_m24fz_videos', true ) ); if ( $vids ) : ?><button type="button" class="m24fz-chip" data-cat="video">Video</button><?php endif; ?>
+				<?php if ( $vids ) : ?><button type="button" class="m24fz-chip<?php echo 'video' === $first ? ' on' : ''; ?>" data-cat="video">Video <span class="n"><?php echo count( $vids ); ?></span></button><?php endif; ?>
 			</div>
-			<div class="m24fz-mediagrid">
-				<?php foreach ( $gals as $k => $g ) : foreach ( $g['ids'] as $aid ) : ?>
-					<a href="<?php echo esc_url( wp_get_attachment_image_url( $aid, 'large' ) ); ?>" class="m24fz-mitem" data-cat="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>><?php echo wp_get_attachment_image( $aid, 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ); ?></a>
-				<?php endforeach; endforeach; ?>
+
+			<?php foreach ( $gals as $k => $g ) : $total = count( $g['ids'] ); ?>
+			<div class="m24fz-mosaic" data-catwrap="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
+				<?php $n = 0; foreach ( $g['ids'] as $aid ) :
+					$src = wp_get_attachment_image_src( $aid, 'large' ); if ( ! $src ) { continue; }
+					$n++; $orient = ( (int) $src[1] >= (int) $src[2] ) ? 'land' : 'port';
+					$extra = $n > $cap; $more = ( $n === $cap && $total > $cap ) ? ( $total - $cap ) : 0; ?>
+					<a href="<?php echo esc_url( $src[0] ); ?>" class="m24fz-mitem m24fz-<?php echo $orient; ?><?php echo $extra ? ' x-hide' : ''; ?>" data-cat="<?php echo esc_attr( $k ); ?>">
+						<?php echo wp_get_attachment_image( $aid, 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 340px' ) ); ?>
+						<?php if ( $more ) : ?><span class="m24fz-more-badge">+<?php echo (int) $more; ?></span><?php endif; ?>
+					</a>
+				<?php endforeach; ?>
+			</div>
+			<?php endforeach; ?>
+
+			<?php if ( $vids ) : ?>
+			<div class="m24fz-mosaic m24fz-videos" data-catwrap="video"<?php echo 'video' === $first ? '' : ' hidden'; ?>>
 				<?php foreach ( $vids as $vu ) : $yid = M24FZ_Template::yt_id( $vu ); if ( ! $yid ) { continue; } ?>
-					<button type="button" class="m24fz-mitem m24fz-video" data-cat="video" data-ytid="<?php echo esc_attr( $yid ); ?>" hidden aria-label="Video abspielen">
+					<button type="button" class="m24fz-video" data-ytid="<?php echo esc_attr( $yid ); ?>" aria-label="Video abspielen">
 						<img src="https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/hqdefault.jpg" alt="Video-Vorschau" loading="lazy" width="480" height="360" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/mqdefault.jpg'">
 						<span class="m24fz-play" aria-hidden="true">▶</span>
 					</button>
 				<?php endforeach; ?>
 			</div>
+			<?php endif; ?>
 		</section>
 		<?php endif; ?>
 

@@ -30,21 +30,21 @@
 		});
 	}
 
-	// Mediagalerie-Chips (echter Filter).
-	var chips = document.querySelectorAll('.m24fz-chip'), items = document.querySelectorAll('.m24fz-mitem');
+	// Mediagalerie-Chips (Kategorie-Wrapper umschalten).
+	var chips = document.querySelectorAll('.m24fz-chip'), wraps = document.querySelectorAll('.m24fz-mosaic[data-catwrap]');
 	chips.forEach(function (c) {
 		c.addEventListener('click', function () {
 			chips.forEach(function (x) { x.classList.remove('on'); });
 			c.classList.add('on');
 			var cat = c.getAttribute('data-cat');
-			items.forEach(function (it) { it.hidden = it.getAttribute('data-cat') !== cat; });
+			wraps.forEach(function (w) { w.hidden = w.getAttribute('data-catwrap') !== cat; });
 		});
 	});
 
 	// Lightbox: Bilder (Slideshow) + Video (youtube-nocookie, erst bei Klick geladen).
 	var lb = document.querySelector('.m24fz-lb'); if (lb) {
 		var lbImg = lb.querySelector('img'), frame = lb.querySelector('.m24fz-lb-frame'), pics = [], idx = 0;
-		function collect() { pics = []; document.querySelectorAll('.m24fz-mitem:not(.m24fz-video)').forEach(function (a) { if (!a.hidden) { pics.push(a.getAttribute('href')); } }); }
+		function collect() { pics = []; var w = document.querySelector('.m24fz-mosaic[data-catwrap]:not([hidden])'); if (!w) { return; } w.querySelectorAll('.m24fz-mitem:not(.m24fz-video)').forEach(function (a) { pics.push(a.getAttribute('href')); }); }
 		function open() { lb.hidden = false; document.body.style.overflow = 'hidden'; }
 		function close() { lb.hidden = true; document.body.style.overflow = ''; lb.classList.remove('video'); if (frame) { frame.innerHTML = ''; } }
 		function showImg(i) { if (!pics.length) { return; } lb.classList.remove('video'); idx = (i + pics.length) % pics.length; lbImg.src = pics[idx]; }

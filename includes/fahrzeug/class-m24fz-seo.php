@@ -68,14 +68,18 @@ class M24FZ_SEO {
 		if ( $g( '_m24fz_getriebe' ) )   { $car['vehicleTransmission'] = $g( '_m24fz_getriebe' ); }
 		if ( $g( '_m24fz_neu_gebraucht' ) ) { $car['itemCondition'] = ( false !== stripos( $g( '_m24fz_neu_gebraucht' ), 'neu' ) ) ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition'; }
 		// Neue Enums → schema.org (F).
-		if ( $g( '_m24fz_kraftstoff' ) )    { $car['fuelType'] = $g( '_m24fz_kraftstoff' ); }
-		// Antrieb/Lenkung case-insensitiv + Alias → schema.org (greift auch bei Altwerten wie „links").
+		// Rennwagen: straßenspezifische Felder (Kraftstoff/Lenkung) nicht emittieren.
+		$is_renn = ( 'renn' === $g( '_m24fz_template_typ' ) );
+		if ( ! $is_renn && $g( '_m24fz_kraftstoff' ) ) { $car['fuelType'] = $g( '_m24fz_kraftstoff' ); }
+		// Antrieb case-insensitiv + Alias → schema.org (greift auch bei Altwerten wie „heck").
 		$antrieb = M24FZ_Telemetry::match_enum( $g( '_m24fz_antrieb' ), M24FZ_Telemetry::antrieb_options(), M24FZ_Telemetry::enum_aliases( '_m24fz_antrieb' ) );
 		$drive   = array( 'Heck' => 'RearWheelDriveConfiguration', 'Front' => 'FrontWheelDriveConfiguration', 'Allrad' => 'AllWheelDriveConfiguration' );
 		if ( isset( $drive[ $antrieb ] ) ) { $car['driveWheelConfiguration'] = 'https://schema.org/' . $drive[ $antrieb ]; }
-		$lenkung = M24FZ_Telemetry::match_enum( $g( '_m24fz_lenkung' ), M24FZ_Telemetry::lenkung_options(), M24FZ_Telemetry::enum_aliases( '_m24fz_lenkung' ) );
-		$steer   = array( 'Links' => 'LeftHandDriving', 'Rechts' => 'RightHandDriving' );
-		if ( isset( $steer[ $lenkung ] ) ) { $car['steeringPosition'] = 'https://schema.org/' . $steer[ $lenkung ]; }
+		if ( ! $is_renn ) {
+			$lenkung = M24FZ_Telemetry::match_enum( $g( '_m24fz_lenkung' ), M24FZ_Telemetry::lenkung_options(), M24FZ_Telemetry::enum_aliases( '_m24fz_lenkung' ) );
+			$steer   = array( 'Links' => 'LeftHandDriving', 'Rechts' => 'RightHandDriving' );
+			if ( isset( $steer[ $lenkung ] ) ) { $car['steeringPosition'] = 'https://schema.org/' . $steer[ $lenkung ]; }
+		}
 		if ( $g( '_m24fz_innenmaterial' ) ) { $car['vehicleInteriorType'] = $g( '_m24fz_innenmaterial' ); }
 		if ( $g( '_m24fz_innenfarbe' ) )    { $car['vehicleInteriorColor'] = $g( '_m24fz_innenfarbe' ); }
 		$lauf = (int) preg_replace( '/\D/', '', $g( '_m24fz_laufleistung' ) );
