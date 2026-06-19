@@ -87,10 +87,12 @@ class M24FZ_SEO {
 			'seller' => array( '@type' => 'Organization', 'name' => 'MOTORSPORT24 GmbH' ) );
 		if ( ! $paf && $eff > 0 ) {
 			$offer['price'] = $eff;
-			// E) MwSt.-Ausweisbarkeit ins JSON-LD.
+			// JSON-LD-Steuersignal (Übergabe v29, von Daniel freigegeben): in BEIDEN Modi true —
+			// der angezeigte Preis ist der All-in-Endpreis (auch bei §25a ist die Margensteuer
+			// eingepreist). Rein maschinenlesbar; Frontend-Hinweis „§25a" bleibt davon unberührt.
 			$offer['priceSpecification'] = array(
 				'@type' => 'PriceSpecification', 'price' => $eff, 'priceCurrency' => $cur,
-				'valueAddedTaxIncluded' => (bool) (int) $g( '_m24fz_mwst_ausweisbar' ),
+				'valueAddedTaxIncluded' => true,
 			);
 		}
 		$car['offers'] = $offer;

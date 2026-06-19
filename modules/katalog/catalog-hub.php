@@ -109,6 +109,10 @@ class M24_Catalog_Hub {
 			'/gebrauchtteile/m3-e9x'                 => '/teile/bmw-m3-e9x',
 			'/gebrauchtteile/sonstige-bmw-m-modelle' => '/teile/sonstige-bmw-m-modelle',
 			'/gebrauchtteile/m-sonstige'             => '/teile/sonstige-bmw-m-modelle',
+			// Nackt-Slug (Alt-Deeplink) — live 301→/m3-e36/→404 (wp_old_slug). Hier früh (prio 1)
+			// abgefangen → direkt auf das gesunde Hub-Ziel. Nur dieser eine Slug ist defekt;
+			// /bmw-z4-gt3/, /bmw-e30/, /bmw-e36/, /bmw-e46/ sind gesund und bleiben unberührt.
+			'/bmw-m3-e36'                            => '/teile/bmw-m3-e36',
 			// Modelle-Zwischenstand
 			'/modelle/bmw-m3-e30'                    => '/teile/bmw-m3-e30',
 			'/modelle/bmw-m3-e36'                    => '/teile/bmw-m3-e36',
