@@ -18,6 +18,8 @@ $besch = trim( (string) get_post_meta( $id, '_m24fz_beschreibung', true ) );
 $gals  = M24FZ_Template::galleries( $id );
 $heroI = M24FZ_Template::hero_images( $id );
 $daten = M24FZ_Template::daten_rows( $id );
+$zust  = M24FZ_Template::chips( $id, '_m24fz_zustand', M24FZ_Telemetry::zustand_options() );
+$ausst = M24FZ_Template::chips( $id, '_m24fz_ausstattung', M24FZ_Telemetry::ausstattung_options() );
 $marke = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
 $views = M24FZ_Tracking::get( $id, 'view' );
 $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
@@ -59,7 +61,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 					<?php $sub = array_filter( array( get_post_meta( $id, '_m24fz_karosserie', true ), get_post_meta( $id, '_m24fz_baujahr', true ), $marke ) ); ?>
 					<?php if ( $sub ) : ?><p class="m24fz-sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></p><?php endif; ?>
 					<?php if ( $keyf ) : ?><ul class="m24fz-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
-					<?php if ( $zusam ) : ?><p class="m24fz-zus"><?php echo esc_html( $zusam ); ?></p><?php endif; ?>
+					<?php if ( $zusam ) : ?><div class="m24fz-zus"><?php echo wp_kses_post( wpautop( $zusam ) ); ?></div><?php endif; ?>
 				</div>
 			</div>
 			<aside class="m24fz-side">
@@ -116,6 +118,20 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<section class="m24fz-card m24fz-data">
 			<h2>Fahrzeugdaten</h2>
 			<div class="m24fz-data-grid"><?php foreach ( $daten as $r ) : ?><div class="row"><span class="k"><?php echo esc_html( $r['label'] ); ?></span><span class="v"><?php echo esc_html( $r['value'] ); ?></span></div><?php endforeach; ?></div>
+		</section>
+		<?php endif; ?>
+
+		<!-- 7b. Zustand & Ausstattung (optional) -->
+		<?php if ( $zust || $ausst ) : ?>
+		<section class="m24fz-card m24fz-equip">
+			<?php if ( $zust ) : ?>
+				<h2>Zustand</h2>
+				<div class="m24fz-tags"><?php foreach ( $zust as $t ) : ?><span class="m24fz-tag"><?php echo esc_html( $t ); ?></span><?php endforeach; ?></div>
+			<?php endif; ?>
+			<?php if ( $ausst ) : ?>
+				<h2<?php echo $zust ? ' class="mt"' : ''; ?>>Ausstattung</h2>
+				<div class="m24fz-tags"><?php foreach ( $ausst as $t ) : ?><span class="m24fz-tag"><?php echo esc_html( $t ); ?></span><?php endforeach; ?></div>
+			<?php endif; ?>
 		</section>
 		<?php endif; ?>
 

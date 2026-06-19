@@ -65,7 +65,10 @@ class M24FZ_SEO {
 		if ( $g( '_m24fz_getriebe' ) )   { $car['vehicleTransmission'] = $g( '_m24fz_getriebe' ); }
 		if ( $g( '_m24fz_neu_gebraucht' ) ) { $car['itemCondition'] = ( false !== stripos( $g( '_m24fz_neu_gebraucht' ), 'neu' ) ) ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition'; }
 		$lauf = (int) preg_replace( '/\D/', '', $g( '_m24fz_laufleistung' ) );
-		if ( $lauf > 0 ) { $car['mileageFromOdometer'] = array( '@type' => 'QuantitativeValue', 'value' => $lauf, 'unitCode' => 'KMT' ); }
+		if ( $lauf > 0 ) {
+			$munit = ( 'mi' === strtolower( $g( '_m24fz_laufleistung_einheit' ) ) ) ? 'SMI' : 'KMT';
+			$car['mileageFromOdometer'] = array( '@type' => 'QuantitativeValue', 'value' => $lauf, 'unitCode' => $munit );
+		}
 		$ps = (int) $g( '_m24fz_leistung_ps' );
 		if ( $ps > 0 ) { $car['vehicleEngine'] = array( '@type' => 'EngineSpecification', 'enginePower' => array(
 			array( '@type' => 'QuantitativeValue', 'value' => round( $ps * M24FZ_Telemetry::PS_TO_KW, 2 ), 'unitCode' => 'KWT' ),
@@ -76,10 +79,20 @@ class M24FZ_SEO {
 		// Offer.
 		$paf   = (int) $g( '_m24fz_preis_auf_anfrage' );
 		$preis = (int) $g( '_m24fz_preis' );
+		$red   = (int) $g( '_m24fz_preis_reduziert' );
+		$eff   = ( $red > 0 && $red < $preis ) ? $red : $preis;
+		$cur   = ( 'CHF' === strtoupper( $g( '_m24fz_waehrung' ) ) ) ? 'CHF' : 'EUR';
 		$avail = M24FZ_CPT::is_sold( $id ) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
-		$offer = array( '@type' => 'Offer', 'priceCurrency' => 'EUR', 'availability' => $avail, 'url' => get_permalink( $id ),
+		$offer = array( '@type' => 'Offer', 'priceCurrency' => $cur, 'availability' => $avail, 'url' => get_permalink( $id ),
 			'seller' => array( '@type' => 'Organization', 'name' => 'MOTORSPORT24 GmbH' ) );
-		if ( ! $paf && $preis > 0 ) { $offer['price'] = $preis; }
+		if ( ! $paf && $eff > 0 ) {
+			$offer['price'] = $eff;
+			// E) MwSt.-Ausweisbarkeit ins JSON-LD.
+			$offer['priceSpecification'] = array(
+				'@type' => 'PriceSpecification', 'price' => $eff, 'priceCurrency' => $cur,
+				'valueAddedTaxIncluded' => (bool) (int) $g( '_m24fz_mwst_ausweisbar' ),
+			);
+		}
 		$car['offers'] = $offer;
 
 		// BreadcrumbList kommt von wpSEO (Yoast/Newspaper) — KEIN zweites BreadcrumbList hier

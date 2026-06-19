@@ -36,6 +36,7 @@
 .m24fz-side{display:flex;flex-direction:column;gap:18px;position:sticky;top:96px}
 .m24fz-pricebox{display:flex;flex-direction:column;gap:10px}
 .m24fz-preis{color:var(--brass);font-size:28px;font-weight:700}
+.m24fz-preis-alt{color:var(--mut);font-size:17px;text-decoration:line-through;text-decoration-color:var(--red)}
 .m24fz-preis-note{color:var(--mut);font-size:12px;margin-top:-6px}
 .m24fz-btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 16px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#1f74c4,#0e447e)}
 .m24fz-btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -69,6 +70,11 @@
 .m24fz-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
 .m24fz-data-grid .row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
 .m24fz-data-grid .k{color:var(--mut);font-size:14px}.m24fz-data-grid .v{font-weight:600;font-size:14px;text-align:right}
+
+/* 7b. Zustand & Ausstattung */
+.m24fz-equip h2.mt{margin-top:18px}
+.m24fz-tags{display:flex;flex-wrap:wrap;gap:8px}
+.m24fz-tag{background:#f3f1ec;border:1px solid #e6e0d4;color:#5a4a30;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px}
 
 /* 8. Ähnliche */
 .m24fz-simgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}

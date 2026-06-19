@@ -26,6 +26,35 @@ class M24FZ_Telemetry {
 		return array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik' );
 	}
 
+	/** Zustand-Mehrfachauswahl (slug => Label). Filterbar. */
+	public static function zustand_options() {
+		return apply_filters( 'm24fz_zustand_options', array(
+			'beschaedigt'        => 'Beschädigt',
+			'restaurationsobjekt' => 'Restaurationsobjekt',
+			'teilrestauriert'    => 'Teilrestauriert',
+			'unfallfrei'         => 'Unfallfrei',
+			'vollrestauriert'    => 'Vollrestauriert',
+		) );
+	}
+
+	/** Ausstattung-Mehrfachauswahl (slug => Label). Filterbar/erweiterbar. */
+	public static function ausstattung_options() {
+		return apply_filters( 'm24fz_ausstattung_options', array(
+			'abs'              => 'ABS',
+			'airbag'           => 'Airbag',
+			'klimaanlage'      => 'Klimaanlage',
+			'navigationssystem' => 'Navigationssystem',
+			'schiebedach'      => 'Schiebedach',
+			'servolenkung'     => 'Servolenkung',
+		) );
+	}
+
+	/** Währungssymbol/-kürzel. EUR → „€", CHF → „CHF". */
+	public static function currency_symbol( $code ) {
+		$code = strtoupper( trim( (string) $code ) );
+		return 'CHF' === $code ? 'CHF' : '€';
+	}
+
 	private static function v( $id, $key ) { return trim( (string) get_post_meta( (int) $id, $key, true ) ); }
 
 	/**
@@ -40,7 +69,7 @@ class M24FZ_Telemetry {
 
 		if ( 'strasse' === $typ ) {
 			$add( 'Baujahr',       self::v( $id, '_m24fz_baujahr' ) );
-			$add( 'Laufleistung',  self::laufleistung( self::v( $id, '_m24fz_laufleistung' ) ) );
+			$add( 'Laufleistung',  self::laufleistung( self::v( $id, '_m24fz_laufleistung' ), self::v( $id, '_m24fz_laufleistung_einheit' ) ) );
 			$add( 'Leistung',      self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe',      self::v( $id, '_m24fz_getriebe' ) );
 			$add( 'Farbe',         self::v( $id, '_m24fz_farbe' ) );
@@ -59,12 +88,13 @@ class M24FZ_Telemetry {
 		return array_values( array_filter( $out, function ( $c ) { return '' !== trim( (string) $c['label'] ); } ) );
 	}
 
-	/** Laufleistung hübsch („123.456 km"), tolerant ggü. reiner Zahl. */
-	public static function laufleistung( $raw ) {
-		$raw = trim( (string) $raw );
+	/** Laufleistung hübsch („123.456 km" / „… mi"), tolerant ggü. reiner Zahl. */
+	public static function laufleistung( $raw, $unit = 'km' ) {
+		$raw  = trim( (string) $raw );
 		if ( '' === $raw ) { return ''; }
+		$unit = ( 'mi' === strtolower( trim( (string) $unit ) ) ) ? 'mi' : 'km';
 		if ( preg_match( '/^\d[\d.\s]*$/', $raw ) ) {
-			return number_format( (int) preg_replace( '/\D/', '', $raw ), 0, ',', '.' ) . ' km';
+			return number_format( (int) preg_replace( '/\D/', '', $raw ), 0, ',', '.' ) . ' ' . $unit;
 		}
 		return $raw;
 	}

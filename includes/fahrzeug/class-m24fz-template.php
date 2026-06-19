@@ -30,13 +30,27 @@ class M24FZ_Template {
 
 	/* ── Render-Helfer (von der Template-Datei genutzt) ──────────────────────── */
 
-	/** Preisblock: „Preis auf Anfrage" / Messing-Preis / bei verkauft kein Preis. */
+	/** Preisblock: „Preis auf Anfrage" / Messing-Preis (+ ggf. reduziert) / bei verkauft kein Preis. */
 	public static function preis_html( $id ) {
 		if ( M24FZ_CPT::is_sold( $id ) ) { return ''; }
 		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) { return '<span class="m24fz-preis">Preis auf Anfrage</span>'; }
 		$p = (int) get_post_meta( $id, '_m24fz_preis', true );
 		if ( $p <= 0 ) { return '<span class="m24fz-preis">Preis auf Anfrage</span>'; }
-		return '<span class="m24fz-preis">' . esc_html( number_format( $p, 0, ',', '.' ) ) . '&nbsp;€</span><span class="m24fz-preis-note">Differenzbesteuert nach §25a UStG</span>';
+		$cur = M24FZ_Telemetry::currency_symbol( get_post_meta( $id, '_m24fz_waehrung', true ) );
+		$red = (int) get_post_meta( $id, '_m24fz_preis_reduziert', true );
+		$fmt = function ( $v ) use ( $cur ) { return esc_html( number_format( $v, 0, ',', '.' ) ) . '&nbsp;' . esc_html( $cur ); };
+		// E) Steuerhinweis abhängig von „MwSt. ausweisbar".
+		$note = (int) get_post_meta( $id, '_m24fz_mwst_ausweisbar', true ) ? 'Preis inkl. 19&nbsp;% MwSt.' : 'Differenzbesteuert nach §25a UStG';
+		$alt  = ( $red > 0 && $red < $p ) ? '<span class="m24fz-preis-alt">' . $fmt( $p ) . '</span>' : '';
+		$main = ( $red > 0 && $red < $p ) ? $red : $p;
+		return $alt . '<span class="m24fz-preis">' . $fmt( $main ) . '</span><span class="m24fz-preis-note">' . $note . '</span>';
+	}
+
+	/** Ausgewählte Labels einer Mehrfach-Meta (Zustand/Ausstattung) — nur gültige Slugs. */
+	public static function chips( $id, $key, $options ) {
+		$out = array();
+		foreach ( (array) get_post_meta( $id, $key, true ) as $s ) { if ( isset( $options[ $s ] ) ) { $out[] = $options[ $s ]; } }
+		return $out;
 	}
 
 	/** Alle Galerie-Bilder gruppiert: ['aussen'=>[ids],…] (nur nicht-leere). */
@@ -74,8 +88,14 @@ class M24FZ_Template {
 			$v = trim( (string) get_post_meta( $id, $k, true ) );
 			if ( '' === $v ) { continue; }
 			if ( '_m24fz_leistung_ps' === $k )    { $v = M24FZ_Telemetry::leistung_label( $v ); }
-			if ( '_m24fz_laufleistung' === $k )   { $v = M24FZ_Telemetry::laufleistung( $v ); }
+			if ( '_m24fz_laufleistung' === $k )   { $v = M24FZ_Telemetry::laufleistung( $v, get_post_meta( $id, '_m24fz_laufleistung_einheit', true ) ); }
 			$rows[] = array( 'label' => $label, 'value' => $v );
+		}
+		// Optionale Zusatzfelder (leer ⇒ ausgeblendet).
+		$halter = (int) get_post_meta( $id, '_m24fz_anzahl_halter', true );
+		if ( $halter > 0 ) { $rows[] = array( 'label' => 'Fahrzeughalter', 'value' => (string) $halter ); }
+		foreach ( array( '_m24fz_matching_numbers' => 'Matching Numbers', '_m24fz_fahrbereit' => 'Fahrbereit', '_m24fz_zugelassen' => 'Zugelassen' ) as $k => $label ) {
+			if ( (int) get_post_meta( $id, $k, true ) ) { $rows[] = array( 'label' => $label, 'value' => 'Ja' ); }
 		}
 		// Land Erstauslieferung / Standort mit Flagge.
 		foreach ( array( '_m24fz_land_erstauslieferung' => 'Erstauslieferung', '_m24fz_standort' => 'Standort' ) as $k => $label ) {

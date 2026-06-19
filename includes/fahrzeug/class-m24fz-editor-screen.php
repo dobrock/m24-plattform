@@ -4,13 +4,11 @@
  * Modul: includes/fahrzeug/class-m24fz-editor-screen.php
  *
  * Große, sektionierte Maske zum Anlegen/Bearbeiten eines m24_fahrzeug — Default statt
- * Classic/Gutenberg (per ?classic=1 umschaltbar). Schreibt DIESELBEN _m24fz_-Felder +
- * post_title + Beitragsbild: das Formular nutzt die gleichen Feldnamen + den m24fz_meta-Nonce,
- * daher übernimmt M24FZ_Meta::save() (Hook save_post_m24_fahrzeug) die komplette Speicher-Logik.
- * Dieser Screen ergänzt nur Titel, Beitragsbild und Redirect.
+ * Classic/Gutenberg (per ?classic=1 / Segmented-Topbar umschaltbar). Schreibt DIESELBEN
+ * _m24fz_-Felder + post_title + Beitragsbild: bestehende Felder via M24FZ_Meta::save()
+ * (gleiche Feldnamen + m24fz_meta-Nonce), neue optionale Felder im eigenen Save-Handler.
  *
- * Schritt 1: Layout + alle bestehenden Felder (sofort nutzbar).
- * Schritt 2 (Folge): neue optionale Felder (Interne ID, Zustand[], Ausstattung[], …).
+ * Sektionen: 1 Fahrzeug · 2 Historie&Zustand · 3 Technik · 4 Ausstattung · 5 Inserat&Medien.
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
@@ -24,7 +22,7 @@ class M24FZ_Editor_Screen {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_save' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		// Komfort-Maske als Default: Standard-Editor-Aufrufe auf den Screen umleiten (außer ?classic=1).
+		// Komfort-Maske als Default: Standard-Editor-Aufrufe umleiten (außer ?classic=1).
 		add_action( 'load-post-new.php', array( __CLASS__, 'redirect_new' ) );
 		add_action( 'load-post.php', array( __CLASS__, 'redirect_edit' ) );
 	}
@@ -59,250 +57,26 @@ class M24FZ_Editor_Screen {
 	/* ── Assets ──────────────────────────────────────────────────────────────── */
 
 	public static function assets( $hook ) {
-		if ( 'm24_fahrzeug_page_' . self::PAGE !== $hook && false === strpos( (string) $hook, self::PAGE ) ) { return; }
+		if ( false === strpos( (string) $hook, self::PAGE ) ) { return; }
 		wp_enqueue_media();
 		wp_enqueue_script( 'jquery-ui-sortable' );
 		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap', array(), null );
 	}
 
-	/* ── Render ──────────────────────────────────────────────────────────────── */
+	/* ── Render-Helfer ───────────────────────────────────────────────────────── */
 
 	private static function g( $id, $k, $d = '' ) { $v = $id ? get_post_meta( $id, $k, true ) : ''; return '' === $v || null === $v ? $d : $v; }
 
-	/** Ein Standard-Textfeld. */
 	private static function field( $id, $key, $label, $opts = array() ) {
 		$type = $opts['type'] ?? 'text';
 		$req  = ! empty( $opts['req'] ) ? ' <span class="req">*</span>' : '';
 		$ph   = $opts['ph'] ?? '';
 		$help = $opts['help'] ?? '';
-		$list = ! empty( $opts['list'] ) ? ' list="' . esc_attr( $opts['list'] ) . '"' : '';
 		echo '<div class="fz-f">';
-		printf( '<label for="%1$s">%2$s%3$s</label><input type="%4$s" id="%1$s" name="%1$s" value="%5$s" placeholder="%6$s"%7$s>',
-			esc_attr( $key ), esc_html( $label ), $req, esc_attr( $type ), esc_attr( self::g( $id, $key ) ), esc_attr( $ph ), $list ); // phpcs:ignore
+		printf( '<label for="%1$s">%2$s%3$s</label><input type="%4$s" id="%1$s" name="%1$s" value="%5$s" placeholder="%6$s">',
+			esc_attr( $key ), esc_html( $label ), $req, esc_attr( $type ), esc_attr( self::g( $id, $key ) ), esc_attr( $ph ) ); // phpcs:ignore
 		if ( $help ) { printf( '<span class="fz-help">%s</span>', esc_html( $help ) ); }
 		echo '</div>';
-	}
-
-	public static function render() {
-		$id  = isset( $_GET['post'] ) ? (int) $_GET['post'] : 0;
-		if ( $id && M24FZ_CPT::PT !== get_post_type( $id ) ) { $id = 0; }
-		$post   = $id ? get_post( $id ) : null;
-		$title  = $post ? $post->post_title : '';
-		$typ    = self::g( $id, '_m24fz_template_typ', 'strasse' );
-		$kat    = self::g( $id, '_m24fz_kat', 'race-cars' );
-		$status = $id ? M24FZ_CPT::status( $id ) : 'gelistet';
-		$paf    = (int) self::g( $id, '_m24fz_preis_auf_anfrage' );
-		$thumb  = $id ? (int) get_post_thumbnail_id( $id ) : 0;
-		$thumbU = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
-		$models = self::bmw_baureihen();
-		$updated = isset( $_GET['updated'] );
-		?>
-		<style><?php echo self::css(); // phpcs:ignore ?></style>
-		<div class="fz-screen">
-			<?php if ( $updated ) : ?><div class="fz-note ok">Gespeichert.</div><?php endif; ?>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fz-form">
-				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION ); ?>">
-				<input type="hidden" name="post_id" value="<?php echo (int) $id; ?>">
-				<?php wp_nonce_field( self::NONCE, self::NONCE ); ?>
-				<?php wp_nonce_field( M24FZ_Meta::NONCE, M24FZ_Meta::NONCE ); // triggert M24FZ_Meta::save() ?>
-
-				<header class="fz-head">
-					<div>
-						<h1><?php echo $id ? 'Fahrzeug bearbeiten' : 'Neues Fahrzeug anlegen'; ?></h1>
-						<p class="fz-sub">Komfort-Maske · schreibt dieselben Felder wie der klassische Editor.</p>
-					</div>
-					<div class="fz-head-actions">
-						<a class="fz-link" href="<?php echo esc_url( $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' ) ); ?>">Klassisch bearbeiten</a>
-						<?php if ( $id ) : ?><a class="fz-link" href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Inserat ansehen ↗</a><?php endif; ?>
-						<button type="submit" class="fz-save">Speichern &amp; Veröffentlichen</button>
-					</div>
-				</header>
-
-				<div class="fz-titlebar">
-					<label for="fz_title">Fahrzeug-Titel <span class="req">*</span></label>
-					<input type="text" id="fz_title" name="post_title" value="<?php echo esc_attr( $title ); ?>" placeholder="z. B. BMW M3 E30 EVO II — Diamantschwarz" required>
-				</div>
-
-				<!-- 1. FAHRZEUG -->
-				<section class="fz-sec">
-					<h2><span class="n">1</span> Fahrzeug</h2>
-					<p class="fz-intro">Grunddaten zur Identifikation des Fahrzeugs.</p>
-					<div class="fz-row">
-						<div class="fz-f">
-							<label>Template-Typ</label>
-							<div class="fz-radios">
-								<label class="fz-pill-r"><input type="radio" name="_m24fz_template_typ" value="strasse" <?php checked( $typ, 'strasse' ); ?>> Straßenfahrzeug</label>
-								<label class="fz-pill-r"><input type="radio" name="_m24fz_template_typ" value="renn" <?php checked( $typ, 'renn' ); ?>> Rennfahrzeug</label>
-							</div>
-						</div>
-						<div class="fz-f">
-							<label for="_m24fz_kat">Aktiv-Kategorie</label>
-							<select id="_m24fz_kat" name="_m24fz_kat">
-								<option value="race-cars" <?php selected( $kat, 'race-cars' ); ?>>Race Cars</option>
-								<option value="classic-cars" <?php selected( $kat, 'classic-cars' ); ?>>Classic Cars</option>
-							</select>
-						</div>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_baujahr', 'Baujahr', array( 'ph' => 'z. B. 1989' ) );
-						self::field( $id, '_m24fz_erstzulassung', 'Erstzulassung', array( 'ph' => 'TT.MM.JJJJ' ) );
-						self::field( $id, '_m24fz_marke', 'Marke', array( 'req' => true, 'ph' => 'BMW', 'help' => 'Steuert „Ähnliche Fahrzeuge".' ) );
-						?>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_baureihe', 'Baureihe', array( 'list' => 'fz-baureihen', 'ph' => 'z. B. 3er E30' ) );
-						self::field( $id, '_m24fz_modell', 'Modell', array( 'ph' => 'z. B. M3 EVO II' ) );
-						self::field( $id, '_m24fz_fin', 'FIN' );
-						?>
-					</div>
-					<datalist id="fz-baureihen"><?php foreach ( $models as $m ) { echo '<option value="' . esc_attr( $m ) . '">'; } ?></datalist>
-				</section>
-
-				<!-- 2. HISTORIE & ZUSTAND -->
-				<section class="fz-sec">
-					<h2><span class="n">2</span> Historie &amp; Zustand</h2>
-					<div class="fz-row">
-						<?php self::field( $id, '_m24fz_laufleistung', 'Laufleistung (km)', array( 'req' => true, 'ph' => 'z. B. 45000', 'help' => 'Nur für Straßenfahrzeuge.' ) ); ?>
-						<?php self::country_field( $id, '_m24fz_land_erstauslieferung', 'Land der Erstauslieferung' ); ?>
-						<?php self::country_field( $id, '_m24fz_standort', 'Fahrzeugstandort (Land)' ); ?>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_standort_ort', 'Standort (Ort)', array( 'ph' => 'z. B. Stuttgart' ) );
-						self::field( $id, '_m24fz_neu_gebraucht', 'Neu / Gebraucht', array( 'req' => true, 'ph' => 'Gebraucht' ) );
-						?>
-					</div>
-				</section>
-
-				<!-- 3. TECHNISCHE DATEN -->
-				<section class="fz-sec">
-					<h2><span class="n">3</span> Technische Daten</h2>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_hubraum', 'Hubraum', array( 'ph' => 'z. B. 2,3 l' ) );
-						self::field( $id, '_m24fz_leistung_ps', 'Leistung (PS)', array( 'ph' => 'z. B. 238', 'help' => 'Eingabe in PS — kW wird automatisch berechnet.' ) );
-						self::field( $id, '_m24fz_karosserie', 'Karosserie', array( 'ph' => 'z. B. Coupé' ) );
-						?>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_aussenfarbe', 'Außenfarbe', array( 'req' => true ) );
-						self::field( $id, '_m24fz_farbbez_hersteller', 'Hersteller-Farbbezeichnung' );
-						self::field( $id, '_m24fz_innenfarbe', 'Innenfarbe', array( 'req' => true ) );
-						?>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_innenmaterial', 'Innenmaterial' );
-						self::field( $id, '_m24fz_lenkung', 'Lenkung', array( 'ph' => 'Links / Rechts' ) );
-						?>
-						<div class="fz-f">
-							<label for="_m24fz_getriebe">Getriebe</label>
-							<select id="_m24fz_getriebe" name="_m24fz_getriebe"><option value="">—</option>
-								<?php foreach ( M24FZ_Telemetry::getriebe_options() as $v => $l ) { printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( self::g( $id, '_m24fz_getriebe' ), $v, false ), esc_html( $l ) ); } ?>
-							</select>
-						</div>
-					</div>
-					<div class="fz-row">
-						<?php
-						self::field( $id, '_m24fz_antrieb', 'Antrieb', array( 'ph' => 'Heck / Allrad' ) );
-						self::field( $id, '_m24fz_kraftstoff', 'Kraftstoff', array( 'ph' => 'Benzin' ) );
-						?>
-					</div>
-
-					<div class="fz-renn" data-renn>
-						<h3>Renn-spezifisch</h3>
-						<div class="fz-row">
-							<label class="fz-toggle"><input type="checkbox" name="_m24fz_wagenpass" <?php checked( 1, (int) self::g( $id, '_m24fz_wagenpass' ) ); ?>><span></span> Wagenpass</label>
-							<label class="fz-toggle"><input type="checkbox" name="_m24fz_rennhistorie" <?php checked( 1, (int) self::g( $id, '_m24fz_rennhistorie' ) ); ?>><span></span> Rennhistorie</label>
-						</div>
-						<div class="fz-row"><?php for ( $i = 1; $i <= 3; $i++ ) {
-							self::field( $id, "_m24fz_race_opt{$i}_label", "Option $i — Label" );
-							self::field( $id, "_m24fz_race_opt{$i}_value", "Option $i — Wert" );
-						} ?></div>
-					</div>
-				</section>
-
-				<!-- 4. INSERAT & MEDIEN -->
-				<section class="fz-sec">
-					<h2><span class="n">4</span> Inserat &amp; Medien</h2>
-
-					<div class="fz-f">
-						<label>Highlights <span class="fz-help">Was macht Ihr Fahrzeug besonders? (3–5)</span></label>
-						<div id="fz-keyfacts"><?php foreach ( array_pad( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 3, '' ) as $kf ) : ?>
-							<p><input type="text" name="_m24fz_keyfacts[]" value="<?php echo esc_attr( $kf ); ?>" placeholder="z. B. Matching Numbers"></p>
-						<?php endforeach; ?></div>
-						<button type="button" class="fz-add" id="fz-kf-add">+ Highlight hinzufügen</button>
-					</div>
-
-					<div class="fz-f">
-						<label for="_m24fz_zusammenfassung">Zusammenfassung <span class="req">*</span> <span class="fz-help">Kurzer Intro-Text (auch Meta-Description).</span></label>
-						<textarea id="_m24fz_zusammenfassung" name="_m24fz_zusammenfassung" rows="3"><?php echo esc_textarea( self::g( $id, '_m24fz_zusammenfassung' ) ); ?></textarea>
-					</div>
-
-					<div class="fz-f">
-						<label>Detailbeschreibung</label>
-						<?php wp_editor( self::g( $id, '_m24fz_beschreibung' ), 'm24fzbeschr', array( 'textarea_name' => '_m24fz_beschreibung', 'textarea_rows' => 8, 'media_buttons' => false, 'teeny' => true ) ); ?>
-					</div>
-
-					<div class="fz-row fz-pricebox">
-						<?php self::field( $id, '_m24fz_preis', 'Preis (EUR)', array( 'ph' => 'z. B. 189000' ) ); ?>
-						<label class="fz-toggle"><input type="checkbox" name="_m24fz_preis_auf_anfrage" <?php checked( 1, $paf ); ?>><span></span> Preis nur auf Anfrage</label>
-					</div>
-
-					<div class="fz-f">
-						<label>YouTube-Videos</label>
-						<div id="fz-videos"><?php foreach ( array_pad( (array) get_post_meta( $id, '_m24fz_videos', true ), 1, '' ) as $v ) : ?>
-							<p><input type="url" name="_m24fz_videos[]" value="<?php echo esc_attr( $v ); ?>" placeholder="https://youtu.be/…"></p>
-						<?php endforeach; ?></div>
-						<button type="button" class="fz-add" id="fz-vid-add">+ Video hinzufügen</button>
-					</div>
-
-					<div class="fz-f">
-						<label>Beitragsbild (Titelbild) <span class="fz-help">Erscheint groß oben im Inserat (Hero).</span></label>
-						<div class="fz-thumb">
-							<div class="fz-thumb-prev<?php echo $thumbU ? '' : ' empty'; ?>"><?php if ( $thumbU ) : ?><img src="<?php echo esc_url( $thumbU ); ?>" alt=""><?php else : ?><span>Kein Titelbild</span><?php endif; ?></div>
-							<input type="hidden" name="_thumbnail_id" value="<?php echo (int) $thumb; ?>">
-							<div class="fz-thumb-btns">
-								<button type="button" class="fz-out" id="fz-thumb-pick">Titelbild wählen</button>
-								<button type="button" class="fz-out ghost" id="fz-thumb-clear">Entfernen</button>
-							</div>
-						</div>
-					</div>
-
-					<div class="fz-f">
-						<label>Bildergalerie (je Kategorie · ziehen zum Sortieren)</label>
-						<?php foreach ( array( '_m24fz_gal_aussen' => 'Außen', '_m24fz_gal_innen' => 'Innen', '_m24fz_gal_motor' => 'Motor', '_m24fz_gal_unterboden' => 'Unterboden' ) as $key => $label ) :
-							$ids = (array) get_post_meta( $id, $key, true ); ?>
-							<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
-								<strong><?php echo esc_html( $label ); ?></strong>
-								<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'thumbnail' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt=""><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
-								<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( implode( ',', array_map( 'intval', $ids ) ) ); ?>">
-								<button type="button" class="fz-out fz-gal-add">Bilder hinzufügen</button>
-							</div>
-						<?php endforeach; ?>
-					</div>
-				</section>
-
-				<!-- 5. STATUS & VERÖFFENTLICHEN -->
-				<section class="fz-sec">
-					<h2><span class="n">5</span> Status &amp; Veröffentlichen</h2>
-					<div class="fz-row">
-						<label class="fz-toggle"><input type="checkbox" name="m24fz_verkauft" <?php checked( 'verkauft', $status ); ?>><span></span> Verkauft</label>
-						<label class="fz-toggle"><input type="checkbox" name="m24fz_reserviert" <?php checked( 'reserviert', $status ); ?>><span></span> Reserviert</label>
-						<label class="fz-toggle danger"><input type="checkbox" name="m24fz_deaktiviert" <?php checked( 'deaktiviert', $status ); ?>><span></span> Deaktivieren (Frontend weg)</label>
-					</div>
-					<div class="fz-foot">
-						<button type="submit" class="fz-save">Speichern &amp; Veröffentlichen</button>
-						<button type="submit" name="fz_draft" value="1" class="fz-out">Als Entwurf speichern</button>
-					</div>
-				</section>
-			</form>
-		</div>
-		<script><?php echo self::js(); // phpcs:ignore ?></script>
-		<?php
 	}
 
 	private static function country_field( $id, $key, $label ) {
@@ -314,14 +88,277 @@ class M24FZ_Editor_Screen {
 		echo '</select></div>';
 	}
 
-	/** Baureihen-Vorschläge aus data/bmw-models.json (Komfort-Datalist). */
-	private static function bmw_baureihen() {
-		$f = M24_PLATTFORM_DIR . 'data/bmw-models.json';
-		if ( ! is_readable( $f ) ) { return array(); }
-		$j = json_decode( (string) file_get_contents( $f ), true ); // phpcs:ignore
-		$out = array();
-		foreach ( (array) ( $j['models'] ?? array() ) as $m ) { if ( ! empty( $m['display'] ) ) { $out[] = $m['display']; } }
-		return $out;
+	/** Checkbox-Gruppe (Mehrfachauswahl) für Array-Metas. */
+	private static function checks( $id, $key, $label, $options ) {
+		$cur = (array) get_post_meta( $id, $key, true );
+		echo '<div class="fz-f"><label>' . esc_html( $label ) . '</label><div class="fz-checks">';
+		foreach ( $options as $slug => $l ) {
+			printf( '<label class="fz-check"><input type="checkbox" name="%s[]" value="%s"%s> %s</label>',
+				esc_attr( $key ), esc_attr( $slug ), in_array( $slug, $cur, true ) ? ' checked' : '', esc_html( $l ) );
+		}
+		echo '</div></div>';
+	}
+
+	/** Toggle (Bool). */
+	private static function toggle( $id, $key, $label, $danger = false ) {
+		printf( '<label class="fz-toggle%s"><input type="checkbox" name="%s"%s><span></span> %s</label>',
+			$danger ? ' danger' : '', esc_attr( $key ), checked( 1, (int) self::g( $id, $key ), false ), esc_html( $label ) );
+	}
+
+	/* ── Render ──────────────────────────────────────────────────────────────── */
+
+	public static function render() {
+		$id = isset( $_GET['post'] ) ? (int) $_GET['post'] : 0;
+		if ( $id && M24FZ_CPT::PT !== get_post_type( $id ) ) { $id = 0; }
+		$post    = $id ? get_post( $id ) : null;
+		$title   = $post ? $post->post_title : '';
+		$typ     = self::g( $id, '_m24fz_template_typ', 'strasse' );
+		$kat     = self::g( $id, '_m24fz_kat', 'race-cars' );
+		$status  = $id ? M24FZ_CPT::status( $id ) : 'gelistet';
+		$paf     = (int) self::g( $id, '_m24fz_preis_auf_anfrage' );
+		$einheit = self::g( $id, '_m24fz_laufleistung_einheit', 'km' );
+		$waehr   = self::g( $id, '_m24fz_waehrung', 'EUR' );
+		$thumb   = $id ? (int) get_post_thumbnail_id( $id ) : 0;
+		$thumbU  = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
+		$pdraft  = $post && 'draft' === $post->post_status;
+		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
+		$yearNow = (int) gmdate( 'Y' ) + 1;
+		?>
+		<style><?php echo self::css(); // phpcs:ignore ?></style>
+		<div class="fz-screen">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fz-form">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION ); ?>">
+				<input type="hidden" name="post_id" value="<?php echo (int) $id; ?>">
+				<?php wp_nonce_field( self::NONCE, self::NONCE ); ?>
+				<?php wp_nonce_field( M24FZ_Meta::NONCE, M24FZ_Meta::NONCE ); // triggert M24FZ_Meta::save() ?>
+
+				<!-- Sticky Topbar -->
+				<header class="fz-topbar">
+					<div class="fz-tb-left">
+						<strong><?php echo $id ? esc_html( '' !== $title ? $title : 'Fahrzeug' ) : 'Neues Fahrzeug'; ?></strong>
+						<span class="fz-tb-status <?php echo $pdraft ? 'draft' : 'pub'; ?>"><?php echo $pdraft ? 'Entwurf' : ( $id ? 'Veröffentlicht' : 'Neu' ); ?></span>
+					</div>
+					<div class="fz-tb-right">
+						<span class="fz-seg"><span class="on">Komfort-Maske</span><a href="<?php echo esc_url( $classicU ); ?>">Klassisch</a></span>
+						<?php if ( $id ) : ?><a class="fz-out ghost" href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Vorschau ↗</a><?php endif; ?>
+						<button type="submit" class="fz-save">Speichern &amp; veröffentlichen</button>
+					</div>
+				</header>
+
+				<div class="fz-body">
+					<div class="fz-titlebar">
+						<label for="fz_title">Fahrzeug-Titel <span class="req">*</span></label>
+						<input type="text" id="fz_title" name="post_title" value="<?php echo esc_attr( $title ); ?>" placeholder="z. B. BMW M3 E30 EVO II — Diamantschwarz" required>
+					</div>
+
+					<!-- 1. FAHRZEUG -->
+					<section class="fz-sec">
+						<h2><span class="n">1</span> Fahrzeug</h2>
+						<p class="fz-intro">Grunddaten zur Identifikation des Fahrzeugs.</p>
+						<div class="fz-row">
+							<div class="fz-f">
+								<label>Fahrzeugtyp</label>
+								<div class="fz-seg fz-seg-typ">
+									<label class="<?php echo 'renn' === $typ ? '' : 'on'; ?>"><input type="radio" name="_m24fz_template_typ" value="strasse" <?php checked( $typ, 'strasse' ); ?>> Straße</label>
+									<label class="<?php echo 'renn' === $typ ? 'on' : ''; ?>"><input type="radio" name="_m24fz_template_typ" value="renn" <?php checked( $typ, 'renn' ); ?>> Renn</label>
+								</div>
+							</div>
+							<div class="fz-f">
+								<label for="_m24fz_kat">Aktiv-Kategorie</label>
+								<select id="_m24fz_kat" name="_m24fz_kat">
+									<option value="race-cars" <?php selected( $kat, 'race-cars' ); ?>>Race Cars</option>
+									<option value="classic-cars" <?php selected( $kat, 'classic-cars' ); ?>>Classic Cars</option>
+								</select>
+							</div>
+						</div>
+						<div class="fz-row">
+							<?php self::field( $id, '_m24fz_marke', 'Marke', array( 'req' => true, 'ph' => 'BMW', 'help' => 'Steuert „Ähnliche Fahrzeuge".' ) ); ?>
+							<div class="fz-f">
+								<label for="_m24fz_baujahr">Baujahr</label>
+								<select id="_m24fz_baujahr" name="_m24fz_baujahr"><option value="">—</option>
+									<?php $by = (int) self::g( $id, '_m24fz_baujahr' ); for ( $y = $yearNow; $y >= 1950; $y-- ) { printf( '<option value="%1$d"%2$s>%1$d</option>', $y, selected( $by, $y, false ) ); } ?>
+								</select>
+							</div>
+							<?php self::field( $id, '_m24fz_erstzulassung', 'Erstzulassung', array( 'ph' => 'MM/JJJJ' ) ); ?>
+						</div>
+						<div class="fz-row">
+							<?php
+							self::field( $id, '_m24fz_baureihe', 'Baureihe', array( 'req' => true, 'ph' => 'z. B. 3er E30' ) );
+							self::field( $id, '_m24fz_modell', 'Modell', array( 'req' => true, 'ph' => 'z. B. M3 EVO II' ) );
+							self::field( $id, '_m24fz_fin', 'FIN' );
+							?>
+						</div>
+					</section>
+
+					<!-- 2. HISTORIE & ZUSTAND -->
+					<section class="fz-sec">
+						<h2><span class="n">2</span> Historie &amp; Zustand</h2>
+						<div class="fz-row">
+							<div class="fz-f fz-f-unit">
+								<label for="_m24fz_laufleistung">Laufleistung <span class="req">*</span></label>
+								<div class="fz-inline">
+									<input type="text" id="_m24fz_laufleistung" name="_m24fz_laufleistung" value="<?php echo esc_attr( self::g( $id, '_m24fz_laufleistung' ) ); ?>" placeholder="z. B. 45000">
+									<select name="_m24fz_laufleistung_einheit" class="fz-unit"><option value="km"<?php selected( $einheit, 'km' ); ?>>km</option><option value="mi"<?php selected( $einheit, 'mi' ); ?>>mi</option></select>
+								</div>
+							</div>
+							<?php self::country_field( $id, '_m24fz_land_erstauslieferung', 'Land der Erstauslieferung' ); ?>
+							<?php self::field( $id, '_m24fz_anzahl_halter', 'Anzahl Fahrzeughalter', array( 'ph' => 'z. B. 2' ) ); ?>
+						</div>
+						<div class="fz-row">
+							<?php self::country_field( $id, '_m24fz_standort', 'Fahrzeugstandort (Land)' ); ?>
+							<?php self::field( $id, '_m24fz_standort_ort', 'Standort (Ort)', array( 'ph' => 'z. B. Stuttgart' ) ); ?>
+							<?php self::field( $id, '_m24fz_neu_gebraucht', 'Neu / Gebraucht', array( 'req' => true, 'ph' => 'Gebraucht' ) ); ?>
+						</div>
+						<?php self::checks( $id, '_m24fz_zustand', 'Zustand', M24FZ_Telemetry::zustand_options() ); ?>
+						<div class="fz-row fz-toggles">
+							<?php self::toggle( $id, '_m24fz_fahrbereit', 'Fahrbereit' ); ?>
+							<?php self::toggle( $id, '_m24fz_zugelassen', 'Zugelassen' ); ?>
+							<?php self::toggle( $id, '_m24fz_matching_numbers', 'Matching Numbers' ); ?>
+						</div>
+					</section>
+
+					<!-- 3. TECHNISCHE DATEN -->
+					<section class="fz-sec">
+						<h2><span class="n">3</span> Technische Daten</h2>
+						<div class="fz-row">
+							<div class="fz-f">
+								<label for="_m24fz_leistung_ps">Leistung (PS)</label>
+								<input type="text" id="_m24fz_leistung_ps" name="_m24fz_leistung_ps" value="<?php echo esc_attr( self::g( $id, '_m24fz_leistung_ps' ) ); ?>" placeholder="z. B. 238">
+								<span class="fz-help" id="fz-kw">In PS — kW automatisch.</span>
+							</div>
+							<?php self::field( $id, '_m24fz_hubraum', 'Hubraum', array( 'ph' => 'z. B. 2,3 l' ) ); ?>
+							<div class="fz-f">
+								<label for="_m24fz_getriebe">Getriebe</label>
+								<select id="_m24fz_getriebe" name="_m24fz_getriebe">
+									<?php foreach ( M24FZ_Telemetry::getriebe_options() as $v => $l ) { printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( self::g( $id, '_m24fz_getriebe' ), $v, false ), esc_html( $l ) ); } ?>
+								</select>
+							</div>
+						</div>
+						<div class="fz-row">
+							<?php
+							self::field( $id, '_m24fz_antrieb', 'Antrieb', array( 'ph' => 'Heck / Allrad' ) );
+							self::field( $id, '_m24fz_kraftstoff', 'Kraftstoff', array( 'ph' => 'Benzin' ) );
+							self::field( $id, '_m24fz_karosserie', 'Karosserie', array( 'ph' => 'z. B. Coupé' ) );
+							?>
+						</div>
+						<div class="fz-row">
+							<?php
+							self::field( $id, '_m24fz_aussenfarbe', 'Außenfarbe', array( 'req' => true ) );
+							self::field( $id, '_m24fz_farbbez_hersteller', 'Hersteller-Farbbez. (außen)' );
+							self::field( $id, '_m24fz_lenkung', 'Lenkung', array( 'ph' => 'Links / Rechts' ) );
+							?>
+						</div>
+						<div class="fz-row">
+							<?php
+							self::field( $id, '_m24fz_innenmaterial', 'Innenmaterial' );
+							self::field( $id, '_m24fz_innenfarbe', 'Innenfarbe', array( 'req' => true ) );
+							?>
+						</div>
+
+						<div class="fz-renn" data-renn>
+							<h3>Renn-spezifisch</h3>
+							<div class="fz-row fz-toggles">
+								<?php self::toggle( $id, '_m24fz_wagenpass', 'Wagenpass' ); ?>
+								<?php self::toggle( $id, '_m24fz_rennhistorie', 'Rennhistorie' ); ?>
+							</div>
+							<div class="fz-row"><?php for ( $i = 1; $i <= 3; $i++ ) {
+								self::field( $id, "_m24fz_race_opt{$i}_label", "Option $i — Label" );
+								self::field( $id, "_m24fz_race_opt{$i}_value", "Option $i — Wert" );
+							} ?></div>
+						</div>
+					</section>
+
+					<!-- 4. AUSSTATTUNG -->
+					<section class="fz-sec">
+						<h2><span class="n">4</span> Ausstattung</h2>
+						<?php self::checks( $id, '_m24fz_ausstattung', 'Ausstattungsmerkmale', M24FZ_Telemetry::ausstattung_options() ); ?>
+					</section>
+
+					<!-- 5. INSERAT & MEDIEN -->
+					<section class="fz-sec">
+						<h2><span class="n">5</span> Inserat &amp; Medien</h2>
+
+						<div class="fz-f">
+							<label>Highlights <span class="req">*</span> <span class="fz-help">Was macht das Fahrzeug besonders? (3–5)</span></label>
+							<div id="fz-keyfacts"><?php foreach ( array_pad( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 3, '' ) as $kf ) : ?>
+								<p><input type="text" name="_m24fz_keyfacts[]" value="<?php echo esc_attr( $kf ); ?>" placeholder="z. B. Matching Numbers"></p>
+							<?php endforeach; ?></div>
+							<button type="button" class="fz-add" id="fz-kf-add">+ Highlight hinzufügen</button>
+						</div>
+
+						<div class="fz-f">
+							<label>Zusammenfassung <span class="req">*</span> <span class="fz-help">Kurzer Intro-Text (auch Meta-Description).</span></label>
+							<?php wp_editor( self::g( $id, '_m24fz_zusammenfassung' ), 'm24fzzus', array( 'textarea_name' => '_m24fz_zusammenfassung', 'textarea_rows' => 3, 'media_buttons' => false, 'teeny' => true ) ); ?>
+						</div>
+
+						<div class="fz-f">
+							<label>Detailbeschreibung</label>
+							<?php wp_editor( self::g( $id, '_m24fz_beschreibung' ), 'm24fzbeschr', array( 'textarea_name' => '_m24fz_beschreibung', 'textarea_rows' => 8, 'media_buttons' => false, 'teeny' => true ) ); ?>
+						</div>
+
+						<div class="fz-row">
+							<?php self::field( $id, '_m24fz_preis', 'Preis', array( 'ph' => 'z. B. 189000' ) ); ?>
+							<div class="fz-f">
+								<label for="_m24fz_waehrung">Währung</label>
+								<select id="_m24fz_waehrung" name="_m24fz_waehrung"><option value="EUR"<?php selected( $waehr, 'EUR' ); ?>>EUR (€)</option><option value="CHF"<?php selected( $waehr, 'CHF' ); ?>>CHF</option></select>
+							</div>
+							<?php self::field( $id, '_m24fz_preis_reduziert', 'Reduzierter Preis (optional)', array( 'ph' => 'durchgestrichener Originalpreis' ) ); ?>
+						</div>
+						<div class="fz-row fz-toggles">
+							<?php self::toggle( $id, '_m24fz_mwst_ausweisbar', 'MwSt. ausweisbar (inkl. 19 %)' ); ?>
+							<label class="fz-toggle"><input type="checkbox" name="_m24fz_preis_auf_anfrage" <?php checked( 1, $paf ); ?>><span></span> Preis nur auf Anfrage</label>
+						</div>
+
+						<div class="fz-f">
+							<label>YouTube-Videos</label>
+							<div id="fz-videos"><?php foreach ( array_pad( (array) get_post_meta( $id, '_m24fz_videos', true ), 1, '' ) as $v ) : ?>
+								<p><input type="url" name="_m24fz_videos[]" value="<?php echo esc_attr( $v ); ?>" placeholder="https://youtu.be/…"></p>
+							<?php endforeach; ?></div>
+							<button type="button" class="fz-add" id="fz-vid-add">+ Video hinzufügen</button>
+						</div>
+
+						<div class="fz-f">
+							<label>Beitragsbild (Titelbild) <span class="fz-help">Erscheint groß oben im Inserat (Hero).</span></label>
+							<div class="fz-thumb">
+								<div class="fz-thumb-prev<?php echo $thumbU ? '' : ' empty'; ?>"><span class="fz-titel-tag">TITEL</span><?php if ( $thumbU ) : ?><img src="<?php echo esc_url( $thumbU ); ?>" alt=""><?php else : ?><span class="ph">Kein Titelbild</span><?php endif; ?></div>
+								<input type="hidden" name="_thumbnail_id" value="<?php echo (int) $thumb; ?>">
+								<div class="fz-thumb-btns">
+									<button type="button" class="fz-out" id="fz-thumb-pick">Titelbild wählen</button>
+									<button type="button" class="fz-out ghost" id="fz-thumb-clear">Entfernen</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="fz-f">
+							<label>Bildergalerie (je Kategorie · ziehen zum Sortieren)</label>
+							<?php foreach ( array( '_m24fz_gal_aussen' => 'Außen', '_m24fz_gal_innen' => 'Innen', '_m24fz_gal_motor' => 'Motor', '_m24fz_gal_unterboden' => 'Unterboden' ) as $key => $label ) :
+								$ids = (array) get_post_meta( $id, $key, true ); ?>
+								<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
+									<strong><?php echo esc_html( $label ); ?></strong>
+									<div class="fz-gal"><?php foreach ( $ids as $aid ) { $u = wp_get_attachment_image_url( $aid, 'thumbnail' ); if ( ! $u ) { continue; } printf( '<span data-id="%d"><img src="%s" alt=""><i class="rm">×</i></span>', (int) $aid, esc_url( $u ) ); } ?></div>
+									<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( implode( ',', array_map( 'intval', $ids ) ) ); ?>">
+									<button type="button" class="fz-out fz-gal-add">Bilder hinzufügen</button>
+								</div>
+							<?php endforeach; ?>
+						</div>
+
+						<div class="fz-f"><label>Status</label></div>
+						<div class="fz-row fz-toggles fz-status">
+							<label class="fz-toggle"><input type="checkbox" name="m24fz_verkauft" <?php checked( 'verkauft', $status ); ?>><span></span> Verkauft</label>
+							<label class="fz-toggle"><input type="checkbox" name="m24fz_reserviert" <?php checked( 'reserviert', $status ); ?>><span></span> Reserviert</label>
+							<label class="fz-toggle danger"><input type="checkbox" name="m24fz_deaktiviert" <?php checked( 'deaktiviert', $status ); ?>><span></span> Deaktivieren (Frontend weg)</label>
+						</div>
+
+						<div class="fz-foot">
+							<button type="submit" class="fz-save">Speichern &amp; veröffentlichen</button>
+							<button type="submit" name="fz_draft" value="1" class="fz-out">Als Entwurf speichern</button>
+						</div>
+					</section>
+				</div>
+			</form>
+		</div>
+		<script><?php echo self::js(); // phpcs:ignore ?></script>
+		<?php
 	}
 
 	/* ── Save ────────────────────────────────────────────────────────────────── */
@@ -330,17 +367,17 @@ class M24FZ_Editor_Screen {
 		if ( ! current_user_can( 'edit_posts' ) ) { wp_die( 'Keine Berechtigung.' ); }
 		check_admin_referer( self::NONCE, self::NONCE );
 
-		$id     = (int) ( $_POST['post_id'] ?? 0 );
-		$title  = sanitize_text_field( wp_unslash( $_POST['post_title'] ?? '' ) );
+		$id    = (int) ( $_POST['post_id'] ?? 0 );
+		$title = sanitize_text_field( wp_unslash( $_POST['post_title'] ?? '' ) );
 		if ( '' === $title ) { $title = 'Fahrzeug (Entwurf)'; }
-		$pstat  = ! empty( $_POST['fz_draft'] ) ? 'draft' : 'publish';
+		$pstat = ! empty( $_POST['fz_draft'] ) ? 'draft' : 'publish';
 
 		$arr = array( 'post_type' => M24FZ_CPT::PT, 'post_title' => $title, 'post_status' => $pstat );
 		if ( $id && M24FZ_CPT::PT === get_post_type( $id ) ) {
 			$arr['ID'] = $id;
-			wp_update_post( $arr ); // → save_post_m24_fahrzeug → M24FZ_Meta::save() speichert alle Metas aus $_POST.
+			wp_update_post( $arr ); // → save_post_m24_fahrzeug → M24FZ_Meta::save() (bestehende Felder).
 		} else {
-			$id = (int) wp_insert_post( $arr ); // save_post feuert ebenfalls → Metas werden gespeichert.
+			$id = (int) wp_insert_post( $arr );
 		}
 		if ( ! $id || is_wp_error( $id ) ) { wp_die( 'Speichern fehlgeschlagen.' ); }
 
@@ -348,43 +385,69 @@ class M24FZ_Editor_Screen {
 		$tid = (int) ( $_POST['_thumbnail_id'] ?? 0 );
 		if ( $tid ) { set_post_thumbnail( $id, $tid ); } else { delete_post_thumbnail( $id ); }
 
+		// Neue optionale Felder (nur Komfort-Maske → keine Kollision mit klassischer Box).
+		$unit = ( 'mi' === ( $_POST['_m24fz_laufleistung_einheit'] ?? '' ) ) ? 'mi' : 'km';
+		update_post_meta( $id, '_m24fz_laufleistung_einheit', $unit );
+		update_post_meta( $id, '_m24fz_waehrung', ( 'CHF' === ( $_POST['_m24fz_waehrung'] ?? '' ) ) ? 'CHF' : 'EUR' );
+		update_post_meta( $id, '_m24fz_anzahl_halter', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_anzahl_halter'] ?? '' ) ) );
+		update_post_meta( $id, '_m24fz_preis_reduziert', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_preis_reduziert'] ?? '' ) ) );
+		update_post_meta( $id, '_m24fz_fahrbereit', empty( $_POST['_m24fz_fahrbereit'] ) ? 0 : 1 );
+		update_post_meta( $id, '_m24fz_zugelassen', empty( $_POST['_m24fz_zugelassen'] ) ? 0 : 1 );
+		update_post_meta( $id, '_m24fz_matching_numbers', empty( $_POST['_m24fz_matching_numbers'] ) ? 0 : 1 );
+		update_post_meta( $id, '_m24fz_mwst_ausweisbar', empty( $_POST['_m24fz_mwst_ausweisbar'] ) ? 0 : 1 );
+		update_post_meta( $id, '_m24fz_zustand', self::clean_slugs( $_POST['_m24fz_zustand'] ?? array(), M24FZ_Telemetry::zustand_options() ) );
+		update_post_meta( $id, '_m24fz_ausstattung', self::clean_slugs( $_POST['_m24fz_ausstattung'] ?? array(), M24FZ_Telemetry::ausstattung_options() ) );
+
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT . '&page=' . self::PAGE . '&post=' . $id . '&updated=1' ) );
 		exit;
+	}
+
+	/** Nur erlaubte Slugs (gegen die Optionsliste) durchlassen. */
+	private static function clean_slugs( $raw, $allowed ) {
+		$out = array();
+		foreach ( (array) $raw as $s ) { $s = sanitize_key( wp_unslash( $s ) ); if ( isset( $allowed[ $s ] ) ) { $out[] = $s; } }
+		return array_values( array_unique( $out ) );
 	}
 
 	/* ── Inline CSS / JS ─────────────────────────────────────────────────────── */
 
 	private static function css() {
 		return <<<CSS
-.fz-screen{font-family:'Saira',-apple-system,Segoe UI,sans-serif;max-width:1080px;margin:18px 20px 60px;color:#14161a}
+.fz-screen{font-family:'Saira',-apple-system,Segoe UI,sans-serif;color:#14161a;margin:-10px -20px 0 -20px}
 .fz-screen *{box-sizing:border-box}
-.fz-note.ok{background:#e6f4ea;color:#1a7f37;border:1px solid #b6e0c2;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:600}
-.fz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:8px}
-.fz-head h1{font-size:24px;font-weight:700;margin:0}
-.fz-sub{color:#6b7077;margin:4px 0 0;font-size:13px}
-.fz-head-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.fz-link{color:#1763ad;text-decoration:none;font-size:13px;font-weight:600}
-.fz-save{font:inherit;font-weight:700;border:0;border-radius:8px;padding:12px 22px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e);font-size:14px}
-.fz-out{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px solid #9a6b25;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:13px}
+.fz-topbar{position:sticky;top:32px;z-index:30;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;border-bottom:1px solid #e2e2de;padding:12px 24px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.fz-tb-left{display:flex;align-items:center;gap:10px}.fz-tb-left strong{font-size:16px;font-weight:700}
+.fz-tb-status{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.fz-tb-status.pub{background:#e6f4ea;color:#1a7f37}.fz-tb-status.draft{background:#fff4d6;color:#9a6b25}
+.fz-tb-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fz-seg{display:inline-flex;border:1px solid #d4d4d0;border-radius:8px;overflow:hidden;font-size:13px;font-weight:600}
+.fz-seg>span,.fz-seg>a,.fz-seg>label{padding:8px 14px;cursor:pointer;text-decoration:none;color:#50575e;background:#fff;border:0}
+.fz-seg>.on,.fz-seg>label.on{background:#14161a;color:#fff}
+.fz-seg-typ label{position:relative}.fz-seg-typ input{position:absolute;opacity:0}
+.fz-body{max-width:1040px;margin:0 auto;padding:20px 24px 80px}
+.fz-save{font:inherit;font-weight:700;border:0;border-radius:8px;padding:11px 20px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e);font-size:14px}
+.fz-out{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px solid #9a6b25;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block}
 .fz-out.ghost{color:#6b7077;border-color:#d4d4d0}
 .fz-add{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px dashed #9a6b25;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;margin-top:6px}
-.fz-titlebar{background:#fff;border:1px solid #e6e6e3;border-radius:12px;padding:16px 18px;margin:14px 0 18px}
+.fz-titlebar{background:#fff;border:1px solid #e6e6e3;border-radius:12px;padding:16px 18px;margin-bottom:18px}
 .fz-titlebar label{display:block;font-weight:600;font-size:12px;color:#50575e;margin-bottom:6px}
 .fz-titlebar input{width:100%;font:inherit;font-size:20px;font-weight:600;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px}
 .fz-sec{background:#fff;border:1px solid #e6e6e3;border-radius:12px;padding:22px 24px;margin-bottom:18px}
-.fz-sec h2{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:700;color:#14161a;margin:0 0 4px}
+.fz-sec h2{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:700;margin:0 0 4px}
 .fz-sec h2 .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#14161a;color:#fff;font-size:15px;font-weight:700}
-.fz-sec h3{font-size:14px;font-weight:700;margin:18px 0 6px;color:#9a6b25;text-transform:uppercase;letter-spacing:.04em}
+.fz-sec h3{font-size:13px;font-weight:700;margin:18px 0 8px;color:#9a6b25;text-transform:uppercase;letter-spacing:.04em}
 .fz-intro{color:#6b7077;font-size:13px;margin:0 0 14px}
 .fz-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 18px;margin-bottom:6px}
 .fz-f{display:flex;flex-direction:column;margin-bottom:14px}
 .fz-f label{font-weight:600;font-size:12px;color:#50575e;margin-bottom:6px}
 .fz-f .req{color:#c0392b}
 .fz-f input,.fz-f select,.fz-f textarea{font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px;background:#fff;width:100%}
-.fz-f input:focus,.fz-f select:focus,.fz-f textarea:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
+.fz-f input:focus,.fz-f select:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 .fz-help{font-weight:400;color:#8a9099;font-size:12px}
-.fz-radios{display:flex;gap:10px}
-.fz-pill-r{display:inline-flex;align-items:center;gap:6px;border:1px solid #d9d9d6;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer}
+.fz-inline{display:flex;gap:8px}.fz-inline input{flex:1}.fz-unit{width:84px;flex:0 0 auto}
+.fz-checks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px}
+.fz-check{display:flex;align-items:center;gap:7px;font-weight:500;font-size:14px;color:#14161a;margin:0}
+.fz-toggles{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
 .fz-toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;color:#14161a}
 .fz-toggle input{position:absolute;opacity:0}
 .fz-toggle span{width:42px;height:24px;border-radius:999px;background:#cfd2d6;position:relative;transition:.2s;flex:0 0 auto}
@@ -393,12 +456,12 @@ class M24FZ_Editor_Screen {
 .fz-toggle.danger input:checked + span{background:#c0392b}
 .fz-toggle input:checked + span:before{transform:translateX(18px)}
 .fz-renn{margin-top:10px;padding-top:6px;border-top:1px dashed #e0e0dc}
-.fz-pricebox{grid-template-columns:1fr 1fr;align-items:center}
-.fz-pricebox .fz-toggle{margin-top:18px}
 .fz-thumb{display:flex;gap:16px;align-items:center}
-.fz-thumb-prev{width:200px;height:130px;border-radius:8px;border:1px solid #e0e0dc;overflow:hidden;background:#f3f3f1;display:flex;align-items:center;justify-content:center}
-.fz-thumb-prev.empty span{color:#9aa0a6;font-size:13px}
+.fz-thumb-prev{position:relative;width:210px;height:138px;border-radius:8px;border:2px solid #9a6b25;overflow:hidden;background:#f3f3f1;display:flex;align-items:center;justify-content:center}
+.fz-thumb-prev.empty{border-style:dashed}
+.fz-thumb-prev .ph{color:#9aa0a6;font-size:13px}
 .fz-thumb-prev img{width:100%;height:100%;object-fit:cover}
+.fz-titel-tag{position:absolute;top:8px;left:8px;background:#9a6b25;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:4px;z-index:2}
 .fz-thumb-btns{display:flex;flex-direction:column;gap:8px}
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
 .fz-galbox strong{display:block;font-size:13px;margin-bottom:6px}
@@ -408,17 +471,23 @@ class M24FZ_Editor_Screen {
 .fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:12px;cursor:pointer}
 #fz-keyfacts p,#fz-videos p{margin:0 0 8px}
 #fz-keyfacts input,#fz-videos input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
-.fz-foot{display:flex;gap:12px;align-items:center;margin-top:12px}
-@media(max-width:900px){.fz-row{grid-template-columns:1fr 1fr}.fz-pricebox{grid-template-columns:1fr}}
-@media(max-width:600px){.fz-row{grid-template-columns:1fr}}
+.fz-foot{display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0ee}
+@media(max-width:900px){.fz-row,.fz-checks{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.fz-row,.fz-checks{grid-template-columns:1fr}}
 CSS;
 	}
 
 	private static function js() {
 		return <<<JS
 jQuery(function($){
-	// Renn-Block nur bei Typ=Renn zeigen.
-	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn'; $('[data-renn]').toggle(renn); }
+	// Live PS → kW.
+	function kw(){ var ps=parseInt(($('#_m24fz_leistung_ps').val()||'').replace(/\\D/g,''),10);
+		if(ps>0){ var v=(Math.round(ps*0.73549875*100)/100).toFixed(2).replace('.',','); $('#fz-kw').text(v+' kW ('+ps+' PS)'); }
+		else { $('#fz-kw').text('In PS — kW automatisch.'); } }
+	$('#_m24fz_leistung_ps').on('input',kw); kw();
+	// Renn-Block + Segmented-Typ.
+	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn'; $('[data-renn]').toggle(renn);
+		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
 	// Repeater.
 	$('#fz-kf-add').on('click',function(){ $('#fz-keyfacts').append('<p><input type="text" name="_m24fz_keyfacts[]" placeholder="Highlight"></p>'); });
@@ -427,10 +496,10 @@ jQuery(function($){
 	$('#fz-thumb-pick').on('click',function(e){ e.preventDefault();
 		var fr=wp.media({title:'Titelbild wählen',multiple:false,library:{type:'image'}});
 		fr.on('select',function(){ var a=fr.state().get('selection').first().toJSON(); var u=(a.sizes&&a.sizes.medium)?a.sizes.medium.url:a.url;
-			$('input[name=_thumbnail_id]').val(a.id); $('.fz-thumb-prev').removeClass('empty').html('<img src="'+u+'" alt="">'); });
+			$('input[name=_thumbnail_id]').val(a.id); $('.fz-thumb-prev').removeClass('empty').html('<span class="fz-titel-tag">TITEL</span><img src="'+u+'" alt="">'); });
 		fr.open();
 	});
-	$('#fz-thumb-clear').on('click',function(e){ e.preventDefault(); $('input[name=_thumbnail_id]').val(''); $('.fz-thumb-prev').addClass('empty').html('<span>Kein Titelbild</span>'); });
+	$('#fz-thumb-clear').on('click',function(e){ e.preventDefault(); $('input[name=_thumbnail_id]').val(''); $('.fz-thumb-prev').addClass('empty').html('<span class="fz-titel-tag">TITEL</span><span class="ph">Kein Titelbild</span>'); });
 	// Galerien.
 	function syncGal(box){ var ids=[]; box.find('.fz-gal span').each(function(){ ids.push($(this).data('id')); }); box.find('input[type=hidden]').val(ids.join(',')); }
 	$('.fz-gal').sortable({ update:function(){ syncGal($(this).closest('[data-galkey]')); } });
