@@ -15,6 +15,35 @@ class M24FZ_Meta {
 	public static function init() {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'boxes' ) );
 		add_action( 'save_post_' . M24FZ_CPT::PT, array( __CLASS__, 'save' ), 10, 2 );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_normalize_enums' ) );
+	}
+
+	/**
+	 * Einmalige Normalisierung bestehender Enum-Altwerte (case-insensitive + Alias) → kanonisch.
+	 * Behebt z. B. „links" → „Links", „grau" → „Grau", „Gebrauchte" → „Gebraucht" (FIX 2 Bestandsfix).
+	 * Läuft genau einmal (Option-Flag). Echte Individualwerte ohne Treffer bleiben unangetastet.
+	 */
+	public static function maybe_normalize_enums() {
+		if ( get_option( 'm24fz_enum_norm_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		$fields = array(
+			'_m24fz_neu_gebraucht' => M24FZ_Telemetry::neu_gebraucht_options(),
+			'_m24fz_antrieb'       => M24FZ_Telemetry::antrieb_options(),
+			'_m24fz_kraftstoff'    => M24FZ_Telemetry::kraftstoff_options(),
+			'_m24fz_lenkung'       => M24FZ_Telemetry::lenkung_options(),
+			'_m24fz_innenmaterial' => M24FZ_Telemetry::innenmaterial_options(),
+			'_m24fz_innenfarbe'    => M24FZ_Telemetry::innenfarbe_options(),
+			'_m24fz_karosserie'    => M24FZ_Telemetry::karosserie_options(),
+		);
+		$ids = get_posts( array( 'post_type' => M24FZ_CPT::PT, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
+		foreach ( $ids as $pid ) {
+			foreach ( $fields as $key => $opts ) {
+				$cur = (string) get_post_meta( $pid, $key, true );
+				if ( '' === $cur ) { continue; }
+				$canon = M24FZ_Telemetry::match_enum( $cur, $opts, M24FZ_Telemetry::enum_aliases( $key ) );
+				if ( '' !== $canon && $canon !== $cur ) { update_post_meta( $pid, $key, $canon ); }
+			}
+		}
+		update_option( 'm24fz_enum_norm_v1', 1 );
 	}
 
 	public static function boxes() {
@@ -24,7 +53,7 @@ class M24FZ_Meta {
 	/** Einfache Text-/Int-Metas. */
 	private static function text_keys() {
 		return array(
-			'_m24fz_template_typ', '_m24fz_baujahr', '_m24fz_laufleistung', '_m24fz_leistung_ps',
+			'_m24fz_template_typ', '_m24fz_baujahr', '_m24fz_leistung_ps',
 			'_m24fz_getriebe', '_m24fz_farbe', '_m24fz_tel_opt_label', '_m24fz_tel_opt_value',
 			'_m24fz_race_opt1_label', '_m24fz_race_opt1_value', '_m24fz_race_opt2_label', '_m24fz_race_opt2_value',
 			'_m24fz_race_opt3_label', '_m24fz_race_opt3_value',
@@ -51,6 +80,13 @@ class M24FZ_Meta {
 			if ( isset( $_POST[ $k ] ) ) { update_post_meta( $post_id, $k, (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST[ $k ] ) ) ); }
 		}
 		foreach ( self::bool_keys() as $k ) { update_post_meta( $post_id, $k, isset( $_POST[ $k ] ) ? 1 : 0 ); }
+
+		// Laufleistung: nur ganze Zahl (Punkte/Leerzeichen strippen) + plausibles Maximum (≤ 9.999.999).
+		if ( isset( $_POST['_m24fz_laufleistung'] ) ) {
+			$km = (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_laufleistung'] ) );
+			if ( $km > 9999999 ) { $km = 9999999; }
+			update_post_meta( $post_id, '_m24fz_laufleistung', $km > 0 ? (string) $km : '' );
+		}
 
 		// Lange Freitexte.
 		update_post_meta( $post_id, '_m24fz_zusammenfassung', wp_kses_post( wp_unslash( $_POST['_m24fz_zusammenfassung'] ?? '' ) ) );

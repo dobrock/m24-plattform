@@ -112,15 +112,16 @@ class M24FZ_Editor_Screen {
 		$ph  = $opts['ph'] ?? 'Bitte wählen';
 		// Liste → assoc.
 		$assoc = array(); foreach ( $options as $k => $v ) { if ( is_int( $k ) ) { $assoc[ $v ] = $v; } else { $assoc[ $k ] = $v; } }
+		// Bestandswert case-insensitiv + Alias auf den kanonischen Options-Wert abbilden (FIX 2).
+		$canon = '' !== $cur ? M24FZ_Telemetry::match_enum( $cur, array_keys( $assoc ), $opts['aliases'] ?? M24FZ_Telemetry::enum_aliases( $key ) ) : '';
+		$sel   = '' !== $canon ? $canon : $cur;
 		echo '<div class="fz-f"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . $req . '</label>'; // phpcs:ignore
 		echo '<select id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">';
 		echo '<option value="">' . esc_html( $ph ) . '</option>';
-		$known = false;
 		foreach ( $assoc as $v => $l ) {
-			printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $cur, $v, false ), esc_html( $l ) );
-			if ( $cur === (string) $v ) { $known = true; }
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $sel, $v, false ), esc_html( $l ) );
 		}
-		if ( '' !== $cur && ! $known ) {
+		if ( '' !== $cur && '' === $canon ) {
 			printf( '<option value="%s" selected>%s</option>', esc_attr( $cur ), esc_html( $cur . ' (individuell)' ) );
 		}
 		echo '</select></div>';
@@ -243,9 +244,10 @@ class M24FZ_Editor_Screen {
 							<div class="fz-f fz-f-unit">
 								<label for="_m24fz_laufleistung">Laufleistung <span class="req">*</span></label>
 								<div class="fz-inline">
-									<input type="text" id="_m24fz_laufleistung" name="_m24fz_laufleistung" value="<?php echo esc_attr( self::g( $id, '_m24fz_laufleistung' ) ); ?>" placeholder="z. B. 45000">
+									<input type="text" id="_m24fz_laufleistung" name="_m24fz_laufleistung" value="<?php echo esc_attr( self::g( $id, '_m24fz_laufleistung' ) ); ?>" placeholder="z. B. 45000" inputmode="numeric" maxlength="7" autocomplete="off">
 									<select name="_m24fz_laufleistung_einheit" class="fz-unit"><option value="km"<?php selected( $einheit, 'km' ); ?>>km</option><option value="mi"<?php selected( $einheit, 'mi' ); ?>>mi</option></select>
 								</div>
+								<span class="fz-help" id="fz-km-hint">Ganze Zahl, max. 9.999.999.</span>
 							</div>
 							<?php self::country_field( $id, '_m24fz_land_erstauslieferung', 'Land der Erstauslieferung' ); ?>
 							<?php self::field( $id, '_m24fz_anzahl_halter', 'Anzahl Fahrzeughalter', array( 'ph' => 'z. B. 2' ) ); ?>
@@ -490,7 +492,7 @@ class M24FZ_Editor_Screen {
 .fz-f input,.fz-f select,.fz-f textarea{font:inherit;font-size:14px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px;background:#fff;width:100%}
 .fz-f input:focus,.fz-f select:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 .fz-help{font-weight:400;color:#8a9099;font-size:12px}
-.fz-inline{display:flex;gap:8px}.fz-inline input{flex:1}.fz-unit{width:84px;flex:0 0 auto}
+.fz-inline{display:flex;gap:8px;align-items:stretch}.fz-inline input{flex:1 1 auto;min-width:120px;width:100%}.fz-unit{width:84px;flex:0 0 84px}
 .fz-checks{display:flex;flex-wrap:wrap;gap:10px}
 .fz-chip{display:inline-flex;align-items:center;gap:9px;border:1.5px solid #d9d9d6;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;color:#50575e;background:#fff;cursor:pointer;user-select:none;transition:.15s}
 .fz-chip input{position:absolute;opacity:0;width:0;height:0}
@@ -541,6 +543,8 @@ jQuery(function($){
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
 	// Zustand/Ausstattung Toggle-Chips.
 	$(document).on('change','.fz-chip input',function(){ $(this).closest('.fz-chip').toggleClass('on',this.checked); });
+	// Laufleistung: nur Ziffern, max 7 (≤ 9.999.999).
+	$('#_m24fz_laufleistung').on('input',function(){ var c=this.value.replace(/\\D/g,'').slice(0,7); if(c!==this.value){ this.value=c; } });
 	// Repeater.
 	$('#fz-kf-add').on('click',function(){ $('#fz-keyfacts').append('<p><input type="text" name="_m24fz_keyfacts[]" placeholder="Highlight"></p>'); });
 	$('#fz-vid-add').on('click',function(){ $('#fz-videos').append('<p><input type="url" name="_m24fz_videos[]" placeholder="https://youtu.be/…"></p>'); });

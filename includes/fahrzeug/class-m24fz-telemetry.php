@@ -61,6 +61,46 @@ class M24FZ_Telemetry {
 	/** Fahrzeugtyp-Label (A3 „Bezeichnungen übernehmen"). */
 	public static function typ_label( $typ ) { return ( 'renn' === $typ ) ? 'Rennwagen' : 'Straßenfahrzeug'; }
 
+	/**
+	 * Kanonischen Enum-Wert finden (case-insensitive + trim, optional Alias-Tabelle).
+	 * Gibt den exakten Options-Wert zurück oder '' bei echtem Nicht-Treffer (Schutz bleibt).
+	 */
+	public static function match_enum( $value, $options, $aliases = array() ) {
+		$v = trim( (string) $value );
+		if ( '' === $v ) { return ''; }
+		foreach ( $aliases as $from => $to ) { if ( 0 === strcasecmp( $v, $from ) ) { $v = $to; break; } }
+		foreach ( $options as $opt ) { if ( 0 === strcasecmp( $v, (string) $opt ) ) { return (string) $opt; } }
+		return '';
+	}
+
+	/** Alias-Tabellen je Feld (gängige Schreibvarianten → Enum). */
+	public static function enum_aliases( $key ) {
+		$a = array(
+			'_m24fz_neu_gebraucht' => array( 'Gebrauchte' => 'Gebraucht', 'Gebrauchtwagen' => 'Gebraucht', 'Neuwagen' => 'Neu' ),
+			'_m24fz_antrieb'       => array( 'Hinterrad' => 'Heck', 'Hinterradantrieb' => 'Heck', 'RWD' => 'Heck', 'Frontantrieb' => 'Front', 'Vorderrad' => 'Front', 'FWD' => 'Front', 'Allradantrieb' => 'Allrad', '4x4' => 'Allrad', 'AWD' => 'Allrad' ),
+			'_m24fz_lenkung'       => array( 'LHD' => 'Links', 'Linkslenker' => 'Links', 'RHD' => 'Rechts', 'Rechtslenker' => 'Rechts' ),
+			'_m24fz_karosserie'    => array( 'Coupe' => 'Coupé', 'Kombi' => 'Touring' ),
+		);
+		return $a[ $key ] ?? array();
+	}
+
+	/** Bekannte Marken (für brand-Ableitung aus dem Titel). Filterbar. */
+	public static function known_brands() {
+		return apply_filters( 'm24fz_known_brands', array(
+			'Mercedes-Benz', 'Daimler-Benz', 'Aston Martin', 'BMW', 'Porsche', 'Mercedes', 'Audi',
+			'Volkswagen', 'VW', 'Ferrari', 'Lamborghini', 'Ford', 'Opel', 'Jaguar', 'Alpina',
+		) );
+	}
+
+	/** Marke grob aus einem Titel ableiten (erste bekannte Marke). '' wenn keine. */
+	public static function guess_brand( $title ) {
+		$t = (string) $title;
+		foreach ( self::known_brands() as $b ) {
+			if ( false !== stripos( $t, $b ) ) { return ( 'VW' === $b ) ? 'Volkswagen' : $b; }
+		}
+		return '';
+	}
+
 	/** Währungssymbol/-kürzel. EUR → „€", CHF → „CHF". */
 	public static function currency_symbol( $code ) {
 		$code = strtoupper( trim( (string) $code ) );
