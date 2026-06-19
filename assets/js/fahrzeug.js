@@ -30,44 +30,40 @@
 		});
 	}
 
-	// Mediagalerie-Chips (Kategorie-Wrapper umschalten).
-	var chips = document.querySelectorAll('.m24fz-chip'), wraps = document.querySelectorAll('.m24fz-mosaic[data-catwrap]');
+	// Mediagalerie-Chips (Kategorie-Wrapper umschalten — Bilder = Jetpack Tiled, Video = eigener Tab).
+	var chips = document.querySelectorAll('.m24fz-chip'), wraps = document.querySelectorAll('[data-catwrap]');
 	chips.forEach(function (c) {
 		c.addEventListener('click', function () {
 			chips.forEach(function (x) { x.classList.remove('on'); });
 			c.classList.add('on');
 			var cat = c.getAttribute('data-cat');
 			wraps.forEach(function (w) { w.hidden = w.getAttribute('data-catwrap') !== cat; });
+			// Jetpack Tiled Gallery rechnet ihr Layout bei Breite>0 — sichtbar gewordene Galerie neu vermessen.
+			try { window.dispatchEvent(new Event('resize')); } catch (err) {}
 		});
 	});
 
-	// Lightbox: Bilder (Slideshow) + Video (youtube-nocookie, erst bei Klick geladen).
+	// Hero-Galerie-Button → erstes Bild der aktiven Kategorie öffnen (Jetpack-Carousel bzw. Datei-Link).
+	document.querySelectorAll('.m24fz-gal-launch').forEach(function (b) {
+		b.addEventListener('click', function () {
+			var w = document.querySelector('.m24fz-galcat[data-catwrap]:not([hidden])'); if (!w) { return; }
+			var a = w.querySelector('a'); if (a) { a.click(); }
+		});
+	});
+
+	// Video-Lightbox (youtube-nocookie, erst bei Klick geladen). Bild-Lightbox liefert Jetpack-Carousel.
 	var lb = document.querySelector('.m24fz-lb'); if (lb) {
-		var lbImg = lb.querySelector('img'), frame = lb.querySelector('.m24fz-lb-frame'), pics = [], idx = 0;
-		function collect() { pics = []; var w = document.querySelector('.m24fz-mosaic[data-catwrap]:not([hidden])'); if (!w) { return; } w.querySelectorAll('.m24fz-mitem:not(.m24fz-video)').forEach(function (a) { pics.push(a.getAttribute('href')); }); }
-		function open() { lb.hidden = false; document.body.style.overflow = 'hidden'; }
+		var frame = lb.querySelector('.m24fz-lb-frame');
 		function close() { lb.hidden = true; document.body.style.overflow = ''; lb.classList.remove('video'); if (frame) { frame.innerHTML = ''; } }
-		function showImg(i) { if (!pics.length) { return; } lb.classList.remove('video'); idx = (i + pics.length) % pics.length; lbImg.src = pics[idx]; }
-		function showVideo(yid) { if (!frame || !yid) { return; } lb.classList.add('video');
-			frame.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + yid + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'; }
 		document.addEventListener('click', function (e) {
-			var v = e.target.closest('.m24fz-video');
-			if (v) { e.preventDefault(); showVideo(v.getAttribute('data-ytid')); open(); return; }
-			var a = e.target.closest('.m24fz-mitem:not(.m24fz-video)');
-			if (a) { e.preventDefault(); collect(); showImg(pics.indexOf(a.getAttribute('href'))); open(); }
+			var v = e.target.closest('.m24fz-video'); if (!v || !frame) { return; }
+			e.preventDefault(); var yid = v.getAttribute('data-ytid'); if (!yid) { return; }
+			lb.classList.add('video');
+			frame.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + yid + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
+			lb.hidden = false; document.body.style.overflow = 'hidden';
 		});
 		lb.querySelector('.m24fz-lb-close').addEventListener('click', close);
-		lb.querySelector('.m24fz-lb-prev').addEventListener('click', function () { showImg(idx - 1); });
-		lb.querySelector('.m24fz-lb-next').addEventListener('click', function () { showImg(idx + 1); });
 		lb.addEventListener('click', function (e) { if (e.target === lb) { close(); } });
-		document.addEventListener('keydown', function (e) {
-			if (lb.hidden) { return; }
-			if (e.key === 'Escape') { close(); }
-			else if (!lb.classList.contains('video')) { if (e.key === 'ArrowLeft') { showImg(idx - 1); } else if (e.key === 'ArrowRight') { showImg(idx + 1); } }
-		});
-		// Galerie-Launcher öffnet das erste sichtbare Bild.
-		document.querySelectorAll('.m24fz-gal-launch').forEach(function (b) {
-			b.addEventListener('click', function () { collect(); if (pics.length) { showImg(0); open(); } });
-		});
+		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
 	}
 })();

@@ -98,9 +98,9 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		</section>
 		<?php endif; ?>
 
-		<!-- 6. Mediagalerie — Justified-Mosaik je Kategorie (orientierungsbewusst) + Video separat -->
+		<!-- 6. Mediagalerie — native Jetpack Tiled Gallery (rectangular) je Kategorie + Video separat -->
 		<?php if ( $gals || $vids ) : ?>
-		<?php $first = $gals ? array_key_first( $gals ) : 'video'; $cap = 10; ?>
+		<?php $first = $gals ? array_key_first( $gals ) : 'video'; ?>
 		<section class="m24fz-card m24fz-media">
 			<div class="m24fz-chips">
 				<?php foreach ( $gals as $k => $g ) : ?>
@@ -109,22 +109,18 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				<?php if ( $vids ) : ?><button type="button" class="m24fz-chip<?php echo 'video' === $first ? ' on' : ''; ?>" data-cat="video">Video <span class="n"><?php echo count( $vids ); ?></span></button><?php endif; ?>
 			</div>
 
-			<?php foreach ( $gals as $k => $g ) : $total = count( $g['ids'] ); ?>
-			<div class="m24fz-mosaic" data-catwrap="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
-				<?php $n = 0; foreach ( $g['ids'] as $aid ) :
-					$src = wp_get_attachment_image_src( $aid, 'large' ); if ( ! $src ) { continue; }
-					$n++; $orient = ( (int) $src[1] >= (int) $src[2] ) ? 'land' : 'port';
-					$extra = $n > $cap; $more = ( $n === $cap && $total > $cap ) ? ( $total - $cap ) : 0; ?>
-					<a href="<?php echo esc_url( $src[0] ); ?>" class="m24fz-mitem m24fz-<?php echo $orient; ?><?php echo $extra ? ' x-hide' : ''; ?>" data-cat="<?php echo esc_attr( $k ); ?>">
-						<?php echo wp_get_attachment_image( $aid, 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 340px' ) ); ?>
-						<?php if ( $more ) : ?><span class="m24fz-more-badge">+<?php echo (int) $more; ?></span><?php endif; ?>
-					</a>
-				<?php endforeach; ?>
+			<?php foreach ( $gals as $k => $g ) : $csv = implode( ',', array_map( 'intval', $g['ids'] ) ); ?>
+			<div class="m24fz-galcat" data-catwrap="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
+				<?php
+				// Jetpack hängt sich an [gallery] (Tiled-Galleries-Modul) → is-style-rectangular + Carousel.
+				// Reihenfolge = Backend-Sortierung (ids ⇒ orderby post__in). Fallback (kein Jetpack): WP-Standard.
+				echo do_shortcode( '[gallery ids="' . esc_attr( $csv ) . '" type="rectangular" columns="3" link="file"]' );
+				?>
 			</div>
 			<?php endforeach; ?>
 
 			<?php if ( $vids ) : ?>
-			<div class="m24fz-mosaic m24fz-videos" data-catwrap="video"<?php echo 'video' === $first ? '' : ' hidden'; ?>>
+			<div class="m24fz-videos" data-catwrap="video"<?php echo 'video' === $first ? '' : ' hidden'; ?>>
 				<?php foreach ( $vids as $vu ) : $yid = M24FZ_Template::yt_id( $vu ); if ( ! $yid ) { continue; } ?>
 					<button type="button" class="m24fz-video" data-ytid="<?php echo esc_attr( $yid ); ?>" aria-label="Video abspielen">
 						<img src="https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/hqdefault.jpg" alt="Video-Vorschau" loading="lazy" width="480" height="360" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/<?php echo esc_attr( $yid ); ?>/mqdefault.jpg'">

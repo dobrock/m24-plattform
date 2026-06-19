@@ -65,14 +65,8 @@
 .m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .m24fz-chip .n{display:inline-block;background:rgba(0,0,0,.08);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
 .m24fz-chip.on .n{background:rgba(255,255,255,.22)}
-/* Justified-Mosaik: Querformat 3:2, Hochformat 2:3, keine Quadrate */
-.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px}
-.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;flex-grow:1;border-radius:8px;overflow:hidden;background:#ededea;display:block}
-.m24fz-mosaic .m24fz-land{flex-basis:345px} /* 3:2 × 230 */
-.m24fz-mosaic .m24fz-port{flex-basis:153px} /* 2:3 × 230 */
-.m24fz-mosaic .m24fz-mitem.x-hide{display:none}
-.m24fz-mosaic .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
-.m24fz-more-badge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,22,26,.62);color:#fff;font-size:26px;font-weight:700}
+/* Jetpack Tiled Gallery (rectangular) rendert eigenes Markup; nur Außenabstand zähmen */
+.m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0}
 /* Video separat: 2 pro Reihe, 16:9, YouTube-Poster + Play-Overlay */
 .m24fz-videos{display:flex;flex-wrap:wrap;gap:10px}
 .m24fz-video{position:relative;flex:1 1 calc(50% - 5px);max-width:calc(50% - 5px);aspect-ratio:16/9;padding:0;border:0;border-radius:8px;overflow:hidden;cursor:pointer;background:#000}
