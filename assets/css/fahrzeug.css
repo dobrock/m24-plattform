@@ -1,0 +1,105 @@
+/* M24 Fahrzeug-Detail — boxed #fafafa, weiße Karten 12px; Hero + Telemetrie ECKIG (radius 0). */
+.m24fz{--ink:#14161a;--dark:#1e2228;--bg:#fafafa;--paper:#fff;--line:#e6e6e3;--blue:#1763ad;--brass:#9a6b25;--red:#9e2b2b;--mut:#6b7077;
+	background:var(--bg);font-family:'Saira',sans-serif;color:var(--ink);padding:22px 0 48px}
+.m24fz *{box-sizing:border-box}
+.m24fz-wrap{max-width:1164px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column;gap:18px}
+.m24fz-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px}
+.m24fz h1,.m24fz h2{font-weight:700;margin:0}
+.m24fz-h1{font-size:26px;line-height:1.15}
+.m24fz h2{font-size:19px;margin-bottom:12px}
+
+/* 1. HERO — eckig */
+.m24fz-hero{background:var(--dark);color:#fff;border-radius:0;overflow:hidden;padding:18px 22px 22px;display:flex;flex-direction:column;gap:26px;min-height:200px}
+.m24fz-hero-top{display:flex;gap:8px;justify-content:center}
+.m24fz-hero-foot{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.m24fz-bc{font-size:12px;color:rgba(255,255,255,.6)}.m24fz-bc a{color:rgba(255,255,255,.8);text-decoration:none}
+.m24fz-hero-title{font-size:30px;font-weight:700;line-height:1.1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.m24fz-pill{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
+.m24fz-pill:hover{background:rgba(255,255,255,.12)}
+
+/* 2. TELEMETRIE — eckig, Messing-Oberlinie + Messing-Labels */
+.m24fz-tel{background:var(--ink);border-radius:0;overflow:hidden;border-top:3px solid var(--brass);display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-top:-18px}
+.m24fz-tel-cell{padding:16px 18px;border-left:1px solid rgba(255,255,255,.08)}
+.m24fz-tel-cell:first-child{border-left:0}
+.m24fz-tel-cell .k{color:var(--brass);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.m24fz-tel-cell .v{color:#fff;font-size:15px;font-weight:600;white-space:nowrap}
+
+/* 3. 2/3 + 1/3 */
+.m24fz-main{display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start}
+.m24fz-sub{color:var(--mut);margin:6px 0 12px;font-size:15px}
+.m24fz-keyf{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:7px}
+.m24fz-keyf li{padding-left:24px;position:relative}.m24fz-keyf li:before{content:'✓';position:absolute;left:0;color:var(--brass);font-weight:700}
+.m24fz-zus{color:#33373d;line-height:1.6}
+.m24fz-side{display:flex;flex-direction:column;gap:18px;position:sticky;top:96px}
+.m24fz-pricebox{display:flex;flex-direction:column;gap:10px}
+.m24fz-preis{color:var(--brass);font-size:28px;font-weight:700}
+.m24fz-preis-note{color:var(--mut);font-size:12px;margin-top:-6px}
+.m24fz-btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 16px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#1f74c4,#0e447e)}
+.m24fz-btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.m24fz-btn[disabled]{opacity:.5;cursor:not-allowed}
+.m24fz-views{color:var(--mut);font-size:13px;margin:2px 0 0}
+.m24fz-seller{display:flex;flex-direction:column;gap:4px}.m24fz-seller strong{font-size:15px}.m24fz-seller span{color:var(--mut);font-size:13px}
+
+/* 4. Bilder 3:2 */
+.m24fz-photos{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+.m24fz-photos figure{margin:0;position:relative;border-radius:8px;overflow:hidden;background:#ededea}
+.m24fz-photos .big{aspect-ratio:3/2}.m24fz-photos .side{display:flex;flex-direction:column;gap:14px}
+.m24fz-photos .side figure{aspect-ratio:3/2}
+.m24fz-img{width:100%;height:100%;object-fit:cover;display:block}
+.m24fz-photos .big .m24fz-pill{position:absolute;right:12px;bottom:12px}
+
+/* 5. Beschreibung — Flip-Out */
+.m24fz-desc-body.clamp{max-height:15.5em;overflow:hidden;transition:max-height .4s ease}
+.m24fz-desc-body{line-height:1.62}.m24fz-desc-body.open{max-height:4000px}
+.m24fz-more{margin-top:8px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer}
+
+/* 6. Mediagalerie */
+.m24fz-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.m24fz-chip{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--mut);cursor:pointer}
+.m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.m24fz-mediagrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.m24fz-mitem{display:block;aspect-ratio:3/2;border-radius:8px;overflow:hidden;background:#ededea}
+.m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
+.m24fz-video{display:flex;align-items:center;justify-content:center;color:#fff;background:#222;font-weight:700;text-decoration:none}
+
+/* 7. Fahrzeugdaten */
+.m24fz-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+.m24fz-data-grid .row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.m24fz-data-grid .k{color:var(--mut);font-size:14px}.m24fz-data-grid .v{font-weight:600;font-size:14px;text-align:right}
+
+/* 8. Ähnliche */
+.m24fz-simgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.m24fz-simcard{display:flex;flex-direction:column;gap:6px;text-decoration:none;color:var(--ink)}
+.m24fz-simcard .img{position:relative;aspect-ratio:3/2;border-radius:8px;overflow:hidden;background:#ededea}
+.m24fz-simcard .img img{width:100%;height:100%;object-fit:cover;display:block}
+.m24fz-simcard .meta{color:var(--mut);font-size:13px}.m24fz-simcard .t{font-weight:600;font-size:15px;line-height:1.25}
+.m24fz-allmarke{display:inline-block;margin-top:14px;color:var(--brass);border-bottom:1px solid var(--brass);text-decoration:none;font-weight:600}
+
+/* 9. 50/50 + Off-Market */
+.m24fz-5050{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:stretch}
+.m24fz-ship ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.m24fz-offmarket{background:var(--dark);color:#fff}.m24fz-offmarket h2,.m24fz-offmarket p{color:#fff}
+.m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
+
+/* Badges */
+.m24fz-badge{background:var(--red);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;letter-spacing:.04em}
+.m24fz-badge.sm{position:absolute;top:8px;left:8px;font-size:11px;padding:3px 8px}
+.m24fz-badge.prep{background:rgba(255,255,255,.18);align-self:flex-start;margin-bottom:8px}
+
+/* Lightbox */
+.m24fz-lb{position:fixed;inset:0;background:rgba(10,12,15,.94);z-index:99999;display:flex;align-items:center;justify-content:center}
+.m24fz-lb img{max-width:92vw;max-height:88vh;object-fit:contain}
+.m24fz-lb button{position:absolute;background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:50%;width:46px;height:46px;font-size:24px;cursor:pointer}
+.m24fz-lb-close{top:18px;right:22px}.m24fz-lb-prev{left:14px;top:50%;transform:translateY(-50%)}.m24fz-lb-next{right:14px;top:50%;transform:translateY(-50%)}
+
+/* Responsive ≤980 */
+@media(max-width:980px){
+	.m24fz-main,.m24fz-photos,.m24fz-5050{grid-template-columns:1fr}
+	.m24fz-side{position:static}
+	.m24fz-tel{grid-template-columns:repeat(3,1fr)}
+	.m24fz-mediagrid{grid-template-columns:repeat(2,1fr)}
+	.m24fz-simgrid{grid-template-columns:1fr 1fr}
+	.m24fz-data-grid{grid-template-columns:1fr}
+	.m24fz-hero-title{font-size:24px}
+}
+@media(max-width:560px){.m24fz-tel{grid-template-columns:repeat(2,1fr)}.m24fz-simgrid{grid-template-columns:1fr}}

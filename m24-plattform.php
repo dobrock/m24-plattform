@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.9.33
+ * Version:           0.10.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.9.33' );
+define( 'M24_PLATTFORM_VERSION',     '0.10.0' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -137,6 +137,17 @@ require_once M24_PLATTFORM_DIR . 'modules/anfragen/ppwr.php';            // rein
 require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-submit.php';
 require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-frontend.php';
 
+// Fahrzeug-Modul (CPT m24_fahrzeug: Inserate Straßen-/Rennfahrzeuge, Detail-Template, SEO, Verwaltung).
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-cpt.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-telemetry.php';   // reiner Helfer
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-meta.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-meta-render.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-tracking.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-similar.php';     // reiner Helfer
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-template.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-seo.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-admin-list.php';
+
 // Gruppierte Suche (REST-Endpoint + Dropdown + gefilterte Vollergebnis-Seite).
 require_once M24_PLATTFORM_DIR . 'modules/search/search-query.php';     // reiner Helfer, kein init()
 require_once M24_PLATTFORM_DIR . 'modules/search/search-rest.php';
@@ -217,12 +228,20 @@ add_action( 'plugins_loaded', function() {
     // Hintergrund-Import: AS-Action-Handler registrieren (Cron + Web-Kontext).
     M24_Shopware_Queue::init();
     M24_Shopware_Rennsport::init();
+    // Fahrzeug-Modul.
+    M24FZ_CPT::init();
+    M24FZ_Meta::init();
+    M24FZ_Template::init();
+    M24FZ_SEO::init();
+    M24FZ_Tracking::init();
     if ( is_admin() ) {
         M24_Log_Viewer::init();
         M24_Mock_Log_Viewer::init();
         M24_Import_Status_Page::init();
         M24_Reviews_Settings::init();
         M24_Import_Admin::init();
+        M24FZ_Meta_Render::init();
+        M24FZ_Admin_List::init();
     }
     m24_purge_cache_on_version_change();
 }, 5 );
