@@ -28,6 +28,26 @@ class M24_Gallery_Audit {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_post_m24_gallery_audit_csv', array( __CLASS__, 'export_csv' ) );
+		add_action( 'admin_post_m24_gallery_restore_apply', array( __CLASS__, 'handle_apply' ) );
+		add_action( 'admin_post_m24_gallery_restore_undo', array( __CLASS__, 'handle_undo' ) );
+	}
+
+	public static function handle_apply() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Keine Berechtigung.' ); }
+		check_admin_referer( 'm24_gallery_restore_apply' );
+		$r = self::apply_restore();
+		$msg = ! empty( $r['error'] ) ? 'err:' . rawurlencode( $r['error'] ) : 'applied:' . (int) $r['posts'] . ':' . (int) $r['ids'];
+		wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'backup', 'm24msg' => $msg ), admin_url( 'edit.php' ) ) );
+		exit;
+	}
+
+	public static function handle_undo() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Keine Berechtigung.' ); }
+		check_admin_referer( 'm24_gallery_restore_undo' );
+		$r = self::undo_restore();
+		$msg = ! empty( $r['empty'] ) ? 'undo_empty' : 'undone:' . (int) $r['posts'] . ':' . (int) $r['entries'];
+		wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'backup', 'm24msg' => $msg ), admin_url( 'edit.php' ) ) );
+		exit;
 	}
 
 	public static function menu() {
@@ -203,9 +223,13 @@ class M24_Gallery_Audit {
 				Geprüft je Typ:
 				<?php foreach ( $res['by_type'] as $t => $n ) { echo esc_html( $t . ' = ' . $n . '  ' ); } ?>
 			</p>
+			<?php self::msg_banner(); ?>
 			<p>
 				<a class="button button-primary" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_gallery_audit_csv' ), 'm24_gallery_audit_csv' ) ); ?>">CSV exportieren</a>
+				<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'backup' ), admin_url( 'edit.php' ) ) ); ?>">Backup-Meta-Quote / Dry-Run</a>
 			</p>
+
+			<?php if ( 'backup' === ( $_GET['view'] ?? '' ) ) { self::render_backup_section(); } // phpcs:ignore WordPress.Security.NonceVerification ?>
 
 			<table class="wp-list-table widefat fixed striped" style="margin-top:14px">
 				<thead><tr>
@@ -238,6 +262,88 @@ class M24_Gallery_Audit {
 				WP-CLI: <code>wp m24 audit-galleries --format=csv</code>.
 			</p>
 		</div>
+		<?php
+	}
+
+	/** Erfolgs-/Fehler-Banner aus ?m24msg=. */
+	private static function msg_banner() {
+		$m = isset( $_GET['m24msg'] ) ? sanitize_text_field( wp_unslash( $_GET['m24msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' === $m ) { return; }
+		$parts = explode( ':', $m );
+		$txt = ''; $cls = 'notice-success';
+		if ( 'applied' === ( $parts[0] ?? '' ) ) { $txt = sprintf( '✓ Wiederherstellung angewendet: %d Posts, %d Bild-IDs geschrieben. „Undo" möglich.', (int) ( $parts[1] ?? 0 ), (int) ( $parts[2] ?? 0 ) ); }
+		elseif ( 'undone' === ( $parts[0] ?? '' ) ) { $txt = sprintf( '✓ Undo ausgeführt: %d Posts auf den Vor-Stand zurückgesetzt.', (int) ( $parts[1] ?? 0 ) ); }
+		elseif ( 'undo_empty' === $m ) { $txt = 'Kein Schreiblauf zum Zurücksetzen vorhanden.'; $cls = 'notice-warning'; }
+		elseif ( 'err' === ( $parts[0] ?? '' ) ) { $txt = 'Fehler: ' . rawurldecode( implode( ':', array_slice( $parts, 1 ) ) ); $cls = 'notice-error'; }
+		if ( '' !== $txt ) { printf( '<div class="notice %s"><p>%s</p></div>', esc_attr( $cls ), esc_html( $txt ) ); }
+	}
+
+	/** Backup-Meta-Quote + Dry-Run-Plan + gated Anwenden/Undo. */
+	private static function render_backup_section() {
+		$plan = self::compute_restore_plan();
+		echo '<hr><h2>Backup-Meta-Quote &amp; Wiederherstellung</h2>';
+		if ( ! empty( $plan['error'] ) ) {
+			printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $plan['error'] ) );
+			return;
+		}
+		$res = self::backup_resolution();
+		$s   = $res['summary'];
+		printf(
+			'<p style="font-size:14px">Backup-Galerie-IDs gesamt: <strong>%d</strong> · auflösbar HEUTE: <strong>%d (%.1f%%)</strong> · davon Datei vorhanden: <strong>%d (%.1f%%)</strong></p>',
+			(int) $s['backup_ids'], (int) $s['aufloesbar'], (float) $s['quote_pct'], (int) $s['mit_datei'], (float) $s['quote_datei_pct']
+		);
+		printf(
+			'<p style="font-size:14px"><strong>Dry-Run:</strong> würde <strong>%d</strong> Posts befüllen (nur leere/kaputte Galerien), insgesamt <strong>%d</strong> Bild-IDs schreiben. <em>OK-Posts werden NIE angefasst.</em></p>',
+			(int) $plan['posts_write'], (int) $plan['ids_write']
+		);
+
+		$undo_store = get_option( self::UNDO_OPTION, array() );
+		$has_undo   = ! empty( $undo_store['entries'] ?? array() );
+		?>
+		<p>
+			<?php if ( $plan['ids_write'] > 0 ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('Wiederherstellung anwenden? Es werden NUR leere/kaputte Galerien betroffener Posts befüllt. Ein Undo-Snapshot wird vorher gespeichert.');">
+				<input type="hidden" name="action" value="m24_gallery_restore_apply">
+				<?php wp_nonce_field( 'm24_gallery_restore_apply' ); ?>
+				<button type="submit" class="button button-primary">Wiederherstellung anwenden (<?php echo (int) $plan['posts_write']; ?> Posts)</button>
+			</form>
+			<?php endif; ?>
+			<?php if ( $has_undo ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;margin-left:8px" onsubmit="return confirm('Letzte Wiederherstellung rückgängig machen? Galerie-Meta wird auf den gespeicherten Vor-Stand zurückgesetzt.');">
+				<input type="hidden" name="action" value="m24_gallery_restore_undo">
+				<?php wp_nonce_field( 'm24_gallery_restore_undo' ); ?>
+				<button type="submit" class="button">Undo letzte Wiederherstellung</button>
+			</form>
+			<?php endif; ?>
+		</p>
+
+		<table class="wp-list-table widefat fixed striped" style="margin-top:10px">
+			<thead><tr>
+				<th style="width:60px">ID</th><th>Titel</th><th style="width:90px">Typ</th><th style="width:90px">Klasse</th>
+				<th style="width:90px">Backup-IDs</th><th style="width:90px">auflösbar</th>
+				<th style="width:110px">würde schreiben</th><th>nicht auflösbar (Beispiel)</th>
+			</tr></thead>
+			<tbody>
+			<?php foreach ( $plan['plan'] as $e ) :
+				$bk = 0; $rs = 0; foreach ( $e['keys'] as $info ) { $bk += $info['backup']; $rs += $info['resolvable']; } ?>
+				<tr>
+					<td><?php echo (int) $e['id']; ?></td>
+					<td><a href="<?php echo esc_url( get_edit_post_link( $e['id'] ) ); ?>"><?php echo esc_html( $e['title'] ); ?></a></td>
+					<td><?php echo esc_html( $e['type'] ); ?></td>
+					<td><?php echo esc_html( $e['class'] ); ?></td>
+					<td><?php echo (int) $bk; ?></td>
+					<td><?php echo (int) $rs; ?></td>
+					<td><?php echo $e['write_ids'] > 0 ? '<strong style="color:#1a7f37">+' . (int) $e['write_ids'] . '</strong>' : '<span style="color:#9aa0a6">—</span>'; ?></td>
+					<td style="font-size:12px;color:#666"><?php echo esc_html( implode( ' · ', $e['unresolved'] ) ); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p style="color:#6b7077;font-size:12px;margin-top:8px">
+			„würde schreiben" = heute auflösbare Backup-Bilder, die in eine aktuell leere/kaputte Galerie geschrieben würden.
+			Vor dem Schreiben wird je Key ein Undo-Snapshot (<code><?php echo esc_html( self::PREUNDO_SFX ); ?></code>) gesichert.
+			Pflicht-Reihenfolge: Plesk-Snapshot → Anwenden → bei Bedarf Undo.
+		</p>
 		<?php
 	}
 
@@ -366,6 +472,109 @@ class M24_Gallery_Audit {
 				'quote_datei_pct'   => $tot_ids ? round( $tot_file / $tot_ids * 100, 1 ) : 0.0,
 			),
 		);
+	}
+
+	/* ── Restore-Plan + gated Wiederherstellung (DB-only Meta) ───────────────── */
+
+	const UNDO_OPTION = 'm24_gallery_restore_undo'; // letzter Schreiblauf (für Undo)
+	const PREUNDO_SFX = '_preundo';                  // Snapshot-Meta-Suffix je Galerie-Key
+
+	/** IDs aus Galerie-Meta parsen (CSV-String, serialisiertes Array oder Array). */
+	private static function parse_ids( $v ) {
+		if ( is_array( $v ) ) { $arr = $v; }
+		else { $u = maybe_unserialize( $v ); $arr = is_array( $u ) ? $u : explode( ',', (string) $v ); }
+		$out = array();
+		foreach ( $arr as $x ) { $x = (int) ( is_string( $x ) ? trim( $x ) : $x ); if ( $x > 0 ) { $out[] = $x; } }
+		return array_values( array_unique( $out ) );
+	}
+
+	/** Live-Galerie-Meta typgerecht schreiben (teil: CSV-String, fahrzeug: Array). */
+	private static function write_meta( $pid, $key, $ids ) {
+		if ( '_m24_galerie' === $key ) { update_post_meta( $pid, $key, implode( ',', array_map( 'intval', $ids ) ) ); }
+		else { update_post_meta( $pid, $key, array_map( 'intval', $ids ) ); }
+	}
+
+	/**
+	 * Restore-Plan (READ-ONLY): für jeden betroffenen Post je Galerie-Key ermitteln, ob aus dem
+	 * Backup geschrieben würde. Regel: NUR wenn der Key aktuell KEIN auflösbares Bild hat
+	 * (leer/komplett dangling) UND das Backup auflösbare IDs liefert. OK-Posts sind nie dabei.
+	 * Geschrieben würden die HEUTE auflösbaren Backup-IDs (tote Refs fallen weg).
+	 */
+	public static function compute_restore_plan() {
+		$bdb = self::backup();
+		if ( ! $bdb ) { return array( 'error' => 'Backup-DB nicht verbunden. In wp-config: M24_RESTORE_DB/USER/PASS/HOST (+ optional M24_RESTORE_PREFIX) setzen.' ); }
+		$bpx = self::bprefix(); $bmeta = $bpx . 'postmeta';
+
+		global $wpdb;
+		$live_att = array();
+		foreach ( (array) $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type='attachment'" ) as $a ) { $live_att[ (int) $a ] = true; } // phpcs:ignore WordPress.DB
+
+		$audit    = self::run();
+		$affected = array_filter( $audit['rows'], static function ( $r ) { return 'OK' !== $r['class']; } );
+
+		$plan = array(); $posts_write = 0; $ids_write = 0;
+		foreach ( $affected as $r ) {
+			$pid = (int) $r['id'];
+			$entry = array( 'id' => $pid, 'title' => $r['title'], 'type' => $r['type'], 'class' => $r['class'], 'keys' => array(), 'write_ids' => 0, 'unresolved' => array() );
+			foreach ( self::meta_keys( $r['type'] ) as $k ) {
+				$mv   = $bdb->get_var( $bdb->prepare( "SELECT meta_value FROM `{$bmeta}` WHERE post_id=%d AND meta_key=%s LIMIT 1", $pid, $k ) ); // phpcs:ignore WordPress.DB
+				$bids = self::parse_ids( $mv );
+				if ( empty( $bids ) ) { continue; }
+				$res = array(); $unres = array();
+				foreach ( $bids as $aid ) { if ( isset( $live_att[ $aid ] ) ) { $res[] = $aid; } else { $unres[] = $aid; } }
+				$cur     = self::parse_ids( get_post_meta( $pid, $k, true ) );
+				$cur_res = 0; foreach ( $cur as $c ) { if ( isset( $live_att[ $c ] ) ) { $cur_res++; } }
+				$write   = ( count( $res ) > 0 && 0 === $cur_res ); // nur kaputte/leere Keys füllen
+				$entry['keys'][ $k ] = array( 'backup' => count( $bids ), 'resolvable' => count( $res ), 'write' => $write, 'res_ids' => $res );
+				if ( $write ) { $entry['write_ids'] += count( $res ); }
+				if ( $unres ) { foreach ( array_slice( $unres, 0, 3 ) as $x ) { $entry['unresolved'][] = $x; } }
+			}
+			if ( ! empty( $entry['keys'] ) ) {
+				if ( $entry['write_ids'] > 0 ) { $posts_write++; $ids_write += $entry['write_ids']; }
+				$plan[] = $entry;
+			}
+		}
+		usort( $plan, static function ( $a, $b ) { return $b['write_ids'] <=> $a['write_ids']; } );
+		return array( 'plan' => $plan, 'posts_write' => $posts_write, 'ids_write' => $ids_write );
+	}
+
+	/** Gated Schreiblauf: Plan ausführen, je Key Undo-Snapshot (_preundo) + Undo-Option speichern. */
+	public static function apply_restore() {
+		$p = self::compute_restore_plan();
+		if ( ! empty( $p['error'] ) ) { return $p; }
+		$undo = array(); $posts = 0; $ids = 0;
+		foreach ( $p['plan'] as $e ) {
+			$touched = false;
+			foreach ( $e['keys'] as $k => $info ) {
+				if ( empty( $info['write'] ) ) { continue; }
+				$old = get_post_meta( $e['id'], $k, true );      // aktueller (leerer/kaputter) Stand
+				update_post_meta( $e['id'], $k . self::PREUNDO_SFX, $old ); // Snapshot je Key
+				self::write_meta( $e['id'], $k, $info['res_ids'] );
+				$undo[] = array( 'id' => $e['id'], 'key' => $k, 'old' => $old );
+				$ids   += count( $info['res_ids'] );
+				$touched = true;
+			}
+			if ( $touched ) { $posts++; }
+		}
+		update_option( self::UNDO_OPTION, array( 'when' => gmdate( 'Y-m-d H:i:s' ), 'entries' => $undo ), false );
+		return array( 'posts' => $posts, 'ids' => $ids );
+	}
+
+	/** Undo des letzten Schreiblaufs: je Key auf den _preundo-Stand zurück, Snapshots entfernen. */
+	public static function undo_restore() {
+		$store = get_option( self::UNDO_OPTION, array() );
+		$entries = isset( $store['entries'] ) ? (array) $store['entries'] : array();
+		if ( empty( $entries ) ) { return array( 'posts' => 0, 'ids' => 0, 'empty' => true ); }
+		$ids = array();
+		foreach ( $entries as $e ) {
+			$pid = (int) $e['id']; $k = (string) $e['key']; $old = $e['old'];
+			if ( '' === $old || null === $old || array() === $old ) { delete_post_meta( $pid, $k ); }
+			else { update_post_meta( $pid, $k, $old ); }
+			delete_post_meta( $pid, $k . self::PREUNDO_SFX );
+			$ids[ $pid ] = true;
+		}
+		delete_option( self::UNDO_OPTION );
+		return array( 'posts' => count( $ids ), 'entries' => count( $entries ) );
 	}
 }
 
