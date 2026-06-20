@@ -19,6 +19,17 @@
 			if (navigator.share) { navigator.share({ title: document.title, url: location.href }); }
 			else if (navigator.clipboard) { navigator.clipboard.writeText(location.href); sh.textContent = '✓ Link kopiert'; }
 		}
+		// Hero-„Galerie (N)" → smooth-Scroll zur Galerie-Sektion. FRÜHE Document-Delegation,
+		// damit Bindung weder von DOM-Timing noch von einem späteren JS-Fehler abhängt.
+		var gl = e.target.closest('.m24fz-gal-launch');
+		if (gl) {
+			e.preventDefault();
+			var sec = document.getElementById('galerie');
+			if (sec) {
+				var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+				sec.scrollIntoView({ behavior: rm ? 'auto' : 'smooth', block: 'start' });
+			}
+		}
 	});
 
 	// Weiterlesen-Fly-out (Slide + Fade, Chevron dreht 180°).
@@ -86,7 +97,7 @@
 		galcat.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
 	}
 	// Overlays initialisieren (Jetpack rendert evtl. erst nach load).
-	function initOverlays() { document.querySelectorAll('.m24fz-galcat[data-total]').forEach(setupOverlay); }
+	function initOverlays() { try { document.querySelectorAll('.m24fz-galcat[data-total]').forEach(setupOverlay); } catch (err) {} }
 	initOverlays();
 	window.addEventListener('load', initOverlays);
 
@@ -113,14 +124,7 @@
 		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
 	}
 
-	// Hero-Galerie-Button → smooth-Scroll zur Galerie-Sektion (KEINE Lightbox).
-	document.querySelectorAll('.m24fz-gal-launch').forEach(function (b) {
-		b.addEventListener('click', function (e) {
-			e.preventDefault();
-			var sec = document.getElementById('galerie'); if (!sec) { return; }
-			sec.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-		});
-	});
+	// (Hero-„Galerie"-Scroll ist oben als Document-Delegation gebunden — robust ggü. Timing/Fehlern.)
 
 	// Galerie-Bilder im Hintergrund vorladen (versteckte Vollgalerie sofort da beim Ausklappen).
 	// Nicht den initialen Load blockieren: erst nach 'load', dann via Idle, gedrosselt (5 parallel).
