@@ -66,9 +66,16 @@
 .m24fz-img{width:100%;height:100%;object-fit:cover;display:block}
 
 /* 5. Beschreibung — Flip-Out */
+/* Weiterlesen: weiche Fade-Kante unten im eingeklappten Zustand + Slide/Fly-out beim Öffnen */
+.m24fz-desc-body{position:relative;line-height:1.72;color:#3a3f47;font-size:16px}
 .m24fz-desc-body.clamp{max-height:15.5em;overflow:hidden;transition:max-height .4s ease}
-.m24fz-desc-body{line-height:1.62}.m24fz-desc-body.open{max-height:4000px}
-.m24fz-more{margin-top:8px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer}
+.m24fz-desc-body.clamp:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4.5em;background:linear-gradient(180deg,rgba(255,255,255,0),#fff);pointer-events:none}
+.m24fz-desc-body.open{max-height:4000px}
+.m24fz-desc-body.open>*{animation:m24fz-flyin .4s ease both}
+@media(prefers-reduced-motion:reduce){.m24fz-desc-body.open>*{animation:none}}
+.m24fz-more{display:inline-flex;align-items:center;gap:7px;margin-top:10px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer}
+.m24fz-more .chev{display:inline-block;transition:transform .3s ease;font-size:15px;line-height:1}
+.m24fz-more.open .chev{transform:rotate(180deg)}
 
 /* 6. Mediagalerie */
 .m24fz-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -76,8 +83,22 @@
 .m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .m24fz-chip .n{display:inline-block;background:rgba(0,0,0,.08);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
 .m24fz-chip.on .n{background:rgba(255,255,255,.22)}
-/* Jetpack Tiled Gallery (rectangular) rendert eigenes Markup; nur Außenabstand zähmen */
-.m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0}
+/* Justiertes Mosaik: Querformat 3:2, Hochformat 2:3, keine Quadrate. „9 + +X + Fly-out". */
+.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px}
+.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;flex-grow:1;border-radius:8px;overflow:hidden;background:#ededea;display:block}
+.m24fz-mosaic .m24fz-land{flex-basis:345px} /* 3:2 × 230 */
+.m24fz-mosaic .m24fz-port{flex-basis:153px} /* 2:3 × 230 */
+.m24fz-mosaic .m24fz-mitem[hidden]{display:none}
+.m24fz-mosaic .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
+/* +X-Overlay auf der 9. Kachel (form-unabhängig) */
+.m24fz-more-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(10,12,16,.62);color:#fff;cursor:pointer;z-index:2}
+.m24fz-more-ov b{font-size:34px;font-weight:800;line-height:1}
+.m24fz-more-ov small{font-size:13px;font-weight:600;letter-spacing:.04em}
+.m24fz-gal-less{flex-basis:100%;margin-top:4px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer;text-align:center}
+/* Fly-out: opacity 0→1 + translateY + scale, gestaffelt (Delay setzt JS inline) */
+@keyframes m24fz-flyin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.m24fz-mosaic .m24fz-mitem.m24fz-flyin{animation:m24fz-flyin .34s ease both}
+@media(prefers-reduced-motion:reduce){.m24fz-mosaic .m24fz-mitem.m24fz-flyin{animation:none}}
 /* Video separat: 2 pro Reihe, 16:9, YouTube-Poster + Play-Overlay */
 .m24fz-videos{display:flex;flex-wrap:wrap;gap:10px}
 .m24fz-video{position:relative;flex:1 1 calc(50% - 5px);max-width:calc(50% - 5px);aspect-ratio:16/9;padding:0;border:0;border-radius:8px;overflow:hidden;cursor:pointer;background:#000}

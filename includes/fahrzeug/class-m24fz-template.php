@@ -53,17 +53,51 @@ class M24FZ_Template {
 	}
 
 	/**
-	 * Jetpack Tiled Gallery (rectangular) je Kategorie rendern. Hebt die Tiled-Content-Breite
-	 * auf die echte boxed Containerbreite (sonst rendert Classic-Tiled fix auf theme content_width
-	 * = 696px → ~2/3 gestaucht). Reihenfolge = Backend-Sortierung (ids ⇒ orderby post__in).
+	 * Justiertes Mosaik je Kategorie mit „erste N + +X + Fly-out".
+	 * - Querformat → 3:2-Kachel (m24fz-land), Hochformat → 2:3 (m24fz-port), keine Quadrate.
+	 * - Nur die ersten $initial Bilder werden initial geladen; das $initial-te bekommt ein
+	 *   „+X · Alle Bilder"-Overlay (X = Rest). Bilder $initial+1.. tragen data-src (kein src) →
+	 *   werden erst beim Aufklappen geladen (Performance) und per Fly-out eingeblendet.
+	 * - ≤ $initial Bilder → kein Overlay, alle sichtbar.
+	 * Reihenfolge = übergebene ID-Reihenfolge (Backend-Sortierung, Bild 1 zuerst).
+	 *
+	 * @param int[]  $ids     Attachment-IDs in Reihenfolge.
+	 * @param string $cat     Kategorie-Slug (für data-cat).
+	 * @param int    $initial Initial sichtbare Kacheln (Default 9).
+	 * @return string Mosaik-Innen-HTML (Kacheln + „Weniger"-Control).
 	 */
-	public static function tiled_gallery( $csv ) {
-		$cw = (int) apply_filters( 'm24fz_gallery_content_width', 1036 );
-		$f  = static function () use ( $cw ) { return $cw; };
-		add_filter( 'tiled_gallery_content_width', $f, 999 );
-		$html = do_shortcode( '[gallery ids="' . esc_attr( $csv ) . '" type="rectangular" columns="3" link="file"]' );
-		remove_filter( 'tiled_gallery_content_width', $f, 999 );
-		return $html;
+	public static function mosaic( $ids, $cat, $initial = 9 ) {
+		$ids   = array_values( array_filter( array_map( 'intval', (array) $ids ) ) );
+		$total = count( $ids );
+		if ( 0 === $total ) { return ''; }
+		$rest = max( 0, $total - $initial );
+		$out  = '';
+		foreach ( $ids as $i => $aid ) {
+			$src = wp_get_attachment_image_src( $aid, 'large' );
+			if ( ! $src ) { continue; }
+			$full   = $src[0];
+			$thumb  = wp_get_attachment_image_url( $aid, 'medium_large' ) ?: $full;
+			$orient = ( (int) $src[1] >= (int) $src[2] ) ? 'land' : 'port';
+			$is9th  = ( $i === ( $initial - 1 ) && $rest > 0 );
+			$extra  = ( $i >= $initial );
+			$cls    = 'm24fz-mitem m24fz-' . $orient . ( $extra ? ' m24fz-extra' : '' );
+			$attr   = 'class="' . esc_attr( $cls ) . '" href="' . esc_url( $full ) . '" data-cat="' . esc_attr( $cat ) . '"' . ( $extra ? ' hidden' : '' );
+			$out   .= '<a ' . $attr . '>';
+			if ( $extra ) {
+				// 10+ : kein src → erst beim Aufklappen aus data-src laden (Performance).
+				$out .= '<img data-src="' . esc_url( $thumb ) . '" alt="" loading="lazy">';
+			} else {
+				$out .= wp_get_attachment_image( $aid, 'medium_large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 340px' ) );
+				if ( $is9th ) {
+					$out .= '<span class="m24fz-more-ov" role="button" tabindex="0" aria-label="Alle Bilder anzeigen"><b>+' . (int) $rest . '</b><small>Alle Bilder</small></span>';
+				}
+			}
+			$out .= '</a>';
+		}
+		if ( $rest > 0 ) {
+			$out .= '<button type="button" class="m24fz-gal-less" hidden>Weniger anzeigen</button>';
+		}
+		return $out;
 	}
 
 	/** YouTube-Video-ID aus diversen URL-Formen (youtu.be / watch?v= / embed/ / shorts/). */

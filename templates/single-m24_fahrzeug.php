@@ -91,11 +91,11 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<section class="m24fz-card m24fz-desc">
 			<h2>Fahrzeugbeschreibung</h2>
 			<div class="m24fz-desc-body clamp"><?php echo wp_kses_post( wpautop( $besch ) ); ?></div>
-			<button class="m24fz-more" type="button">Weiterlesen</button>
+			<button class="m24fz-more" type="button"><span class="t">Weiterlesen</span><span class="chev" aria-hidden="true">⌄</span></button>
 		</section>
 		<?php endif; ?>
 
-		<!-- 6. Mediagalerie — native Jetpack Tiled Gallery (rectangular) je Kategorie + Video separat -->
+		<!-- 6. Mediagalerie — justiertes Mosaik je Kategorie (9 + +X + Fly-out) + Video separat -->
 		<?php if ( $gals || $vids ) : ?>
 		<?php $first = $gals ? array_key_first( $gals ) : 'video'; ?>
 		<section class="m24fz-card m24fz-media">
@@ -106,12 +106,9 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				<?php if ( $vids ) : ?><button type="button" class="m24fz-chip<?php echo 'video' === $first ? ' on' : ''; ?>" data-cat="video">Video <span class="n"><?php echo count( $vids ); ?></span></button><?php endif; ?>
 			</div>
 
-			<?php foreach ( $gals as $k => $g ) : $csv = implode( ',', array_map( 'intval', $g['ids'] ) ); ?>
-			<div class="m24fz-galcat" data-catwrap="<?php echo esc_attr( $k ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
-				<?php
-				// Jetpack Tiled Gallery (rectangular) auf voller boxed Breite (Filter hebt content_width).
-				echo M24FZ_Template::tiled_gallery( $csv ); // phpcs:ignore WordPress.Security.EscapeOutput
-				?>
+			<?php foreach ( $gals as $k => $g ) : ?>
+			<div class="m24fz-mosaic" data-catwrap="<?php echo esc_attr( $k ); ?>" data-total="<?php echo count( $g['ids'] ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
+				<?php echo M24FZ_Template::mosaic( $g['ids'], $k, 9 ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			</div>
 			<?php endforeach; ?>
 
