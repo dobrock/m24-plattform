@@ -183,7 +183,7 @@ class M24FZ_Admin_List {
 				<span class="meta"><?php if ( $is_trash ) : ?><span class="t"><?php echo esc_html( get_the_title( $id ) ); ?></span><?php else : ?><a class="t" href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a><?php endif; ?>
 				<span class="sub">#<?php echo (int) $id; ?> · <?php echo esc_html( get_post_field( 'post_name', $id ) ); ?></span></span>
 			</td>
-			<td><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( $is_trash ? 'Im Papierkorb' : M24FZ_CPT::online_label( $id ) ); ?></span></td>
+			<td class="m24fzv-statuscell"><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( $is_trash ? 'Im Papierkorb' : M24FZ_CPT::online_label( $id ) ); ?></span></td>
 			<td class="m24fzv-price"><?php self::price_cell( $id, $paf, $preis ); ?></td>
 			<td class="m24fzv-stats"><?php printf( '<span title="Aufrufe">👁 %d</span> <span title="Merkliste">♡ %d</span> <span title="Anfragen">✉ %d</span>',
 				M24FZ_Tracking::get( $id, 'view' ), M24FZ_Tracking::get( $id, 'merken' ), M24FZ_Tracking::get( $id, 'anfrage' ) ); ?></td>
@@ -326,8 +326,8 @@ class M24FZ_Admin_List {
 .m24fzv-toolbar input[type=search]{min-width:260px;height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:8px 14px}
 .m24fzv-toolbar select{height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:7px 12px;background:#fff}
 .m24fzv-toolbar .button{height:40px;border-radius:8px}
-/* Karten-Tabelle — luftiger */
-.m24fzv-table{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0;margin-top:6px}
+/* Karten-Tabelle — luftiger (höhere Spezifität gegen WP-Core .widefat/.wp-list-table radius:0) */
+.m24fzv table.m24fzv-table{border:1px solid var(--line);border-radius:12px!important;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0;margin-top:6px}
 .m24fzv-table thead th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7077;padding:12px 14px}
 .m24fzv-table tbody td{padding:16px 14px;vertical-align:middle}
 .m24fzv-veh{display:flex;gap:12px;align-items:center}
@@ -346,7 +346,9 @@ class M24FZ_Admin_List {
 .m24fzv-price .val{font-weight:700;color:var(--brass);font-size:15px}.m24fzv-price .val.sold{text-decoration:line-through;color:var(--red)}.m24fzv-price .val.muted{color:#9aa0a6}
 .m24fzv-price .mwst{display:block;color:var(--mut);font-size:11px;margin-top:1px}
 .m24fzv-price-edit{display:inline-block;font-size:12px;margin-top:4px;color:var(--blue);text-decoration:none}
-.m24fzv-pin{border-radius:6px;border:1px solid #d9d9d6;padding:5px 8px}
+.m24fzv-pin,.m24fzv-din{border-radius:6px;border:1px solid #d9d9d6;padding:5px 8px}
+.m24fzv-price-save,.m24fzv-date-save{color:#1a7f37;font-weight:800;text-decoration:none;font-size:15px}
+.m24fzv-price-cancel,.m24fzv-date-cancel{color:#9e2b2b;text-decoration:none;font-size:14px}
 /* Statistik */
 .m24fzv-stats span{margin-right:10px;font-size:13px;color:#50575e;white-space:nowrap}
 /* Kebab */
@@ -369,30 +371,56 @@ jQuery(function($){
 	function post(id,what,extra,cb){ $.post(ajaxurl,$.extend({action:'m24fz_action',_nonce:nonce,post_id:id,what:what},extra||{}),function(r){
 		if(r&&r.success){ cb&&cb(r.data); } else { alert((r&&r.data&&r.data.message)||'Fehler'); }
 	}); }
-	$(document).on('click','.m24fzv-actions a, .m24fzv-price-edit',function(e){
+	function closeKebab(tr){ tr.find('.m24fzv-kebab').removeAttr('open'); }
+
+	// Delegation auf JEDES [data-do] (auch Inline-Save/Cancel in Preis-/Status-Spalte).
+	$(document).on('click','[data-do]',function(e){
 		var doIt=$(this).data('do'); if(!doIt){ return; } e.preventDefault();
-		var tr=$(this).closest('tr'), id=tr.data('id');
+		var tr=$(this).closest('tr'), id=tr.data('id'); if(!id){ return; }
+
+		// ── Inline-Preis ──
 		if(doIt==='preis-edit'){
-			var cell=tr.find('.m24fzv-price'); var cur=cell.find('.val').text().replace(/[^0-9]/g,'');
-			cell.html('<input type="text" class="small-text m24fzv-pin" value="'+cur+'" style="width:90px"> <a href="#" data-do="preis-save">✓</a>');
-			cell.find('.m24fzv-pin').focus(); return;
+			var cell=tr.find('.m24fzv-price'); cell.data('orig',cell.html());
+			var cur=(cell.find('.val').text()||'').replace(/[^0-9]/g,'');
+			cell.html('<input type="text" class="m24fzv-pin" value="'+cur+'" style="width:96px"> <a href="#" class="m24fzv-price-save" data-do="preis-save" title="Speichern">✓</a> <a href="#" class="m24fzv-price-cancel" data-do="preis-cancel" title="Abbrechen">✕</a>');
+			cell.find('.m24fzv-pin').trigger('focus'); closeKebab(tr); return;
 		}
-		if(doIt==='preis-save'){ var v=tr.find('.m24fzv-pin').val(); post(id,'preis',{preis:v},function(d){ tr.find('.m24fzv-price').html(d.priceHtml); }); return; }
-		if(doIt==='datum'){ var d=prompt('Veröffentlichungsdatum (JJJJ-MM-TT oder JJJJ-MM-TTThh:mm):'); if(!d){return;} post(id,'datum',{datum:d},function(r){ tr.find('.m24fzv-online').text(r.online); }); return; }
-		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
-		if(doIt==='untrash'){ post(id,'untrash',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
-		if(doIt==='delete'){ if(!confirm('Inserat ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')){return;} post(id,'delete',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
-		// Statuswechsel
-		post(id,doIt,{},function(d){
-			if(d.status){ tr.find('.m24fzv-badge').attr('class','m24fzv-badge st-'+d.status).text(d.label); }
-			if(d.online!==undefined){ tr.find('.m24fzv-online').text(d.online); }
-			// Aktion „deaktivieren"↔„reaktivieren" im Menü tauschen
-			var menu=tr.find('.m24fzv-kebab .menu');
-			menu.find('[data-do=deaktiviert],[data-do=reaktivieren]').remove();
-			var ins=d.disabled?'<a href="#" data-do="reaktivieren">Wieder aktivieren</a>':'<a href="#" data-do="deaktiviert">Inserat deaktivieren</a>';
-			menu.find('[data-do=reserviert]').after(ins);
-			tr.find('.m24fzv-kebab').removeAttr('open');
-		});
+		if(doIt==='preis-save'){ var v=tr.find('.m24fzv-pin').val(); post(id,'preis',{preis:v},function(d){ tr.find('.m24fzv-price').html(d.priceHtml).removeData('orig'); }); return; }
+		if(doIt==='preis-cancel'){ var c=tr.find('.m24fzv-price'); if(c.data('orig')!==undefined){ c.html(c.data('orig')).removeData('orig'); } return; }
+
+		// ── Inline-Datum (ersetzt prompt) ──
+		if(doIt==='datum'){
+			var sc=tr.find('.m24fzv-statuscell'); if(sc.data('orig')===undefined){ sc.data('orig',sc.html()); }
+			sc.html('<input type="datetime-local" class="m24fzv-din"> <a href="#" class="m24fzv-date-save" data-do="datum-save" title="Speichern">✓</a> <a href="#" class="m24fzv-date-cancel" data-do="datum-cancel" title="Abbrechen">✕</a>');
+			sc.find('.m24fzv-din').trigger('focus'); closeKebab(tr); return;
+		}
+		if(doIt==='datum-save'){ var dv=tr.find('.m24fzv-din').val(); if(!dv){ return; } post(id,'datum',{datum:dv},function(d){ var sc=tr.find('.m24fzv-statuscell'); if(sc.data('orig')!==undefined){ sc.html(sc.data('orig')).removeData('orig'); } tr.find('.m24fzv-online').text(d.online); }); return; }
+		if(doIt==='datum-cancel'){ var s=tr.find('.m24fzv-statuscell'); if(s.data('orig')!==undefined){ s.html(s.data('orig')).removeData('orig'); } return; }
+
+		// ── Papierkorb ──
+		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='untrash'){ post(id,'untrash',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='delete'){ if(!confirm('Inserat ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')){return;} post(id,'delete',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+
+		// ── Statuswechsel ──
+		if(doIt==='verkauft'||doIt==='reserviert'||doIt==='deaktiviert'||doIt==='reaktivieren'){
+			post(id,doIt,{},function(d){
+				if(d.status){ tr.find('.m24fzv-badge').attr('class','m24fzv-badge st-'+d.status).text(d.label); }
+				if(d.online!==undefined){ tr.find('.m24fzv-online').text(d.online); }
+				var menu=tr.find('.m24fzv-kebab .menu');
+				menu.find('[data-do=deaktiviert],[data-do=reaktivieren]').remove();
+				var ins=d.disabled?'<a href="#" data-do="reaktivieren">Wieder aktivieren</a>':'<a href="#" data-do="deaktiviert">Inserat deaktivieren</a>';
+				menu.find('[data-do=reserviert]').after(ins);
+				closeKebab(tr);
+			});
+		}
+	});
+
+	// Enter = Speichern, Escape = Abbrechen in den Inline-Feldern.
+	$(document).on('keydown','.m24fzv-pin,.m24fzv-din',function(e){
+		var tr=$(this).closest('tr');
+		if(e.key==='Enter'){ e.preventDefault(); tr.find($(this).hasClass('m24fzv-pin')?'[data-do=preis-save]':'[data-do=datum-save]').trigger('click'); }
+		else if(e.key==='Escape'){ e.preventDefault(); tr.find($(this).hasClass('m24fzv-pin')?'[data-do=preis-cancel]':'[data-do=datum-cancel]').trigger('click'); }
 	});
 });
 JS;

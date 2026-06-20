@@ -21,7 +21,7 @@ class M24_OneClick_Update {
 		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_post' ) ); // Admin-Bar (echter Ein-Klick)
 		add_action( 'm24_settings_top', array( __CLASS__, 'render_button' ) );
 		add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar' ), 90 );
-		add_action( 'admin_bar_menu', array( __CLASS__, 'declutter_bar' ), 999 );      // Fremd-Knoten entfernen
+		add_action( 'wp_before_admin_bar_render', array( __CLASS__, 'declutter_bar' ) ); // erst NACH allen Knoten
 		add_action( 'admin_footer', array( __CLASS__, 'inline_js' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
 	}
@@ -61,10 +61,13 @@ class M24_OneClick_Update {
 		) );
 	}
 
-	/** Fremd-Knoten aus der Admin-Bar entfernen (nur Anzeige; Plugins unberührt). WP Rocket + M24 bleiben. */
-	public static function declutter_bar( $bar ) {
+	/** Fremd-Knoten aus der Admin-Bar entfernen (nur Anzeige; Plugins unberührt). WP Rocket + M24 bleiben.
+	 *  Läuft auf wp_before_admin_bar_render → NACH allen add_node-Aufrufen anderer Plugins. */
+	public static function declutter_bar() {
+		global $wp_admin_bar;
+		if ( ! is_object( $wp_admin_bar ) ) { return; }
 		foreach ( array( 'wpcode-admin-bar-info', 'our_support_item', 'mtnc', 'updraft_admin_node' ) as $id ) {
-			$bar->remove_node( $id );
+			$wp_admin_bar->remove_node( $id );
 		}
 	}
 
