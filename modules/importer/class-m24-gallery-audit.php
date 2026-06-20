@@ -30,6 +30,16 @@ class M24_Gallery_Audit {
 		add_action( 'admin_post_m24_gallery_audit_csv', array( __CLASS__, 'export_csv' ) );
 		add_action( 'admin_post_m24_gallery_restore_apply', array( __CLASS__, 'handle_apply' ) );
 		add_action( 'admin_post_m24_gallery_restore_undo', array( __CLASS__, 'handle_undo' ) );
+		add_action( 'admin_post_m24_gallery_parent_apply', array( __CLASS__, 'handle_parent_apply' ) );
+	}
+
+	public static function handle_parent_apply() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Keine Berechtigung.' ); }
+		check_admin_referer( 'm24_gallery_parent_apply' );
+		$r   = self::apply_parent();
+		$msg = 'applied:' . (int) $r['posts'] . ':' . (int) $r['ids'];
+		wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'parent', 'm24msg' => $msg ), admin_url( 'edit.php' ) ) );
+		exit;
 	}
 
 	public static function handle_apply() {
@@ -226,10 +236,15 @@ class M24_Gallery_Audit {
 			<?php self::msg_banner(); ?>
 			<p>
 				<a class="button button-primary" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_gallery_audit_csv' ), 'm24_gallery_audit_csv' ) ); ?>">CSV exportieren</a>
+				<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'parent' ), admin_url( 'edit.php' ) ) ); ?>">Rekonstruktion aus „Hochgeladen zu" / Dry-Run</a>
 				<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => self::PAGE, 'post_type' => 'm24_teil', 'view' => 'backup' ), admin_url( 'edit.php' ) ) ); ?>">Backup-Meta-Quote / Dry-Run</a>
 			</p>
 
-			<?php if ( 'backup' === ( $_GET['view'] ?? '' ) ) { self::render_backup_section(); } // phpcs:ignore WordPress.Security.NonceVerification ?>
+			<?php
+			$view = $_GET['view'] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification
+			if ( 'parent' === $view ) { self::render_parent_section(); }
+			elseif ( 'backup' === $view ) { self::render_backup_section(); }
+			?>
 
 			<table class="wp-list-table widefat fixed striped" style="margin-top:14px">
 				<thead><tr>
@@ -341,6 +356,65 @@ class M24_Gallery_Audit {
 		</table>
 		<p style="color:#6b7077;font-size:12px;margin-top:8px">
 			„würde schreiben" = heute auflösbare Backup-Bilder, die in eine aktuell leere/kaputte Galerie geschrieben würden.
+			Vor dem Schreiben wird je Key ein Undo-Snapshot (<code><?php echo esc_html( self::PREUNDO_SFX ); ?></code>) gesichert.
+			Pflicht-Reihenfolge: Plesk-Snapshot → Anwenden → bei Bedarf Undo.
+		</p>
+		<?php
+	}
+
+	/** Rekonstruktion aus post_parent: Dry-Run-Plan + gated Anwenden + Undo. */
+	private static function render_parent_section() {
+		$plan = self::parent_plan();
+		echo '<hr><h2>Galerie-Rekonstruktion aus „Hochgeladen zu" (post_parent)</h2>';
+		echo '<p style="color:#6b7077;font-size:13px">Kein Backup nötig: Bilder, die einem Produkt als „Hochgeladen zu" zugeordnet sind, werden als Galerie rekonstruiert. Reihenfolge: menu_order, dann ID (Original-Order verloren → best effort). Beitragsbild ausgenommen.</p>';
+		printf(
+			'<p style="font-size:14px"><strong>Dry-Run:</strong> %d betroffene Posts bekämen durch post_parent-Bilder ≥1 Galeriebild — insgesamt <strong>%d</strong> Bild-IDs würden geschrieben (nur leere/kaputte Galerien). <em>OK-Posts werden NIE angefasst.</em></p>',
+			(int) $plan['posts_write'], (int) $plan['ids_write']
+		);
+
+		$undo_store = get_option( self::UNDO_OPTION, array() );
+		$has_undo   = ! empty( $undo_store['entries'] ?? array() );
+		?>
+		<p>
+			<?php if ( $plan['ids_write'] > 0 ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline" onsubmit="return confirm('Galerien aus „Hochgeladen zu" rekonstruieren? Es werden NUR leere/kaputte Galerien betroffener Posts befüllt. Ein Undo-Snapshot wird vorher gespeichert. Vorher Plesk-Snapshot ziehen!');">
+				<input type="hidden" name="action" value="m24_gallery_parent_apply">
+				<?php wp_nonce_field( 'm24_gallery_parent_apply' ); ?>
+				<button type="submit" class="button button-primary">Rekonstruktion anwenden (<?php echo (int) $plan['posts_write']; ?> Posts)</button>
+			</form>
+			<?php endif; ?>
+			<?php if ( $has_undo ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;margin-left:8px" onsubmit="return confirm('Letzte Wiederherstellung rückgängig machen?');">
+				<input type="hidden" name="action" value="m24_gallery_restore_undo">
+				<?php wp_nonce_field( 'm24_gallery_restore_undo' ); ?>
+				<button type="submit" class="button">Undo letzte Wiederherstellung</button>
+			</form>
+			<?php endif; ?>
+		</p>
+
+		<table class="wp-list-table widefat fixed striped" style="margin-top:10px">
+			<thead><tr>
+				<th style="width:60px">ID</th><th>Titel</th><th style="width:90px">Typ</th><th style="width:90px">Klasse</th>
+				<th style="width:110px">Parent-Bilder</th><th style="width:90px">Datei&nbsp;da</th>
+				<th style="width:110px">würde schreiben</th><th style="width:120px">Ziel-Key</th>
+			</tr></thead>
+			<tbody>
+			<?php foreach ( $plan['plan'] as $e ) : ?>
+				<tr>
+					<td><?php echo (int) $e['id']; ?></td>
+					<td><a href="<?php echo esc_url( get_edit_post_link( $e['id'] ) ); ?>"><?php echo esc_html( $e['title'] ); ?></a></td>
+					<td><?php echo esc_html( $e['type'] ); ?></td>
+					<td><?php echo esc_html( $e['class'] ); ?></td>
+					<td><?php echo (int) $e['parent_total']; ?></td>
+					<td><?php echo (int) $e['with_file']; ?></td>
+					<td><?php echo count( $e['write_ids'] ) > 0 ? '<strong style="color:#1a7f37">+' . count( $e['write_ids'] ) . '</strong>' : '<span style="color:#9aa0a6">—</span>'; ?></td>
+					<td style="font-size:12px;color:#666"><?php echo esc_html( $e['key'] ); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p style="color:#6b7077;font-size:12px;margin-top:8px">
+			„würde schreiben" = post_parent-Bilder mit vorhandener Datei, die in eine aktuell leere/kaputte Galerie geschrieben würden.
 			Vor dem Schreiben wird je Key ein Undo-Snapshot (<code><?php echo esc_html( self::PREUNDO_SFX ); ?></code>) gesichert.
 			Pflicht-Reihenfolge: Plesk-Snapshot → Anwenden → bei Bedarf Undo.
 		</p>
@@ -556,7 +630,8 @@ class M24_Gallery_Audit {
 			}
 			if ( $touched ) { $posts++; }
 		}
-		update_option( self::UNDO_OPTION, array( 'when' => gmdate( 'Y-m-d H:i:s' ), 'entries' => $undo ), false );
+		// Nur bei tatsächlichem Schreiben den Undo-Stand setzen — ein Leerlauf darf ein vorheriges Undo NICHT zerstören.
+		if ( ! empty( $undo ) ) { update_option( self::UNDO_OPTION, array( 'when' => gmdate( 'Y-m-d H:i:s' ), 'entries' => $undo, 'source' => 'backup' ), false ); }
 		return array( 'posts' => $posts, 'ids' => $ids );
 	}
 
@@ -575,6 +650,80 @@ class M24_Gallery_Audit {
 		}
 		delete_option( self::UNDO_OPTION );
 		return array( 'posts' => count( $ids ), 'entries' => count( $entries ) );
+	}
+
+	/* ── Rekonstruktion aus post_parent („Hochgeladen zu") — KEIN Backup nötig ─── */
+
+	/** Ziel-Galerie-Key je Typ (fahrzeug: Außen als Best-Effort, da post_parent keine Kategorie kennt). */
+	private static function primary_key( $type ) {
+		return ( 'm24_fahrzeug' === $type ) ? '_m24fz_gal_aussen' : '_m24_galerie';
+	}
+
+	/** Bild-Attachments mit post_parent==pid (menu_order ASC, dann ID ASC), Beitragsbild ausgenommen. */
+	private static function parent_image_ids( $pid ) {
+		global $wpdb;
+		$rows = (array) $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type='attachment' AND post_parent=%d AND post_mime_type LIKE 'image/%%' ORDER BY menu_order ASC, ID ASC",
+			$pid
+		) );
+		$feat = (int) get_post_thumbnail_id( $pid );
+		$out  = array();
+		foreach ( $rows as $r ) { $r = (int) $r; if ( $r > 0 && $r !== $feat ) { $out[] = $r; } }
+		return $out;
+	}
+
+	/** Hat die Live-ID eine Datei auf der Platte? */
+	private static function has_file( $aid ) {
+		if ( 'attachment' !== get_post_type( (int) $aid ) ) { return false; }
+		$p = get_attached_file( (int) $aid );
+		return ( is_string( $p ) && '' !== $p && file_exists( $p ) );
+	}
+
+	/**
+	 * Parent-Rekonstruktions-Plan (READ-ONLY): je betroffenem Post die post_parent-Bilder sammeln
+	 * (Beitragsbild raus). Geschrieben würde in den primären Galerie-Key NUR, wenn dieser aktuell
+	 * KEIN auflösbares Bild hat (leer/kaputt). Geschrieben werden die Bilder mit vorhandener Datei.
+	 */
+	public static function parent_plan() {
+		$audit    = self::run();
+		$affected = array_filter( $audit['rows'], static function ( $r ) { return 'OK' !== $r['class']; } );
+
+		$plan = array(); $posts_write = 0; $ids_write = 0;
+		foreach ( $affected as $r ) {
+			$pid  = (int) $r['id'];
+			$key  = self::primary_key( $r['type'] );
+			$pids = self::parent_image_ids( $pid );
+			$withfile = array();
+			foreach ( $pids as $aid ) { if ( self::has_file( $aid ) ) { $withfile[] = $aid; } }
+			$cur     = self::parse_ids( get_post_meta( $pid, $key, true ) );
+			$cur_res = 0; foreach ( $cur as $c ) { if ( self::has_file( $c ) ) { $cur_res++; } }
+			$write   = ( count( $withfile ) > 0 && 0 === $cur_res );
+			$plan[]  = array(
+				'id' => $pid, 'title' => $r['title'], 'type' => $r['type'], 'class' => $r['class'], 'key' => $key,
+				'parent_total' => count( $pids ), 'with_file' => count( $withfile ),
+				'write_ids' => $write ? $withfile : array(), 'write' => $write,
+			);
+			if ( $write ) { $posts_write++; $ids_write += count( $withfile ); }
+		}
+		usort( $plan, static function ( $a, $b ) { return count( $b['write_ids'] ) <=> count( $a['write_ids'] ); } );
+		return array( 'plan' => $plan, 'posts_write' => $posts_write, 'ids_write' => $ids_write );
+	}
+
+	/** Gated Schreiblauf aus post_parent: in leere/kaputte primäre Keys, _preundo-Snapshot + Undo-Option. */
+	public static function apply_parent() {
+		$p = self::parent_plan();
+		$undo = array(); $posts = 0; $ids = 0;
+		foreach ( $p['plan'] as $e ) {
+			if ( empty( $e['write'] ) ) { continue; }
+			$k = $e['key']; $old = get_post_meta( $e['id'], $k, true );
+			update_post_meta( $e['id'], $k . self::PREUNDO_SFX, $old );
+			self::write_meta( $e['id'], $k, $e['write_ids'] );
+			$undo[] = array( 'id' => $e['id'], 'key' => $k, 'old' => $old );
+			$posts++; $ids += count( $e['write_ids'] );
+		}
+		// Nur bei tatsächlichem Schreiben den Undo-Stand setzen — ein Leerlauf darf ein vorheriges Undo NICHT zerstören.
+		if ( ! empty( $undo ) ) { update_option( self::UNDO_OPTION, array( 'when' => gmdate( 'Y-m-d H:i:s' ), 'entries' => $undo, 'source' => 'parent' ), false ); }
+		return array( 'posts' => $posts, 'ids' => $ids );
 	}
 }
 
