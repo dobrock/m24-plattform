@@ -22,8 +22,10 @@ class M24FZ_Admin_List {
 	}
 
 	public static function menu() {
+		// Direkt unter dem Dach „MOTORSPORT24" registriert → sauberer Page-Hook
+		// (admin.php?page=m24fz-verwaltung), eine einzige Registrierung, manage_options.
 		add_submenu_page(
-			'edit.php?post_type=' . M24FZ_CPT::PT,
+			'm24-plattform',
 			'Inserat-Verwaltung', 'Inserat-Verwaltung', self::CAP, self::PAGE, array( __CLASS__, 'render' )
 		);
 	}
@@ -103,7 +105,7 @@ class M24FZ_Admin_List {
 		$labels = array( 'alle' => 'Alle', 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert', 'entwurf' => 'Entwurf' );
 		$marken = self::distinct_meta( '_m24fz_marke' );
 		$baur   = self::distinct_meta( '_m24fz_baureihe' );
-		$base   = admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT . '&page=' . self::PAGE );
+		$base   = admin_url( 'admin.php?page=' . self::PAGE );
 		?>
 		<style><?php echo self::css(); // phpcs:ignore ?></style>
 		<div class="wrap m24fzv">
@@ -113,8 +115,7 @@ class M24FZ_Admin_List {
 				<li><a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" class="<?php echo $filter === $k ? 'current' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="count">(<?php echo (int) $counts[ $k ]; ?>)</span></a><?php echo $i < count( $labels ) ? ' |' : ''; ?></li>
 			<?php endforeach; ?></ul>
 
-			<form method="get" class="m24fzv-toolbar">
-				<input type="hidden" name="post_type" value="<?php echo esc_attr( M24FZ_CPT::PT ); ?>">
+			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="m24fzv-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
 				<input type="hidden" name="st" value="<?php echo esc_attr( $filter ); ?>">
 				<input type="search" name="q" value="<?php echo esc_attr( $q ); ?>" placeholder="Suche: Titel oder Inserat-ID">

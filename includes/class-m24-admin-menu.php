@@ -13,17 +13,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class M24_Admin_Menu {
 
 	const DACH = 'm24-plattform';
-	const VERWALTUNG = 'edit.php?post_type=m24_fahrzeug&page=m24fz-verwaltung'; // Inserat-Verwaltung
+	const VERWALTUNG = 'm24fz-verwaltung'; // Inserat-Verwaltung (eigene Submenu-Registrierung in M24FZ_Admin_List)
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'reorganize' ), 9999 );
-		add_action( 'admin_menu', array( __CLASS__, 'add_verwaltung_link' ), 9998 );
-		add_filter( 'parent_file', array( __CLASS__, 'keep_parent_open' ) );
-	}
-
-	/** Inserat-Verwaltung zusätzlich direkt unters Dach hängen (zeigt auf die bestehende Seite). */
-	public static function add_verwaltung_link() {
-		add_submenu_page( self::DACH, 'Inserat-Verwaltung', 'Inserat-Verwaltung', 'manage_options', self::VERWALTUNG );
 	}
 
 	/** Top-Level umbenennen + Icon/Position; Submenü-Reihenfolge nach §1. */
@@ -55,10 +48,5 @@ class M24_Admin_Menu {
 	private static function rank( $slug, $order ) {
 		foreach ( $order as $i => $o ) { if ( $slug === $o || false !== strpos( $slug, $o ) ) { return $i; } }
 		return count( $order ) + 1; // Unbekanntes ans Ende
-	}
-
-	/** Untermenüs (Fahrzeuge/Teile-Editor etc.) halten das Dach im Menü geöffnet/aktiv. */
-	public static function keep_parent_open( $parent_file ) {
-		return $parent_file;
 	}
 }
