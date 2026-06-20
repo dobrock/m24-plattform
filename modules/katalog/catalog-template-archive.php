@@ -105,7 +105,8 @@ class M24_Catalog_Archive {
 
 	public static function current_sort() {
 		$s = sanitize_key( (string) get_query_var( 'm24_sort' ) );
-		return in_array( $s, array( 'neueste', 'preis_auf', 'preis_ab' ), true ) ? $s : 'neueste';
+		// Default = „teuerste zuerst" (preis_ab); „neueste"/„preis_auf" bleiben explizit wählbar.
+		return in_array( $s, array( 'neueste', 'preis_auf', 'preis_ab' ), true ) ? $s : 'preis_ab';
 	}
 
 	/* ---------- Query / Status / Template ---------- */
@@ -121,9 +122,8 @@ class M24_Catalog_Archive {
 
 		$sort = self::current_sort();
 		if ( 'preis_auf' === $sort || 'preis_ab' === $sort ) {
-			$q->set( 'meta_key', '_m24_preis_netto' );
-			$q->set( 'orderby', 'meta_value_num' );
-			$q->set( 'order', ( 'preis_auf' === $sort ) ? 'ASC' : 'DESC' );
+			// Robuste Preis-Sortierung (LEFT JOIN): preislose/0-Teile bleiben drin, landen am Ende.
+			$q->set( 'm24_price_sort', ( 'preis_auf' === $sort ) ? 'ASC' : 'DESC' );
 		} else {
 			$q->set( 'orderby', 'date' );
 			$q->set( 'order', 'DESC' );

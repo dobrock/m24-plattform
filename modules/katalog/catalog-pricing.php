@@ -19,6 +19,29 @@ class M24_Catalog_Pricing {
 
 	const MWST_SATZ = 0.19;
 
+	/** Meta-Key, über den die Standard-Sortierung „teuerste zuerst" läuft. */
+	const SORT_META = '_m24_preis_netto';
+
+	/**
+	 * Robuste Preis-Sortierung für Listen-Queries (Teile-Archiv + Modell-Hubs).
+	 * Aktiv NUR, wenn die Query den Query-Var `m24_price_sort` = 'ASC'|'DESC' trägt.
+	 *
+	 * LEFT JOIN auf den Preis-Meta-Key → Teile OHNE Preiswert fallen NICHT aus der Liste
+	 * (anders als meta_key + meta_value_num, das per INNER JOIN ausschließt). Preislos
+	 * (Meta fehlt) UND Preis 0 landen IMMER am Ende — in beide Richtungen. Tie-Breaker:
+	 * Datum DESC (stabile Reihenfolge).
+	 */
+	public static function price_sort_clauses( $clauses, $query ) {
+		$dir = $query->get( 'm24_price_sort' );
+		if ( 'ASC' !== $dir && 'DESC' !== $dir ) { return $clauses; }
+		global $wpdb;
+		$val = "CAST(m24price.meta_value AS DECIMAL(12,2))";
+		$has = "CASE WHEN m24price.meta_value IS NULL OR {$val} = 0 THEN 0 ELSE 1 END";
+		$clauses['join']   .= " LEFT JOIN {$wpdb->postmeta} m24price ON m24price.post_id = {$wpdb->posts}.ID AND m24price.meta_key = '" . esc_sql( self::SORT_META ) . "' ";
+		$clauses['orderby'] = "{$has} DESC, {$val} {$dir}, {$wpdb->posts}.post_date DESC";
+		return $clauses;
+	}
+
 	/** Tooltip-Text am „Verpackung & Transport"-Hinweis (beide Steuer-Varianten). */
 	const VERPACKUNG_TIP = 'Nach Erhalt Ihrer Anfrage errechnen wir Ihnen ein Angebot, welches die Kosten für Verpackung und Versand beinhaltet.';
 
@@ -224,3 +247,6 @@ class M24_Catalog_Pricing {
 		);
 	}
 }
+
+// Preis-Sortierung: greift NUR bei Queries mit Query-Var `m24_price_sort` (sonst No-Op).
+add_filter( 'posts_clauses', array( 'M24_Catalog_Pricing', 'price_sort_clauses' ), 10, 2 );

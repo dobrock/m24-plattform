@@ -164,7 +164,8 @@ class M24_Catalog_Hub {
 	public static function current_q()     { return isset( $_GET['q'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['q'] ) ) ) : ''; } // phpcs:ignore WordPress.Security.NonceVerification
 	public static function current_sort()  {
 		$s = isset( $_GET['sort'] ) ? sanitize_key( wp_unslash( $_GET['sort'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
-		return in_array( $s, array( 'preis-auf', 'preis-ab' ), true ) ? $s : 'neu';
+		// Default = „teuerste zuerst" (preis-ab); „neu"/„preis-auf" bleiben explizit wählbar.
+		return in_array( $s, array( 'preis-auf', 'preis-ab', 'neu' ), true ) ? $s : 'preis-ab';
 	}
 	public static function current_paged() { return max( 1, (int) get_query_var( 'paged' ) ); }
 	/** ?kat= im Request (rennsport|gebraucht|alle) oder '' (⇒ Hub-Default greift). */
@@ -308,9 +309,8 @@ class M24_Catalog_Hub {
 		$a['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
 		if ( $typ ) { $a['meta_query'][] = $typ; }
 		if ( 'preis-auf' === $sort || 'preis-ab' === $sort ) {
-			$a['meta_key'] = '_m24_preis_netto';
-			$a['orderby']  = 'meta_value_num';
-			$a['order']    = ( 'preis-auf' === $sort ) ? 'ASC' : 'DESC';
+			// Robuste Preis-Sortierung (LEFT JOIN): preislose/0-Teile bleiben drin, landen am Ende.
+			$a['m24_price_sort'] = ( 'preis-auf' === $sort ) ? 'ASC' : 'DESC';
 		} else {
 			$a['orderby'] = 'date';
 			$a['order']   = 'DESC';
@@ -350,7 +350,7 @@ class M24_Catalog_Hub {
 	public static function listing( $hub = '', $q = null, $sort = null, $paged = null, $kat = null ) {
 		$hub   = $hub ?: self::current();
 		$q     = ( null === $q )    ? self::current_q()    : trim( (string) $q );
-		$sort  = ( null === $sort ) ? self::current_sort() : ( in_array( $sort, array( 'preis-auf', 'preis-ab' ), true ) ? $sort : 'neu' );
+		$sort  = ( null === $sort ) ? self::current_sort() : ( in_array( $sort, array( 'preis-auf', 'preis-ab', 'neu' ), true ) ? $sort : 'preis-ab' );
 		$kat   = ( null === $kat )  ? self::effective_kat( $hub ) : ( in_array( $kat, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $kat : 'alle' );
 		$ids   = self::ordered_ids( $hub, $sort, $q, $kat );
 		$total = count( $ids );
@@ -431,7 +431,7 @@ class M24_Catalog_Hub {
 			'args'                => array(
 				'hub'   => array( 'required' => true ),
 				'q'     => array( 'default' => '' ),
-				'sort'  => array( 'default' => 'neu' ),
+				'sort'  => array( 'default' => 'preis-ab' ), // Default „teuerste zuerst" (= Server-Render)
 				'paged' => array( 'default' => 1 ),
 				'kat'   => array( 'default' => 'alle' ),
 			),
