@@ -33,6 +33,13 @@ class M24_Admin_Menu {
 			}
 		}
 
+		// 1b) Native „Fahrzeuge"-Liste + „Neues Fahrzeug" + Komfort-Maske als Submenü ausblenden —
+		//     Inserat-Verwaltung ist das alleinige Fahrzeug-Cockpit (CPT bleibt voll registriert,
+		//     Editor/Anlegen via Buttons/Links erreichbar). „Alle Teile"/Hubs/Anfragen bleiben.
+		remove_submenu_page( self::DACH, 'edit.php?post_type=m24_fahrzeug' );
+		remove_submenu_page( self::DACH, 'post-new.php?post_type=m24_fahrzeug' );
+		remove_submenu_page( 'edit.php?post_type=m24_fahrzeug', 'm24fz-editor' ); // Komfort-Maske (öffnet via Neu/Bearbeiten)
+
 		// 2) Submenü-Reihenfolge: Inserat-Verwaltung · Fahrzeuge · Teile-Katalog · Modell-Hubs ·
 		//    Sammelanfragen · Einstellungen · (Rest). Best-effort über bekannte Slugs/Fragmente.
 		if ( empty( $submenu[ self::DACH ] ) ) { return; }

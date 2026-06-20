@@ -34,12 +34,13 @@ class M24FZ_Admin_List {
 
 	private static function counts() {
 		$ids = get_posts( array( 'post_type' => M24FZ_CPT::PT, 'post_status' => array( 'publish', 'private', 'draft', 'pending' ), 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
-		$c = array( 'alle' => 0, 'gelistet' => 0, 'reserviert' => 0, 'verkauft' => 0, 'deaktiviert' => 0, 'entwurf' => 0 );
+		$c = array( 'alle' => 0, 'gelistet' => 0, 'reserviert' => 0, 'verkauft' => 0, 'deaktiviert' => 0, 'entwurf' => 0, 'papierkorb' => 0 );
 		foreach ( $ids as $pid ) {
 			$st = M24FZ_CPT::status( $pid );
 			if ( isset( $c[ $st ] ) ) { $c[ $st ]++; }
 			$c['alle']++;
 		}
+		$c['papierkorb'] = count( get_posts( array( 'post_type' => M24FZ_CPT::PT, 'post_status' => 'trash', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) ) );
 		return $c;
 	}
 
@@ -54,6 +55,7 @@ class M24FZ_Admin_List {
 		// Tab → post_status + Inserat-Meta.
 		$meta = array();
 		switch ( $filter ) {
+			case 'papierkorb':  $args['post_status'] = 'trash'; break;
 			case 'entwurf':     $args['post_status'] = array( 'draft', 'pending' ); break;
 			case 'deaktiviert': $args['post_status'] = 'private'; break;
 			case 'verkauft':    $args['post_status'] = 'publish'; $meta[] = array( 'key' => M24FZ_CPT::INSERAT_META, 'value' => 'verkauft' ); break;
@@ -102,14 +104,14 @@ class M24FZ_Admin_List {
 		$sort     = isset( $_GET['sort'] ) ? sanitize_key( wp_unslash( $_GET['sort'] ) ) : 'neu';
 		$ids      = self::query_ids( $filter, $q, $marke, $baureihe, $sort );
 
-		$labels = array( 'alle' => 'Alle', 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert', 'entwurf' => 'Entwurf' );
+		$labels = array( 'alle' => 'Alle', 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert', 'entwurf' => 'Entwurf', 'papierkorb' => 'Papierkorb' );
 		$marken = self::distinct_meta( '_m24fz_marke' );
 		$baur   = self::distinct_meta( '_m24fz_baureihe' );
 		$base   = admin_url( 'admin.php?page=' . self::PAGE );
 		?>
 		<style><?php echo self::css(); // phpcs:ignore ?></style>
 		<div class="wrap m24fzv">
-			<h1>Inserat-Verwaltung</h1>
+			<h1>Inserat-Verwaltung <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT ) ); ?>" class="page-title-action">＋ Neues Fahrzeug</a></h1>
 
 			<ul class="subsubsub m24fzv-tabs"><?php $i = 0; foreach ( $labels as $k => $l ) : $i++; ?>
 				<li><a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" class="<?php echo $filter === $k ? 'current' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="count">(<?php echo (int) $counts[ $k ]; ?>)</span></a><?php echo $i < count( $labels ) ? ' |' : ''; ?></li>
@@ -144,8 +146,9 @@ class M24FZ_Admin_List {
 	}
 
 	private static function row( $id ) {
-		$st     = M24FZ_CPT::status( $id );
-		$labels = array( 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert', 'entwurf' => 'Entwurf' );
+		$is_trash = ( 'trash' === get_post_status( $id ) );
+		$st     = $is_trash ? 'papierkorb' : M24FZ_CPT::status( $id );
+		$labels = array( 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert', 'entwurf' => 'Entwurf', 'papierkorb' => 'Papierkorb' );
 		$paf    = (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true );
 		$preis  = (int) get_post_meta( $id, '_m24fz_preis', true );
 		$disabled = ( 'deaktiviert' === $st );
@@ -153,26 +156,32 @@ class M24FZ_Admin_List {
 		<tr data-id="<?php echo (int) $id; ?>">
 			<td class="m24fzv-veh">
 				<span class="thumb"><?php echo has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, array( 64, 43 ) ) : '<span class="ph"></span>'; ?></span>
-				<span class="meta"><a class="t" href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a>
+				<span class="meta"><?php if ( $is_trash ) : ?><span class="t"><?php echo esc_html( get_the_title( $id ) ); ?></span><?php else : ?><a class="t" href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a><?php endif; ?>
 				<span class="sub">#<?php echo (int) $id; ?> · <?php echo esc_html( get_post_field( 'post_name', $id ) ); ?></span></span>
 			</td>
-			<td><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( M24FZ_CPT::online_label( $id ) ); ?></span></td>
+			<td><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( $is_trash ? 'Im Papierkorb' : M24FZ_CPT::online_label( $id ) ); ?></span></td>
 			<td class="m24fzv-price"><?php self::price_cell( $id, $paf, $preis ); ?></td>
 			<td class="m24fzv-stats"><?php printf( '<span title="Aufrufe">👁 %d</span> <span title="Merkliste">♡ %d</span> <span title="Anfragen">✉ %d</span>',
 				M24FZ_Tracking::get( $id, 'view' ), M24FZ_Tracking::get( $id, 'merken' ), M24FZ_Tracking::get( $id, 'anfrage' ) ); ?></td>
 			<td class="m24fzv-actions">
 				<details class="m24fzv-kebab"><summary>⋯ Aktionen</summary><div class="menu">
-					<a href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Zum Inserat</a>
-					<a href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>">Inserat bearbeiten</a>
-					<a href="#" data-do="preis-edit">Preis bearbeiten</a>
-					<a href="#" data-do="datum">Datum ändern</a>
-					<hr>
-					<a href="#" data-do="verkauft">Verkauft markieren</a>
-					<a href="#" data-do="reserviert">Reserviert markieren</a>
-					<?php if ( $disabled ) : ?><a href="#" data-do="reaktivieren">Wieder aktivieren</a>
-					<?php else : ?><a href="#" data-do="deaktiviert">Inserat deaktivieren</a><?php endif; ?>
-					<hr>
-					<a href="#" class="danger" data-do="trash">Löschen → Papierkorb</a>
+					<?php if ( $is_trash ) : ?>
+						<a href="#" data-do="untrash">Wiederherstellen</a>
+						<hr>
+						<a href="#" class="danger" data-do="delete">Endgültig löschen</a>
+					<?php else : ?>
+						<a href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Zum Inserat</a>
+						<a href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>">Inserat bearbeiten</a>
+						<a href="#" data-do="preis-edit">Preis bearbeiten</a>
+						<a href="#" data-do="datum">Datum ändern</a>
+						<hr>
+						<a href="#" data-do="verkauft">Verkauft markieren</a>
+						<a href="#" data-do="reserviert">Reserviert markieren</a>
+						<?php if ( $disabled ) : ?><a href="#" data-do="reaktivieren">Wieder aktivieren</a>
+						<?php else : ?><a href="#" data-do="deaktiviert">Inserat deaktivieren</a><?php endif; ?>
+						<hr>
+						<a href="#" class="danger" data-do="trash">Löschen → Papierkorb</a>
+					<?php endif; ?>
 				</div></details>
 			</td>
 		</tr>
@@ -233,7 +242,15 @@ class M24FZ_Admin_List {
 				break;
 			case 'trash':
 				wp_trash_post( $id ); // Papierkorb, kein Hard-Delete (§0)
-				wp_send_json_success( array( 'trashed' => true, 'undo' => admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT ) ) );
+				wp_send_json_success( array( 'trashed' => true ) );
+				break;
+			case 'untrash':
+				wp_untrash_post( $id ); // zurück in den vorherigen Status
+				wp_send_json_success( array( 'untrashed' => true ) );
+				break;
+			case 'delete':
+				wp_delete_post( $id, true ); // endgültig (destruktiv, JS bestätigt)
+				wp_send_json_success( array( 'deleted' => true ) );
 				break;
 		}
 		wp_send_json_error( array( 'message' => 'unbekannte Aktion' ) );
@@ -258,7 +275,7 @@ class M24FZ_Admin_List {
 .m24fzv-veh .sub{display:block;color:#787c82;font-size:12px}
 .m24fzv-badge{display:inline-block;padding:2px 9px;border-radius:4px;font-size:12px;font-weight:700}
 .m24fzv-badge.st-gelistet{background:#e6f4ea;color:#1a7f37}.m24fzv-badge.st-verkauft{background:#fbe6e6;color:#9e2b2b}
-.m24fzv-badge.st-reserviert{background:#fff4d6;color:#9a6b25}.m24fzv-badge.st-deaktiviert{background:#eee;color:#666}.m24fzv-badge.st-entwurf{background:#e7eaf0;color:#3a4252}
+.m24fzv-badge.st-reserviert{background:#fff4d6;color:#9a6b25}.m24fzv-badge.st-deaktiviert{background:#eee;color:#666}.m24fzv-badge.st-entwurf{background:#e7eaf0;color:#3a4252}.m24fzv-badge.st-papierkorb{background:#f3e0e0;color:#8a3a3a}
 .m24fzv-online{display:block;color:#787c82;font-size:12px;margin-top:3px}
 .m24fzv-price .val{font-weight:600}.m24fzv-price .val.sold{text-decoration:line-through;color:#9e2b2b}.m24fzv-price .val.muted{color:#9aa0a6}
 .m24fzv-price-edit{display:block;font-size:12px;margin-top:2px}
@@ -292,6 +309,8 @@ jQuery(function($){
 		if(doIt==='preis-save'){ var v=tr.find('.m24fzv-pin').val(); post(id,'preis',{preis:v},function(d){ tr.find('.m24fzv-price').html(d.priceHtml); }); return; }
 		if(doIt==='datum'){ var d=prompt('Veröffentlichungsdatum (JJJJ-MM-TT oder JJJJ-MM-TTThh:mm):'); if(!d){return;} post(id,'datum',{datum:d},function(r){ tr.find('.m24fzv-online').text(r.online); }); return; }
 		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='untrash'){ post(id,'untrash',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='delete'){ if(!confirm('Inserat ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')){return;} post(id,'delete',{},function(r){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
 		// Statuswechsel
 		post(id,doIt,{},function(d){
 			if(d.status){ tr.find('.m24fzv-badge').attr('class','m24fzv-badge st-'+d.status).text(d.label); }
