@@ -43,13 +43,13 @@ class M24_Settings {
 
     public static function register_menu() {
         add_menu_page(
-            __( 'M24 Plattform', 'm24-plattform' ),
-            __( 'M24 Plattform', 'm24-plattform' ),
+            __( 'MOTORSPORT24', 'm24-plattform' ),
+            __( 'MOTORSPORT24', 'm24-plattform' ),
             self::CAPABILITY,
             self::PAGE_SLUG,
             [ __CLASS__, 'render_page' ],
-            'dashicons-admin-network',
-            58
+            'dashicons-car',
+            25.5 // §1: Dach sauber zwischen Inhalts- und Plugin-Bereich
         );
 
         add_submenu_page(

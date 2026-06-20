@@ -8,8 +8,11 @@
 		fd.append('action', 'm24fz_track'); fd.append('post_id', cfg.pid); fd.append('what', what);
 		fetch(cfg.ajax, { method: 'POST', credentials: 'same-origin', body: fd, keepalive: true }).catch(function () {});
 	}
-	// View-Beacon (cache-sicher, 1×/Session server-seitig dedupliziert).
-	track('view');
+	// View-Beacon (cache-sicher via REST view-ping; Admins/Bots/Dups serverseitig ausgefiltert).
+	if (cfg.viewping && cfg.pid) {
+		var vf = new FormData(); vf.append('post_id', cfg.pid);
+		fetch(cfg.viewping, { method: 'POST', credentials: 'same-origin', body: vf, keepalive: true }).catch(function () {});
+	}
 
 	document.addEventListener('click', function (e) {
 		var t = e.target.closest('[data-m24fz-track]');

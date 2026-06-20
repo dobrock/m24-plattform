@@ -70,6 +70,7 @@ class M24FZ_Meta {
 	public static function save( $post_id, $post ) {
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) { return; }
 		if ( wp_is_post_revision( $post_id ) ) { return; }
+		if ( M24FZ_CPT::is_busy() ) { return; } // set_status() löst wp_update_post → save_post aus: Rekursion stoppen
 		if ( ! isset( $_POST[ self::NONCE ] ) || ! wp_verify_nonce( wp_unslash( $_POST[ self::NONCE ] ), self::NONCE ) ) { return; }
 		if ( ! current_user_can( 'edit_post', $post_id ) ) { return; }
 
@@ -107,17 +108,20 @@ class M24FZ_Meta {
 			update_post_meta( $post_id, $k, $ids );
 		}
 
-		// Status aus Switches (Deaktiviert > Verkauft > Reserviert > gelistet).
-		$status = isset( $_POST['m24fz_deaktiviert'] ) ? 'deaktiviert'
-			: ( isset( $_POST['m24fz_verkauft'] ) ? 'verkauft'
-			: ( isset( $_POST['m24fz_reserviert'] ) ? 'reserviert' : 'gelistet' ) );
-		update_post_meta( $post_id, '_m24fz_status', $status );
-
-		// Aktiv-Kategorie + Verkauft-Flip.
+		// Aktiv-Kategorie speichern (Term-Zuordnung übernimmt set_status bzw. unten).
 		$kat = in_array( ( $_POST['_m24fz_kat'] ?? '' ), array( 'race-cars', 'classic-cars' ), true ) ? $_POST['_m24fz_kat'] : 'race-cars';
-		$term = ( 'verkauft' === $status && isset( M24FZ_CPT::SOLD_MAP[ $kat ] ) ) ? M24FZ_CPT::SOLD_MAP[ $kat ] : $kat;
 		update_post_meta( $post_id, '_m24fz_kat', $kat );
-		wp_set_object_terms( $post_id, $term, M24FZ_CPT::TAX, false );
+
+		// Status aus Switches → neues Modell (§2). „Gelistet" (keine Switch) lässt Entwurf/Publish
+		// in Ruhe, setzt nur die Inserat-Meta; verkauft/reserviert/deaktiviert via set_status.
+		if ( isset( $_POST['m24fz_deaktiviert'] ) ) { M24FZ_CPT::set_status( $post_id, 'deaktiviert' ); }
+		elseif ( isset( $_POST['m24fz_verkauft'] ) ) { M24FZ_CPT::set_status( $post_id, 'verkauft' ); }
+		elseif ( isset( $_POST['m24fz_reserviert'] ) ) { M24FZ_CPT::set_status( $post_id, 'reserviert' ); }
+		else {
+			delete_post_meta( $post_id, M24FZ_CPT::INSERAT_META );
+			update_post_meta( $post_id, '_m24fz_status', ( 'private' === get_post_status( $post_id ) ) ? 'deaktiviert' : ( in_array( get_post_status( $post_id ), array( 'draft', 'pending', 'auto-draft' ), true ) ? 'entwurf' : 'gelistet' ) );
+			wp_set_object_terms( $post_id, $kat, M24FZ_CPT::TAX, false ); // Aktiv-Kategorie (kein Sold-Flip)
+		}
 
 		// Galerie-Alt-Text automatisch nachziehen (alle Galerie-Attachments).
 		self::sync_gallery_alt( $post_id );

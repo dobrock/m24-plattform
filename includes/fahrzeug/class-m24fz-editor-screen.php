@@ -406,6 +406,15 @@ class M24FZ_Editor_Screen {
 							<?php endforeach; ?>
 						</div>
 
+						<div class="fz-f"><label>Statistik (manuell editierbar)</label></div>
+						<div class="fz-row">
+							<?php
+							self::field( $id, '_m24fz_views', 'Aufrufe' );
+							self::field( $id, '_m24fz_merkliste_count', 'Merkliste' );
+							self::field( $id, '_m24fz_anfragen_count', 'Anfragen' );
+							?>
+						</div>
+
 						<div class="fz-f"><label>Status</label></div>
 						<div class="fz-row fz-toggles fz-status">
 							<label class="fz-toggle"><input type="checkbox" name="m24fz_verkauft" <?php checked( 'verkauft', $status ); ?>><span></span> Verkauft</label>

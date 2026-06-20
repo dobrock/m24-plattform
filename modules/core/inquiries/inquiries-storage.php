@@ -63,10 +63,9 @@ class M24_Inquiries_Storage {
             'public'              => false,
             'publicly_queryable'  => false,
             'show_ui'             => true,
-            'show_in_menu'        => true,
+            'show_in_menu'        => 'm24-plattform', // §1: unter dem Dach „MOTORSPORT24"
             'show_in_rest'        => false,
             'menu_icon'           => 'dashicons-email-alt',
-            'menu_position'       => 30,
             'capability_type'     => 'post',
             'hierarchical'        => false,
             'has_archive'         => false,

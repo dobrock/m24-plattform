@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.10.25
+ * Version:           0.11.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.10.25' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.0' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -148,6 +148,7 @@ require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-template.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-seo.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-admin-list.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-editor-screen.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-menu.php';            // §1 Menü-Dach „MOTORSPORT24"
 
 // Gruppierte Suche (REST-Endpoint + Dropdown + gefilterte Vollergebnis-Seite).
 require_once M24_PLATTFORM_DIR . 'modules/search/search-query.php';     // reiner Helfer, kein init()
@@ -246,6 +247,7 @@ add_action( 'plugins_loaded', function() {
         M24FZ_Meta_Render::init();
         M24FZ_Admin_List::init();
         M24FZ_Editor_Screen::init();
+        M24_Admin_Menu::init();
     }
     m24_purge_cache_on_version_change();
 }, 5 );

@@ -55,9 +55,8 @@ class M24_Catalog_Hub_CPT {
 			),
 			'public'              => false,
 			'show_ui'             => true,
-			'show_in_menu'        => true,
+			'show_in_menu'        => 'm24-plattform', // §1: unter dem Dach „MOTORSPORT24"
 			'menu_icon'           => 'dashicons-screenoptions',
-			'menu_position'       => 26,
 			'supports'            => array( 'title', 'page-attributes' ), // Titel = H1/Label, menu_order = Reihenfolge
 			'has_archive'         => false,
 			'rewrite'             => false,

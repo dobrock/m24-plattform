@@ -43,8 +43,8 @@ class M24_Catalog_CPT {
 			'public'          => true,
 			'has_archive'     => false,
 			'show_in_rest'    => false, // kein Block-Editor -> klassische Maske, Felder oben
+			'show_in_menu'    => 'm24-plattform', // §1: unter dem Dach „MOTORSPORT24"
 			'menu_icon'       => 'dashicons-screenoptions',
-			'menu_position'   => 26,
 			'supports'        => array( 'title', 'thumbnail', 'revisions' ),
 			'rewrite'         => false,
 			'capability_type' => 'post',
