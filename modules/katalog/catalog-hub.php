@@ -113,6 +113,8 @@ class M24_Catalog_Hub {
 			// abgefangen → direkt auf das gesunde Hub-Ziel. Nur dieser eine Slug ist defekt;
 			// /bmw-z4-gt3/, /bmw-e30/, /bmw-e36/, /bmw-e46/ sind gesund und bleiben unberührt.
 			'/bmw-m3-e36'                            => '/teile/bmw-m3-e36',
+			// Doppel-Inserat: Alt-„for-sale"-Beitrag → neues Fahrzeug-Inserat (CPT m24_fahrzeug).
+			'/for-sale-bmw-m3-e30-europameister-061-148' => '/fahrzeuge/bmw-m3-e30-europameister-061-148',
 			// Modelle-Zwischenstand
 			'/modelle/bmw-m3-e30'                    => '/teile/bmw-m3-e30',
 			'/modelle/bmw-m3-e36'                    => '/teile/bmw-m3-e36',

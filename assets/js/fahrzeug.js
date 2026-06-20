@@ -62,6 +62,12 @@
 		ov.className = 'm24fz-more-ov'; ov.setAttribute('role', 'button'); ov.setAttribute('tabindex', '0');
 		ov.setAttribute('aria-label', 'Alle Bilder anzeigen');
 		ov.innerHTML = '<b>+' + rest + '</b><small>Alle Bilder</small>';
+		// EIGENER Handler direkt auf der +X-Kachel: stoppt den Klick, BEVOR ihn Jetpacks Carousel
+		// (auf Tile-/Gallery-Ebene) abgreift → Inline-Aufklappen statt Lightbox.
+		ov.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); expand(galcat); }, true);
+		ov.addEventListener('keydown', function (e) {
+			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); expand(galcat); }
+		});
 		host.appendChild(ov);
 	}
 	function expand(galcat) {
@@ -84,16 +90,11 @@
 	initOverlays();
 	window.addEventListener('load', initOverlays);
 
+	// „Weniger anzeigen" liegt außerhalb der Jetpack-Galerie → Document-Delegation reicht.
+	// (Das „+X" selbst hat einen eigenen Handler in setupOverlay, damit Jetpack es nicht abfängt.)
 	document.addEventListener('click', function (e) {
-		var ov = e.target.closest('.m24fz-more-ov');
-		if (ov) { e.preventDefault(); e.stopPropagation(); var g = ov.closest('.m24fz-galcat'); if (g) { expand(g); } return; }
 		var less = e.target.closest('.m24fz-gal-less');
 		if (less) { e.preventDefault(); var g2 = less.closest('.m24fz-galcat'); if (g2) { collapse(g2); } }
-	});
-	document.addEventListener('keydown', function (e) {
-		if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('m24fz-more-ov')) {
-			e.preventDefault(); var g = document.activeElement.closest('.m24fz-galcat'); if (g) { expand(g); }
-		}
 	});
 
 	// Bild-Lightbox liefert Jetpack-Carousel. Hier nur die Video-Lightbox (youtube-nocookie, erst bei Klick).
