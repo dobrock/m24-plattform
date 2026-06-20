@@ -16,18 +16,36 @@ class M24FZ_Admin_List {
 	const PAGE  = 'm24fz-verwaltung';
 	const CAP   = 'manage_options';
 
+	/** Exakter Hook-Suffix von add_submenu_page() — für robustes Enqueue-Gating (überlebt Menü-Umzüge). */
+	private static $hook = '';
+
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'wp_ajax_m24fz_action', array( __CLASS__, 'ajax' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
 	}
 
 	public static function menu() {
 		// Direkt unter dem Dach „MOTORSPORT24" registriert → sauberer Page-Hook
 		// (admin.php?page=m24fz-verwaltung), eine einzige Registrierung, manage_options.
-		add_submenu_page(
+		self::$hook = add_submenu_page(
 			'm24-plattform',
 			'Inserat-Verwaltung', 'Inserat-Verwaltung', self::CAP, self::PAGE, array( __CLASS__, 'render' )
 		);
+	}
+
+	/**
+	 * CSS/JS sauber enqueuen — NICHT inline im Body (sonst läuft das jQuery-Snippet ggf. vor dem
+	 * Footer-jQuery → Handler binden nie). wp_add_inline_script('jquery', …) garantiert die
+	 * Reihenfolge. Gating exakt gegen den von add_submenu_page() gelieferten Hook.
+	 */
+	public static function assets( $hook ) {
+		if ( '' === self::$hook || $hook !== self::$hook ) { return; }
+		wp_enqueue_script( 'jquery' );
+		wp_add_inline_script( 'jquery', self::js() );
+		wp_register_style( 'm24fzv', false ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
+		wp_enqueue_style( 'm24fzv' );
+		wp_add_inline_style( 'm24fzv', self::css() );
 	}
 
 	/* ── Status-Zähler (Status-Modell §2) ────────────────────────────────────── */
@@ -109,7 +127,6 @@ class M24FZ_Admin_List {
 		$baur   = self::distinct_meta( '_m24fz_baureihe' );
 		$base   = admin_url( 'admin.php?page=' . self::PAGE );
 		?>
-		<style><?php echo self::css(); // phpcs:ignore ?></style>
 		<div class="wrap m24fzv">
 			<h1>Inserat-Verwaltung <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT ) ); ?>" class="page-title-action">＋ Neues Fahrzeug</a></h1>
 
@@ -141,7 +158,6 @@ class M24FZ_Admin_List {
 				?></tbody>
 			</table>
 		</div>
-		<script><?php echo self::js(); // phpcs:ignore ?></script>
 		<?php
 	}
 
