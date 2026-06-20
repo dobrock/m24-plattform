@@ -259,7 +259,8 @@ class M24_Settings {
         $mock_default    = home_url( '/wp-json/m24-plattform/v1/mock' );
         ?>
         <div class="wrap">
-            <h1><?php echo esc_html__( 'M24 Plattform — Einstellungen', 'm24-plattform' ); ?></h1>
+            <h1><?php echo esc_html__( 'MOTORSPORT24 — Einstellungen', 'm24-plattform' ); ?></h1>
+            <?php do_action( 'm24_settings_top' ); // Ein-Klick-Update-Button (M24_OneClick_Update) ?>
             <p><?php echo esc_html__( 'Verbindung zwischen WordPress-Plugin und M24 Desk Backend.', 'm24-plattform' ); ?></p>
 
             <form method="post" action="options.php">
