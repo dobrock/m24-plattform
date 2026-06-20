@@ -265,6 +265,108 @@ class M24_Gallery_Audit {
 		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions
 		exit;
 	}
+
+	/* ── Backup-Meta-Auflösungsprüfung (READ-ONLY) ───────────────────────────── */
+
+	/** NUR-LESEND genutzte Backup-Verbindung (gleiche wp-config-Konstanten wie der Restore). */
+	private static function backup() {
+		static $bdb = null; static $tried = false;
+		if ( $tried ) { return $bdb; }
+		$tried = true;
+		if ( ! defined( 'M24_RESTORE_DB' ) || ! defined( 'M24_RESTORE_USER' ) || ! defined( 'M24_RESTORE_PASS' ) ) { return null; }
+		$host = defined( 'M24_RESTORE_HOST' ) && M24_RESTORE_HOST ? M24_RESTORE_HOST : 'localhost';
+		$conn = new wpdb( M24_RESTORE_USER, M24_RESTORE_PASS, M24_RESTORE_DB, $host );
+		$conn->hide_errors();
+		if ( (int) $conn->get_var( 'SELECT 1' ) !== 1 ) { return null; }
+		$bdb = $conn;
+		return $bdb;
+	}
+	private static function bprefix() {
+		return ( defined( 'M24_RESTORE_PREFIX' ) && M24_RESTORE_PREFIX ) ? (string) M24_RESTORE_PREFIX : 'wp_';
+	}
+
+	/** Galerie-Meta-Keys je Post-Typ. */
+	private static function meta_keys( $type ) {
+		return ( 'm24_fahrzeug' === $type )
+			? array( '_m24fz_gal_aussen', '_m24fz_gal_innen', '_m24fz_gal_motor', '_m24fz_gal_unterboden' )
+			: array( '_m24_galerie' );
+	}
+
+	/**
+	 * READ-ONLY: für die betroffenen Posts (Audit-Klasse != OK) die Galerie-Meta aus der BACKUP-DB
+	 * lesen und prüfen, wie viele der dort referenzierten Attachment-IDs HEUTE auflösen
+	 * (Attachment-Post live vorhanden, optional Datei da). Hohe Quote ⇒ selektiver Meta-Restore
+	 * (Galerie-Meta aus Backup zurückschreiben) wäre tragfähig. SCHREIBT NICHTS.
+	 *
+	 * @return array { error?, posts, summary{ posts_geprueft, backup_ids, aufloesbar, mit_datei, quote_pct, quote_datei_pct }, rows[] }
+	 */
+	public static function backup_resolution() {
+		$bdb = self::backup();
+		if ( ! $bdb ) {
+			return array( 'error' => 'Backup-DB nicht verbunden. In wp-config: M24_RESTORE_DB/USER/PASS/HOST (+ optional M24_RESTORE_PREFIX) setzen.' );
+		}
+		$bpx   = self::bprefix();
+		$bmeta = $bpx . 'postmeta';
+		if ( '' !== (string) $bdb->last_error ) { return array( 'error' => 'Backup-Meta-Tabelle nicht lesbar: ' . $bdb->last_error ); }
+
+		global $wpdb;
+		$live_att = array();
+		foreach ( (array) $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type='attachment'" ) as $a ) { $live_att[ (int) $a ] = true; } // phpcs:ignore WordPress.DB
+
+		$audit    = self::run();
+		$affected = array_filter( $audit['rows'], static function ( $r ) { return 'OK' !== $r['class']; } );
+
+		$rows = array();
+		$tot_ids = 0; $tot_res = 0; $tot_file = 0; $posts_with_backup = 0;
+		foreach ( $affected as $r ) {
+			$pid  = (int) $r['id'];
+			$bids = array();
+			foreach ( self::meta_keys( $r['type'] ) as $k ) {
+				$mv = $bdb->get_var( $bdb->prepare( "SELECT meta_value FROM `{$bmeta}` WHERE post_id=%d AND meta_key=%s LIMIT 1", $pid, $k ) ); // phpcs:ignore WordPress.DB
+				if ( null === $mv || '' === $mv ) { continue; }
+				$arr = maybe_unserialize( $mv );
+				if ( is_array( $arr ) ) {
+					foreach ( $arr as $v ) { $v = (int) $v; if ( $v > 0 ) { $bids[] = $v; } }
+				} else {
+					foreach ( explode( ',', (string) $mv ) as $v ) { $v = (int) trim( $v ); if ( $v > 0 ) { $bids[] = $v; } }
+				}
+			}
+			$bids = array_values( array_unique( $bids ) );
+			if ( empty( $bids ) ) {
+				$rows[] = array( 'id' => $pid, 'title' => $r['title'], 'type' => $r['type'], 'class' => $r['class'], 'backup_ids' => 0, 'resolvable' => 0, 'with_file' => 0, 'sample' => array() );
+				continue;
+			}
+			$posts_with_backup++;
+			$res = 0; $file = 0; $sample = array();
+			foreach ( $bids as $aid ) {
+				if ( isset( $live_att[ $aid ] ) ) {
+					$res++;
+					$path = get_attached_file( $aid );
+					if ( is_string( $path ) && '' !== $path && file_exists( $path ) ) { $file++; }
+				} elseif ( count( $sample ) < 2 ) {
+					$sample[] = $aid;
+				}
+			}
+			$tot_ids += count( $bids ); $tot_res += $res; $tot_file += $file;
+			$rows[] = array( 'id' => $pid, 'title' => $r['title'], 'type' => $r['type'], 'class' => $r['class'], 'backup_ids' => count( $bids ), 'resolvable' => $res, 'with_file' => $file, 'sample' => $sample );
+		}
+
+		usort( $rows, static function ( $a, $b ) { return $b['backup_ids'] <=> $a['backup_ids']; } );
+
+		return array(
+			'posts'   => count( $affected ),
+			'rows'    => $rows,
+			'summary' => array(
+				'posts_geprueft'    => count( $affected ),
+				'posts_mit_backup'  => $posts_with_backup,
+				'backup_ids'        => $tot_ids,
+				'aufloesbar'        => $tot_res,
+				'mit_datei'         => $tot_file,
+				'quote_pct'         => $tot_ids ? round( $tot_res / $tot_ids * 100, 1 ) : 0.0,
+				'quote_datei_pct'   => $tot_ids ? round( $tot_file / $tot_ids * 100, 1 ) : 0.0,
+			),
+		);
+	}
 }
 
 // ── CLI: wp m24 audit-galleries [--format=table|csv] ─────────────────────────
@@ -302,5 +404,45 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI\Utils\format_items( 'table', $show, array( 'klasse', 'id', 'typ', 'status', 'titelbild', 'gal', 'auflösbar', 'dangling', 'datei_fehlt', 'titel' ) );
 		}
 		WP_CLI::success( 'Audit vollständig (READ-ONLY, nichts geändert). CSV: --format=csv' );
+	} );
+
+	// ── CLI: wp m24 audit-backup-meta [--format=table|csv] — READ-ONLY Backup-Auflösungsquote ──
+	WP_CLI::add_command( 'm24 audit-backup-meta', function ( $args, $assoc ) {
+		$r = M24_Gallery_Audit::backup_resolution();
+		if ( ! empty( $r['error'] ) ) { WP_CLI::error( $r['error'] ); }
+		$format = isset( $assoc['format'] ) ? (string) $assoc['format'] : 'table';
+
+		if ( 'csv' === $format ) {
+			$fh = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+			fputcsv( $fh, array( 'post_id', 'titel', 'typ', 'audit_klasse', 'backup_gal_ids', 'aufloesbar_heute', 'mit_datei', 'beispiel_unaufloesbar' ) );
+			foreach ( $r['rows'] as $x ) {
+				fputcsv( $fh, array( $x['id'], $x['title'], $x['type'], $x['class'], $x['backup_ids'], $x['resolvable'], $x['with_file'], implode( ' | ', $x['sample'] ) ) );
+			}
+			fclose( $fh ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+			return;
+		}
+
+		$s = $r['summary'];
+		WP_CLI::log( '── Backup-Meta-Auflösungsprüfung (READ-ONLY · Backup-DB) ──' );
+		WP_CLI::log( sprintf( 'Betroffene Posts: %d · mit Galerie-Meta im Backup: %d', $s['posts_geprueft'], $s['posts_mit_backup'] ) );
+		WP_CLI::log( sprintf( 'Backup-Galerie-IDs gesamt: %d · auflösbar HEUTE: %d (%.1f%%) · davon Datei vorhanden: %d (%.1f%%)',
+			$s['backup_ids'], $s['aufloesbar'], $s['quote_pct'], $s['mit_datei'], $s['quote_datei_pct'] ) );
+		$show = array();
+		foreach ( $r['rows'] as $x ) {
+			if ( 0 === $x['backup_ids'] ) { continue; }
+			$show[] = array(
+				'id' => $x['id'], 'typ' => $x['type'], 'klasse' => $x['class'],
+				'backup_ids' => $x['backup_ids'], 'auflösbar' => $x['resolvable'], 'mit_datei' => $x['with_file'],
+				'titel' => mb_substr( $x['title'], 0, 46 ),
+			);
+		}
+		if ( $show ) {
+			WP_CLI\Utils\format_items( 'table', $show, array( 'id', 'typ', 'klasse', 'backup_ids', 'auflösbar', 'mit_datei', 'titel' ) );
+		}
+		if ( $s['quote_pct'] >= 80 ) {
+			WP_CLI::success( sprintf( 'Hohe Auflösungsquote (%.1f%%) → selektiver Meta-Restore tragfähig. READ-ONLY, nichts geändert. Nächster Schritt: Plesk-Snapshot → Dry-Run-Schreiblauf zur Freigabe.', $s['quote_pct'] ) );
+		} else {
+			WP_CLI::warning( sprintf( 'Auflösungsquote %.1f%% — vor Meta-Restore prüfen, ob zusätzlich Attachment-/Datei-Restore nötig ist. READ-ONLY, nichts geändert.', $s['quote_pct'] ) );
+		}
 	} );
 }
