@@ -95,7 +95,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		</section>
 		<?php endif; ?>
 
-		<!-- 6. Mediagalerie — justiertes Mosaik je Kategorie (9 + +X + Fly-out) + Video separat -->
+		<!-- 6. Mediagalerie — Jetpack-Tiled-Mosaik je Kategorie (9 + +X + Fly-out obendrauf) + Video separat -->
 		<?php if ( $gals || $vids ) : ?>
 		<?php $first = $gals ? array_key_first( $gals ) : 'video'; ?>
 		<section class="m24fz-card m24fz-media">
@@ -107,8 +107,8 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			</div>
 
 			<?php foreach ( $gals as $k => $g ) : ?>
-			<div class="m24fz-mosaic" data-catwrap="<?php echo esc_attr( $k ); ?>" data-total="<?php echo count( $g['ids'] ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
-				<?php echo M24FZ_Template::mosaic( $g['ids'], $k, 9 ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+			<div class="m24fz-galcat" data-catwrap="<?php echo esc_attr( $k ); ?>" data-total="<?php echo count( $g['ids'] ); ?>"<?php echo $k === $first ? '' : ' hidden'; ?>>
+				<?php echo M24FZ_Template::tiled_block( $g['ids'], 9 ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			</div>
 			<?php endforeach; ?>
 

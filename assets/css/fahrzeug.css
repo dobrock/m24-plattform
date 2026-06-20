@@ -83,33 +83,27 @@
 .m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .m24fz-chip .n{display:inline-block;background:rgba(0,0,0,.08);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
 .m24fz-chip.on .n{background:rgba(255,255,255,.22)}
-/* Echtes justiertes Mosaik (JS rechnet Zeilenhöhe/Breite ∝ Seitenverhältnis, Reihe füllt volle
-   Breite). Kein flex-grow → keine gleich großen Kacheln. „9 + +X + Fly-out" liegt obendrauf. */
-.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
-.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;border-radius:8px;overflow:hidden;background:#ededea;display:block}
-/* Fallback OHNE JS: Orientierung über flex-basis (grow proportional zur Breite, nicht uniform) */
-.m24fz-mosaic .m24fz-land{flex:3 1 345px} /* 3:2 × 230 */
-.m24fz-mosaic .m24fz-port{flex:2 1 153px} /* 2:3 × 230 */
-/* MIT JS: exakte inline-Breiten/-Höhen, kein Wachsen */
-.m24fz-mosaic.m24fz-jslayout .m24fz-mitem{flex:0 0 auto}
-.m24fz-mosaic .m24fz-mitem[hidden]{display:none}
-.m24fz-mosaic .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
-/* +X-Overlay auf der 9. Kachel (form-unabhängig) */
-.m24fz-more-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(10,12,16,.62);color:#fff;cursor:pointer;z-index:2}
+/* Jetpack Tiled Gallery (Mauerwerk-Mosaik, große Feature- + kleine Kacheln, volle Breite).
+   „9 + +X + Fly-out" liegt nur OBENDRAUF — Jetpack rendert die Kachelgrößen selbst. */
+.m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0!important;width:100%!important;max-width:100%!important}
+.m24fz-tg-preview,.m24fz-tg-full{position:relative}
+/* +X-Overlay auf der letzten Vorschau-Kachel (JS markiert sie .m24fz-ov-host) */
+.m24fz-ov-host{position:relative}
+.m24fz-more-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(10,12,16,.62);color:#fff;cursor:pointer;z-index:3}
 .m24fz-more-ov b{font-size:34px;font-weight:800;line-height:1}
 .m24fz-more-ov small{font-size:13px;font-weight:600;letter-spacing:.04em}
-.m24fz-gal-less{flex-basis:100%;margin-top:4px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer;text-align:center}
-/* Fly-out: opacity 0→1 + translateY + scale, gestaffelt (Delay setzt JS inline) */
-@keyframes m24fz-flyin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
-.m24fz-mosaic .m24fz-mitem.m24fz-flyin{animation:m24fz-flyin .34s ease both}
-@media(prefers-reduced-motion:reduce){.m24fz-mosaic .m24fz-mitem.m24fz-flyin{animation:none}}
+.m24fz-gal-less{margin-top:10px;background:none;border:0;color:var(--blue);font:inherit;font-weight:600;cursor:pointer;text-align:center;width:100%}
+/* Fly-out beim Aufklappen des vollen Mosaiks */
+@keyframes m24fz-flyin{from{opacity:0;transform:translateY(14px) scale(.99)}to{opacity:1;transform:none}}
+.m24fz-tg-full.m24fz-flyin{animation:m24fz-flyin .4s ease both}
+@media(prefers-reduced-motion:reduce){.m24fz-tg-full.m24fz-flyin{animation:none}}
 /* Video separat: 2 pro Reihe, 16:9, YouTube-Poster + Play-Overlay */
 .m24fz-videos{display:flex;flex-wrap:wrap;gap:10px}
 .m24fz-video{position:relative;flex:1 1 calc(50% - 5px);max-width:calc(50% - 5px);aspect-ratio:16/9;padding:0;border:0;border-radius:8px;overflow:hidden;cursor:pointer;background:#000}
 .m24fz-video img{width:100%;height:100%;object-fit:cover;display:block}
 .m24fz-play{position:absolute;inset:0;margin:auto;width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:rgba(20,22,26,.7);color:#fff;border-radius:50%;font-size:24px;padding-left:5px;pointer-events:none;transition:.15s}
 .m24fz-video:hover .m24fz-play{background:var(--red);transform:scale(1.06)}
-@media(max-width:700px){.m24fz-mosaic .m24fz-mitem{height:160px}.m24fz-mosaic .m24fz-land{flex-basis:240px}.m24fz-mosaic .m24fz-port{flex-basis:107px}.m24fz-video{flex-basis:100%;max-width:100%}}
+@media(max-width:700px){.m24fz-video{flex-basis:100%;max-width:100%}}
 
 /* 7. Fahrzeugdaten */
 .m24fz-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
