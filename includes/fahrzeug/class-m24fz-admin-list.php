@@ -311,25 +311,25 @@ class M24FZ_Admin_List {
 .m24fzv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px}
 .m24fzv-head h1{font-family:'Saira',sans-serif;font-size:26px;font-weight:800;margin:0;display:flex;align-items:center;gap:10px;padding:0}
 .m24fzv-pill{font-size:12px;font-weight:700;color:var(--brass);background:#f6efe3;border:1px solid #ecdcc2;border-radius:999px;padding:3px 11px}
-.m24fzv-sub{color:var(--mut);font-size:13px;margin:6px 0 0}
+.m24fzv-sub{color:var(--mut);font-size:13px;margin:6px 0 18px}
 .m24fzv-newbtn{align-self:center;text-decoration:none;color:#fff;font-weight:700;border-radius:8px;padding:10px 18px;background:linear-gradient(135deg,#1f74c4,#0e447e);white-space:nowrap}
 .m24fzv-newbtn:hover{color:#fff;opacity:.94}
 /* Tab-Leiste mit Count-Pills + Messing-Unterstrich */
-.m24fzv-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.m24fzv-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin:18px 0}
 .m24fzv-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;text-decoration:none;color:#50575e;font-weight:600;font-size:13px;border-bottom:3px solid transparent;margin-bottom:-1px}
 .m24fzv-tab .cnt{background:#eef0f2;color:#50575e;border-radius:999px;font-size:11px;padding:1px 8px}
 .m24fzv-tab:hover{color:var(--ink)}
 .m24fzv-tab.on{color:var(--ink);border-bottom-color:var(--brass)}
 .m24fzv-tab.on .cnt{background:var(--brass);color:#fff}
 /* Toolbar */
-.m24fzv-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-.m24fzv-toolbar input[type=search]{min-width:260px;border-radius:8px;border:1px solid #d9d9d6;padding:8px 12px}
-.m24fzv-toolbar select{border-radius:8px;border:1px solid #d9d9d6;padding:7px 10px;background:#fff}
-.m24fzv-toolbar .button{border-radius:8px}
-/* Karten-Tabelle */
-.m24fzv-table{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0}
-.m24fzv-table thead th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7077}
-.m24fzv-table td{vertical-align:middle}
+.m24fzv-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 18px}
+.m24fzv-toolbar input[type=search]{min-width:260px;height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:8px 14px}
+.m24fzv-toolbar select{height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:7px 12px;background:#fff}
+.m24fzv-toolbar .button{height:40px;border-radius:8px}
+/* Karten-Tabelle — luftiger */
+.m24fzv-table{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0;margin-top:6px}
+.m24fzv-table thead th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7077;padding:12px 14px}
+.m24fzv-table tbody td{padding:16px 14px;vertical-align:middle}
 .m24fzv-veh{display:flex;gap:12px;align-items:center}
 .m24fzv-veh .thumb img,.m24fzv-veh .thumb .ph{width:64px;height:43px;object-fit:cover;border-radius:6px;display:flex;align-items:center;justify-content:center}
 .m24fzv-veh .thumb .ph{background:#1e2228;color:#cfae7e;font-size:11px;font-weight:700;text-align:center;line-height:1.1;padding:2px}

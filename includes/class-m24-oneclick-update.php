@@ -17,10 +17,13 @@ class M24_OneClick_Update {
 	const CAP    = 'manage_options';
 
 	public static function init() {
-		add_action( 'wp_ajax_' . self::ACTION, array( __CLASS__, 'ajax' ) );
+		add_action( 'wp_ajax_' . self::ACTION, array( __CLASS__, 'ajax' ) );          // Settings-Button (AJAX)
+		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_post' ) ); // Admin-Bar (echter Ein-Klick)
 		add_action( 'm24_settings_top', array( __CLASS__, 'render_button' ) );
 		add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar' ), 90 );
+		add_action( 'admin_bar_menu', array( __CLASS__, 'declutter_bar' ), 999 );      // Fremd-Knoten entfernen
 		add_action( 'admin_footer', array( __CLASS__, 'inline_js' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
 	}
 
 	/* ── UI ──────────────────────────────────────────────────────────────────── */
@@ -53,9 +56,16 @@ class M24_OneClick_Update {
 		$bar->add_node( array(
 			'id'    => 'm24-oneclick-update',
 			'title' => '🔄 M24 aktualisieren',
-			'href'  => admin_url( 'admin.php?page=m24-plattform' ),
-			'meta'  => array( 'title' => 'M24-Plugin aktualisieren & Cache leeren' ),
+			'href'  => wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION ), self::NONCE ),
+			'meta'  => array( 'title' => 'M24-Plugin aktualisieren · OPcache + WP-Rocket leeren (Ein-Klick)' ),
 		) );
+	}
+
+	/** Fremd-Knoten aus der Admin-Bar entfernen (nur Anzeige; Plugins unberührt). WP Rocket + M24 bleiben. */
+	public static function declutter_bar( $bar ) {
+		foreach ( array( 'wpcode-admin-bar-info', 'our_support_item', 'mtnc', 'updraft_admin_node' ) as $id ) {
+			$bar->remove_node( $id );
+		}
 	}
 
 	public static function inline_js() {
@@ -88,6 +98,35 @@ class M24_OneClick_Update {
 	public static function ajax() {
 		if ( ! current_user_can( self::CAP ) ) { wp_send_json_error( array( 'message' => 'Keine Berechtigung.' ) ); }
 		check_ajax_referer( self::NONCE, '_nonce' );
+		wp_send_json_success( self::run() );
+	}
+
+	/** Admin-Bar-Variante: gleiche Routine, dann Redirect + Transient-Notice. */
+	public static function handle_post() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Keine Berechtigung.' ); }
+		check_admin_referer( self::NONCE );
+		$r   = self::run();
+		set_transient( 'm24ocu_notice_' . get_current_user_id(), $r, 60 );
+		$back = wp_get_referer();
+		wp_safe_redirect( $back ? $back : admin_url( 'admin.php?page=m24-plattform' ) );
+		exit;
+	}
+
+	/** Transient-Notice nach dem Admin-Bar-Klick. */
+	public static function admin_notice() {
+		if ( ! current_user_can( self::CAP ) ) { return; }
+		$k = 'm24ocu_notice_' . get_current_user_id();
+		$r = get_transient( $k );
+		if ( ! $r ) { return; }
+		delete_transient( $k );
+		$txt = $r['headline'] . ' · OPcache: ' . $r['opcache'] . ' · WP-Rocket: ' . $r['wprocket'];
+		printf( '<div class="notice notice-success is-dismissible"><p><strong>M24-Update:</strong> %s%s</p></div>',
+			esc_html( $txt ), ! empty( $r['fpm_hint'] ) ? '<br><em>' . esc_html( $r['fpm_hint'] ) . '</em>' : '' );
+	}
+
+	/* ── Kern-Routine (von AJAX- und Admin-Bar-Pfad geteilt) ─────────────────── */
+
+	public static function run() {
 		@set_time_limit( 180 ); // phpcs:ignore
 
 		$basename = plugin_basename( M24_PLATTFORM_FILE );
@@ -152,9 +191,9 @@ class M24_OneClick_Update {
 		if ( 'geleert' === $opc ) { $fpm = 'PHP-Cache geleert — kein FPM-Neustart nötig.'; }
 		elseif ( 'n/a' !== $opc ) { $fpm = 'PHP-Cache konnte nicht in-process geleert werden → bei reinen PHP-Änderungen einmal FPM 8.2 neu starten. JS/CSS/Assets sind abgedeckt.'; }
 
-		wp_send_json_success( array(
+		return array(
 			'headline' => $headline, 'alt' => $alt, 'neu' => $neu,
 			'installed' => $installed, 'opcache' => $opc, 'wprocket' => $wpr, 'fpm_hint' => $fpm,
-		) );
+		);
 	}
 }
