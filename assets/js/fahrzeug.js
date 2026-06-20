@@ -113,11 +113,40 @@
 		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
 	}
 
-	// Hero-Galerie-Button → erste Kachel der aktiven Kategorie anklicken (öffnet Jetpack-Carousel).
+	// Hero-Galerie-Button → smooth-Scroll zur Galerie-Sektion (KEINE Lightbox).
 	document.querySelectorAll('.m24fz-gal-launch').forEach(function (b) {
-		b.addEventListener('click', function () {
-			var g = document.querySelector('.m24fz-galcat[data-catwrap]:not([hidden])'); if (!g) { return; }
-			var img = g.querySelector('.tiled-gallery__item img, .tiled-gallery-item img'); if (img) { img.click(); }
+		b.addEventListener('click', function (e) {
+			e.preventDefault();
+			var sec = document.getElementById('galerie'); if (!sec) { return; }
+			sec.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 		});
 	});
+
+	// Galerie-Bilder im Hintergrund vorladen (versteckte Vollgalerie sofort da beim Ausklappen).
+	// Nicht den initialen Load blockieren: erst nach 'load', dann via Idle, gedrosselt (5 parallel).
+	function preloadGalleries() {
+		var imgs = [].slice.call(document.querySelectorAll('.m24fz-galcat img'));
+		var urls = [];
+		imgs.forEach(function (img) {
+			var u = img.getAttribute('data-lazy-src') || img.getAttribute('data-src') || img.getAttribute('src') || '';
+			if (u && u.indexOf('data:') !== 0) { urls.push(u); }
+		});
+		urls = urls.filter(function (u, i) { return urls.indexOf(u) === i; }); // dedupe
+		var i = 0, active = 0, MAX = 5;
+		function pump() {
+			while (active < MAX && i < urls.length) {
+				var u = urls[i++]; active++;
+				var im = new Image();
+				im.onload = im.onerror = function () { active--; pump(); };
+				im.src = u;
+			}
+		}
+		pump();
+	}
+	function schedulePreload() {
+		if ('requestIdleCallback' in window) { window.requestIdleCallback(preloadGalleries, { timeout: 3000 }); }
+		else { setTimeout(preloadGalleries, 1200); }
+	}
+	if (document.readyState === 'complete') { schedulePreload(); }
+	else { window.addEventListener('load', schedulePreload); }
 })();

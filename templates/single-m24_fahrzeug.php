@@ -98,7 +98,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<!-- 6. Mediagalerie — Jetpack-Tiled-Mosaik je Kategorie (9 + +X + Fly-out obendrauf) + Video separat -->
 		<?php if ( $gals || $vids ) : ?>
 		<?php $first = $gals ? array_key_first( $gals ) : 'video'; ?>
-		<section class="m24fz-card m24fz-media">
+		<section class="m24fz-card m24fz-media" id="galerie">
 			<div class="m24fz-chips">
 				<?php foreach ( $gals as $k => $g ) : ?>
 					<button type="button" class="m24fz-chip<?php echo $k === $first ? ' on' : ''; ?>" data-cat="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $g['label'] ); ?> <span class="n"><?php echo count( $g['ids'] ); ?></span></button>
