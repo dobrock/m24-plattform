@@ -31,6 +31,35 @@
 		});
 	}
 
+	// ── Justified-Mosaik-Layout (Zeilenhöhe konstant, Breite ∝ Seitenverhältnis, Reihe füllt voll) ──
+	var GAP = 8, ROW_H = 230, ROW_MAX = ROW_H * 1.5;
+	function layout(mosaic) {
+		if (!mosaic || mosaic.hidden) { return; }
+		var cw = mosaic.clientWidth; if (!cw) { return; }
+		mosaic.classList.add('m24fz-jslayout');
+		var tiles = [].slice.call(mosaic.querySelectorAll('.m24fz-mitem')).filter(function (t) { return !t.hidden; });
+		var row = [], sumR = 0;
+		function flush(isLast) {
+			if (!row.length) { return; }
+			var avail = cw - GAP * (row.length - 1);
+			var h = isLast ? ROW_H : avail / sumR;
+			if (h > ROW_MAX) { h = ROW_MAX; }
+			row.forEach(function (t) {
+				var r = parseFloat(t.getAttribute('data-ratio')) || 1.5;
+				t.style.width = Math.floor(r * h) + 'px';
+				t.style.height = Math.round(h) + 'px';
+			});
+			row = []; sumR = 0;
+		}
+		tiles.forEach(function (t) {
+			var r = parseFloat(t.getAttribute('data-ratio')) || 1.5;
+			row.push(t); sumR += r;
+			if (sumR * ROW_H + GAP * (row.length - 1) >= cw) { flush(false); }
+		});
+		flush(true);
+	}
+	function layoutVisible() { document.querySelectorAll('.m24fz-mosaic[data-catwrap]:not([hidden])').forEach(layout); }
+
 	// Mediagalerie-Chips (Kategorie-Wrapper umschalten — Mosaik je Kategorie, Video eigener Tab).
 	var chips = document.querySelectorAll('.m24fz-chip'), wraps = document.querySelectorAll('[data-catwrap]');
 	chips.forEach(function (c) {
@@ -39,8 +68,14 @@
 			c.classList.add('on');
 			var cat = c.getAttribute('data-cat');
 			wraps.forEach(function (w) { w.hidden = w.getAttribute('data-catwrap') !== cat; });
+			layoutVisible(); // sichtbar gewordene Galerie justieren (im versteckten Tab war clientWidth=0)
 		});
 	});
+
+	// Erstes Layout + bei Resize (debounced).
+	layoutVisible();
+	window.addEventListener('load', layoutVisible);
+	var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(layoutVisible, 120); });
 
 	var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -56,12 +91,14 @@
 		var ov = mosaic.querySelector('.m24fz-more-ov'); if (ov) { ov.style.display = 'none'; }
 		var less = mosaic.querySelector('.m24fz-gal-less'); if (less) { less.hidden = false; }
 		mosaic.classList.add('expanded');
+		layout(mosaic); // neue Kacheln ins justierte Mosaik einrechnen
 	}
 	function collapse(mosaic) {
 		mosaic.querySelectorAll('.m24fz-extra').forEach(function (a) { a.hidden = true; a.classList.remove('m24fz-flyin'); a.style.animationDelay = ''; });
 		var ov = mosaic.querySelector('.m24fz-more-ov'); if (ov) { ov.style.display = ''; }
 		var less = mosaic.querySelector('.m24fz-gal-less'); if (less) { less.hidden = true; }
 		mosaic.classList.remove('expanded');
+		layout(mosaic);
 		mosaic.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
 	}
 	document.addEventListener('click', function (e) {

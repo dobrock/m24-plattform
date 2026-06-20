@@ -83,11 +83,15 @@
 .m24fz-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .m24fz-chip .n{display:inline-block;background:rgba(0,0,0,.08);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
 .m24fz-chip.on .n{background:rgba(255,255,255,.22)}
-/* Justiertes Mosaik: Querformat 3:2, Hochformat 2:3, keine Quadrate. „9 + +X + Fly-out". */
-.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px}
-.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;flex-grow:1;border-radius:8px;overflow:hidden;background:#ededea;display:block}
-.m24fz-mosaic .m24fz-land{flex-basis:345px} /* 3:2 × 230 */
-.m24fz-mosaic .m24fz-port{flex-basis:153px} /* 2:3 × 230 */
+/* Echtes justiertes Mosaik (JS rechnet Zeilenhöhe/Breite ∝ Seitenverhältnis, Reihe füllt volle
+   Breite). Kein flex-grow → keine gleich großen Kacheln. „9 + +X + Fly-out" liegt obendrauf. */
+.m24fz-mosaic{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.m24fz-mosaic .m24fz-mitem{position:relative;height:230px;border-radius:8px;overflow:hidden;background:#ededea;display:block}
+/* Fallback OHNE JS: Orientierung über flex-basis (grow proportional zur Breite, nicht uniform) */
+.m24fz-mosaic .m24fz-land{flex:3 1 345px} /* 3:2 × 230 */
+.m24fz-mosaic .m24fz-port{flex:2 1 153px} /* 2:3 × 230 */
+/* MIT JS: exakte inline-Breiten/-Höhen, kein Wachsen */
+.m24fz-mosaic.m24fz-jslayout .m24fz-mitem{flex:0 0 auto}
 .m24fz-mosaic .m24fz-mitem[hidden]{display:none}
 .m24fz-mosaic .m24fz-mitem img{width:100%;height:100%;object-fit:cover;display:block}
 /* +X-Overlay auf der 9. Kachel (form-unabhängig) */

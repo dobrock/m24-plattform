@@ -77,11 +77,14 @@ class M24FZ_Template {
 			if ( ! $src ) { continue; }
 			$full   = $src[0];
 			$thumb  = wp_get_attachment_image_url( $aid, 'medium_large' ) ?: $full;
-			$orient = ( (int) $src[1] >= (int) $src[2] ) ? 'land' : 'port';
+			$w      = max( 1, (int) $src[1] );
+			$h      = max( 1, (int) $src[2] );
+			$ratio  = round( $w / $h, 4 );                 // echtes Seitenverhältnis fürs Justified-Layout
+			$orient = ( $w >= $h ) ? 'land' : 'port';
 			$is9th  = ( $i === ( $initial - 1 ) && $rest > 0 );
 			$extra  = ( $i >= $initial );
 			$cls    = 'm24fz-mitem m24fz-' . $orient . ( $extra ? ' m24fz-extra' : '' );
-			$attr   = 'class="' . esc_attr( $cls ) . '" href="' . esc_url( $full ) . '" data-cat="' . esc_attr( $cat ) . '"' . ( $extra ? ' hidden' : '' );
+			$attr   = 'class="' . esc_attr( $cls ) . '" href="' . esc_url( $full ) . '" data-cat="' . esc_attr( $cat ) . '" data-ratio="' . esc_attr( $ratio ) . '"' . ( $extra ? ' hidden' : '' );
 			$out   .= '<a ' . $attr . '>';
 			if ( $extra ) {
 				// 10+ : kein src → erst beim Aufklappen aus data-src laden (Performance).
