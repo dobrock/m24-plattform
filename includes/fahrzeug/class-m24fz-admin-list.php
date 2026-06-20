@@ -43,6 +43,7 @@ class M24FZ_Admin_List {
 		if ( '' === self::$hook || $hook !== self::$hook ) { return; }
 		wp_enqueue_script( 'jquery' );
 		wp_add_inline_script( 'jquery', self::js() );
+		wp_enqueue_style( 'm24fzv-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
 		wp_register_style( 'm24fzv', false ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
 		wp_enqueue_style( 'm24fzv' );
 		wp_add_inline_style( 'm24fzv', self::css() );
@@ -128,11 +129,18 @@ class M24FZ_Admin_List {
 		$base   = admin_url( 'admin.php?page=' . self::PAGE );
 		?>
 		<div class="wrap m24fzv">
-			<h1>Inserat-Verwaltung <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT ) ); ?>" class="page-title-action">＋ Neues Fahrzeug</a></h1>
+			<nav class="m24fzv-bc">MOTORSPORT24 <span>›</span> Inserat-Verwaltung</nav>
+			<div class="m24fzv-head">
+				<div class="m24fzv-head-l">
+					<h1>Inserat-Verwaltung <span class="m24fzv-pill"><?php echo (int) $counts['alle']; ?> Inserate</span></h1>
+					<p class="m24fzv-sub">Bestand verwalten, Status setzen, Statistiken einsehen — alles an einer Stelle.</p>
+				</div>
+				<a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT ) ); ?>" class="m24fzv-newbtn">＋ Neues Fahrzeug</a>
+			</div>
 
-			<ul class="subsubsub m24fzv-tabs"><?php $i = 0; foreach ( $labels as $k => $l ) : $i++; ?>
-				<li><a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" class="<?php echo $filter === $k ? 'current' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="count">(<?php echo (int) $counts[ $k ]; ?>)</span></a><?php echo $i < count( $labels ) ? ' |' : ''; ?></li>
-			<?php endforeach; ?></ul>
+			<div class="m24fzv-tabs"><?php foreach ( $labels as $k => $l ) : ?>
+				<a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" class="m24fzv-tab<?php echo $filter === $k ? ' on' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="cnt"><?php echo (int) $counts[ $k ]; ?></span></a>
+			<?php endforeach; ?></div>
 
 			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="m24fzv-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
@@ -171,7 +179,7 @@ class M24FZ_Admin_List {
 		?>
 		<tr data-id="<?php echo (int) $id; ?>">
 			<td class="m24fzv-veh">
-				<span class="thumb"><?php echo has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, array( 64, 43 ) ) : '<span class="ph"></span>'; ?></span>
+				<span class="thumb"><?php echo has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, array( 64, 43 ) ) : '<span class="ph">' . esc_html( self::abbr( $id ) ) . '</span>'; ?></span>
 				<span class="meta"><?php if ( $is_trash ) : ?><span class="t"><?php echo esc_html( get_the_title( $id ) ); ?></span><?php else : ?><a class="t" href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a><?php endif; ?>
 				<span class="sub">#<?php echo (int) $id; ?> · <?php echo esc_html( get_post_field( 'post_name', $id ) ); ?></span></span>
 			</td>
@@ -204,12 +212,26 @@ class M24FZ_Admin_List {
 		<?php
 	}
 
+	/** Kürzel für den dunklen Thumbnail-Platzhalter (Baureihe → sonst Marke → sonst „—"). */
+	private static function abbr( $id ) {
+		$b = trim( (string) get_post_meta( $id, '_m24fz_baureihe', true ) );
+		if ( '' !== $b ) { return mb_substr( $b, 0, 7 ); }
+		$m = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
+		return '' !== $m ? mb_substr( $m, 0, 4 ) : '—';
+	}
+
 	private static function price_cell( $id, $paf, $preis ) {
 		$sold = M24FZ_CPT::is_sold( $id );
 		$cur  = M24FZ_Telemetry::currency_symbol( get_post_meta( $id, '_m24fz_waehrung', true ) );
-		if ( $paf ) { echo '<span class="val">Preis auf Anfrage</span>'; }
-		elseif ( $preis > 0 ) { printf( '<span class="val%s">%s&nbsp;%s</span>', $sold ? ' sold' : '', esc_html( number_format( $preis, 0, ',', '.' ) ), esc_html( $cur ) ); }
-		else { echo '<span class="val muted">—</span>'; }
+		if ( $paf ) {
+			echo '<span class="val">Preis auf Anfrage</span>';
+		} elseif ( $preis > 0 ) {
+			printf( '<span class="val%s">%s&nbsp;%s</span>', $sold ? ' sold' : '', esc_html( number_format( $preis, 0, ',', '.' ) ), esc_html( $cur ) );
+			$note = (int) get_post_meta( $id, '_m24fz_mwst_ausweisbar', true ) ? 'inkl. 19&nbsp;% MwSt.' : 'Differenzbest. §25a';
+			echo '<span class="mwst">' . $note . '</span>'; // phpcs:ignore
+		} else {
+			echo '<span class="val muted">—</span>';
+		}
 		echo '<a href="#" class="m24fzv-price-edit" data-do="preis-edit">bearbeiten</a>';
 	}
 
@@ -282,27 +304,60 @@ class M24FZ_Admin_List {
 
 	private static function css() {
 		return <<<CSS
-.m24fzv-tabs .current{font-weight:700;border-bottom:2px solid #9a6b25}
-.m24fzv-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-.m24fzv-toolbar input[type=search]{min-width:240px}
-.m24fzv-veh{display:flex;gap:10px;align-items:center}
-.m24fzv-veh .thumb img,.m24fzv-veh .thumb .ph{width:64px;height:43px;object-fit:cover;border-radius:4px;display:block;background:#eee}
-.m24fzv-veh .t{font-weight:600;text-decoration:none}
-.m24fzv-veh .sub{display:block;color:#787c82;font-size:12px}
-.m24fzv-badge{display:inline-block;padding:2px 9px;border-radius:4px;font-size:12px;font-weight:700}
+/* Scoped Cockpit-Optik (nur .m24fzv) — Saira, M24-Palette, kein globaler CI-Eingriff. */
+.m24fzv{--ink:#14161a;--blue:#1763ad;--brass:#9a6b25;--red:#9e2b2b;--line:#e6e6e3;--mut:#787c82;font-family:'Saira',-apple-system,Segoe UI,sans-serif;max-width:1240px}
+.m24fzv *{box-sizing:border-box}
+.m24fzv-bc{color:var(--mut);font-size:12px;margin:6px 0 4px}.m24fzv-bc span{margin:0 4px;color:#c4c4c0}
+.m24fzv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+.m24fzv-head h1{font-family:'Saira',sans-serif;font-size:26px;font-weight:800;margin:0;display:flex;align-items:center;gap:10px;padding:0}
+.m24fzv-pill{font-size:12px;font-weight:700;color:var(--brass);background:#f6efe3;border:1px solid #ecdcc2;border-radius:999px;padding:3px 11px}
+.m24fzv-sub{color:var(--mut);font-size:13px;margin:6px 0 0}
+.m24fzv-newbtn{align-self:center;text-decoration:none;color:#fff;font-weight:700;border-radius:8px;padding:10px 18px;background:linear-gradient(135deg,#1f74c4,#0e447e);white-space:nowrap}
+.m24fzv-newbtn:hover{color:#fff;opacity:.94}
+/* Tab-Leiste mit Count-Pills + Messing-Unterstrich */
+.m24fzv-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.m24fzv-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;text-decoration:none;color:#50575e;font-weight:600;font-size:13px;border-bottom:3px solid transparent;margin-bottom:-1px}
+.m24fzv-tab .cnt{background:#eef0f2;color:#50575e;border-radius:999px;font-size:11px;padding:1px 8px}
+.m24fzv-tab:hover{color:var(--ink)}
+.m24fzv-tab.on{color:var(--ink);border-bottom-color:var(--brass)}
+.m24fzv-tab.on .cnt{background:var(--brass);color:#fff}
+/* Toolbar */
+.m24fzv-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.m24fzv-toolbar input[type=search]{min-width:260px;border-radius:8px;border:1px solid #d9d9d6;padding:8px 12px}
+.m24fzv-toolbar select{border-radius:8px;border:1px solid #d9d9d6;padding:7px 10px;background:#fff}
+.m24fzv-toolbar .button{border-radius:8px}
+/* Karten-Tabelle */
+.m24fzv-table{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0}
+.m24fzv-table thead th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7077}
+.m24fzv-table td{vertical-align:middle}
+.m24fzv-veh{display:flex;gap:12px;align-items:center}
+.m24fzv-veh .thumb img,.m24fzv-veh .thumb .ph{width:64px;height:43px;object-fit:cover;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.m24fzv-veh .thumb .ph{background:#1e2228;color:#cfae7e;font-size:11px;font-weight:700;text-align:center;line-height:1.1;padding:2px}
+.m24fzv-veh .t{font-weight:600;text-decoration:none;color:var(--ink);font-size:14px}
+.m24fzv-veh .sub{display:block;color:var(--mut);font-size:12px;margin-top:2px}
+/* Status-Badges mit Punkt */
+.m24fzv-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.m24fzv-badge:before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.9}
 .m24fzv-badge.st-gelistet{background:#e6f4ea;color:#1a7f37}.m24fzv-badge.st-verkauft{background:#fbe6e6;color:#9e2b2b}
-.m24fzv-badge.st-reserviert{background:#fff4d6;color:#9a6b25}.m24fzv-badge.st-deaktiviert{background:#eee;color:#666}.m24fzv-badge.st-entwurf{background:#e7eaf0;color:#3a4252}.m24fzv-badge.st-papierkorb{background:#f3e0e0;color:#8a3a3a}
-.m24fzv-online{display:block;color:#787c82;font-size:12px;margin-top:3px}
-.m24fzv-price .val{font-weight:600}.m24fzv-price .val.sold{text-decoration:line-through;color:#9e2b2b}.m24fzv-price .val.muted{color:#9aa0a6}
-.m24fzv-price-edit{display:block;font-size:12px;margin-top:2px}
-.m24fzv-stats span{margin-right:8px;font-size:13px;color:#50575e;white-space:nowrap}
+.m24fzv-badge.st-reserviert{background:#f6efe3;color:#9a6b25}.m24fzv-badge.st-deaktiviert{background:#eee;color:#666}
+.m24fzv-badge.st-entwurf{background:#e7eaf0;color:#3a4252}.m24fzv-badge.st-papierkorb{background:#f3e0e0;color:#8a3a3a}
+.m24fzv-online{display:block;color:var(--mut);font-size:12px;margin-top:5px}
+/* Preis */
+.m24fzv-price .val{font-weight:700;color:var(--brass);font-size:15px}.m24fzv-price .val.sold{text-decoration:line-through;color:var(--red)}.m24fzv-price .val.muted{color:#9aa0a6}
+.m24fzv-price .mwst{display:block;color:var(--mut);font-size:11px;margin-top:1px}
+.m24fzv-price-edit{display:inline-block;font-size:12px;margin-top:4px;color:var(--blue);text-decoration:none}
+.m24fzv-pin{border-radius:6px;border:1px solid #d9d9d6;padding:5px 8px}
+/* Statistik */
+.m24fzv-stats span{margin-right:10px;font-size:13px;color:#50575e;white-space:nowrap}
+/* Kebab */
 .m24fzv-kebab{position:relative;display:inline-block}
-.m24fzv-kebab summary{cursor:pointer;list-style:none;color:#1763ad;font-weight:600}
+.m24fzv-kebab summary{cursor:pointer;list-style:none;color:var(--blue);font-weight:600;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .m24fzv-kebab summary::-webkit-details-marker{display:none}
-.m24fzv-kebab .menu{position:absolute;right:0;z-index:10;background:#fff;border:1px solid #dcdcde;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.14);min-width:210px;padding:6px}
-.m24fzv-kebab .menu a{display:block;padding:7px 10px;text-decoration:none;color:#1d2327;border-radius:5px}
+.m24fzv-kebab[open] summary{background:#f6f7f8}
+.m24fzv-kebab .menu{position:absolute;right:0;z-index:20;background:#fff;border:1px solid #dcdcde;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.16);min-width:220px;padding:6px;margin-top:4px}
+.m24fzv-kebab .menu a{display:block;padding:8px 11px;text-decoration:none;color:#1d2327;border-radius:6px;font-size:13px}
 .m24fzv-kebab .menu a:hover{background:#f0f0f1}
-.m24fzv-kebab .menu a.danger{color:#9e2b2b}
+.m24fzv-kebab .menu a.danger{color:var(--red)}
 .m24fzv-kebab .menu hr{margin:5px 0;border:0;border-top:1px solid #ececec}
 CSS;
 	}
