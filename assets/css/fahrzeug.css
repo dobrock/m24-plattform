@@ -129,6 +129,25 @@
 .m24fz-offmarket{background:var(--dark);color:#fff}.m24fz-offmarket h2,.m24fz-offmarket p{color:#fff}
 .m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
 
+/* Preisbox-Zustände (reserviert/verkauft → Interessentenliste) */
+.m24fz-statebadge{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:6px;margin-bottom:8px}
+.m24fz-statebadge.reserviert{background:#f6efe3;color:#9a6b25}.m24fz-statebadge.verkauft{background:#fbe6e6;color:#9e2b2b}
+.m24fz-iltext{color:#3a3f47;font-size:14px;line-height:1.6;margin:0 0 12px}
+
+/* „Jetzt anfragen"-Modal */
+.m24fz-anfrage-modal{position:fixed;inset:0;z-index:100000;background:rgba(10,12,16,.6);display:flex;align-items:center;justify-content:center;padding:18px}
+.m24fz-anfrage-box{position:relative;background:#fff;border-radius:12px;max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:26px 26px 22px;font-family:'Saira',sans-serif}
+.m24fz-anfrage-close{position:absolute;top:10px;right:14px;background:none;border:0;font-size:26px;line-height:1;cursor:pointer;color:#6b7077}
+.m24fz-anfrage-box h3{font-size:20px;font-weight:800;margin:0 0 2px}
+.m24fz-anfrage-veh{color:var(--mut);font-size:14px;margin:0 0 16px}
+.m24fz-anfrage-form{display:flex;flex-direction:column;gap:10px}
+.m24fz-anf-seg{display:flex;gap:16px;font-size:14px}
+.m24fz-anfrage-form input,.m24fz-anfrage-form select,.m24fz-anfrage-form textarea{font:inherit;font-size:15px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px;width:100%}
+.m24fz-anf-check{display:flex;gap:8px;font-size:13px;color:#3a3f47;align-items:flex-start}
+.m24fz-anf-check input{width:auto}
+.m24fz-anf-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.m24fz-anf-msg{font-size:13px;color:var(--brass);min-height:1em;margin:2px 0 0}
+
 /* Badges */
 .m24fz-badge{background:var(--red);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;letter-spacing:.04em}
 .m24fz-badge.sm{position:absolute;top:8px;left:8px;font-size:11px;padding:3px 8px}

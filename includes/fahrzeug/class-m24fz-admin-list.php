@@ -317,7 +317,7 @@ class M24FZ_Admin_List {
 	private static function css() {
 		return <<<CSS
 /* Scoped Cockpit-Optik (nur .m24fzv) — Saira, M24-Palette, kein globaler CI-Eingriff. */
-.m24fzv{--ink:#14161a;--blue:#1763ad;--brass:#9a6b25;--red:#9e2b2b;--line:#e6e6e3;--mut:#787c82;font-family:'Saira',-apple-system,Segoe UI,sans-serif;max-width:1240px}
+.m24fzv{--ink:#14161a;--blue:#1763ad;--brass:#9a6b25;--red:#9e2b2b;--line:#e6e6e3;--mut:#787c82;font-family:'Saira',-apple-system,Segoe UI,sans-serif;max-width:none;width:100%}
 .m24fzv *{box-sizing:border-box}
 .m24fzv-bc{color:var(--mut);font-size:12px;margin:6px 0 4px}.m24fzv-bc span{margin:0 4px;color:#c4c4c0}
 .m24fzv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px}

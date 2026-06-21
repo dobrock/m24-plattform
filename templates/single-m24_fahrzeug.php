@@ -67,13 +67,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			</div>
 			<aside class="m24fz-side">
 				<div class="m24fz-card m24fz-pricebox">
-					<?php echo M24FZ_Template::preis_html( $id ); // phpcs:ignore ?>
-					<button class="m24fz-btn" data-m24fz-track="anfrage" type="button">Jetzt anfragen</button>
-					<button class="m24fz-btn ghost" data-m24fz-track="merken" type="button">Auf den Merkzettel</button>
-					<div class="m24fz-seller">
-						<strong>MOTORSPORT24 GmbH</strong>
-						<span>Internationaler Verkauf von Fahrzeugen seit 2006</span>
-					</div>
+					<?php echo M24FZ_Template::pricebox_html( $id ); // phpcs:ignore ?>
 				</div>
 			</aside>
 		</section>
@@ -181,5 +175,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 
 	<?php // Lightbox-Container (JS füllt) ?>
 	<div class="m24fz-lb" hidden><button class="m24fz-lb-close" type="button">&times;</button><img src="" alt=""><div class="m24fz-lb-frame"></div><button class="m24fz-lb-prev" type="button">‹</button><button class="m24fz-lb-next" type="button">›</button></div>
+
+	<?php M24FZ_Anfrage::modal_html( $id ); // „Jetzt anfragen"-Modal ?>
 </div>
 <?php get_footer();

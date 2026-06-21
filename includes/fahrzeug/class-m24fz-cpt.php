@@ -33,6 +33,39 @@ class M24FZ_CPT {
 		add_action( 'added_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
 		add_action( 'updated_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
 		add_action( 'deleted_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
+		// Rubrik-WP-Kategorie (racecars/classic-for-sale) nach _m24fz_kat synchron halten + Backfill.
+		add_action( 'save_post_' . self::PT, array( __CLASS__, 'sync_rubrik_category' ), 20 );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_rubrik' ) );
+	}
+
+	/** _m24fz_kat → WP-Kategorie-Slug (filterbar). No-op, wenn der Term nicht existiert (kein Risiko). */
+	public static function rubrik_map() {
+		return apply_filters( 'm24fz_rubrik_categories', array(
+			'race-cars'    => 'race-cars-for-sale',
+			'classic-cars' => 'classic-cars-for-sale',
+		) );
+	}
+
+	/** Fahrzeug der passenden Rubrik-Kategorie zuordnen (damit Rubrik-Seiten/Blöcke die CPT ziehen). */
+	public static function sync_rubrik_category( $post_id ) {
+		if ( self::$busy || self::PT !== get_post_type( $post_id ) ) { return; }
+		$map = self::rubrik_map();
+		$kat = (string) get_post_meta( $post_id, '_m24fz_kat', true );
+		$all = array();
+		foreach ( $map as $s ) { $t = get_term_by( 'slug', $s, 'category' ); if ( $t ) { $all[] = (int) $t->term_id; } }
+		if ( $all ) { wp_remove_object_terms( $post_id, $all, 'category' ); } // alte Rubrik(en) entfernen
+		if ( isset( $map[ $kat ] ) ) {
+			$t = get_term_by( 'slug', $map[ $kat ], 'category' );
+			if ( $t && ! is_wp_error( $t ) ) { wp_set_object_terms( $post_id, array( (int) $t->term_id ), 'category', true ); }
+		}
+	}
+
+	/** Einmaliger Backfill der Rubrik-Kategorie für bestehende Fahrzeuge. */
+	public static function maybe_backfill_rubrik() {
+		if ( get_option( 'm24fz_rubrik_backfill_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		$ids = get_posts( array( 'post_type' => self::PT, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
+		foreach ( $ids as $pid ) { self::sync_rubrik_category( $pid ); }
+		update_option( 'm24fz_rubrik_backfill_v1', 1 );
 	}
 
 	/** Slider-Taxonomie + Term-Slug (filterbar). Standard: WP-Kategorie „startseite-slider". */

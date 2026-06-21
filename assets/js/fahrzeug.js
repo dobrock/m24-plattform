@@ -127,6 +127,41 @@
 		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
 	}
 
+	// „Jetzt anfragen" / „Auf die Interessentenliste" → Modal + REST-Submit.
+	var am = document.querySelector('.m24fz-anfrage-modal');
+	if (am) {
+		var form = am.querySelector('.m24fz-anfrage-form'), amsg = am.querySelector('.m24fz-anf-msg');
+		function amOpen(asList) {
+			var ck = am.querySelector('input[name=interessent]'); if (ck) { ck.checked = !!asList; }
+			am.hidden = false; am.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+			var f = am.querySelector('input[name=name]'); if (f) { f.focus(); }
+		}
+		function amClose() { am.hidden = true; am.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+		document.addEventListener('click', function (e) {
+			if (e.target.closest('.m24fz-anfrage-open')) { e.preventDefault(); amOpen(false); return; }
+			if (e.target.closest('.m24fz-il-open')) { e.preventDefault(); amOpen(true); return; }
+			if (e.target.closest('.m24fz-anfrage-close') || e.target === am) { amClose(); }
+		});
+		document.addEventListener('keydown', function (e) { if (!am.hidden && e.key === 'Escape') { amClose(); } });
+		if (form) {
+			form.addEventListener('submit', function (e) {
+				e.preventDefault();
+				if (!cfg.anfrage || !cfg.nonce) { return; }
+				var fd = new FormData(form); fd.append('post_id', form.getAttribute('data-pid'));
+				var btn = form.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
+				if (amsg) { amsg.textContent = 'Wird gesendet …'; }
+				fetch(cfg.anfrage, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce }, body: fd })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						if (amsg) { amsg.textContent = (d && d.message) ? d.message : 'Danke!'; }
+						if (d && d.ok) { form.reset(); setTimeout(amClose, 1600); }
+						if (btn) { btn.disabled = false; }
+					})
+					.catch(function () { if (amsg) { amsg.textContent = 'Senden fehlgeschlagen. Bitte später erneut.'; } if (btn) { btn.disabled = false; } });
+			});
+		}
+	}
+
 	// (Hero-„Galerie"-Scroll ist oben als Document-Delegation gebunden — robust ggü. Timing/Fehlern.)
 
 	// Galerie-Bilder im Hintergrund vorladen (versteckte Vollgalerie sofort da beim Ausklappen).

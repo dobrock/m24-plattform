@@ -31,7 +31,7 @@ class M24FZ_Template {
 		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
 		wp_enqueue_style( 'm24fz', plugins_url( $css, M24_PLATTFORM_FILE ), array( 'm24fz-saira' ), $cver );
 		wp_enqueue_script( 'm24fz', plugins_url( $js, M24_PLATTFORM_FILE ), array(), $jver, true );
-		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'viewping' => rest_url( 'm24/v1/view-ping' ), 'pid' => get_queried_object_id() ) );
+		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'viewping' => rest_url( 'm24/v1/view-ping' ), 'anfrage' => rest_url( 'm24/v1/fahrzeug-anfrage' ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'pid' => get_queried_object_id() ) );
 	}
 
 	/* ── Render-Helfer (von der Template-Datei genutzt) ──────────────────────── */
@@ -102,6 +102,31 @@ class M24FZ_Template {
 		if ( preg_match( '~(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|v/))([A-Za-z0-9_-]{11})~', $url, $m ) ) { return $m[1]; }
 		if ( preg_match( '~^[A-Za-z0-9_-]{11}$~', $url ) ) { return $url; }
 		return '';
+	}
+
+	/**
+	 * Preisbox-Inhalt je Status (§4):
+	 * - verfügbar  → Preis + MwSt + „Jetzt anfragen" + „♡ Fahrzeug parken"
+	 * - reserviert → Interessentenliste-Block (Reserviert-Text) + „Auf die Interessentenliste"
+	 * - verkauft   → Interessentenliste-Block (Verkauft-Text)   + „Auf die Interessentenliste"
+	 */
+	public static function pricebox_html( $id ) {
+		$st = M24FZ_CPT::status( $id );
+		ob_start();
+		if ( in_array( $st, array( 'reserviert', 'verkauft' ), true ) ) {
+			$txt = ( 'reserviert' === $st )
+				? 'Dieses Fahrzeug ist aktuell reserviert. Tragen Sie sich ein und erfahren Sie, sobald dieses Fahrzeug nicht verkauft ist und erhalten Sie über zukünftige ähnliche Fahrzeuge als erster eine Nachricht.'
+				: 'Dieses Fahrzeug ist leider schon verkauft. Tragen Sie sich auf die Liste ein, um ähnliche Fahrzeuge in Zukunft als erster zu sehen.';
+			echo '<span class="m24fz-statebadge ' . esc_attr( $st ) . '">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
+			echo '<p class="m24fz-iltext">' . esc_html( $txt ) . '</p>';
+			echo '<button class="m24fz-btn m24fz-il-open" type="button">Auf die Interessentenliste</button>';
+		} else {
+			echo self::preis_html( $id ); // phpcs:ignore
+			echo '<button class="m24fz-btn m24fz-anfrage-open" type="button">Jetzt anfragen</button>';
+			echo '<button class="m24fz-btn ghost m24fz-park" data-m24fz-track="merken" type="button">♡ Fahrzeug parken</button>';
+		}
+		echo '<div class="m24fz-seller"><strong>MOTORSPORT24 GmbH</strong><span>Internationaler Verkauf von Fahrzeugen seit 2006</span></div>';
+		return ob_get_clean();
 	}
 
 	/** Ausgewählte Labels einer Mehrfach-Meta (Zustand/Ausstattung) — nur gültige Slugs. */
