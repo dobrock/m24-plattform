@@ -29,6 +29,38 @@ class M24FZ_CPT {
 		add_action( 'admin_init', array( __CLASS__, 'maybe_migrate_status' ) );
 		// Erstveröffentlichung einmalig festhalten (§3) — unabhängig von post_date.
 		add_action( 'transition_post_status', array( __CLASS__, 'mark_first_publish' ), 10, 3 );
+		// Featured → Slider-Term synchron halten (egal über welchen Pfad _m24_featured gesetzt wird).
+		add_action( 'added_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
+		add_action( 'updated_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
+		add_action( 'deleted_post_meta', array( __CLASS__, 'on_featured_meta' ), 10, 3 );
+	}
+
+	/** Slider-Taxonomie + Term-Slug (filterbar). Standard: WP-Kategorie „startseite-slider". */
+	public static function featured_taxonomy() { return (string) apply_filters( 'm24_featured_taxonomy', 'category' ); }
+	public static function featured_term_slug() { return (string) apply_filters( 'm24_featured_term_slug', get_option( 'm24_featured_term_slug', 'startseite-slider' ) ); }
+
+	/** Bei Änderung von _m24_featured den Slider-Term zuweisen/entfernen. */
+	public static function on_featured_meta( $meta_id, $object_id, $meta_key ) {
+		if ( '_m24_featured' !== $meta_key || self::PT !== get_post_type( $object_id ) ) { return; }
+		self::sync_featured_term( (int) $object_id );
+	}
+
+	/** Featured-Fahrzeug dem Slider-Term zuordnen (Term wird bei Bedarf angelegt), sonst entfernen. */
+	public static function sync_featured_term( $post_id ) {
+		$tax  = self::featured_taxonomy();
+		$slug = self::featured_term_slug();
+		if ( ! taxonomy_exists( $tax ) || '' === $slug ) { return; }
+		$term = get_term_by( 'slug', $slug, $tax );
+		if ( ! $term && self::is_featured( $post_id ) ) {
+			$res  = wp_insert_term( 'Startseite-Slider', $tax, array( 'slug' => $slug ) );
+			$term = is_wp_error( $res ) ? null : get_term( $res['term_id'], $tax );
+		}
+		if ( ! $term || is_wp_error( $term ) ) { return; }
+		if ( self::is_featured( $post_id ) ) {
+			wp_set_object_terms( $post_id, array( (int) $term->term_id ), $tax, true ); // anhängen, andere Terms bleiben
+		} else {
+			wp_remove_object_terms( $post_id, array( (int) $term->term_id ), $tax );    // nur den Slider-Term entfernen
+		}
 	}
 
 	public static function register() {
@@ -57,6 +89,11 @@ class M24FZ_CPT {
 			'show_in_rest'      => true,
 			'rewrite'           => array( 'slug' => 'fahrzeuge-kategorie', 'with_front' => false ),
 		) );
+
+		// Standard-Taxonomien (category/post_tag) für den CPT verfügbar machen → Featured-Fahrzeuge
+		// können den Slider-Term tragen, den der tagDiv-Block zieht.
+		register_taxonomy_for_object_type( 'category', self::PT );
+		register_taxonomy_for_object_type( 'post_tag', self::PT );
 	}
 
 	/** Pflicht-Terms einmalig anlegen (idempotent). */
