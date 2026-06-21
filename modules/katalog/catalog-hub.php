@@ -115,6 +115,7 @@ class M24_Catalog_Hub {
 			'/bmw-m3-e36'                            => '/teile/bmw-m3-e36',
 			// Doppel-Inserat: Alt-„for-sale"-Beitrag → neues Fahrzeug-Inserat (CPT m24_fahrzeug).
 			'/for-sale-bmw-m3-e30-europameister-061-148' => '/fahrzeuge/bmw-m3-e30-europameister-061-148',
+			'/for-sale-2016-porsche-991-r-im-sammlerzustand' => '/fahrzeuge/2016-porsche-991-r-609-991-im-sammlerzustand',
 			// Modelle-Zwischenstand
 			'/modelle/bmw-m3-e30'                    => '/teile/bmw-m3-e30',
 			'/modelle/bmw-m3-e36'                    => '/teile/bmw-m3-e36',

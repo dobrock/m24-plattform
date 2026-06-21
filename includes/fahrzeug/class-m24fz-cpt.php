@@ -150,6 +150,20 @@ class M24FZ_CPT {
 		update_post_meta( $post_id, '_m24fz_status', self::status( $post_id ) );
 	}
 
+	/** Featured-Fahrzeuge (Startseiten-Slider): veröffentlichte m24_fahrzeug mit _m24_featured=1. */
+	public static function featured_ids( $limit = 12 ) {
+		return get_posts( array(
+			'post_type'      => self::PT,
+			'post_status'    => 'publish',
+			'posts_per_page' => (int) $limit,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'orderby'        => 'date', 'order' => 'DESC',
+			'meta_query'     => array( array( 'key' => '_m24_featured', 'value' => '1' ) ),
+		) );
+	}
+	public static function is_featured( $post_id ) { return '1' === (string) get_post_meta( (int) $post_id, '_m24_featured', true ); }
+
 	/* ── §3: „Online seit" (unveränderlich, von post_date entkoppelt) ─────────── */
 
 	/** Erstveröffentlichung einmalig festhalten (erster Übergang nach publish). */

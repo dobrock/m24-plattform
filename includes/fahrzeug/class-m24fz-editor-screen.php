@@ -415,6 +415,10 @@ class M24FZ_Editor_Screen {
 							?>
 						</div>
 
+						<div class="fz-f"><label>Sichtbarkeit</label>
+							<div class="fz-row fz-toggles"><?php self::toggle( $id, '_m24_featured', 'Auf Startseite (Slider)' ); ?></div>
+						</div>
+
 						<div class="fz-f"><label>Status</label></div>
 						<div class="fz-row fz-toggles fz-status">
 							<label class="fz-toggle"><input type="checkbox" name="m24fz_verkauft" <?php checked( 'verkauft', $status ); ?>><span></span> Verkauft</label>

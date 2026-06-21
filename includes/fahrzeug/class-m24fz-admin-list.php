@@ -185,8 +185,12 @@ class M24FZ_Admin_List {
 			</td>
 			<td class="m24fzv-statuscell"><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( $is_trash ? 'Im Papierkorb' : M24FZ_CPT::online_label( $id ) ); ?></span></td>
 			<td class="m24fzv-price"><?php self::price_cell( $id, $paf, $preis ); ?></td>
-			<td class="m24fzv-stats"><?php printf( '<span title="Aufrufe">👁 %d</span> <span title="Merkliste">♡ %d</span> <span title="Anfragen">✉ %d</span>',
-				M24FZ_Tracking::get( $id, 'view' ), M24FZ_Tracking::get( $id, 'merken' ), M24FZ_Tracking::get( $id, 'anfrage' ) ); ?></td>
+			<td class="m24fzv-stats"><div class="m24fzv-statgrid"><?php printf(
+				'<span class="stat"><b>👁 %s</b><i>Aufrufe</i></span><span class="stat"><b>♡ %s</b><i>Merkliste</i></span><span class="stat"><b>✉ %s</b><i>Anfragen</i></span>',
+				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'view' ) ) ),
+				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'merken' ) ) ),
+				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'anfrage' ) ) )
+			); ?></div></td>
 			<td class="m24fzv-actions">
 				<details class="m24fzv-kebab"><summary>⋯ Aktionen</summary><div class="menu">
 					<?php if ( $is_trash ) : ?>
@@ -198,6 +202,7 @@ class M24FZ_Admin_List {
 						<a href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>">Inserat bearbeiten</a>
 						<a href="#" data-do="preis-edit">Preis bearbeiten</a>
 						<a href="#" data-do="datum">Datum ändern</a>
+						<a href="#" data-do="featured"><?php echo M24FZ_CPT::is_featured( $id ) ? '★ Von Startseite nehmen' : '☆ Auf Startseite (Slider)'; ?></a>
 						<hr>
 						<?php if ( in_array( $st, array( 'reserviert', 'verkauft' ), true ) ) : ?><a href="#" data-do="gelistet">Wieder gelistet</a><?php endif; ?>
 						<a href="#" data-do="verkauft">Verkauft markieren</a>
@@ -250,6 +255,11 @@ class M24FZ_Admin_List {
 			case 'preis':
 				update_post_meta( $id, '_m24fz_preis', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['preis'] ?? '' ) ) );
 				wp_send_json_success( array( 'priceHtml' => self::price_html_for( $id ) ) );
+				break;
+			case 'featured':
+				$new = M24FZ_CPT::is_featured( $id ) ? '' : '1';
+				if ( '' === $new ) { delete_post_meta( $id, '_m24_featured' ); } else { update_post_meta( $id, '_m24_featured', '1' ); }
+				wp_send_json_success( array( 'featured' => ( '1' === $new ), 'label' => ( '1' === $new ) ? '★ Von Startseite nehmen' : '☆ Auf Startseite (Slider)' ) );
 				break;
 			case 'datum':
 				$raw = (string) wp_unslash( $_POST['datum'] ?? '' );
@@ -351,8 +361,11 @@ class M24FZ_Admin_List {
 .m24fzv-pin,.m24fzv-din{border-radius:6px;border:1px solid #d9d9d6;padding:5px 8px}
 .m24fzv-price-save,.m24fzv-date-save{color:#1a7f37;font-weight:800;text-decoration:none;font-size:15px}
 .m24fzv-price-cancel,.m24fzv-date-cancel{color:#9e2b2b;text-decoration:none;font-size:14px}
-/* Statistik */
-.m24fzv-stats span{margin-right:10px;font-size:13px;color:#50575e;white-space:nowrap}
+/* Statistik — Icon + fette Zahl + Label, 2-spaltiges Raster */
+.m24fzv-statgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.m24fzv-statgrid .stat{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+.m24fzv-statgrid .stat b{font-size:14px;font-weight:700;color:var(--ink)}
+.m24fzv-statgrid .stat i{font-style:normal;font-size:11px;color:var(--mut)}
 /* Kebab */
 .m24fzv-kebab{position:relative;display:inline-block}
 .m24fzv-kebab summary{cursor:pointer;list-style:none;color:var(--blue);font-weight:600;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
@@ -399,6 +412,9 @@ jQuery(function($){
 		}
 		if(doIt==='datum-save'){ var dv=tr.find('.m24fzv-din').val(); if(!dv){ return; } post(id,'datum',{datum:dv},function(d){ var sc=tr.find('.m24fzv-statuscell'); if(sc.data('orig')!==undefined){ sc.html(sc.data('orig')).removeData('orig'); } tr.find('.m24fzv-online').text(d.online); }); return; }
 		if(doIt==='datum-cancel'){ var s=tr.find('.m24fzv-statuscell'); if(s.data('orig')!==undefined){ s.html(s.data('orig')).removeData('orig'); } return; }
+
+		// ── Featured (Startseiten-Slider) ──
+		if(doIt==='featured'){ var lnk=$(this); post(id,'featured',{},function(d){ lnk.text(d.label); }); return; }
 
 		// ── Papierkorb ──
 		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
