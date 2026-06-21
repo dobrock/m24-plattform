@@ -22,6 +22,8 @@ class M24_OneClick_Update {
 		add_action( 'm24_settings_top', array( __CLASS__, 'render_button' ) );
 		add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar' ), 90 );
 		add_action( 'wp_before_admin_bar_render', array( __CLASS__, 'declutter_bar' ) ); // erst NACH allen Knoten
+		add_action( 'admin_head', array( __CLASS__, 'declutter_css' ) );                 // UpdraftPlus bulletproof ausblenden
+		add_action( 'wp_head', array( __CLASS__, 'declutter_css' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'inline_js' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
 	}
@@ -69,6 +71,12 @@ class M24_OneClick_Update {
 		foreach ( array( 'wpcode-admin-bar-info', 'our_support_item', 'mtnc', 'updraft_admin_node' ) as $id ) {
 			$wp_admin_bar->remove_node( $id );
 		}
+	}
+
+	/** UpdraftPlus (& Co.) fügen ihren Knoten z. T. später/client-seitig ein → per CSS sicher ausblenden. */
+	public static function declutter_css() {
+		if ( ! current_user_can( self::CAP ) && ! is_admin_bar_showing() ) { return; }
+		echo '<style id="m24-bar-declutter">#wp-admin-bar-updraft_admin_node,#wp-admin-bar-our_support_item,#wp-admin-bar-mtnc,#wp-admin-bar-wpcode-admin-bar-info{display:none!important}</style>';
 	}
 
 	public static function inline_js() {

@@ -139,7 +139,7 @@ class M24FZ_Admin_List {
 			</div>
 
 			<div class="m24fzv-tabs"><?php foreach ( $labels as $k => $l ) : ?>
-				<a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" class="m24fzv-tab<?php echo $filter === $k ? ' on' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="cnt"><?php echo (int) $counts[ $k ]; ?></span></a>
+				<a href="<?php echo esc_url( add_query_arg( 'st', $k, $base ) ); ?>" data-tab="<?php echo esc_attr( $k ); ?>" class="m24fzv-tab<?php echo $filter === $k ? ' on' : ''; ?>"><?php echo esc_html( $l ); ?> <span class="cnt"><?php echo (int) $counts[ $k ]; ?></span></a>
 			<?php endforeach; ?></div>
 
 			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="m24fzv-toolbar">
@@ -199,6 +199,7 @@ class M24FZ_Admin_List {
 						<a href="#" data-do="preis-edit">Preis bearbeiten</a>
 						<a href="#" data-do="datum">Datum ändern</a>
 						<hr>
+						<?php if ( in_array( $st, array( 'reserviert', 'verkauft' ), true ) ) : ?><a href="#" data-do="gelistet">Wieder gelistet</a><?php endif; ?>
 						<a href="#" data-do="verkauft">Verkauft markieren</a>
 						<a href="#" data-do="reserviert">Reserviert markieren</a>
 						<?php if ( $disabled ) : ?><a href="#" data-do="reaktivieren">Wieder aktivieren</a>
@@ -267,28 +268,29 @@ class M24FZ_Admin_List {
 				remove_filter( 'wp_insert_post_data', $force, 99 );
 				wp_send_json_success( array( 'online' => M24FZ_CPT::online_label( $id ), 'date' => get_post_field( 'post_date', $id ) ) );
 				break;
+			case 'gelistet':
 			case 'verkauft':
 			case 'reserviert':
 			case 'deaktiviert':
 				M24FZ_CPT::set_status( $id, $what );
-				wp_send_json_success( array( 'status' => $what, 'label' => $labels[ $what ], 'online' => M24FZ_CPT::online_label( $id ), 'disabled' => ( 'deaktiviert' === $what ) ) );
+				wp_send_json_success( array( 'status' => $what, 'label' => $labels[ $what ], 'online' => M24FZ_CPT::online_label( $id ), 'disabled' => ( 'deaktiviert' === $what ), 'counts' => self::counts() ) );
 				break;
 			case 'reaktivieren':
 				M24FZ_CPT::reactivate( $id );
 				$st = M24FZ_CPT::status( $id );
-				wp_send_json_success( array( 'status' => $st, 'label' => $labels[ $st ] ?? $st, 'online' => M24FZ_CPT::online_label( $id ), 'disabled' => false ) );
+				wp_send_json_success( array( 'status' => $st, 'label' => $labels[ $st ] ?? $st, 'online' => M24FZ_CPT::online_label( $id ), 'disabled' => false, 'counts' => self::counts() ) );
 				break;
 			case 'trash':
 				wp_trash_post( $id ); // Papierkorb, kein Hard-Delete (§0)
-				wp_send_json_success( array( 'trashed' => true ) );
+				wp_send_json_success( array( 'trashed' => true, 'counts' => self::counts() ) );
 				break;
 			case 'untrash':
 				wp_untrash_post( $id ); // zurück in den vorherigen Status
-				wp_send_json_success( array( 'untrashed' => true ) );
+				wp_send_json_success( array( 'untrashed' => true, 'counts' => self::counts() ) );
 				break;
 			case 'delete':
 				wp_delete_post( $id, true ); // endgültig (destruktiv, JS bestätigt)
-				wp_send_json_success( array( 'deleted' => true ) );
+				wp_send_json_success( array( 'deleted' => true, 'counts' => self::counts() ) );
 				break;
 		}
 		wp_send_json_error( array( 'message' => 'unbekannte Aktion' ) );
@@ -372,6 +374,7 @@ jQuery(function($){
 		if(r&&r.success){ cb&&cb(r.data); } else { alert((r&&r.data&&r.data.message)||'Fehler'); }
 	}); }
 	function closeKebab(tr){ tr.find('.m24fzv-kebab').removeAttr('open'); }
+	function updateCounts(c){ if(!c){ return; } for(var k in c){ $('.m24fzv-tab[data-tab="'+k+'"] .cnt').text(c[k]); } }
 
 	// Delegation auf JEDES [data-do] (auch Inline-Save/Cancel in Preis-/Status-Spalte).
 	$(document).on('click','[data-do]',function(e){
@@ -398,19 +401,23 @@ jQuery(function($){
 		if(doIt==='datum-cancel'){ var s=tr.find('.m24fzv-statuscell'); if(s.data('orig')!==undefined){ s.html(s.data('orig')).removeData('orig'); } return; }
 
 		// ── Papierkorb ──
-		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
-		if(doIt==='untrash'){ post(id,'untrash',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
-		if(doIt==='delete'){ if(!confirm('Inserat ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')){return;} post(id,'delete',{},function(){ tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='untrash'){ post(id,'untrash',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
+		if(doIt==='delete'){ if(!confirm('Inserat ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')){return;} post(id,'delete',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
 
-		// ── Statuswechsel ──
-		if(doIt==='verkauft'||doIt==='reserviert'||doIt==='deaktiviert'||doIt==='reaktivieren'){
+		// ── Statuswechsel (inkl. „Wieder gelistet") ──
+		if(doIt==='gelistet'||doIt==='verkauft'||doIt==='reserviert'||doIt==='deaktiviert'||doIt==='reaktivieren'){
 			post(id,doIt,{},function(d){
 				if(d.status){ tr.find('.m24fzv-badge').attr('class','m24fzv-badge st-'+d.status).text(d.label); }
 				if(d.online!==undefined){ tr.find('.m24fzv-online').text(d.online); }
+				updateCounts(d.counts);
 				var menu=tr.find('.m24fzv-kebab .menu');
+				// deaktivieren ↔ reaktivieren
 				menu.find('[data-do=deaktiviert],[data-do=reaktivieren]').remove();
-				var ins=d.disabled?'<a href="#" data-do="reaktivieren">Wieder aktivieren</a>':'<a href="#" data-do="deaktiviert">Inserat deaktivieren</a>';
-				menu.find('[data-do=reserviert]').after(ins);
+				menu.find('[data-do=reserviert]').after(d.disabled?'<a href="#" data-do="reaktivieren">Wieder aktivieren</a>':'<a href="#" data-do="deaktiviert">Inserat deaktivieren</a>');
+				// „Wieder gelistet" nur bei reserviert/verkauft
+				menu.find('[data-do=gelistet]').remove();
+				if(d.status==='reserviert'||d.status==='verkauft'){ menu.find('[data-do=verkauft]').before('<a href="#" data-do="gelistet">Wieder gelistet</a>'); }
 				closeKebab(tr);
 			});
 		}
