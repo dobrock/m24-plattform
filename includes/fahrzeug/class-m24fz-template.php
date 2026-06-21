@@ -11,6 +11,7 @@ class M24FZ_Template {
 		add_filter( 'template_include', array( __CLASS__, 'route' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_shortcode( 'm24_fahrzeuge_rubrik', array( __CLASS__, 'rubrik_shortcode' ) );
+		add_filter( 'the_content', array( __CLASS__, 'inject_rubrik' ), 9 );
 	}
 
 	/**
@@ -22,12 +23,35 @@ class M24FZ_Template {
 		$atts = shortcode_atts( array( 'kat' => '', 'limit' => 60 ), $atts, 'm24_fahrzeuge_rubrik' );
 		$map  = array( 'race-cars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' );
 		$kat  = isset( $map[ $atts['kat'] ] ) ? $map[ $atts['kat'] ] : $atts['kat'];
+		return self::rubrik_grid_html( $kat, (int) $atts['limit'] );
+	}
+
+	/**
+	 * Rubrik-Auto-Inject auf den tagDiv-Seiten (Slug racecars-for-sale / classic-cars-for-sale):
+	 * Grid der CPT-Fahrzeuge OBERHALB der Alt-Liste — kein Shortcode nötig. Filtert auf _m24fz_kat.
+	 */
+	public static function inject_rubrik( $content ) {
+		static $done = array();
+		if ( ! is_page() || ! is_main_query() || ! in_the_loop() ) { return $content; }
+		$pid = get_queried_object_id();
+		if ( isset( $done[ $pid ] ) ) { return $content; }
+		$slug = get_post_field( 'post_name', $pid );
+		$map  = apply_filters( 'm24fz_rubrik_pages', array( 'racecars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' ) );
+		if ( ! isset( $map[ $slug ] ) ) { return $content; }
+		$grid = self::rubrik_grid_html( $map[ $slug ] );
+		if ( '' === $grid ) { return $content; }
+		$done[ $pid ] = true;
+		return '<h2 class="m24fzr-h">Aktuelle Fahrzeuge</h2>' . $grid . $content;
+	}
+
+	/** Karten-Grid der CPT-Fahrzeuge einer _m24fz_kat (race-cars|classic-cars). Leer → ''. */
+	public static function rubrik_grid_html( $kat, $limit = 60 ) {
 		if ( ! in_array( $kat, array( 'race-cars', 'classic-cars' ), true ) ) { return ''; }
 		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
 		$ids = get_posts( array(
 			'post_type'      => M24FZ_CPT::PT,
 			'post_status'    => 'publish',
-			'posts_per_page' => (int) $atts['limit'],
+			'posts_per_page' => (int) $limit,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'orderby'        => 'date', 'order' => 'DESC',
@@ -69,7 +93,8 @@ class M24FZ_Template {
 	}
 
 	private static function rubrik_css() {
-		return ".m24fzr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;font-family:'Saira',sans-serif}"
+		return ".m24fzr-h{font-family:'Saira',sans-serif;font-size:24px;font-weight:800;margin:0 0 16px}"
+			. ".m24fzr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin:0 0 28px;font-family:'Saira',sans-serif}"
 			. ".m24fzr-card{display:flex;flex-direction:column;text-decoration:none;color:#14161a;background:#fff;border:1px solid #e6e6e3;border-radius:12px;overflow:hidden;transition:box-shadow .15s}"
 			. ".m24fzr-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.10)}"
 			. ".m24fzr-img{position:relative;aspect-ratio:3/2;background:#ededea;display:block}.m24fzr-img img{width:100%;height:100%;object-fit:cover;display:block}"

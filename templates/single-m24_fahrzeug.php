@@ -41,7 +41,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<div class="m24fz-hero-foot">
 				<nav class="m24fz-bc"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">Start</a> › <a href="<?php echo esc_url( home_url( '/fahrzeuge/' ) ); ?>">Fahrzeuge</a> › <span><?php echo esc_html( $title ); ?></span></nav>
 				<div class="m24fz-hero-titlerow">
-					<h1 class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge"><?php echo esc_html( $badge ); ?></span><?php endif; ?></h1>
+					<h1 class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge <?php echo $sold ? 'verkauft' : 'reserviert'; ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></h1>
 					<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
 				</div>
 			</div>

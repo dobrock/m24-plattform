@@ -130,28 +130,44 @@
 .m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
 
 /* Preisbox-Zustände (reserviert/verkauft → Interessentenliste) */
-.m24fz-statebadge{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:6px;margin-bottom:8px}
-.m24fz-statebadge.reserviert{background:#f6efe3;color:#9a6b25}.m24fz-statebadge.verkauft{background:#fbe6e6;color:#9e2b2b}
+.m24fz-statebadge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 13px;border-radius:999px;margin-bottom:8px}
+.m24fz-statebadge::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.m24fz-statebadge.reserviert{background:#f6efe1;color:#9a6b25}.m24fz-statebadge.verkauft{background:#f7e9e9;color:#9e2b2b}
 .m24fz-iltext{color:#3a3f47;font-size:14px;line-height:1.6;margin:0 0 12px}
 
-/* „Jetzt anfragen"-Modal */
+/* „Jetzt anfragen"-Modal — Mockup-Optik */
 .m24fz-anfrage-modal{position:fixed;inset:0;z-index:100000;background:rgba(10,12,16,.6);display:flex;align-items:center;justify-content:center;padding:18px}
-.m24fz-anfrage-box{position:relative;background:#fff;border-radius:12px;max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:26px 26px 22px;font-family:'Saira',sans-serif}
-.m24fz-anfrage-close{position:absolute;top:10px;right:14px;background:none;border:0;font-size:26px;line-height:1;cursor:pointer;color:#6b7077}
-.m24fz-anfrage-box h3{font-size:20px;font-weight:800;margin:0 0 2px}
-.m24fz-anfrage-veh{color:var(--mut);font-size:14px;margin:0 0 16px}
-.m24fz-anfrage-form{display:flex;flex-direction:column;gap:10px}
-.m24fz-anf-seg{display:flex;gap:16px;font-size:14px}
-.m24fz-anfrage-form input,.m24fz-anfrage-form select,.m24fz-anfrage-form textarea{font:inherit;font-size:15px;padding:10px 12px;border:1px solid #d9d9d6;border-radius:8px;width:100%}
-.m24fz-anf-check{display:flex;gap:8px;font-size:13px;color:#3a3f47;align-items:flex-start}
-.m24fz-anf-check input{width:auto}
-.m24fz-anf-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
-.m24fz-anf-msg{font-size:13px;color:var(--brass);min-height:1em;margin:2px 0 0}
+.m24fz-anfrage-box{position:relative;background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:92vh;overflow:auto;padding:26px 28px 24px;font-family:'Saira',sans-serif}
+.m24fz-anfrage-close{position:absolute;top:12px;right:16px;background:none;border:0;font-size:26px;line-height:1;cursor:pointer;color:#9aa0a8}
+.m24fz-anfrage-box h3{font-size:22px;font-weight:800;margin:0 0 2px}
+.m24fz-anfrage-veh{color:var(--mut);font-size:14px;margin:0 0 18px}
+.m24fz-anfrage-form{display:flex;flex-direction:column;gap:16px}
+.m24fz-anfrage-form .m24fz-f{display:flex;flex-direction:column;gap:6px}
+.m24fz-anfrage-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.m24fz-anfrage-form label{font-size:12px;font-weight:700;color:#3a3f47}
+.m24fz-anfrage-form .req{color:#9e2b2b}
+.m24fz-anfrage-form input,.m24fz-anfrage-form select,.m24fz-anfrage-form textarea{font:inherit;font-size:15px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;width:100%;background:#fff}
+.m24fz-anfrage-form input:focus,.m24fz-anfrage-form select:focus,.m24fz-anfrage-form textarea:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
+/* Privat/Gewerblich Pill-Umschalter */
+.m24fz-pillseg{display:flex;gap:4px;background:#f1f3f6;border-radius:11px;padding:4px}
+.m24fz-pillseg label{flex:1;text-align:center;cursor:pointer;margin:0}
+.m24fz-pillseg label input{position:absolute;opacity:0;width:0;height:0}
+.m24fz-pillseg label span{display:block;padding:9px 10px;border-radius:8px;font-size:14px;font-weight:600;color:#50575e}
+.m24fz-pillseg label.on span{background:#fff;color:#14161a;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.m24fz-anf-check{display:flex;gap:8px;font-size:12.5px;color:#6b7077;align-items:flex-start}
+.m24fz-anf-check input{width:auto;margin-top:2px}
+.m24fz-anf-hp{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0}
+.m24fz-anf-submit{width:100%;border-radius:11px;padding:13px;font-size:15px;background:linear-gradient(135deg,#1f74c4,#0e447e)}
+.m24fz-anf-msg{font-size:13px;color:var(--brass);min-height:1em;margin:0;text-align:center}
+@media(max-width:520px){.m24fz-anfrage-form .m24fz-frow{grid-template-columns:1fr}}
 
 /* Badges */
-.m24fz-badge{background:var(--red);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;letter-spacing:.04em}
-.m24fz-badge.sm{position:absolute;top:8px;left:8px;font-size:11px;padding:3px 8px}
-.m24fz-badge.prep{background:rgba(255,255,255,.18);align-self:flex-start;margin-bottom:8px}
+.m24fz-badge{display:inline-flex;align-items:center;gap:7px;vertical-align:middle;background:var(--red);color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;padding:5px 13px;border-radius:999px;letter-spacing:.04em}
+.m24fz-badge.reserviert{background:#f6efe1;color:#9a6b25}.m24fz-badge.verkauft{background:#f7e9e9;color:#9e2b2b}
+.m24fz-badge.reserviert::before,.m24fz-badge.verkauft::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.m24fz-badge.sm{position:absolute;top:8px;left:8px;font-size:11px;padding:3px 8px;background:#f7e9e9;color:#9e2b2b}
+.m24fz-badge.sm::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.m24fz-badge.prep{background:rgba(255,255,255,.18);color:#fff;align-self:flex-start;margin-bottom:8px}
 
 /* Lightbox */
 .m24fz-lb{position:fixed;inset:0;background:rgba(10,12,15,.94);z-index:99999;display:flex;align-items:center;justify-content:center}

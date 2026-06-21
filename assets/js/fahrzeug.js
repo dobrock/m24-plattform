@@ -143,6 +143,15 @@
 			if (e.target.closest('.m24fz-anfrage-close') || e.target === am) { amClose(); }
 		});
 		document.addEventListener('keydown', function (e) { if (!am.hidden && e.key === 'Escape') { amClose(); } });
+		// Privat/Gewerblich Pill-Umschalter: aktive Pille = .on
+		var seg = am.querySelector('.m24fz-pillseg');
+		if (seg) {
+			seg.addEventListener('change', function () {
+				[].forEach.call(seg.querySelectorAll('label'), function (l) {
+					var r = l.querySelector('input'); l.classList.toggle('on', !!(r && r.checked));
+				});
+			});
+		}
 		if (form) {
 			form.addEventListener('submit', function (e) {
 				e.preventDefault();

@@ -392,11 +392,14 @@ jQuery(function($){
 	function updateCounts(c){ if(!c){ return; } for(var k in c){ $('.m24fzv-tab[data-tab="'+k+'"] .cnt').text(c[k]); } }
 
 	// Kebab: nur eines offen; flip-up bei wenig Platz unten; Außenklick + Escape schließen.
-	$(document).on('toggle','.m24fzv-kebab',function(){
-		var d=this; if(!d.open){ $(d).removeClass('up'); return; }
-		$('.m24fzv-kebab[open]').each(function(){ if(this!==d){ this.open=false; $(this).removeClass('up'); } });
-		var menu=d.querySelector('.menu'); $(d).removeClass('up');
-		if(menu){ var sb=d.getBoundingClientRect().bottom, mh=menu.offsetHeight; if(sb+mh+12>window.innerHeight){ $(d).addClass('up'); } }
+	// WICHTIG: 'toggle' bubblет NICHT → direkt je <details> binden (keine Delegation).
+	$('.m24fzv-kebab').each(function(){
+		this.addEventListener('toggle', function(){
+			var d=this; if(!d.open){ $(d).removeClass('up'); return; }
+			$('.m24fzv-kebab[open]').each(function(){ if(this!==d){ this.open=false; $(this).removeClass('up'); } });
+			var menu=d.querySelector('.menu'); $(d).removeClass('up');
+			if(menu){ var sb=d.getBoundingClientRect().bottom, mh=menu.offsetHeight||(menu.children.length*38+16); if(sb+mh+16>window.innerHeight){ $(d).addClass('up'); } }
+		});
 	});
 	$(document).on('click',function(e){ if(!e.target.closest('.m24fzv-kebab')){ $('.m24fzv-kebab[open]').each(function(){ this.open=false; $(this).removeClass('up'); }); } });
 	$(document).on('keydown',function(e){ if(e.key==='Escape'){ $('.m24fzv-kebab[open]').each(function(){ this.open=false; $(this).removeClass('up'); }); } });

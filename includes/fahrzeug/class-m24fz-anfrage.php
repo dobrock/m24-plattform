@@ -99,18 +99,25 @@ class M24FZ_Anfrage {
 				<h3>Fahrzeug anfragen</h3>
 				<p class="m24fz-anfrage-veh"><?php echo esc_html( get_the_title( $post_id ) ); ?></p>
 				<form class="m24fz-anfrage-form" data-pid="<?php echo (int) $post_id; ?>">
-					<div class="m24fz-anf-seg">
-						<label><input type="radio" name="anrede" value="privat" checked> Privat</label>
-						<label><input type="radio" name="anrede" value="gewerblich"> Gewerblich</label>
+					<div class="m24fz-f">
+						<label>Anrede</label>
+						<div class="m24fz-pillseg" role="radiogroup">
+							<label class="on"><input type="radio" name="anrede" value="privat" checked><span>Privat</span></label>
+							<label><input type="radio" name="anrede" value="gewerblich"><span>Gewerblich</span></label>
+						</div>
 					</div>
-					<input type="text" name="name" placeholder="Name *" required>
-					<input type="email" name="email" placeholder="E-Mail *" required>
-					<select name="land"><option value="">Lieferland</option><?php foreach ( $countries as $cc => $cn ) { printf( '<option value="%s">%s</option>', esc_attr( $cn ), esc_html( $cn ) ); } ?></select>
-					<input type="tel" name="tel" placeholder="Telefon (optional)">
-					<textarea name="nachricht" rows="3" placeholder="Ihre Nachricht"></textarea>
-					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste (ähnliche Fahrzeuge zuerst erfahren)</label>
+					<div class="m24fz-frow">
+						<div class="m24fz-f"><label for="m24fzN">Name <span class="req">*</span></label><input id="m24fzN" type="text" name="name" placeholder="Ihr Name" required></div>
+						<div class="m24fz-f"><label for="m24fzE">E-Mail <span class="req">*</span></label><input id="m24fzE" type="email" name="email" placeholder="ihre@email.de" required></div>
+					</div>
+					<div class="m24fz-frow">
+						<div class="m24fz-f"><label for="m24fzL">Lieferland</label><select id="m24fzL" name="land"><option value="">Bitte wählen</option><?php foreach ( $countries as $cc => $cn ) { printf( '<option value="%s">%s</option>', esc_attr( $cn ), esc_html( $cn ) ); } ?></select></div>
+						<div class="m24fz-f"><label for="m24fzT">Telefon</label><input id="m24fzT" type="tel" name="tel" placeholder="optional"></div>
+					</div>
+					<div class="m24fz-f"><label for="m24fzM">Nachricht</label><textarea id="m24fzM" name="nachricht" rows="3" placeholder="Ihre Nachricht (optional)"></textarea></div>
+					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste — ähnliche Fahrzeuge zuerst erfahren.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-					<button type="submit" class="m24fz-btn">Anfrage senden</button>
+					<button type="submit" class="m24fz-btn m24fz-anf-submit">Anfrage senden</button>
 					<p class="m24fz-anf-msg" role="status"></p>
 				</form>
 			</div>
