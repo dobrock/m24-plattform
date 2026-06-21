@@ -338,8 +338,9 @@ class M24FZ_Admin_List {
 .m24fzv-toolbar input[type=search]{min-width:260px;height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:8px 14px}
 .m24fzv-toolbar select{height:40px;border-radius:8px;border:1px solid #d9d9d6;padding:7px 12px;background:#fff}
 .m24fzv-toolbar .button{height:40px;border-radius:8px}
-/* Karten-Tabelle — luftiger (höhere Spezifität gegen WP-Core .widefat/.wp-list-table radius:0) */
-.m24fzv table.m24fzv-table{border:1px solid var(--line);border-radius:12px!important;overflow:hidden;background:#fff;border-collapse:separate;border-spacing:0;margin-top:6px}
+/* Karten-Tabelle — luftiger. KEIN overflow:hidden (würde das Kebab-Dropdown klippen); Radius via Border. */
+.m24fzv table.m24fzv-table{border:1px solid var(--line);border-radius:12px!important;background:#fff;border-collapse:separate;border-spacing:0;margin-top:6px}
+.m24fzv table.m24fzv-table thead th:first-child{border-top-left-radius:12px}.m24fzv table.m24fzv-table thead th:last-child{border-top-right-radius:12px}
 .m24fzv-table thead th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7077;padding:12px 14px}
 .m24fzv-table tbody td{padding:16px 14px;vertical-align:middle}
 .m24fzv-veh{display:flex;gap:12px;align-items:center}
@@ -371,7 +372,8 @@ class M24FZ_Admin_List {
 .m24fzv-kebab summary{cursor:pointer;list-style:none;color:var(--blue);font-weight:600;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .m24fzv-kebab summary::-webkit-details-marker{display:none}
 .m24fzv-kebab[open] summary{background:#f6f7f8}
-.m24fzv-kebab .menu{position:absolute;right:0;z-index:20;background:#fff;border:1px solid #dcdcde;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.16);min-width:220px;padding:6px;margin-top:4px}
+.m24fzv-kebab .menu{position:absolute;right:0;top:100%;z-index:30;background:#fff;border:1px solid #dcdcde;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.16);min-width:220px;padding:6px;margin-top:4px}
+.m24fzv-kebab.up .menu{top:auto;bottom:100%;margin-top:0;margin-bottom:4px} /* flip-up bei wenig Platz unten */
 .m24fzv-kebab .menu a{display:block;padding:8px 11px;text-decoration:none;color:#1d2327;border-radius:6px;font-size:13px}
 .m24fzv-kebab .menu a:hover{background:#f0f0f1}
 .m24fzv-kebab .menu a.danger{color:var(--red)}
@@ -386,8 +388,18 @@ jQuery(function($){
 	function post(id,what,extra,cb){ $.post(ajaxurl,$.extend({action:'m24fz_action',_nonce:nonce,post_id:id,what:what},extra||{}),function(r){
 		if(r&&r.success){ cb&&cb(r.data); } else { alert((r&&r.data&&r.data.message)||'Fehler'); }
 	}); }
-	function closeKebab(tr){ tr.find('.m24fzv-kebab').removeAttr('open'); }
+	function closeKebab(tr){ tr.find('.m24fzv-kebab').removeAttr('open').removeClass('up'); }
 	function updateCounts(c){ if(!c){ return; } for(var k in c){ $('.m24fzv-tab[data-tab="'+k+'"] .cnt').text(c[k]); } }
+
+	// Kebab: nur eines offen; flip-up bei wenig Platz unten; Außenklick + Escape schließen.
+	$(document).on('toggle','.m24fzv-kebab',function(){
+		var d=this; if(!d.open){ $(d).removeClass('up'); return; }
+		$('.m24fzv-kebab[open]').each(function(){ if(this!==d){ this.open=false; $(this).removeClass('up'); } });
+		var menu=d.querySelector('.menu'); $(d).removeClass('up');
+		if(menu){ var sb=d.getBoundingClientRect().bottom, mh=menu.offsetHeight; if(sb+mh+12>window.innerHeight){ $(d).addClass('up'); } }
+	});
+	$(document).on('click',function(e){ if(!e.target.closest('.m24fzv-kebab')){ $('.m24fzv-kebab[open]').each(function(){ this.open=false; $(this).removeClass('up'); }); } });
+	$(document).on('keydown',function(e){ if(e.key==='Escape'){ $('.m24fzv-kebab[open]').each(function(){ this.open=false; $(this).removeClass('up'); }); } });
 
 	// Delegation auf JEDES [data-do] (auch Inline-Save/Cancel in Preis-/Status-Spalte).
 	$(document).on('click','[data-do]',function(e){

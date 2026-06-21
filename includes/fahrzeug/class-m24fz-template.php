@@ -10,6 +10,74 @@ class M24FZ_Template {
 	public static function init() {
 		add_filter( 'template_include', array( __CLASS__, 'route' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
+		add_shortcode( 'm24_fahrzeuge_rubrik', array( __CLASS__, 'rubrik_shortcode' ) );
+	}
+
+	/**
+	 * [m24_fahrzeuge_rubrik kat="race-cars-for-sale"] — CPT-Fahrzeuge der Rubrik als M24-Karten.
+	 * kat = Rubrik-Kategorie-Slug (race-cars-for-sale|classic-cars-for-sale) ODER direkt _m24fz_kat
+	 * (race-cars|classic-cars). Reserviert/Verkauft werden mit Badge gezeigt (nicht ausgeblendet).
+	 */
+	public static function rubrik_shortcode( $atts ) {
+		$atts = shortcode_atts( array( 'kat' => '', 'limit' => 60 ), $atts, 'm24_fahrzeuge_rubrik' );
+		$map  = array( 'race-cars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' );
+		$kat  = isset( $map[ $atts['kat'] ] ) ? $map[ $atts['kat'] ] : $atts['kat'];
+		if ( ! in_array( $kat, array( 'race-cars', 'classic-cars' ), true ) ) { return ''; }
+		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
+		$ids = get_posts( array(
+			'post_type'      => M24FZ_CPT::PT,
+			'post_status'    => 'publish',
+			'posts_per_page' => (int) $atts['limit'],
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'orderby'        => 'date', 'order' => 'DESC',
+			'meta_query'     => array( array( 'key' => '_m24fz_kat', 'value' => $kat ) ),
+		) );
+		if ( empty( $ids ) ) { return ''; }
+
+		ob_start();
+		echo '<style>' . self::rubrik_css() . '</style>';
+		echo '<div class="m24fzr-grid">';
+		foreach ( $ids as $id ) {
+			$st    = M24FZ_CPT::status( $id );
+			$badge = ( 'verkauft' === $st ) ? 'Verkauft' : ( 'reserviert' === $st ? 'Reserviert' : '' );
+			$keyf  = array_slice( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 0, 3 );
+			$thumb = has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy' ) ) : '';
+			?>
+			<a class="m24fzr-card" href="<?php echo esc_url( get_permalink( $id ) ); ?>">
+				<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $badge ) : ?><span class="m24fzr-badge <?php echo esc_attr( $st ); ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></span>
+				<span class="m24fzr-body">
+					<span class="m24fzr-title"><?php echo esc_html( get_the_title( $id ) ); ?></span>
+					<?php if ( $keyf ) : ?><ul class="m24fzr-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
+					<span class="m24fzr-price"><?php echo self::rubrik_price( $id ); // phpcs:ignore ?></span>
+				</span>
+			</a>
+			<?php
+		}
+		echo '</div>';
+		return ob_get_clean();
+	}
+
+	/** Kurzer Preis-/Status-Text für die Rubrik-Karte. */
+	private static function rubrik_price( $id ) {
+		if ( M24FZ_CPT::is_sold( $id ) ) { return '<em>Verkauft</em>'; }
+		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) { return 'Preis auf Anfrage'; }
+		$p = (int) get_post_meta( $id, '_m24fz_preis', true );
+		if ( $p <= 0 ) { return 'Preis auf Anfrage'; }
+		$cur = M24FZ_Telemetry::currency_symbol( get_post_meta( $id, '_m24fz_waehrung', true ) );
+		return esc_html( number_format( $p, 0, ',', '.' ) ) . '&nbsp;' . esc_html( $cur );
+	}
+
+	private static function rubrik_css() {
+		return ".m24fzr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;font-family:'Saira',sans-serif}"
+			. ".m24fzr-card{display:flex;flex-direction:column;text-decoration:none;color:#14161a;background:#fff;border:1px solid #e6e6e3;border-radius:12px;overflow:hidden;transition:box-shadow .15s}"
+			. ".m24fzr-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.10)}"
+			. ".m24fzr-img{position:relative;aspect-ratio:3/2;background:#ededea;display:block}.m24fzr-img img{width:100%;height:100%;object-fit:cover;display:block}"
+			. ".m24fzr-badge{position:absolute;top:10px;left:10px;color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px}.m24fzr-badge.verkauft{background:#9e2b2b}.m24fzr-badge.reserviert{background:#9a6b25}"
+			. ".m24fzr-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px}"
+			. ".m24fzr-title{font-size:16px;font-weight:700;line-height:1.25}"
+			. ".m24fzr-keyf{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}.m24fzr-keyf li{padding-left:18px;position:relative;font-size:13px;color:#3a3f47}.m24fzr-keyf li:before{content:'✓';position:absolute;left:0;color:#9a6b25;font-weight:700}"
+			. ".m24fzr-price{font-size:17px;font-weight:700;color:#9a6b25;margin-top:auto}.m24fzr-price em{color:#9e2b2b;font-style:normal}";
 	}
 
 	public static function route( $template ) {
