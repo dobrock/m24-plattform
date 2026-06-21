@@ -363,6 +363,23 @@ class M24FZ_Editor_Screen {
 								<label for="fz_post_date">Veröffentlichungsdatum <span class="fz-help">Backdating für migrierte Inserate möglich.</span></label>
 								<input type="datetime-local" id="fz_post_date" name="fz_post_date" value="<?php echo esc_attr( $pdate ); ?>">
 							</div>
+							<div class="fz-f">
+								<label for="_m24fz_reclaim_post">Ersetzt diesen Alt-Beitrag <span class="fz-help">Beim Veröffentlichen: Alt-URL 301 → dieses Inserat, Alt-Beitrag wird Entwurf.</span></label>
+								<select id="_m24fz_reclaim_post" name="_m24fz_reclaim_post">
+									<option value="0">— kein Alt-Beitrag —</option>
+									<?php
+									$reclaim_cur = (int) self::g( $id, '_m24fz_reclaim_post', 0 );
+									foreach ( self::reclaim_choices( $reclaim_cur ) as $opt ) {
+										printf(
+											'<option value="%d"%s>%s</option>',
+											(int) $opt['id'],
+											selected( $reclaim_cur, (int) $opt['id'], false ),
+											esc_html( $opt['label'] )
+										);
+									}
+									?>
+								</select>
+							</div>
 						</div>
 
 						<div class="fz-f">
@@ -483,8 +500,43 @@ class M24FZ_Editor_Screen {
 		update_post_meta( $id, '_m24fz_zustand', self::clean_slugs( $_POST['_m24fz_zustand'] ?? array(), M24FZ_Telemetry::zustand_options() ) );
 		update_post_meta( $id, '_m24fz_ausstattung', self::clean_slugs( $_POST['_m24fz_ausstattung'] ?? array(), M24FZ_Telemetry::ausstattung_options() ) );
 
+		// Reclaim: Alt-Beitrag verknüpfen; beim Veröffentlichen 301 registrieren + Alt-Beitrag → Entwurf.
+		$reclaim = (int) ( $_POST['_m24fz_reclaim_post'] ?? 0 );
+		update_post_meta( $id, '_m24fz_reclaim_post', $reclaim );
+		if ( $reclaim > 0 && 'publish' === $pstat ) { M24FZ_CPT::reclaim_old_post( $id, $reclaim ); }
+
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT . '&page=' . self::PAGE . '&post=' . $id . '&updated=1' ) );
 		exit;
+	}
+
+	/**
+	 * Auswahl für „Ersetzt diesen Alt-Beitrag": veröffentlichte Beiträge der Reclaim-Kategorien
+	 * (race/classic for-sale + sold). Der aktuell gewählte Beitrag wird (auch als Entwurf) ergänzt.
+	 */
+	private static function reclaim_choices( $include_id = 0 ) {
+		$cats = array();
+		foreach ( array( 'race-cars', 'classic-cars' ) as $k ) { $cats = array_merge( $cats, M24FZ_Template::rubrik_old_cats( $k ) ); }
+		$cats = array_values( array_unique( array_filter( $cats ) ) );
+		$ids  = $cats ? get_posts( array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => 300,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'orderby'        => 'title', 'order' => 'ASC',
+			'tax_query'      => array( array( 'taxonomy' => 'category', 'field' => 'slug', 'terms' => $cats ) ),
+		) ) : array();
+		$include_id = (int) $include_id;
+		if ( $include_id > 0 && ! in_array( $include_id, $ids, true ) && 'post' === get_post_type( $include_id ) ) {
+			array_unshift( $ids, $include_id );
+		}
+		$out = array();
+		foreach ( $ids as $pid ) {
+			$st    = get_post_status( $pid );
+			$label = get_the_title( $pid ) . ' (#' . (int) $pid . ( 'publish' === $st ? '' : ' · ' . $st ) . ')';
+			$out[] = array( 'id' => (int) $pid, 'label' => $label );
+		}
+		return $out;
 	}
 
 	/** Nur erlaubte Slugs (gegen die Optionsliste) durchlassen. */

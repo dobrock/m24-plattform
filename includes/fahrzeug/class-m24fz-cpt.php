@@ -36,6 +36,71 @@ class M24FZ_CPT {
 		// Rubrik-WP-Kategorie (racecars/classic-for-sale) nach _m24fz_kat synchron halten + Backfill.
 		add_action( 'save_post_' . self::PT, array( __CLASS__, 'sync_rubrik_category' ), 20 );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_rubrik' ) );
+		// Reclaim: Alt-Beitrag→CPT-301-Map in die Katalog-Hub-Legacy-Pfade einspeisen + Einmal-Seed.
+		add_filter( 'm24_hub_legacy_paths', array( __CLASS__, 'merge_reclaim_paths' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_reclaim_seed' ) );
+	}
+
+	/* ── Reclaim: Alt-Beitrag durch CPT-Inserat ablösen (301 + Entwurf) §Reclaim ───── */
+
+	const RECLAIM_MAP = 'm24fz_reclaim_map'; // [ alt-pfad => neuer-pfad ]
+
+	/**
+	 * Löst einen Alt-Beitrag (post) durch dieses CPT-Inserat ab: registriert 301 (Alt-URL→CPT-URL)
+	 * in der Reclaim-Map und setzt DANN den Alt-Beitrag auf Entwurf (Reihenfolge: kein 404-Fenster).
+	 * Läuft nur, wenn der Alt-Beitrag aktuell veröffentlicht ist (Pfad sauber, idempotent).
+	 */
+	public static function reclaim_old_post( $cpt_id, $old_id ) {
+		$cpt_id = (int) $cpt_id; $old_id = (int) $old_id;
+		if ( ! $cpt_id || ! $old_id || $cpt_id === $old_id ) { return; }
+		$old = get_post( $old_id );
+		if ( ! $old || 'post' !== $old->post_type || 'publish' !== $old->post_status ) { return; }
+
+		$old_path = self::path_only( get_permalink( $old_id ) );   // Pretty-URL solange noch publish
+		$new_path = self::path_only( get_permalink( $cpt_id ) );
+		if ( '' === $old_path || '' === $new_path || $old_path === $new_path ) { return; }
+
+		// Nicht doppeln: in den statischen Katalog-Hub-Legacy-Pfaden bereits vorhanden? → nur Entwurf.
+		$static = class_exists( 'M24_Catalog_Hub' ) ? (array) M24_Catalog_Hub::legacy_paths() : array();
+		if ( ! array_key_exists( $old_path, $static ) ) {
+			$map = (array) get_option( self::RECLAIM_MAP, array() );
+			if ( ! isset( $map[ $old_path ] ) || $map[ $old_path ] !== $new_path ) {
+				$map[ $old_path ] = $new_path;
+				update_option( self::RECLAIM_MAP, $map );
+			}
+		}
+		// Erst nach registriertem 301 → Alt-Beitrag auf Entwurf.
+		wp_update_post( array( 'ID' => $old_id, 'post_status' => 'draft' ) );
+	}
+
+	/** Reine Pfad-Komponente einer URL, ohne Trailing-Slash (für den Pfadvergleich im Redirect). */
+	private static function path_only( $url ) {
+		$p = (string) wp_parse_url( (string) $url, PHP_URL_PATH );
+		return ( '' === $p || '/' === $p ) ? $p : untrailingslashit( $p );
+	}
+
+	/** Reclaim-Map in die Katalog-Hub-Legacy-Pfade einspeisen (nutzt deren getesteten 301-Handler). */
+	public static function merge_reclaim_paths( $paths ) {
+		$map = (array) get_option( self::RECLAIM_MAP, array() );
+		foreach ( $map as $old => $new ) {
+			if ( is_string( $old ) && is_string( $new ) && ! isset( $paths[ $old ] ) ) { $paths[ $old ] = $new; }
+		}
+		return $paths;
+	}
+
+	/**
+	 * Einmal-Seed (§Reclaim „sofort anzuwenden"): Alt-Europameister #26472 auf Entwurf.
+	 * 301 ist bereits in M24_Catalog_Hub::legacy_paths() statisch hinterlegt — daher KEIN Map-Eintrag
+	 * (kein Doppel-301). 991 R (#27038) ist bereits erledigt. Slug-Guard schützt fremde DB-Kopien.
+	 */
+	public static function maybe_reclaim_seed() {
+		if ( get_option( 'm24fz_reclaim_seed_v1' ) || ! current_user_can( 'manage_options' ) ) { return; }
+		$oid = 26472;
+		if ( 'post' === get_post_type( $oid ) && 'publish' === get_post_status( $oid )
+			&& 'for-sale-bmw-m3-e30-europameister-061-148' === get_post_field( 'post_name', $oid ) ) {
+			wp_update_post( array( 'ID' => $oid, 'post_status' => 'draft' ) );
+		}
+		update_option( 'm24fz_reclaim_seed_v1', 1 );
 	}
 
 	/** _m24fz_kat → WP-Kategorie-Slug (filterbar). No-op, wenn der Term nicht existiert (kein Risiko). */
