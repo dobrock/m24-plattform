@@ -367,6 +367,8 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
 		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
+		.m24det .m24-mslider{display:none}
+		@media(max-width:760px){.m24det .ratio,.m24det .thumbs{display:none}.m24det .m24-mslider{display:block;position:relative;margin:0}.m24det .m24-mslider-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}.m24det .m24-mslider-track::-webkit-scrollbar{display:none}.m24det .m24-mslide{flex:0 0 100%;scroll-snap-align:center;aspect-ratio:3/2;background:#ededea;border:0;border-radius:0;overflow:hidden}.m24det .m24-mslide img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0;cursor:zoom-in}.m24det .m24-mslider-count{position:absolute;right:10px;bottom:10px;background:rgba(20,22,26,.72);color:#fff;font-family:'Saira',sans-serif;font-size:13px;font-weight:600;line-height:1;padding:5px 10px;border-radius:999px;pointer-events:none}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -416,7 +418,16 @@ class M24_Catalog_Template_Detail {
 								<?php endforeach; ?>
 							</div>
 						<?php endif; ?>
-					<?php else : ?>
+												<?php // Mobile: echter Swipe-Slider (scroll-snap), ein Bild/Ansicht, full-width — Desktop nutzt .ratio+.thumbs. ?>
+							<div class="m24-mslider">
+								<div class="m24-mslider-track">
+									<?php foreach ( $imgs as $i => $im ) : ?>
+										<div class="m24-mslide" data-i="<?php echo (int) $i; ?>"><img src="<?php echo esc_url( $im['full'] ); ?>" loading="lazy" decoding="async" alt="<?php echo esc_attr( get_the_title( $id ) . ' – Bild ' . ( (int) $i + 1 ) ); ?>"></div>
+									<?php endforeach; ?>
+								</div>
+								<?php if ( count( $imgs ) > 1 ) : ?><div class="m24-mslider-count" aria-hidden="true"><span class="cur">1</span>/<?php echo (int) count( $imgs ); ?></div><?php endif; ?>
+							</div>
+<?php else : ?>
 						<?php // Bildlos: kleiner, gecroppter Platzhalter als CSS-Background — kein <img> (nicht indexierbar),
 						// keine Lightbox/Zoom, keine Thumbnails. ?>
 						<div class="m24-noimg-box" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
@@ -744,6 +755,14 @@ class M24_Catalog_Template_Detail {
 			if(left){left.addEventListener('mouseenter',function(){hovering=true;});left.addEventListener('mouseleave',function(){hovering=false;});}
 			// Rail ist serverseitig gerendert (mit ALT) — hier nur Klicks verdrahten.
 			rail.querySelectorAll('img').forEach(function(t){t.addEventListener('click',function(){lbSet(parseInt(t.dataset.i,10));});});
+			// Mobile-Swipe-Slider: Zähler beim Wischen aktualisieren, Tap → bestehende Lightbox.
+			var mslider=root.querySelector('.m24-mslider');
+			if(mslider){var mtrack=mslider.querySelector('.m24-mslider-track'),mcur=mslider.querySelector('.m24-mslider-count .cur'),mslides=mslider.querySelectorAll('.m24-mslide');
+				if(mtrack&&mslides.length){
+					mtrack.addEventListener('scroll',function(){var w=mtrack.clientWidth||1;var si=Math.round(mtrack.scrollLeft/w);si=Math.max(0,Math.min(si,mslides.length-1));if(mcur)mcur.textContent=(si+1);},{passive:true});
+					mslides.forEach(function(sl){sl.addEventListener('click',function(){openLb(parseInt(sl.dataset.i,10)||0);});});
+				}
+			}
 			function openLb(i){lbSet(i);lb.style.display='flex';document.body.style.overflow='hidden';}
 			function closeLb(){lb.style.display='none';document.body.style.overflow='';}
 			function lbSet(i){idx=(i+imgs.length)%imgs.length;fadeSwap(lbImg,imgs[idx].full);lbImg.alt=railAlt(idx);if(mainImg)mainImg.src=imgs[idx].full;markStrip();markRail();}
