@@ -80,8 +80,8 @@ class M24FZ_Editor_Screen {
 		echo '</div>';
 	}
 
-	private static function country_field( $id, $key, $label ) {
-		echo '<div class="fz-f"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label>';
+	private static function country_field( $id, $key, $label, $cls = '' ) {
+		echo '<div class="fz-f' . ( '' !== $cls ? ' ' . esc_attr( $cls ) : '' ) . '"><label for="' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label>';
 		echo '<select id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '"><option value="">—</option>';
 		foreach ( M24FZ_Telemetry::countries() as $cc => $cn ) {
 			printf( '<option value="%s"%s>%s %s</option>', esc_attr( $cc ), selected( self::g( $id, $key ), $cc, false ), esc_html( M24FZ_Telemetry::flag( $cc ) ), esc_html( $cn ) );
@@ -238,7 +238,7 @@ class M24FZ_Editor_Screen {
 							?>
 						</div>
 						<div class="fz-row">
-							<?php self::select( $id, '_m24fz_karosserie', 'Karosserie', M24FZ_Telemetry::karosserie_options() ); ?>
+							<?php self::select( $id, '_m24fz_karosserie', 'Karosserie', M24FZ_Telemetry::karosserie_options(), array( 'default' => ( 'renn' === $typ ? 'Coupé' : '' ) ) ); ?>
 						</div>
 					</section>
 
@@ -250,12 +250,12 @@ class M24FZ_Editor_Screen {
 								<label for="_m24fz_laufleistung">Laufleistung <span class="req">*</span></label>
 								<div class="fz-inline">
 									<input type="text" id="_m24fz_laufleistung" name="_m24fz_laufleistung" value="<?php echo esc_attr( self::g( $id, '_m24fz_laufleistung' ) ); ?>" placeholder="z. B. 45000" inputmode="numeric" maxlength="7" autocomplete="off">
-									<select name="_m24fz_laufleistung_einheit" class="fz-unit"><option value="km"<?php selected( $einheit, 'km' ); ?>>km</option><option value="mi"<?php selected( $einheit, 'mi' ); ?>>mi</option></select>
+									<select name="_m24fz_laufleistung_einheit" class="fz-unit"><option value="km"<?php selected( $einheit, 'km' ); ?>>km</option><option value="mi"<?php selected( $einheit, 'mi' ); ?>>mi</option><option value="h"<?php selected( $einheit, 'h' ); ?>>h (Std.)</option></select>
 								</div>
 								<span class="fz-help" id="fz-km-hint">Ganze Zahl, max. 9.999.999.</span>
 							</div>
-							<?php self::country_field( $id, '_m24fz_land_erstauslieferung', 'Land der Erstauslieferung' ); ?>
-							<?php self::field( $id, '_m24fz_anzahl_halter', 'Anzahl Fahrzeughalter', array( 'ph' => 'z. B. 2' ) ); ?>
+							<?php self::country_field( $id, '_m24fz_land_erstauslieferung', 'Land der Erstauslieferung', 'fz-renn-hide' ); ?>
+							<?php self::field( $id, '_m24fz_anzahl_halter', 'Anzahl Fahrzeughalter', array( 'ph' => 'z. B. 2', 'cls' => 'fz-renn-hide' ) ); ?>
 						</div>
 						<div class="fz-row">
 							<?php self::country_field( $id, '_m24fz_standort', 'Fahrzeugstandort (Land)' ); ?>
@@ -265,7 +265,7 @@ class M24FZ_Editor_Screen {
 						<div class="fz-row fz-toggles">
 							<?php self::toggle( $id, '_m24fz_fahrbereit', 'Fahrbereit' ); ?>
 							<?php self::toggle( $id, '_m24fz_zugelassen', 'Zugelassen', false, 'fz-strasse-only' ); ?>
-							<?php self::toggle( $id, '_m24fz_matching_numbers', 'Matching Numbers' ); ?>
+							<?php self::toggle( $id, '_m24fz_matching_numbers', 'Matching Numbers', false, 'fz-renn-hide' ); ?>
 						</div>
 					</section>
 
@@ -282,7 +282,13 @@ class M24FZ_Editor_Screen {
 							<div class="fz-f">
 								<label for="_m24fz_getriebe">Getriebe</label>
 								<select id="_m24fz_getriebe" name="_m24fz_getriebe">
-									<?php foreach ( M24FZ_Telemetry::getriebe_options() as $v => $l ) { printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( self::g( $id, '_m24fz_getriebe' ), $v, false ), esc_html( $l ) ); } ?>
+									<?php
+									// Template-abhängig (JS trimmt per Typ): Straße = —/Manuell/Automatik, Renn = —/Manuell/Sequentiell.
+									$gcur = self::g( $id, '_m24fz_getriebe' );
+									foreach ( array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik', 'Sequentiell' => 'Sequentiell' ) as $v => $l ) {
+										printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $gcur, $v, false ), esc_html( $l ) );
+									}
+									?>
 								</select>
 							</div>
 						</div>
@@ -296,13 +302,13 @@ class M24FZ_Editor_Screen {
 						<div class="fz-row">
 							<?php
 							self::field( $id, '_m24fz_aussenfarbe', 'Außenfarbe', array( 'req' => true ) );
-							self::field( $id, '_m24fz_farbbez_hersteller', 'Hersteller-Farbbez. (außen)' );
+							self::field( $id, '_m24fz_farbbez_hersteller', 'Hersteller-Farbbez. (außen)', array( 'cls' => 'fz-renn-hide' ) );
 							?>
 						</div>
 						<div class="fz-row">
 							<?php
-							self::select( $id, '_m24fz_innenmaterial', 'Innenmaterial', M24FZ_Telemetry::innenmaterial_options() );
-							self::select( $id, '_m24fz_innenfarbe', 'Innenfarbe', M24FZ_Telemetry::innenfarbe_options(), array( 'req' => true ) );
+							self::select( $id, '_m24fz_innenmaterial', 'Innenmaterial', M24FZ_Telemetry::innenmaterial_options(), array( 'cls' => 'fz-renn-hide' ) );
+							self::select( $id, '_m24fz_innenfarbe', 'Innenfarbe', M24FZ_Telemetry::innenfarbe_options(), array( 'req' => ( 'renn' !== $typ ), 'cls' => 'fz-renn-hide' ) );
 							?>
 						</div>
 
@@ -311,6 +317,7 @@ class M24FZ_Editor_Screen {
 							<div class="fz-row fz-toggles">
 								<?php self::toggle( $id, '_m24fz_wagenpass', 'Wagenpass' ); ?>
 								<?php self::toggle( $id, '_m24fz_rennhistorie', 'Rennhistorie' ); ?>
+								<?php self::toggle( $id, '_m24fz_original_design', 'Originales Außendesign (Beklebung)' ); ?>
 							</div>
 							<div class="fz-row"><?php for ( $i = 1; $i <= 3; $i++ ) {
 								self::field( $id, "_m24fz_race_opt{$i}_label", "Option $i — Label" );
@@ -322,7 +329,13 @@ class M24FZ_Editor_Screen {
 					<!-- 4. AUSSTATTUNG -->
 					<section class="fz-sec">
 						<h2><span class="n">4</span> Ausstattung</h2>
-						<?php self::checks( $id, '_m24fz_ausstattung', 'Ausstattungsmerkmale', M24FZ_Telemetry::ausstattung_options() ); ?>
+						<div class="fz-f">
+							<label>Ausstattungsmerkmale <span class="fz-help">Freitext — je Zeile ein Merkmal.</span></label>
+							<div id="fz-ausstattung"><?php foreach ( array_pad( array_values( array_filter( (array) get_post_meta( $id, '_m24fz_ausstattung', true ) ) ), 1, '' ) as $av ) : ?>
+								<p><input type="text" name="_m24fz_ausstattung[]" value="<?php echo esc_attr( $av ); ?>" placeholder="z. B. Sportsitze"></p>
+							<?php endforeach; ?></div>
+							<button type="button" class="fz-add" id="fz-ausst-add">+ Ausstattung hinzufügen</button>
+						</div>
 					</section>
 
 					<!-- 5. INSERAT & MEDIEN -->
@@ -506,7 +519,7 @@ class M24FZ_Editor_Screen {
 		if ( $ogid ) { update_post_meta( $id, '_m24fz_og_image', $ogid ); } else { delete_post_meta( $id, '_m24fz_og_image' ); }
 
 		// Neue optionale Felder (nur Komfort-Maske → keine Kollision mit klassischer Box).
-		$unit = ( 'mi' === ( $_POST['_m24fz_laufleistung_einheit'] ?? '' ) ) ? 'mi' : 'km';
+		$unit = in_array( ( $_POST['_m24fz_laufleistung_einheit'] ?? '' ), array( 'mi', 'h' ), true ) ? (string) $_POST['_m24fz_laufleistung_einheit'] : 'km';
 		update_post_meta( $id, '_m24fz_laufleistung_einheit', $unit );
 		update_post_meta( $id, '_m24fz_waehrung', ( 'CHF' === ( $_POST['_m24fz_waehrung'] ?? '' ) ) ? 'CHF' : 'EUR' );
 		update_post_meta( $id, '_m24fz_anzahl_halter', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_anzahl_halter'] ?? '' ) ) );
@@ -516,7 +529,10 @@ class M24FZ_Editor_Screen {
 		update_post_meta( $id, '_m24fz_matching_numbers', empty( $_POST['_m24fz_matching_numbers'] ) ? 0 : 1 );
 		update_post_meta( $id, '_m24fz_mwst_ausweisbar', empty( $_POST['_m24fz_mwst_ausweisbar'] ) ? 0 : 1 );
 		update_post_meta( $id, '_m24fz_zustand', self::clean_slugs( $_POST['_m24fz_zustand'] ?? array(), M24FZ_Telemetry::zustand_options() ) );
-		update_post_meta( $id, '_m24fz_ausstattung', self::clean_slugs( $_POST['_m24fz_ausstattung'] ?? array(), M24FZ_Telemetry::ausstattung_options() ) );
+		// Ausstattung = Freitext-Repeater (kein Slug-Whitelist mehr); leere Zeilen verwerfen.
+		$ausst = array();
+		foreach ( (array) ( $_POST['_m24fz_ausstattung'] ?? array() ) as $a ) { $a = sanitize_text_field( wp_unslash( $a ) ); if ( '' !== $a ) { $ausst[] = $a; } }
+		update_post_meta( $id, '_m24fz_ausstattung', array_slice( $ausst, 0, 30 ) );
 
 		// Reclaim: Alt-Beitrag verknüpfen; beim Veröffentlichen 301 registrieren + Alt-Beitrag → Entwurf.
 		$reclaim = (int) ( $_POST['_m24fz_reclaim_post'] ?? 0 );
@@ -647,8 +663,8 @@ class M24FZ_Editor_Screen {
 .fz-gal .ui-sortable-helper{box-shadow:0 8px 20px rgba(0,0,0,.22);transform:scale(1.04)}
 .fz-gal-ph{visibility:visible!important;height:115px;width:170px;border-radius:8px;background:#f6efe3;border:2px dashed #9a6b25}
 .fz-gal .rm{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;line-height:18px;text-align:center;font-size:13px;cursor:pointer;z-index:2}
-#fz-keyfacts p,#fz-videos p{margin:0 0 8px}
-#fz-keyfacts input,#fz-videos input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
+#fz-keyfacts p,#fz-videos p,#fz-ausstattung p{margin:0 0 8px}
+#fz-keyfacts input,#fz-videos input,#fz-ausstattung input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid #d9d9d6;border-radius:8px}
 .fz-foot{display:flex;gap:12px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0ee}
 @media(max-width:900px){.fz-row,.fz-checks{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.fz-row,.fz-checks{grid-template-columns:1fr}}
@@ -663,9 +679,16 @@ jQuery(function($){
 		if(ps>0){ var v=(Math.round(ps*0.73549875*100)/100).toFixed(2).replace('.',','); $('#fz-kw').text(v+' kW ('+ps+' PS)'); }
 		else { $('#fz-kw').text('In PS — kW automatisch.'); } }
 	$('#_m24fz_leistung_ps').on('input',kw); kw();
-	// Renn-Block + Segmented-Typ + Hide straßenspezifischer Felder bei Rennwagen.
+	// Getriebe template-abhängig: Straße = —/Manuell/Automatik, Renn = —/Manuell/Sequentiell.
+	var gOpts={ strasse:[['','—'],['Manuell','Manuell'],['Automatik','Automatik']], renn:[['','—'],['Manuell','Manuell'],['Sequentiell','Sequentiell']] };
+	function fillGetriebe(renn){ var sel=$('#_m24fz_getriebe'); if(!sel.length){ return; } var cur=sel.val(); var list=renn?gOpts.renn:gOpts.strasse;
+		sel.empty(); $.each(list,function(_,o){ sel.append($('<option>').val(o[0]).text(o[1])); });
+		if(sel.find('option[value="'+cur+'"]').length){ sel.val(cur); } else if(cur){ sel.append($('<option>').val(cur).text(cur+' (individuell)')); sel.val(cur); } }
+	// Renn-Block + Segmented-Typ + Hide straßen-/rennspezifischer Felder + Renn-Defaults (nur wenn leer).
 	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn';
-		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn);
+		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn); $('.fz-renn-hide').toggle(!renn);
+		fillGetriebe(renn);
+		if(renn){ var ka=$('#_m24fz_karosserie'); if(ka.length && ka.val()===''){ ka.val('Coupé'); } }
 		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
 	// Zustand/Ausstattung Toggle-Chips.
@@ -674,6 +697,7 @@ jQuery(function($){
 	$('#_m24fz_laufleistung').on('input',function(){ var c=this.value.replace(/\\D/g,'').slice(0,7); if(c!==this.value){ this.value=c; } });
 	// Repeater.
 	$('#fz-kf-add').on('click',function(){ $('#fz-keyfacts').append('<p><input type="text" name="_m24fz_keyfacts[]" placeholder="Highlight"></p>'); });
+	$('#fz-ausst-add').on('click',function(){ $('#fz-ausstattung').append('<p><input type="text" name="_m24fz_ausstattung[]" placeholder="z. B. Sportsitze"></p>'); });
 	$('#fz-vid-add').on('click',function(){ $('#fz-videos').append('<p><input type="url" name="_m24fz_videos[]" placeholder="https://youtu.be/…"></p>'); });
 	// Beitragsbild.
 	$('#fz-thumb-pick').on('click',function(e){ e.preventDefault();

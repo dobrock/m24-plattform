@@ -64,7 +64,7 @@ class M24FZ_Meta {
 		);
 	}
 	private static function int_keys()  { return array( '_m24fz_preis', '_m24fz_views', '_m24fz_merkliste_count', '_m24fz_anfragen_count', '_m24fz_tel_klicks' ); }
-	private static function bool_keys() { return array( '_m24fz_preis_auf_anfrage', '_m24fz_wagenpass', '_m24fz_rennhistorie', '_m24_featured' ); }
+	private static function bool_keys() { return array( '_m24fz_preis_auf_anfrage', '_m24fz_wagenpass', '_m24fz_rennhistorie', '_m24fz_original_design', '_m24_featured' ); }
 	private static function gal_keys()  { return array( '_m24fz_gal_aussen', '_m24fz_gal_innen', '_m24fz_gal_motor', '_m24fz_gal_unterboden' ); }
 
 	public static function save( $post_id, $post ) {

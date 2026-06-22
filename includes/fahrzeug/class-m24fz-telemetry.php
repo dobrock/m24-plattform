@@ -137,12 +137,17 @@ class M24FZ_Telemetry {
 			$add( 'Farbe',         self::farbe_value( $id ) );
 			$add( self::v( $id, '_m24fz_tel_opt_label' ), self::v( $id, '_m24fz_tel_opt_value' ) );
 		} else {
+			// Renn-spezifische Option-Substitution (kumulativ): Option 1 belegt → „Farbe" weg;
+			// Option 2 belegt → zusätzlich „Rennhistorie" weg; Option 3 belegt → zusätzlich „Wagenpass" weg.
+			$opt1 = '' !== self::v( $id, '_m24fz_race_opt1_value' );
+			$opt2 = '' !== self::v( $id, '_m24fz_race_opt2_value' );
+			$opt3 = '' !== self::v( $id, '_m24fz_race_opt3_value' );
 			$add( 'Baujahr',  self::v( $id, '_m24fz_baujahr' ) );
 			$add( 'Leistung', self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe', self::v( $id, '_m24fz_getriebe' ) );
-			$add( 'Farbe',    self::farbe_value( $id ) );
-			if ( self::v( $id, '_m24fz_wagenpass' ) )    { $add( 'Wagenpass', 'vorhanden' ); }
-			if ( self::v( $id, '_m24fz_rennhistorie' ) ) { $add( 'Rennhistorie', 'dokumentiert' ); }
+			if ( ! $opt1 ) { $add( 'Farbe', self::farbe_value( $id ) ); }
+			if ( ! $opt3 && self::v( $id, '_m24fz_wagenpass' ) )    { $add( 'Wagenpass', 'vorhanden' ); }
+			if ( ! $opt2 && self::v( $id, '_m24fz_rennhistorie' ) ) { $add( 'Rennhistorie', 'dokumentiert' ); }
 			for ( $i = 1; $i <= 3; $i++ ) {
 				$add( self::v( $id, "_m24fz_race_opt{$i}_label" ), self::v( $id, "_m24fz_race_opt{$i}_value" ) );
 			}
