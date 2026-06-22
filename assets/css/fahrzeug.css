@@ -88,12 +88,12 @@
 /* Jetpack Tiled Gallery (Mauerwerk-Mosaik, große Feature- + kleine Kacheln, volle Breite).
    „9 + +X + Fly-out" liegt nur OBENDRAUF — Jetpack rendert die Kachelgrößen selbst. */
 .m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0!important;width:100%!important;max-width:100%!important}
-.m24fz-tg-preview,.m24fz-tg-full{position:relative;display:flex;flex-direction:column;gap:10px} /* Zeilen-Gap */
+.m24fz-tg-preview,.m24fz-tg-full{position:relative;display:flex;flex-direction:column;gap:6px} /* Zeilen-Gap (filigran) */
 /* Versetztes Zickzack-Mosaik (eigenes CSS-Grid, eckige Ecken) */
-.m24fz-mz-wrap{display:flex;flex-direction:column;gap:10px}
-.m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:stretch}
+.m24fz-mz-wrap{display:flex;flex-direction:column;gap:6px}
+.m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:6px;align-items:stretch}
 .m24fz-mz-row.right{grid-template-columns:1fr 2fr}
-.m24fz-mz-side{display:grid;gap:10px;min-height:0}
+.m24fz-mz-side{display:grid;gap:6px;min-height:0}
 .m24fz-mz-side.two{grid-template-rows:1fr 1fr}
 .m24fz-mz-tile{position:relative;display:block;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:#ededea;cursor:pointer}
 .m24fz-mz-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:0}
@@ -210,8 +210,8 @@
 @media(max-width:768px){
 	/* ── Entwurf A — Mobile-Layout (optimiert) ── */
 	.m24fz-wrap{gap:14px;background:#fafafa}
-	/* Hero: Beitragsbild volle Breite, edge-to-edge (kein seitliches Padding), natürliches Seitenverhältnis */
-	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;margin:0 -16px;overflow:visible}
+	/* Hero: echtes Full-Bleed bis an die Bildschirmkanten (unabhängig vom Container-Padding) */
+	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);overflow:visible}
 	.m24fz-hero.has-img{min-height:0}
 	.m24fz-hero-img{position:static;width:100%;height:auto;object-fit:contain}
 	.m24fz-hero-ov,.m24fz-hero-top,.m24fz-hero-foot{display:none}
@@ -231,10 +231,12 @@
 	.m24fz-tel-cell:nth-child(n+3){border-top:1px solid #f0f1f3}
 	.m24fz-tel-cell .k{color:var(--brass)}
 	.m24fz-tel-cell .v{color:var(--ink);white-space:normal}
-	/* Zusammenfassung eine Stufe größer */
-	.m24fz-zus{font-size:16.5px;line-height:1.62}
+	/* Zusammenfassung größer */
+	.m24fz-zus{font-size:18px;line-height:1.6}
+	/* Mosaik-Gap mobil filigran (~4px) — einheitlich Zeilen/Spalten/gestapelt */
+	.m24fz-tg-preview,.m24fz-tg-full,.m24fz-mz-wrap,.m24fz-mz-row,.m24fz-mz-side{gap:4px}
 	/* 3er-Teaser als Mosaik: links groß (2fr, 2 Reihen), rechts Bild 2+3 gestapelt (1fr); eckig */
-	.m24fz-photos{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:8px}
+	.m24fz-photos{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:4px}
 	.m24fz-photos .big{grid-column:1;grid-row:1 / span 2}
 	.m24fz-photos .side{grid-column:2;aspect-ratio:3/2}
 	.m24fz-photos figure{border-radius:0}
