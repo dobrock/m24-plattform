@@ -88,6 +88,15 @@
    „9 + +X + Fly-out" liegt nur OBENDRAUF — Jetpack rendert die Kachelgrößen selbst. */
 .m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0!important;width:100%!important;max-width:100%!important}
 .m24fz-tg-preview,.m24fz-tg-full{position:relative}
+/* Versetztes Zickzack-Mosaik (eigenes CSS-Grid, eckige Ecken) */
+.m24fz-mz-wrap{display:flex;flex-direction:column;gap:10px}
+.m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:stretch}
+.m24fz-mz-row.right{grid-template-columns:1fr 2fr}
+.m24fz-mz-side{display:grid;gap:10px;min-height:0}
+.m24fz-mz-side.two{grid-template-rows:1fr 1fr}
+.m24fz-mz-tile{position:relative;display:block;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:#ededea;cursor:pointer}
+.m24fz-mz-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:0}
+.m24fz-mz-big{aspect-ratio:3/2;height:auto}
 /* +X-Overlay auf der letzten Vorschau-Kachel (JS markiert sie .m24fz-ov-host) */
 .m24fz-ov-host{position:relative}
 .m24fz-more-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(10,12,16,.62);color:#fff;cursor:pointer;z-index:3}
@@ -221,4 +230,8 @@
 	/* CI: weiße Karten, Radius 13px, gut tappbare Buttons */
 	.m24fz-card{border-radius:13px}
 	.m24fz-btn{padding:13px 16px}
+	/* Galerie mobil: einfaches 2-spaltiges Grid statt Zickzack (Entwurf A) */
+	.m24fz-mz-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+	.m24fz-mz-row,.m24fz-mz-side{display:contents}
+	.m24fz-mz-tile,.m24fz-mz-big{aspect-ratio:3/2;height:auto}
 }

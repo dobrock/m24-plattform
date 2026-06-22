@@ -77,16 +77,12 @@
 		});
 	});
 
-	function jpTiles(scope) {
-		return [].slice.call(scope.querySelectorAll('.tiled-gallery__item, .tiled-gallery-item, .tiled-gallery-item-small, .tiled-gallery__item--last'));
-	}
-
-	// „9 + +X + Fly-out" OBENDRAUF auf dem Jetpack-Tiled-Mosaik (Jetpack bestimmt die Kachelgrößen).
+	// „+N · Alle Bilder"-Overlay auf der letzten Vorschau-Kachel des eigenen Zickzack-Mosaiks.
 	function setupOverlay(galcat) {
 		var preview = galcat.querySelector('.m24fz-tg-preview'); if (!preview) { return; }
 		var rest = preview.getAttribute('data-rest') || '';
-		var tiles = jpTiles(preview); if (!tiles.length) { return; }
-		var host = tiles[tiles.length - 1]; // letzte (= 9.) Vorschau-Kachel
+		var tiles = preview.querySelectorAll('.m24fz-mz-tile'); if (!tiles.length) { return; }
+		var host = tiles[tiles.length - 1]; // letzte Vorschau-Kachel
 		host.classList.add('m24fz-ov-host');
 		if (host.querySelector('.m24fz-more-ov')) { return; }
 		var ov = document.createElement('span');
@@ -128,20 +124,47 @@
 		if (less) { e.preventDefault(); var g2 = less.closest('.m24fz-galcat'); if (g2) { collapse(g2); } }
 	});
 
-	// Bild-Lightbox liefert Jetpack-Carousel. Hier nur die Video-Lightbox (youtube-nocookie, erst bei Klick).
+	// Eigene Bild-Lightbox (für das Zickzack-Mosaik) + Video-Lightbox (youtube-nocookie).
 	var lb = document.querySelector('.m24fz-lb'); if (lb) {
 		var frame = lb.querySelector('.m24fz-lb-frame');
-		function close() { lb.hidden = true; document.body.style.overflow = ''; lb.classList.remove('video'); if (frame) { frame.innerHTML = ''; } }
+		var lbImg = lb.querySelector('img');
+		var lbPrev = lb.querySelector('.m24fz-lb-prev'), lbNext = lb.querySelector('.m24fz-lb-next');
+		var lbList = [], lbIdx = 0;
+		function close() { lb.hidden = true; document.body.style.overflow = ''; lb.classList.remove('video'); if (frame) { frame.innerHTML = ''; } if (lbImg) { lbImg.removeAttribute('src'); } lbList = []; }
+		function lbShow() { if (lbImg && lbList[lbIdx]) { lbImg.src = lbList[lbIdx].src; lbImg.alt = lbList[lbIdx].alt || ''; } }
+		function lbStep(d) { if (!lbList.length) { return; } lbIdx = (lbIdx + d + lbList.length) % lbList.length; lbShow(); }
+		function openImg(list, idx) { if (!list || !list.length) { return; } lbList = list; lbIdx = Math.max(0, Math.min(idx, list.length - 1)); lb.classList.remove('video'); if (frame) { frame.innerHTML = ''; } lbShow(); lb.hidden = false; document.body.style.overflow = 'hidden'; }
+		// Mosaik-Kachel öffnen — das „+N"-Overlay hat einen eigenen Handler (expand) und wird übersprungen.
+		document.addEventListener('click', function (e) {
+			if (e.target.closest('.m24fz-more-ov')) { return; }
+			var tile = e.target.closest('.m24fz-mz-tile'); if (!tile) { return; }
+			e.preventDefault();
+			var wrap = tile.closest('.m24fz-mz-wrap'); if (!wrap) { return; }
+			var imgs = []; try { imgs = JSON.parse(wrap.getAttribute('data-images') || '[]'); } catch (err) {}
+			openImg(imgs, parseInt(tile.getAttribute('data-idx'), 10) || 0);
+		});
+		document.addEventListener('keydown', function (e) {
+			if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('m24fz-mz-tile')) { e.preventDefault(); e.target.click(); }
+		});
+		// Video.
 		document.addEventListener('click', function (e) {
 			var v = e.target.closest('.m24fz-video'); if (!v || !frame) { return; }
 			e.preventDefault(); var yid = v.getAttribute('data-ytid'); if (!yid) { return; }
+			if (lbImg) { lbImg.removeAttribute('src'); }
 			lb.classList.add('video');
 			frame.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + yid + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
 			lb.hidden = false; document.body.style.overflow = 'hidden';
 		});
+		if (lbPrev) { lbPrev.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); lbStep(-1); }); }
+		if (lbNext) { lbNext.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); lbStep(1); }); }
 		lb.querySelector('.m24fz-lb-close').addEventListener('click', close);
 		lb.addEventListener('click', function (e) { if (e.target === lb) { close(); } });
-		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
+		document.addEventListener('keydown', function (e) {
+			if (lb.hidden) { return; }
+			if (e.key === 'Escape') { close(); }
+			else if (e.key === 'ArrowLeft') { lbStep(-1); }
+			else if (e.key === 'ArrowRight') { lbStep(1); }
+		});
 	}
 
 	// „Jetzt anfragen" (Anfrage-Modal) UND „Auf die Interessentenliste" (IL-Modal) — getrennte Modals/Handler.

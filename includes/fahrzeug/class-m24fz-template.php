@@ -172,15 +172,73 @@ class M24FZ_Template {
 		if ( 0 === $total ) { return ''; }
 		$rest = max( 0, $total - $initial );
 
-		if ( $rest <= 0 ) {
-			return '<div class="m24fz-tg-full">' . self::tiled_gallery( implode( ',', $ids ) ) . '</div>';
+		// Lightbox-Bilddaten (WP-Intermediate „large", kein Photon-On-the-fly).
+		$data = array();
+		foreach ( $ids as $att ) {
+			$u   = wp_get_attachment_image_url( $att, 'large' );
+			if ( ! $u ) { $u = wp_get_attachment_image_url( $att, 'full' ); }
+			$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
+			$data[] = array( 'src' => $u, 'alt' => $alt );
 		}
-		$preview_csv = implode( ',', array_slice( $ids, 0, $initial ) );
-		$full_csv    = implode( ',', $ids );
-		$out  = '<div class="m24fz-tg-preview" data-rest="' . (int) $rest . '">' . self::tiled_gallery( $preview_csv ) . '</div>';
-		$out .= '<div class="m24fz-tg-full" hidden>' . self::tiled_gallery( $full_csv ) . '</div>';
+		$json = esc_attr( (string) wp_json_encode( $data ) );
+
+		if ( $rest <= 0 ) {
+			return '<div class="m24fz-mz-wrap" data-images="' . $json . '"><div class="m24fz-tg-full">' . self::mosaic_grid( $ids, 0 ) . '</div></div>';
+		}
+		$out  = '<div class="m24fz-mz-wrap" data-images="' . $json . '">';
+		$out .= '<div class="m24fz-tg-preview" data-rest="' . (int) $rest . '">' . self::mosaic_grid( array_slice( $ids, 0, $initial ), 0 ) . '</div>';
+		$out .= '<div class="m24fz-tg-full" hidden>' . self::mosaic_grid( $ids, 0 ) . '</div>';
+		$out .= '</div>';
 		$out .= '<button type="button" class="m24fz-gal-less" hidden>Weniger anzeigen</button>';
 		return $out;
+	}
+
+	/**
+	 * Versetztes Zickzack-Mosaik (eigenes CSS-Grid, eckige Ecken). Pro Zeile: eine große 3/2-Kachel
+	 * (gibt die Zeilenhöhe vor) + Gegenspalte (1 Hochformat ODER 2 gestapelte Querformate). Die große
+	 * Kachel wechselt zeilenweise die Seite. Hoch/Quer wird über das Seitenverhältnis erkannt.
+	 */
+	private static function mosaic_grid( $ids, $idx_base ) {
+		$ids = array_values( $ids );
+		$n   = count( $ids );
+		$i   = 0;
+		$row = 0;
+		$out = '';
+		while ( $i < $n ) {
+			$big = self::mz_tile( $ids[ $i ], $idx_base + $i, 'big' ); $i++;
+			$side = '';
+			$cnt  = 0;
+			if ( $i < $n ) {
+				if ( 'portrait' === self::orient( $ids[ $i ] ) ) {
+					$side .= self::mz_tile( $ids[ $i ], $idx_base + $i, 'sm' ); $i++; $cnt = 1;
+				} else {
+					$side .= self::mz_tile( $ids[ $i ], $idx_base + $i, 'sm' ); $i++; $cnt = 1;
+					if ( $i < $n ) { $side .= self::mz_tile( $ids[ $i ], $idx_base + $i, 'sm' ); $i++; $cnt = 2; }
+				}
+			}
+			$right = ( 1 === $row % 2 );
+			$sidehtml = '<div class="m24fz-mz-side' . ( 2 === $cnt ? ' two' : '' ) . '">' . $side . '</div>';
+			$out .= '<div class="m24fz-mz-row' . ( $right ? ' right' : '' ) . '">';
+			$out .= $right ? ( $sidehtml . $big ) : ( $big . $sidehtml );
+			$out .= '</div>';
+			$row++;
+		}
+		return $out;
+	}
+
+	/** Einzelne Mosaik-Kachel (Button-los: div role=button, damit das +N-Overlay nesten kann). */
+	private static function mz_tile( $att, $idx, $kind ) {
+		$att  = (int) $att;
+		$size = ( 'big' === $kind ) ? 'large' : 'medium_large';
+		$img  = wp_get_attachment_image( $att, $size, false, array( 'loading' => 'lazy', 'alt' => '' ) );
+		$cls  = 'm24fz-mz-tile ' . ( 'big' === $kind ? 'm24fz-mz-big' : 'm24fz-mz-sm' ) . ' o-' . self::orient( $att );
+		return '<div class="' . esc_attr( $cls ) . '" role="button" tabindex="0" data-idx="' . (int) $idx . '">' . $img . '</div>';
+	}
+
+	/** „portrait" wenn Höhe > Breite, sonst „landscape" (Default landscape). */
+	private static function orient( $att ) {
+		$m = wp_get_attachment_metadata( (int) $att );
+		return ( ! empty( $m['width'] ) && ! empty( $m['height'] ) && (int) $m['height'] > (int) $m['width'] ) ? 'portrait' : 'landscape';
 	}
 
 	/** YouTube-Video-ID aus diversen URL-Formen (youtu.be / watch?v= / embed/ / shorts/). */
