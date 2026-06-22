@@ -16,6 +16,13 @@ class M24FZ_SEO {
 		// Open Graph / Twitter: Head puffern (vor Yoast prio 1 starten), nur ergänzen, wenn kein og:image da ist.
 		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
 		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 9 );
+		// WhatsApp-taugliche Share-Bildgröße (1200px breit, proportional, kein Crop).
+		add_action( 'after_setup_theme', array( __CLASS__, 'register_sizes' ) );
+	}
+
+	/** Eigene OG-/Share-Bildgröße — 1200px breit, < 300 KB, ohne das Hero-Bild zu verändern. */
+	public static function register_sizes() {
+		add_image_size( 'm24_og', 1200, 0, false );
 	}
 
 	/* ── Open Graph / Twitter Cards (Beitragsbild statt Favicon beim Teilen) ───────
@@ -86,11 +93,13 @@ class M24FZ_SEO {
 		if ( $att ) {
 			// Jetpack-Photon (i0.wp.com) für die OG-Meta-URL umgehen → FB holt das Bild direkt von der Domain.
 			add_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-			// Größtes sinnvolles Format fürs Teilen (≥1200 bevorzugt; sonst „large"). FB-Minimum 600.
-			$full  = wp_get_attachment_image_src( $att, 'full' );
-			$large = wp_get_attachment_image_src( $att, 'large' );
+			// WhatsApp-taugliche Share-Größe bevorzugen (m24_og, 1200px, < 300 KB); sonst large; sonst full.
+			// is_intermediate-Flag ($src[3]) unterscheidet eine echte Zwischengröße vom Voll-Fallback.
+			$og    = wp_get_attachment_image_src( $att, 'm24_og' );
+			$src   = ( $og && ! empty( $og[3] ) ) ? $og : null;
+			if ( ! $src ) { $large = wp_get_attachment_image_src( $att, 'large' ); $src = ( $large && ! empty( $large[3] ) ) ? $large : null; }
+			if ( ! $src ) { $src = wp_get_attachment_image_src( $att, 'full' ); }
 			remove_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-			$src   = ( $full && (int) $full[1] >= 1200 ) ? $full : ( $large ? $large : $full );
 			if ( $src && ! empty( $src[0] ) ) {
 				$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
 				if ( '' === $alt ) { $alt = get_the_title( $id ); }
