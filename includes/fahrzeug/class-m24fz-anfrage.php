@@ -81,7 +81,11 @@ class M24FZ_Anfrage {
 		if ( '' !== $msg )  { $body .= "\nNachricht:\n{$msg}\n"; }
 		$body .= "\nInteressentenliste gewünscht: " . ( $ilist ? 'JA' : 'nein' ) . "\n";
 
-		$headers = array( 'Reply-To: ' . $name . ' <' . $mail . '>' );
+		// From-Name = Kunde, From-Adresse = Domain (SPF/DKIM); Reply-To = Kunde, damit „Antworten" passt.
+		$headers = array(
+			'From: ' . self::from_header( $name, self::from_email() ),
+			'Reply-To: ' . $name . ' <' . $mail . '>',
+		);
 		$sent    = wp_mail( $to, 'Fahrzeug-Anfrage: ' . $title, $body, $headers );
 
 		// Optionaler Desk-Push (wenn Pipeline vorhanden) — Mail ist der zuverlässige Fallback.
@@ -169,7 +173,10 @@ class M24FZ_Anfrage {
 		$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
 		$body .= "\nDOI: ausstehend (Brevo Phase 2 — API-Key noch nicht gesetzt).\n";
 
-		$headers = array( 'Reply-To: ' . $name . ' <' . $mail . '>' );
+		$headers = array(
+			'From: ' . self::from_header( $name, self::from_email() ),
+			'Reply-To: ' . $name . ' <' . $mail . '>',
+		);
 		wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
 
 		// Hook für die spätere plugin-managed DOI-Pipeline (Liste 3, Attribute MODELLE/KATEGORIEN).
@@ -180,6 +187,27 @@ class M24FZ_Anfrage {
 			'modelle'    => $attr['modelle'],
 			'kategorien' => $attr['kategorien'],
 		) );
+	}
+
+	/** Domain-Absenderadresse für die Benachrichtigungen (SPF/DKIM/DMARC-tauglich, filterbar). */
+	private static function from_email() {
+		$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+		$host = preg_replace( '/^www\./i', '', $host );
+		if ( '' === $host ) { $host = 'motorsport24.de'; }
+		return apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
+	}
+
+	/**
+	 * From-Header bauen: Anzeigename = Kundenname, Adresse = Domain-Absender (nicht die Kunden-Mail).
+	 * Leerer Name → Fallback auf reine Adresse (WP-Standard). Sonderzeichen/Umlaute sauber kodiert.
+	 */
+	private static function from_header( $name, $email ) {
+		$name = trim( preg_replace( '/[\r\n]+/', ' ', (string) $name ) );
+		if ( '' === $name ) { return $email; }
+		$disp = function_exists( 'mb_encode_mimeheader' ) ? mb_encode_mimeheader( $name, 'UTF-8' ) : $name;
+		// Reiner ASCII-Name mit Header-Sonderzeichen (z. B. Klammern) → in Anführungszeichen kapseln.
+		if ( $disp === $name && preg_match( '/[(),<>@";:\\\\\[\]]/', $name ) ) { $disp = '"' . str_replace( '"', '', $name ) . '"'; }
+		return $disp . ' <' . $email . '>';
 	}
 
 	/** Kurzer Datenschutzhinweis mit Link zur Datenschutzerklärung (beide Modals, kein Pflicht-Häkchen). */
