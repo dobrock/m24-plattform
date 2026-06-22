@@ -11,39 +11,20 @@ class M24FZ_Template {
 		add_filter( 'template_include', array( __CLASS__, 'route' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_shortcode( 'm24_fahrzeuge_rubrik', array( __CLASS__, 'rubrik_shortcode' ) );
-		add_filter( 'the_content', array( __CLASS__, 'inject_rubrik' ), 9 );
+		// Kein the_content-Auto-Inject mehr: CPT erscheinen direkt IM tagDiv-Slider
+		// (M24FZ_CPT::inject_into_rubrik_query erweitert dessen Query um den CPT).
 	}
 
 	/**
 	 * [m24_fahrzeuge_rubrik kat="race-cars-for-sale"] — CPT-Fahrzeuge der Rubrik als M24-Karten.
-	 * kat = Rubrik-Kategorie-Slug (race-cars-for-sale|classic-cars-for-sale) ODER direkt _m24fz_kat
-	 * (race-cars|classic-cars). Reserviert/Verkauft werden mit Badge gezeigt (nicht ausgeblendet).
+	 * Manueller Shortcode (NICHT auto-injiziert) — z. B. für andere Seiten. Auf den Slider-/Rubrik-
+	 * seiten wird er bewusst NICHT genutzt; dort liefert der tagDiv-Slider die CPT direkt mit.
 	 */
 	public static function rubrik_shortcode( $atts ) {
 		$atts = shortcode_atts( array( 'kat' => '', 'limit' => 60 ), $atts, 'm24_fahrzeuge_rubrik' );
 		$map  = array( 'race-cars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' );
 		$kat  = isset( $map[ $atts['kat'] ] ) ? $map[ $atts['kat'] ] : $atts['kat'];
 		return self::rubrik_grid_html( $kat, (int) $atts['limit'] );
-	}
-
-	/**
-	 * Rubrik-Auto-Inject auf den tagDiv-Seiten (Slug racecars-for-sale / classic-cars-for-sale):
-	 * CPT-Fahrzeuge als separater Block OBERHALB der Alt-Liste — der originale tagDiv-„FOR SALE"-
-	 * Slider bleibt unangetastet (0.11.13-Stand; das Unified-Grid aus 0.11.14 wurde zurückgenommen,
-	 * weil es den Slider ersetzt hat). Die echte CPT-Integration in den Slider folgt separat.
-	 */
-	public static function inject_rubrik( $content ) {
-		static $done = array();
-		if ( ! is_page() || ! is_main_query() || ! in_the_loop() ) { return $content; }
-		$pid = get_queried_object_id();
-		if ( isset( $done[ $pid ] ) ) { return $content; }
-		$slug = get_post_field( 'post_name', $pid );
-		$map  = apply_filters( 'm24fz_rubrik_pages', array( 'racecars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' ) );
-		if ( ! isset( $map[ $slug ] ) ) { return $content; }
-		$grid = self::rubrik_grid_html( $map[ $slug ] );
-		if ( '' === $grid ) { return $content; }
-		$done[ $pid ] = true;
-		return '<h2 class="m24fzr-h">Aktuelle Fahrzeuge</h2>' . $grid . $content; // Slider (= $content) bleibt
 	}
 
 	/**

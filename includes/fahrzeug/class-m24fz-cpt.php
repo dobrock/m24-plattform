@@ -36,6 +36,11 @@ class M24FZ_CPT {
 		// Rubrik-WP-Kategorie (racecars/classic-for-sale) nach _m24fz_kat synchron halten + Backfill.
 		add_action( 'save_post_' . self::PT, array( __CLASS__, 'sync_rubrik_category' ), 20 );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_rubrik' ) );
+		// Robust: bei JEDER Änderung von _m24fz_kat (egal über welchen Pfad) Rubrik-Kategorie nachziehen.
+		add_action( 'added_post_meta', array( __CLASS__, 'on_kat_meta' ), 10, 3 );
+		add_action( 'updated_post_meta', array( __CLASS__, 'on_kat_meta' ), 10, 3 );
+		// CPT-Fahrzeuge IN den tagDiv-„FOR SALE"-Slider einhängen (Query um m24_fahrzeug erweitern).
+		add_action( 'pre_get_posts', array( __CLASS__, 'inject_into_rubrik_query' ) );
 		// Reclaim: Alt-Beitrag→CPT-301-Map in die Katalog-Hub-Legacy-Pfade einspeisen + Einmal-Seed.
 		add_filter( 'm24_hub_legacy_paths', array( __CLASS__, 'merge_reclaim_paths' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_reclaim_seed' ) );
@@ -125,12 +130,65 @@ class M24FZ_CPT {
 		}
 	}
 
-	/** Einmaliger Backfill der Rubrik-Kategorie für bestehende Fahrzeuge. */
+	/** Einmaliger Backfill der Rubrik-Kategorie für bestehende Fahrzeuge (v2 erzwingt Re-Sync). */
 	public static function maybe_backfill_rubrik() {
-		if ( get_option( 'm24fz_rubrik_backfill_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		if ( get_option( 'm24fz_rubrik_backfill_v2' ) || ! current_user_can( 'edit_posts' ) ) { return; }
 		$ids = get_posts( array( 'post_type' => self::PT, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
 		foreach ( $ids as $pid ) { self::sync_rubrik_category( $pid ); }
-		update_option( 'm24fz_rubrik_backfill_v1', 1 );
+		update_option( 'm24fz_rubrik_backfill_v2', 1 );
+	}
+
+	/** _m24fz_kat-Meta-Änderung (jeder Pfad) → Rubrik-Kategorie nachziehen. */
+	public static function on_kat_meta( $meta_id, $object_id, $meta_key ) {
+		if ( '_m24fz_kat' !== $meta_key || self::PT !== get_post_type( $object_id ) ) { return; }
+		self::sync_rubrik_category( (int) $object_id );
+	}
+
+	/* ── CPT-Fahrzeuge in den tagDiv-„FOR SALE"-Slider einhängen §Slider-Integration ── */
+
+	/**
+	 * pre_get_posts: Abfragen, die eine Rubrik-Kategorie (race-cars-for-sale / classic-cars-for-sale)
+	 * ziehen, um den Post-Typ m24_fahrzeug erweitern — der tagDiv-Slider rendert die CPT dann in
+	 * seinem eigenen Layout. Greift NUR bei Default-„post"-Abfragen (keine bereits spezifischen
+	 * Post-Type-Queries), Frontend (inkl. AJAX-„load more"), Kategorie verlässlich erkannt.
+	 */
+	public static function inject_into_rubrik_query( $q ) {
+		if ( is_admin() && ! wp_doing_ajax() ) { return; }
+		$pt = $q->get( 'post_type' );
+		// Leer (= implizit „post") oder explizit „post"/Array-mit-„post" → erweitern; sonst unangetastet.
+		if ( ! empty( $pt ) && 'post' !== $pt && ! ( is_array( $pt ) && in_array( 'post', $pt, true ) ) ) { return; }
+		if ( ! self::query_targets_rubrik_cat( $q ) ) { return; }
+		$q->set( 'post_type', array( 'post', self::PT ) );
+	}
+
+	/** Prüft, ob eine WP_Query eine der Rubrik-Kategorien anspricht (cat/category_name/__in/tax_query). */
+	private static function query_targets_rubrik_cat( $q ) {
+		$slugs = array_values( self::rubrik_map() ); // race-cars-for-sale, classic-cars-for-sale
+		$ids   = array();
+		foreach ( $slugs as $s ) { $t = get_term_by( 'slug', $s, 'category' ); if ( $t && ! is_wp_error( $t ) ) { $ids[ (int) $t->term_id ] = $s; } }
+		if ( ! $ids ) { return false; }
+
+		$cn = (string) $q->get( 'category_name' );
+		if ( '' !== $cn ) { foreach ( $slugs as $s ) { if ( false !== strpos( $cn, $s ) ) { return true; } } }
+
+		$cat = $q->get( 'cat' );
+		if ( $cat ) { foreach ( preg_split( '/[\s,+]+/', (string) $cat ) as $c ) { if ( '' !== $c && isset( $ids[ (int) $c ] ) ) { return true; } } }
+
+		foreach ( array( 'category__in', 'category__and' ) as $key ) {
+			foreach ( (array) $q->get( $key ) as $c ) { if ( isset( $ids[ (int) $c ] ) ) { return true; } }
+		}
+
+		$tq = $q->get( 'tax_query' );
+		if ( is_array( $tq ) ) {
+			foreach ( $tq as $clause ) {
+				if ( is_array( $clause ) && 'category' === ( isset( $clause['taxonomy'] ) ? $clause['taxonomy'] : '' ) ) {
+					foreach ( (array) ( isset( $clause['terms'] ) ? $clause['terms'] : array() ) as $term ) {
+						if ( isset( $ids[ (int) $term ] ) || in_array( (string) $term, $slugs, true ) ) { return true; }
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	/** Slider-Taxonomie + Term-Slug (filterbar). Standard: WP-Kategorie „startseite-slider". */
