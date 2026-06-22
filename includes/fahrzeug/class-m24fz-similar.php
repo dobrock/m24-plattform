@@ -29,10 +29,15 @@ class M24FZ_Similar {
 		if ( '' === $marke && class_exists( 'M24FZ_Telemetry' ) ) { $marke = (string) M24FZ_Telemetry::guess_brand( get_the_title( $post_id ) ); }
 		$marke_lo = strtolower( $marke );
 
-		// Affinität robust: Baureihe → Modell → Modellschlüssel aus dem Titel (E30/E36/991/Z4 …).
-		$aff = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
-		if ( '' === $aff ) { $aff = trim( (string) get_post_meta( $post_id, '_m24fz_modell', true ) ); }
-		if ( '' === $aff ) { $aff = self::model_key( get_the_title( $post_id ) ); }
+		// Affinität als SAUBERER Modell-/Chassis-Schlüssel (z. B. „E30") — damit auch Legacy-Posts
+		// OHNE _m24fz_baureihe-Meta über das Titel-Keyword als exakte-Baureihe-Treffer zählen.
+		$bau   = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
+		$mod   = trim( (string) get_post_meta( $post_id, '_m24fz_modell', true ) );
+		$title = get_the_title( $post_id );
+		$aff   = self::model_key( $bau );
+		if ( '' === $aff ) { $aff = self::model_key( $mod ); }
+		if ( '' === $aff ) { $aff = self::model_key( $title ); }
+		if ( '' === $aff ) { $aff = ( '' !== $bau ) ? $bau : $mod; } // Roh-Fallback
 		$aff_lo = strtolower( $aff );
 
 		$all = array_merge( self::cpt_pool( $post_id ), self::legacy_pool( $post_id ) );
