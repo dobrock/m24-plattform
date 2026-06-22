@@ -186,7 +186,7 @@ class M24FZ_Admin_List {
 			<td class="m24fzv-statuscell"><span class="m24fzv-badge st-<?php echo esc_attr( $st ); ?>"><?php echo esc_html( $labels[ $st ] ?? $st ); ?></span><span class="m24fzv-online"><?php echo esc_html( $is_trash ? 'Im Papierkorb' : M24FZ_CPT::online_label( $id ) ); ?></span></td>
 			<td class="m24fzv-price"><?php self::price_cell( $id, $paf, $preis ); ?></td>
 			<td class="m24fzv-stats"><div class="m24fzv-statgrid"><?php printf(
-				'<span class="stat"><b>👁 %s</b><i>Aufrufe</i></span><span class="stat"><b>♡ %s</b><i>Merkliste</i></span><span class="stat"><b>✉ %s</b><i>Anfragen</i></span>',
+				'<span class="stat"><b>👁 %s</b><i>Aufrufe</i></span><span class="stat"><b>♡ %s</b><i>Merkliste</i></span><span class="stat"><b class="m24fzv-anfrage-ct">✉ %s</b><i>Anfragen</i></span>',
 				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'view' ) ) ),
 				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'merken' ) ) ),
 				esc_html( number_format_i18n( M24FZ_Tracking::get( $id, 'anfrage' ) ) )
@@ -202,6 +202,7 @@ class M24FZ_Admin_List {
 						<a href="<?php echo esc_url( get_edit_post_link( $id ) ); ?>">Inserat bearbeiten</a>
 						<a href="#" data-do="preis-edit">Preis bearbeiten</a>
 						<a href="#" data-do="datum">Datum ändern</a>
+						<a href="#" data-do="anfragen-reset">Anfrage-Zähler zurücksetzen</a>
 						<a href="#" data-do="featured"><?php echo M24FZ_CPT::is_featured( $id ) ? '★ Von Startseite nehmen' : '☆ Auf Startseite (Slider)'; ?></a>
 						<hr>
 						<?php if ( in_array( $st, array( 'reserviert', 'verkauft' ), true ) ) : ?><a href="#" data-do="gelistet">Wieder gelistet</a><?php endif; ?>
@@ -260,6 +261,10 @@ class M24FZ_Admin_List {
 				$new = M24FZ_CPT::is_featured( $id ) ? '' : '1';
 				if ( '' === $new ) { delete_post_meta( $id, '_m24_featured' ); } else { update_post_meta( $id, '_m24_featured', '1' ); }
 				wp_send_json_success( array( 'featured' => ( '1' === $new ), 'label' => ( '1' === $new ) ? '★ Von Startseite nehmen' : '☆ Auf Startseite (Slider)' ) );
+				break;
+			case 'anfragen-reset':
+				update_post_meta( $id, '_m24fz_anfragen_count', 0 );
+				wp_send_json_success( array( 'anfragen' => number_format_i18n( 0 ) ) );
 				break;
 			case 'datum':
 				$raw = (string) wp_unslash( $_POST['datum'] ?? '' );
@@ -430,6 +435,9 @@ jQuery(function($){
 
 		// ── Featured (Startseiten-Slider) ──
 		if(doIt==='featured'){ var lnk=$(this); post(id,'featured',{},function(d){ lnk.text(d.label); }); return; }
+
+		// ── Anfrage-Zähler zurücksetzen ──
+		if(doIt==='anfragen-reset'){ if(!confirm('Anfrage-Zähler dieses Fahrzeugs auf 0 zurücksetzen?')){return;} post(id,'anfragen-reset',{},function(d){ tr.find('.m24fzv-anfrage-ct').text('✉ '+(d.anfragen!==undefined?d.anfragen:'0')); closeKebab(tr); }); return; }
 
 		// ── Papierkorb ──
 		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }
