@@ -19,25 +19,61 @@ class M24_Catalog_Pricing {
 
 	const MWST_SATZ = 0.19;
 
-	/** Meta-Key, über den die Standard-Sortierung „teuerste zuerst" läuft. */
+	/** Legacy-Einzelpreis-Meta (NICHT mehr zum Sortieren — oft stale/entkoppelt vom Anzeigepreis). */
 	const SORT_META = '_m24_preis_netto';
+
+	/** Normalisierter numerischer Sortier-Preis (Brutto-„ab"/FROM in GANZEN CENT, sauber numerisch). */
+	const NUM_META = '_m24_price_num';
+
+	/**
+	 * Numerischer Sortier-Preis eines Teils: kleinster Brutto-Wert (FROM/„ab") aus dem kanonischen
+	 * Preismodell (_m24_preisoptionen, inkl. Backward-Compat), in GANZEN CENT. 0 = ohne Preis (POA).
+	 * Eine Quelle für Gebraucht UND Rennsport — nie aus dem formatierten Anzeige-String.
+	 */
+	public static function price_num( $post_id ) {
+		$data = self::get_options( (int) $post_id );
+		$vals = array();
+		foreach ( $data['options'] as $o ) { $b = (float) $o['brutto']; if ( $b > 0 ) { $vals[] = $b; } }
+		return $vals ? (int) round( min( $vals ) * 100 ) : 0;
+	}
+
+	/** _m24_price_num neu ableiten + speichern (für ein Teil). */
+	public static function sync_price_num( $post_id ) {
+		$post_id = (int) $post_id;
+		if ( wp_is_post_revision( $post_id ) || 'm24_teil' !== get_post_type( $post_id ) ) { return; }
+		update_post_meta( $post_id, self::NUM_META, self::price_num( $post_id ) );
+	}
+
+	/** Bei Änderung der Preis-Metas → Sortier-Preis nachziehen (jeder Speicherpfad). */
+	public static function on_price_meta( $meta_id, $object_id, $meta_key ) {
+		if ( in_array( $meta_key, array( '_m24_preisoptionen', '_m24_preis_netto', '_m24_mwst_modus' ), true ) && 'm24_teil' === get_post_type( $object_id ) ) {
+			self::sync_price_num( (int) $object_id );
+		}
+	}
+
+	/** Einmaliger Backfill des Sortier-Preises für alle bestehenden Teile. */
+	public static function maybe_backfill_price_num() {
+		if ( get_option( 'm24_price_num_backfill_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		$ids = get_posts( array( 'post_type' => 'm24_teil', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
+		foreach ( $ids as $pid ) { self::sync_price_num( (int) $pid ); }
+		update_option( 'm24_price_num_backfill_v1', 1 );
+	}
 
 	/**
 	 * Robuste Preis-Sortierung für Listen-Queries (Teile-Archiv + Modell-Hubs).
 	 * Aktiv NUR, wenn die Query den Query-Var `m24_price_sort` = 'ASC'|'DESC' trägt.
 	 *
-	 * LEFT JOIN auf den Preis-Meta-Key → Teile OHNE Preiswert fallen NICHT aus der Liste
-	 * (anders als meta_key + meta_value_num, das per INNER JOIN ausschließt). Preislos
-	 * (Meta fehlt) UND Preis 0 landen IMMER am Ende — in beide Richtungen. Tie-Breaker:
-	 * Datum DESC (stabile Reihenfolge).
+	 * Sortiert über den SAUBEREN numerischen Sortier-Preis (_m24_price_num, Cent als SIGNED) — nie
+	 * über formatierte Strings/Legacy-Felder. LEFT JOIN → preislose Teile fallen nicht aus der Liste;
+	 * POA (kein Wert / 0) landet in BEIDE Richtungen am ENDE. Tie-Breaker: Datum DESC.
 	 */
 	public static function price_sort_clauses( $clauses, $query ) {
 		$dir = $query->get( 'm24_price_sort' );
 		if ( 'ASC' !== $dir && 'DESC' !== $dir ) { return $clauses; }
 		global $wpdb;
-		$val = "CAST(m24price.meta_value AS DECIMAL(12,2))";
-		$has = "CASE WHEN m24price.meta_value IS NULL OR {$val} = 0 THEN 0 ELSE 1 END";
-		$clauses['join']   .= " LEFT JOIN {$wpdb->postmeta} m24price ON m24price.post_id = {$wpdb->posts}.ID AND m24price.meta_key = '" . esc_sql( self::SORT_META ) . "' ";
+		$val = "CAST(m24price.meta_value AS SIGNED)";
+		$has = "CASE WHEN m24price.meta_value IS NULL OR {$val} <= 0 THEN 0 ELSE 1 END";
+		$clauses['join']   .= " LEFT JOIN {$wpdb->postmeta} m24price ON m24price.post_id = {$wpdb->posts}.ID AND m24price.meta_key = '" . esc_sql( self::NUM_META ) . "' ";
 		$clauses['orderby'] = "{$has} DESC, {$val} {$dir}, {$wpdb->posts}.post_date DESC";
 		return $clauses;
 	}
@@ -250,3 +286,9 @@ class M24_Catalog_Pricing {
 
 // Preis-Sortierung: greift NUR bei Queries mit Query-Var `m24_price_sort` (sonst No-Op).
 add_filter( 'posts_clauses', array( 'M24_Catalog_Pricing', 'price_sort_clauses' ), 10, 2 );
+
+// Normalisierten Sortier-Preis (_m24_price_num) pflegen: bei Speichern, bei Preis-Meta-Änderung, + Backfill.
+add_action( 'save_post_m24_teil', array( 'M24_Catalog_Pricing', 'sync_price_num' ), 20 );
+add_action( 'added_post_meta', array( 'M24_Catalog_Pricing', 'on_price_meta' ), 10, 3 );
+add_action( 'updated_post_meta', array( 'M24_Catalog_Pricing', 'on_price_meta' ), 10, 3 );
+add_action( 'admin_init', array( 'M24_Catalog_Pricing', 'maybe_backfill_price_num' ) );
