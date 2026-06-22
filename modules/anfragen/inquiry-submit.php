@@ -53,6 +53,19 @@ class M24_Inquiry_Submit {
 	public static function handle_inquiry( WP_REST_Request $request ) {
 		$params = $request->get_params();
 
+		// Gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent) →
+		// internen Validierungs-/Mail-Vertrag abbilden (abwärtskompatibel: vorname = voller Name, nachname = "").
+		$name      = trim( (string) ( $params['name'] ?? '' ) );
+		$kundentyp = ( 'Geschäftskunde' === ( $params['kundentyp'] ?? '' ) ) ? 'Geschäftskunde' : ( ( 'Privat' === ( $params['kundentyp'] ?? '' ) ) ? 'Privat' : '' );
+		$params['vorname']       = $name;
+		$params['nachname']      = '';
+		$params['firma']         = '';
+		$params['uid']           = '';
+		$params['biz']           = ( 'Geschäftskunde' === $kundentyp ) ? '1' : ( ( 'Privat' === $kundentyp ) ? '0' : '' ); // leer → validate lehnt ab
+		$params['land']          = strtoupper( (string) ( $params['lieferland'] ?? '' ) ); // validate erwartet ISO-Code
+		$params['notes']         = (string) ( $params['nachricht'] ?? '' );
+		$params['dsgvo_consent'] = ! empty( $params['consent'] ) ? '1' : '';
+
 		// validate() unslasht intern -> wp_slash fuer identische Behandlung wie POST.
 		$input = wp_slash( (array) $params );
 		$input['inquiry_source'] = M24_Inquiries::SOURCE_PRODUCT;
@@ -65,6 +78,16 @@ class M24_Inquiry_Submit {
 			}
 			return new WP_REST_Response( array( 'ok' => false, 'code' => $code, 'error' => $result->get_error_message() ), 422 );
 		}
+
+		// Name (neues Pflichtfeld) serverseitig: min. 2 Zeichen.
+		if ( mb_strlen( $name ) < 2 ) {
+			return new WP_REST_Response( array( 'ok' => false, 'code' => 'm24_name_missing', 'error' => __( 'Bitte Ihren Namen angeben (mind. 2 Zeichen).', 'm24-plattform' ) ), 422 );
+		}
+
+		// Lesbare Felder fürs Mail/Listen-Mapping (NAME = voller Name; KUNDENTYP = lesbar; Lieferland-Name).
+		$result['name']       = $name;
+		$result['kundentyp']  = $kundentyp;
+		$result['land_name']  = function_exists( 'm24_inquiry_country_name' ) ? m24_inquiry_country_name( $result['land'] ) : $result['land'];
 
 		// E-Mail an service@ via bestehenden Mail-Builder (kein insert_inquiry, kein Push).
 		$sent = M24_Inquiries_Mail_Fallback::send_data( $result, M24_Inquiries_Mail_Fallback::REASON_PRODUCT );

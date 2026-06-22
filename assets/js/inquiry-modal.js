@@ -116,7 +116,7 @@
 		ppwrApplyForm(o.querySelector('[data-m24iq="form"]'), '');
 		o.hidden = false;
 		document.body.style.overflow = 'hidden';
-		var first = field('vorname'); if (first) { setTimeout(function () { first.focus(); }, 30); }
+		var first = field('name'); if (first) { setTimeout(function () { first.focus(); }, 30); }
 	}
 	function closeModal() {
 		var o = overlay(); if (!o) { return; }
@@ -132,20 +132,19 @@
 	function submitModal(e) {
 		e.preventDefault();
 		var o = overlay(); if (!o || !currentItem) { return; }
+		var form = o.querySelector('[data-m24iq="form"]');
 		var btn = o.querySelector('[data-m24iq="submit"]');
 		var notice = o.querySelector('[data-m24iq="notice"]');
-		var landInput = o.querySelector('[data-m24iq="land-input"]');
-		if (landInput) { onLandInput(landInput); }
-		var landVal = field('land') ? field('land').value : '';
-		if (!landVal) { notice.hidden = false; notice.textContent = T.landUnknown || (T.genericErr || 'Fehler'); return; }
-		if (ppwrBlocked(landVal)) { notice.hidden = false; notice.textContent = (Config.ppwr && Config.ppwr.notice) || ''; return; }
+		if (notice) { notice.hidden = true; }
+		// Gemeinsame Client-Validierung (name, email, kundentyp, lieferland, consent).
+		if (window.M24IqFields) { var v = M24IqFields.validate(form); if (!v.ok) { return; } }
 		var val = function (n) { var f = field(n); return f ? f.value : ''; };
+		var land = val('lieferland');
+		if (ppwrBlocked(land)) { if (notice) { notice.hidden = false; notice.textContent = (Config.ppwr && Config.ppwr.notice) || ''; } return; }
 		var payload = {
-			biz: field('biz') ? field('biz').value : '',
-			firma: val('firma'), vorname: val('vorname'), nachname: val('nachname'),
-			email: val('email'), land: val('land'), uid: val('uid'),
-			notes: val('notes'),
-			dsgvo_consent: field('dsgvo_consent') && field('dsgvo_consent').checked ? '1' : '',
+			name: val('name'), email: val('email'), kundentyp: val('kundentyp'),
+			lieferland: land, nachricht: val('nachricht'),
+			consent: field('consent') && field('consent').checked ? '1' : '',
 			website_confirm: val('website_confirm'),
 			inquiry_source: 'product_inquiry',
 			items_json: JSON.stringify([currentItem])

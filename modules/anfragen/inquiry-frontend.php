@@ -61,8 +61,12 @@ class M24_Inquiry_Frontend {
 		$base    = plugin_dir_url( M24_PLATTFORM_FILE );
 		$version = defined( 'M24_PLATTFORM_VERSION' ) ? M24_PLATTFORM_VERSION : '0.1.0';
 
-		wp_enqueue_style( 'm24-inquiry-modal', $base . 'assets/css/inquiry-modal.css', array(), $version );
-		wp_enqueue_script( 'm24-inquiry-modal', $base . 'assets/js/inquiry-modal.js', array(), $version, true );
+		// Gemeinsames Feld-Styling/-Verhalten (beide Anfrage-Modals identisch).
+		wp_enqueue_style( 'm24-inquiry-fields', $base . 'assets/css/m24-inquiry-fields.css', array(), $version );
+		wp_enqueue_script( 'm24-inquiry-fields', $base . 'assets/js/m24-inquiry-fields.js', array(), $version, true );
+
+		wp_enqueue_style( 'm24-inquiry-modal', $base . 'assets/css/inquiry-modal.css', array( 'm24-inquiry-fields' ), $version );
+		wp_enqueue_script( 'm24-inquiry-modal', $base . 'assets/js/inquiry-modal.js', array( 'm24-inquiry-fields' ), $version, true );
 
 		wp_localize_script( 'm24-inquiry-modal', 'M24InquiryConfig', array(
 			'restUrl'          => esc_url_raw( rest_url( M24_Inquiry_Submit::NS . '/' ) ),
@@ -97,54 +101,7 @@ class M24_Inquiry_Frontend {
 				<form class="m24iq-form" data-m24iq="form" novalidate>
 					<div class="m24iq-notice" data-m24iq="notice" hidden></div>
 
-					<div class="m24iq-spacer" aria-hidden="true"></div>
-
-					<div class="m24iq-row m24iq-2 m24iq-biz" hidden>
-						<input type="text" name="firma" placeholder="<?php esc_attr_e( 'Firma', 'm24-plattform' ); ?>" autocomplete="organization">
-						<input type="text" name="uid" placeholder="<?php esc_attr_e( 'USt-IdNr.', 'm24-plattform' ); ?>">
-					</div>
-					<div class="m24iq-row m24iq-2">
-						<input type="text" name="vorname" placeholder="<?php esc_attr_e( 'Vorname', 'm24-plattform' ); ?>" autocomplete="given-name">
-						<input type="text" name="nachname" placeholder="<?php esc_attr_e( 'Nachname', 'm24-plattform' ); ?>" autocomplete="family-name">
-					</div>
-					<div class="m24iq-row">
-						<input type="email" name="email" placeholder="<?php esc_attr_e( 'E-Mail *', 'm24-plattform' ); ?>" required autocomplete="email">
-					</div>
-					<div class="m24iq-row m24iq-2">
-						<div class="m24iq-landwrap">
-							<input type="text" class="m24iq-land-input" list="m24iq-lands" placeholder="<?php esc_attr_e( 'Lieferland (tippen oder wählen) *', 'm24-plattform' ); ?>" autocomplete="off" data-m24iq="land-input">
-							<input type="hidden" name="land" data-m24iq="land">
-							<datalist id="m24iq-lands">
-								<?php foreach ( $lands as $iso => $label ) : ?>
-									<option value="<?php echo esc_attr( $label . ' (' . $iso . ')' ); ?>"></option>
-								<?php endforeach; ?>
-							</datalist>
-						</div>
-						<select name="biz" class="m24iq-select" data-m24iq="biz" required>
-							<option value="" disabled selected><?php esc_html_e( 'Anfrage als … (bitte wählen) *', 'm24-plattform' ); ?></option>
-							<option value="0"><?php esc_html_e( 'Privat', 'm24-plattform' ); ?></option>
-							<option value="1"><?php esc_html_e( 'Geschäftlich', 'm24-plattform' ); ?></option>
-						</select>
-					</div>
-					<div class="m24iq-row">
-						<textarea name="notes" rows="3" placeholder="<?php esc_attr_e( 'Nachricht (optional)', 'm24-plattform' ); ?>"></textarea>
-					</div>
-
-					<label class="m24iq-consent">
-						<input type="checkbox" name="dsgvo_consent" value="1" required>
-						<span class="m24iq-consent-text"><?php
-							$_ds_url    = function_exists( 'm24_datenschutz_url' ) ? m24_datenschutz_url() : '';
-							$_link_text = esc_html__( 'Datenschutzerklärung', 'm24-plattform' );
-							$_link_html = $_ds_url
-								? '<a href="' . esc_url( $_ds_url ) . '" target="_blank" rel="noopener">' . $_link_text . '</a>'
-								: $_link_text;
-							$_text_tpl  = function_exists( 'm24_consent_text' ) ? m24_consent_text() : 'Ich willige in die Verarbeitung meiner Angaben zur Bearbeitung der Anfrage ein. Hinweise zur Verarbeitung finde ich in der %s. *';
-							echo wp_kses(
-								sprintf( $_text_tpl, $_link_html ),
-								array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) )
-							);
-						?></span>
-					</label>
+					<?php m24_inquiry_fields(); // gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent) ?>
 
 					<input type="text" name="website_confirm" class="m24iq-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 

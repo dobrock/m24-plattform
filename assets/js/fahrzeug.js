@@ -195,17 +195,7 @@
 		});
 	}
 
-	// Privat/Gewerblich Pill-Umschalter im Anfrage-Modal: aktive Pille = .on
-	if (anfModal) {
-		var seg = anfModal.querySelector('.m24fz-pillseg');
-		if (seg) {
-			seg.addEventListener('change', function () {
-				[].forEach.call(seg.querySelectorAll('label'), function (l) {
-					var r = l.querySelector('input'); l.classList.toggle('on', !!(r && r.checked));
-				});
-			});
-		}
-	}
+	// (Kundentyp-Toggle im Anfrage-Modal kommt aus dem gemeinsamen Feld-Set / m24-inquiry-fields.js.)
 
 	// Generischer REST-Submit für ein Modal-Formular (eigener Endpoint je Flow).
 	function wireModalForm(modal, formSel, endpoint) {
@@ -215,6 +205,8 @@
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			if (!endpoint || !cfg.nonce) { return; }
+			// Gemeinsame Client-Validierung NUR für Formulare mit dem geteilten Feld-Set (Anfrage), nicht IL.
+			if (window.M24IqFields && form.querySelector('[name="kundentyp"]') && !M24IqFields.validate(form).ok) { return; }
 			var fd = new FormData(form); fd.append('post_id', form.getAttribute('data-pid'));
 			var btn = form.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
 			if (amsg) { amsg.textContent = 'Wird gesendet …'; }

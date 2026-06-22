@@ -153,14 +153,15 @@
 .m24fz-anfrage-box h3{font-size:22px;font-weight:800;margin:0 0 2px}
 .m24fz-anfrage-veh{color:var(--mut);font-size:14px;margin:0 0 18px}
 .m24fz-anfrage-form{display:flex;flex-direction:column;gap:16px}
-.m24fz-anfrage-form .m24fz-f{display:flex;flex-direction:column;gap:6px}
-.m24fz-anfrage-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.m24fz-anfrage-form label{font-size:12px;font-weight:700;color:#3a3f47}
-.m24fz-anfrage-form .req{color:#9e2b2b}
-.m24fz-anfrage-form input[type=text],.m24fz-anfrage-form input[type=email],.m24fz-anfrage-form input[type=tel],.m24fz-anfrage-form select,.m24fz-anfrage-form textarea{font:inherit;font-size:15px;min-height:48px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;width:100%;background:#fff;-webkit-appearance:none;appearance:none}
-.m24fz-anfrage-form textarea{min-height:auto}
-.m24fz-anfrage-form select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2350575e' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
-.m24fz-anfrage-form input[type=text]:focus,.m24fz-anfrage-form input[type=email]:focus,.m24fz-anfrage-form input[type=tel]:focus,.m24fz-anfrage-form select:focus,.m24fz-anfrage-form textarea:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
+/* Feld-Styling NUR fürs IL-Modal (Anfrage-Modal nutzt das geteilte .m24-iqf-Set). */
+.m24fz-il-form .m24fz-f{display:flex;flex-direction:column;gap:6px}
+.m24fz-il-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.m24fz-il-form label{font-size:12px;font-weight:700;color:#3a3f47}
+.m24fz-il-form .req{color:#9e2b2b}
+.m24fz-il-form input[type=text],.m24fz-il-form input[type=email],.m24fz-il-form input[type=tel],.m24fz-il-form select,.m24fz-il-form textarea{font:inherit;font-size:15px;min-height:48px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;width:100%;background:#fff;-webkit-appearance:none;appearance:none}
+.m24fz-il-form textarea{min-height:auto}
+.m24fz-il-form select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2350575e' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
+.m24fz-il-form input[type=text]:focus,.m24fz-il-form input[type=email]:focus,.m24fz-il-form input[type=tel]:focus,.m24fz-il-form select:focus,.m24fz-il-form textarea:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 /* Privat/Gewerblich Pill-Umschalter — ~50% Breite, linksbündig, Höhe wie die Felder */
 .m24fz-pillseg{display:flex;gap:4px;background:#f1f3f6;border-radius:11px;padding:4px;width:calc((100% - 16px) / 2);min-width:210px;min-height:48px;align-self:flex-start}
 .m24fz-pillseg label{flex:1;text-align:center;cursor:pointer;margin:0;display:flex}
@@ -174,7 +175,7 @@
 .m24fz-dsgvo{font-size:11.5px;line-height:1.5;color:#8a9099;margin:-4px 0 0;text-align:center}
 .m24fz-dsgvo a{color:#1f74c4;text-decoration:underline}
 .m24fz-anf-msg{font-size:13px;color:var(--brass);min-height:1em;margin:0;text-align:center}
-@media(max-width:520px){.m24fz-anfrage-form .m24fz-frow{grid-template-columns:1fr}}
+@media(max-width:520px){.m24fz-il-form .m24fz-frow{grid-template-columns:1fr}}
 
 /* Badges */
 .m24fz-badge{display:inline-flex;align-items:center;gap:7px;vertical-align:middle;background:var(--red);color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;padding:5px 13px;border-radius:999px;letter-spacing:.04em}

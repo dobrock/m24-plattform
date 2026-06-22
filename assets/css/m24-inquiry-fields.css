@@ -1,0 +1,21 @@
+/* M24 — Gemeinsames Anfrage-Formular-Feld-Styling (.m24-iqf) — beide Modals identisch.
+   Inputs ≥50px, 16px (verhindert iOS-Zoom), Saira, CI-Ecken; Segmented Toggle; Touch ≥44px. */
+.m24-iqf{display:flex;flex-direction:column;gap:14px;font-family:'Saira',-apple-system,Segoe UI,sans-serif}
+.m24-iqf-field{display:block}
+.m24-iqf-input{width:100%;min-height:50px;padding:14px 16px;font-family:inherit;font-size:16px;line-height:1.3;color:#14161a;background:#fff;border:1.5px solid #e4e7ec;border-radius:11px;box-sizing:border-box;-webkit-appearance:none;appearance:none}
+.m24-iqf-input::placeholder{color:#9aa0a8}
+.m24-iqf-input:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
+.m24-iqf-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2350575e' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center;padding-right:40px;cursor:pointer}
+.m24-iqf-textarea{min-height:96px;resize:vertical}
+/* Segmented Toggle „Privat | Geschäftskunde" — aktiv #1f74c4/weiß, inaktiv weiß/Border #ccc */
+.m24-iqf-seg{display:flex;gap:10px}
+.m24-iqf-seg-btn{flex:1;min-height:48px;min-width:44px;padding:12px 14px;font-family:inherit;font-size:16px;font-weight:600;color:#14161a;background:#fff;border:1.5px solid #ccc;border-radius:11px;cursor:pointer;line-height:1.2;transition:background .12s ease,border-color .12s ease,color .12s ease}
+.m24-iqf-seg-btn[aria-checked="true"]{background:#1f74c4;border-color:#1f74c4;color:#fff}
+.m24-iqf-seg-btn:focus-visible{outline:2px solid #1f74c4;outline-offset:2px}
+/* Consent */
+.m24-iqf-consent{display:flex;gap:10px;align-items:flex-start;min-height:44px;font-family:inherit;font-size:13px;line-height:1.5;color:#6b7077;cursor:pointer}
+.m24-iqf-consent input[type=checkbox]{flex:0 0 auto;width:20px;height:20px;min-height:0;margin:2px 0 0;accent-color:#9a6b25;cursor:pointer}
+.m24-iqf-consent a{color:#1f74c4;text-decoration:underline}
+/* Inline-Fehler */
+.m24-iqf-error{margin:0;color:#9e2b2b;font-family:inherit;font-size:13.5px;font-weight:600}
+.m24-iqf-input.m24-iqf-invalid,.m24-iqf-seg.m24-iqf-invalid .m24-iqf-seg-btn{border-color:#9e2b2b}

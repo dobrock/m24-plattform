@@ -59,15 +59,19 @@ class M24FZ_Anfrage {
 		$cnt = (int) get_transient( $rk );
 		if ( $cnt >= 5 ) { return new WP_Error( 'm24fz_rate', 'Zu viele Anfragen. Bitte später erneut.', array( 'status' => 429 ) ); }
 
-		$name = sanitize_text_field( (string) ( $p['name'] ?? '' ) );
-		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
-		$land = sanitize_text_field( (string) ( $p['land'] ?? '' ) );
-		$tel  = sanitize_text_field( (string) ( $p['tel'] ?? '' ) );
-		$typ  = ( 'gewerblich' === ( $p['anrede'] ?? '' ) ) ? 'gewerblich' : 'privat';
-		$msg  = sanitize_textarea_field( (string) ( $p['nachricht'] ?? '' ) );
-		$ilist = ! empty( $p['interessent'] );
+		// Gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent).
+		$name       = sanitize_text_field( (string) ( $p['name'] ?? '' ) );
+		$mail       = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		$land_iso   = strtoupper( sanitize_text_field( (string) ( $p['lieferland'] ?? '' ) ) );
+		$lieferland = function_exists( 'm24_inquiry_country_name' ) ? m24_inquiry_country_name( $land_iso ) : $land_iso;
+		$kundentyp  = ( 'Geschäftskunde' === ( $p['kundentyp'] ?? '' ) ) ? 'Geschäftskunde' : ( ( 'Privat' === ( $p['kundentyp'] ?? '' ) ) ? 'Privat' : '' );
+		$msg        = sanitize_textarea_field( (string) ( $p['nachricht'] ?? '' ) );
+		$consent    = ! empty( $p['consent'] );
 
-		if ( '' === $name || ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte Name und gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		if ( mb_strlen( $name ) < 2 || ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte Name (mind. 2 Zeichen) und gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		if ( '' === $kundentyp ) { return new WP_Error( 'm24fz_form', 'Bitte „Privat" oder „Geschäftskunde" wählen.', array( 'status' => 422 ) ); }
+		if ( '' === $land_iso )  { return new WP_Error( 'm24fz_form', 'Bitte ein Lieferland wählen.', array( 'status' => 422 ) ); }
+		if ( ! $consent )        { return new WP_Error( 'm24fz_form', 'Bitte der Datenschutzerklärung zustimmen.', array( 'status' => 422 ) ); }
 
 		$title = get_the_title( $pid );
 		$url   = get_permalink( $pid );
@@ -75,11 +79,9 @@ class M24FZ_Anfrage {
 
 		$body  = "Neue Fahrzeug-Anfrage\n\n";
 		$body .= "Fahrzeug: {$title}\n{$url}\nInserat-ID: {$pid}\n\n";
-		$body .= "Typ: {$typ}\nName: {$name}\nE-Mail: {$mail}\n";
-		if ( '' !== $land ) { $body .= "Lieferland: {$land}\n"; }
-		if ( '' !== $tel )  { $body .= "Telefon: {$tel}\n"; }
-		if ( '' !== $msg )  { $body .= "\nNachricht:\n{$msg}\n"; }
-		$body .= "\nInteressentenliste gewünscht: " . ( $ilist ? 'JA' : 'nein' ) . "\n";
+		$body .= "Name: {$name}\nE-Mail: {$mail}\nKundentyp: {$kundentyp}\n";
+		if ( '' !== $lieferland ) { $body .= "Lieferland: {$lieferland}\n"; }
+		if ( '' !== $msg )        { $body .= "\nNachricht:\n{$msg}\n"; }
 
 		// From-Name = Kunde, From-Adresse = Domain (SPF/DKIM); Reply-To = Kunde, damit „Antworten" passt.
 		$headers = array(
@@ -88,11 +90,16 @@ class M24FZ_Anfrage {
 		);
 		$sent    = wp_mail( $to, 'Fahrzeug-Anfrage: ' . $title, $body, $headers );
 
-		// Optionaler Desk-Push (wenn Pipeline vorhanden) — Mail ist der zuverlässige Fallback.
-		do_action( 'm24fz_anfrage_submitted', $pid, array( 'name' => $name, 'email' => $mail, 'land' => $land, 'tel' => $tel, 'typ' => $typ, 'nachricht' => $msg, 'interessent' => $ilist ) );
-
-		// IL-Opt-in: bei gesetztem Häkchen zusätzlich über den IL-Pfad registrieren (ohne Anfrage-Flow zu ändern).
-		if ( $ilist ) { self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'tel' => $tel ) ); }
+		// Desk/Brevo-Payload (Migration ohne Bruch): NAME + KUNDENTYP neu; abwärtskompatibel vorname = voller Name, nachname = "".
+		do_action( 'm24fz_anfrage_submitted', $pid, array(
+			'name'       => $name,
+			'email'      => $mail,
+			'kundentyp'  => $kundentyp,
+			'lieferland' => $lieferland,
+			'nachricht'  => $msg,
+			'vorname'    => $name,
+			'nachname'   => '',
+		) );
 
 		// Erst bei erfolgreichem Submit zählen (§2).
 		if ( class_exists( 'M24FZ_Tracking' ) ) { M24FZ_Tracking::increment( $pid, 'anfrage' ); }
@@ -219,7 +226,6 @@ class M24FZ_Anfrage {
 
 	/** Modal-Markup (einmal pro Detailseite ausgeben). */
 	public static function modal_html( $post_id ) {
-		$countries = M24FZ_Telemetry::countries();
 		?>
 		<div class="m24fz-anfrage-modal" id="m24fz-anfrage-modal" hidden aria-hidden="true">
 			<div class="m24fz-anfrage-box" role="dialog" aria-modal="true" aria-label="Fahrzeug anfragen">
@@ -227,26 +233,9 @@ class M24FZ_Anfrage {
 				<h3>Fahrzeug anfragen</h3>
 				<p class="m24fz-anfrage-veh"><?php echo esc_html( get_the_title( $post_id ) ); ?></p>
 				<form class="m24fz-anfrage-form" data-pid="<?php echo (int) $post_id; ?>">
-					<div class="m24fz-f">
-						<label>Interesse</label>
-						<div class="m24fz-pillseg" role="radiogroup">
-							<label class="on"><input type="radio" name="anrede" value="privat" checked><span>Privat</span></label>
-							<label><input type="radio" name="anrede" value="gewerblich"><span>Gewerblich</span></label>
-						</div>
-					</div>
-					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24fzN">Name <span class="req">*</span></label><input id="m24fzN" type="text" name="name" placeholder="Ihr Name" required></div>
-						<div class="m24fz-f"><label for="m24fzE">E-Mail <span class="req">*</span></label><input id="m24fzE" type="email" name="email" placeholder="ihre@email.de" required></div>
-					</div>
-					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24fzL">Lieferland</label><select id="m24fzL" name="land"><option value="">Bitte wählen</option><?php foreach ( $countries as $cc => $cn ) { printf( '<option value="%s">%s</option>', esc_attr( $cn ), esc_html( $cn ) ); } ?></select></div>
-						<div class="m24fz-f"><label for="m24fzT">WhatsApp</label><input id="m24fzT" type="tel" name="tel" placeholder="optional"></div>
-					</div>
-					<div class="m24fz-f"><label for="m24fzM">Nachricht</label><textarea id="m24fzM" name="nachricht" rows="3" placeholder="Ihre Nachricht (optional)"></textarea></div>
-					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste eintragen — ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
+					<?php m24_inquiry_fields(); // gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent) ?>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit">Anfrage senden</button>
-					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
 					<p class="m24fz-anf-msg" role="status"></p>
 				</form>
 			</div>
