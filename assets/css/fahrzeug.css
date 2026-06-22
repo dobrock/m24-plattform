@@ -25,6 +25,7 @@
 /* Hero-Titel ist jetzt ein <h1> → tagDiv-Theme-h1-Farbe (#111) überschreiben. Zwei Klassen + !important. */
 .m24fz-hero .m24fz-hero-title{color:#fff!important}
 .m24fz-mhead{display:none} /* nur ≤768px sichtbar (Entwurf A) */
+.m24fz-tel-eyebrow{display:none} /* „Eckdaten"-Eyebrow nur mobil */
 .m24fz-pill{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
 .m24fz-pill:hover{background:rgba(255,255,255,.12)}
 
@@ -207,31 +208,39 @@
 }
 @media(max-width:560px){.m24fz-tel{grid-template-columns:repeat(2,1fr)}.m24fz-simgrid{grid-template-columns:1fr 1fr}}
 @media(max-width:768px){
-	/* ── Entwurf A — Mobile-Layout (ersetzt provisorischen Hero aus 0.11.23-D) ── */
+	/* ── Entwurf A — Mobile-Layout (optimiert) ── */
 	.m24fz-wrap{gap:14px;background:#fafafa}
-	/* Hero: Beitragsbild volle Breite, natürliches Seitenverhältnis, KEIN Crop, KEIN Overlay/Text */
+	/* Hero: Beitragsbild volle Breite, edge-to-edge (kein seitliches Padding), natürliches Seitenverhältnis */
 	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;margin:0 -16px;overflow:visible}
 	.m24fz-hero.has-img{min-height:0}
 	.m24fz-hero-img{position:static;width:100%;height:auto;object-fit:contain}
 	.m24fz-hero-ov,.m24fz-hero-top,.m24fz-hero-foot{display:none}
-	/* Mobile-Head: weiße Karte mit Eyebrow, H1, Status-Pill, Preis, CTAs */
+	/* Mobile-Head: weiße Karte; luftigere Typo (Eyebrow→Title→Preis) */
 	.m24fz-mhead{display:block;border-radius:13px}
-	.m24fz-mh-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brass);margin-bottom:6px}
-	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.2;color:var(--ink);margin:0 0 14px}
+	.m24fz-mh-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brass);margin-bottom:9px}
+	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.24;color:var(--ink);margin:0 0 18px}
+	.m24fz-mhead .m24fz-preis{line-height:1}
+	.m24fz-mhead .m24fz-preis-note{margin:7px 0 20px}
 	/* Desktop-Pricebox-Aside ausblenden (Inhalt steckt im Mobile-Head) */
 	.m24fz-side{display:none}
-	/* Keyfacts: weiße Karte, 2-spaltig, Messing-Großbuchstaben-Labels */
-	.m24fz-tel{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--brass);border-radius:13px;overflow:hidden;margin-top:0;grid-template-columns:1fr 1fr}
-	.m24fz-tel-cell{border-left:1px solid var(--line);padding:13px 15px}
+	/* Keyfacts: Messing-Eyebrow „Eckdaten" über der Box; weiße Karte OHNE Kupfer-Oberrahmen */
+	.m24fz-tel-eyebrow{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brass);margin:2px 0 8px}
+	.m24fz-tel{background:var(--paper);border:1px solid #eef0f2;border-radius:13px;box-shadow:0 1px 3px rgba(20,22,25,.05);overflow:hidden;margin-top:0;grid-template-columns:1fr 1fr}
+	.m24fz-tel-cell{border-left:1px solid #f0f1f3;padding:13px 15px}
 	.m24fz-tel-cell:nth-child(odd){border-left:0}
-	.m24fz-tel-cell:nth-child(n+3){border-top:1px solid var(--line)}
+	.m24fz-tel-cell:nth-child(n+3){border-top:1px solid #f0f1f3}
 	.m24fz-tel-cell .k{color:var(--brass)}
 	.m24fz-tel-cell .v{color:var(--ink);white-space:normal}
+	/* Zusammenfassung eine Stufe größer */
+	.m24fz-zus{font-size:16.5px;line-height:1.62}
+	/* 3er-Teaser als Mosaik: links groß (2fr, 2 Reihen), rechts Bild 2+3 gestapelt (1fr); eckig */
+	.m24fz-photos{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:8px}
+	.m24fz-photos .big{grid-column:1;grid-row:1 / span 2}
+	.m24fz-photos .side{grid-column:2;aspect-ratio:3/2}
+	.m24fz-photos figure{border-radius:0}
 	/* CI: weiße Karten, Radius 13px, gut tappbare Buttons */
 	.m24fz-card{border-radius:13px}
 	.m24fz-btn{padding:13px 16px}
-	/* Galerie mobil: einfaches 2-spaltiges Grid statt Zickzack (Entwurf A) */
-	.m24fz-mz-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-	.m24fz-mz-row,.m24fz-mz-side{display:contents}
-	.m24fz-mz-tile,.m24fz-mz-big{aspect-ratio:3/2;height:auto}
+	/* Galerie-Reiter bleiben mobil das versetzte Zickzack-Mosaik (Desktop-Grid gilt auch hier) —
+	   KEINE vertikale Bilderkette, große 3:2-Kachel gibt die Zeilenhöhe vor, Hochkant bleibt hochkant. */
 }

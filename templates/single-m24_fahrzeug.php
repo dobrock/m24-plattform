@@ -67,6 +67,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 
 		<!-- 2. TELEMETRIE (eckig, Messing-Oberlinie) -->
 		<?php if ( $cells ) : ?>
+		<div class="m24fz-tel-eyebrow">Eckdaten</div>
 		<section class="m24fz-tel">
 			<?php foreach ( $cells as $c ) : ?>
 				<div class="m24fz-tel-cell"><div class="k"><?php echo esc_html( $c['label'] ); ?></div><div class="v"><?php echo esc_html( $c['value'] ); ?></div></div>
