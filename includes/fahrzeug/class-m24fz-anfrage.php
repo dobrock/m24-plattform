@@ -87,6 +87,9 @@ class M24FZ_Anfrage {
 		// Optionaler Desk-Push (wenn Pipeline vorhanden) — Mail ist der zuverlässige Fallback.
 		do_action( 'm24fz_anfrage_submitted', $pid, array( 'name' => $name, 'email' => $mail, 'land' => $land, 'tel' => $tel, 'typ' => $typ, 'nachricht' => $msg, 'interessent' => $ilist ) );
 
+		// IL-Opt-in: bei gesetztem Häkchen zusätzlich über den IL-Pfad registrieren (ohne Anfrage-Flow zu ändern).
+		if ( $ilist ) { self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'tel' => $tel ) ); }
+
 		// Erst bei erfolgreichem Submit zählen (§2).
 		if ( class_exists( 'M24FZ_Tracking' ) ) { M24FZ_Tracking::increment( $pid, 'anfrage' ); }
 
@@ -119,13 +122,41 @@ class M24FZ_Anfrage {
 		$tel  = sanitize_text_field( (string) ( $p['tel'] ?? '' ) );
 		if ( '' === $name || ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte Name und gültige E-Mail angeben.', array( 'status' => 422 ) ); }
 
-		// Fahrzeug-Attribute für die Liste ableiten (MODELLE / KATEGORIEN).
+		self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'tel' => $tel ) );
+
+		// BEWUSST KEIN M24FZ_Tracking::increment() — IL ist keine Anfrage.
+		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
+
+		return rest_ensure_response( array( 'ok' => true, 'message' => 'Eingetragen! Sie erhalten Ihre Bestätigung in Kürze per E-Mail.' ) );
+	}
+
+	/**
+	 * Brevo-/Listen-Attribute aus dem Fahrzeug ableiten (einheitlich für IL-Modal + Anfrage-Opt-in):
+	 * MODELLE ← Baureihe (Fallback Modell), KATEGORIEN ← Fahrzeugtyp (Straße/Sport). Werte filterbar.
+	 */
+	public static function il_attributes( $pid ) {
 		$baureihe = trim( (string) get_post_meta( $pid, '_m24fz_baureihe', true ) );
 		$modell   = trim( (string) get_post_meta( $pid, '_m24fz_modell', true ) );
-		$kat      = trim( (string) get_post_meta( $pid, '_m24fz_kat', true ) );
-		$modelle  = array_values( array_filter( array( $baureihe, $modell ) ) );
-		$kategorien = ( '' !== $kat ) ? array( $kat ) : array();
+		$mod      = '' !== $baureihe ? $baureihe : $modell;
+		$modelle  = ( '' !== $mod ) ? array( $mod ) : array();
+		$typ      = ( 'renn' === get_post_meta( $pid, '_m24fz_template_typ', true ) ) ? 'Sport' : 'Straße';
+		return array(
+			'modelle'    => apply_filters( 'm24fz_il_modelle', $modelle, $pid ),
+			'kategorien' => apply_filters( 'm24fz_il_kategorien', array( $typ ), $pid ),
+		);
+	}
 
+	/**
+	 * Interessentenlisten-Registrierung (geteilt von IL-Modal und Anfrage-Opt-in). Erhöht NICHT den
+	 * Anfragen-Zähler. Fallback-Mail (klar markiert) + Hook m24fz_interessent_submitted für Brevo Phase 2 (DOI).
+	 */
+	public static function register_interessent( $pid, $contact ) {
+		$name = (string) ( $contact['name'] ?? '' );
+		$mail = (string) ( $contact['email'] ?? '' );
+		$tel  = (string) ( $contact['tel'] ?? '' );
+		if ( '' === $name || ! is_email( $mail ) ) { return; }
+
+		$attr  = self::il_attributes( $pid );
 		$title = get_the_title( $pid );
 		$url   = get_permalink( $pid );
 		$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
@@ -134,26 +165,28 @@ class M24FZ_Anfrage {
 		$body .= "Auslösendes Fahrzeug: {$title}\n{$url}\nInserat-ID: {$pid}\n\n";
 		$body .= "Name: {$name}\nE-Mail: {$mail}\n";
 		if ( '' !== $tel ) { $body .= "Telefon/WhatsApp: {$tel}\n"; }
-		$body .= "\nMODELLE: " . ( $modelle ? implode( ', ', $modelle ) : '—' ) . "\n";
-		$body .= "KATEGORIEN: " . ( $kategorien ? implode( ', ', $kategorien ) : '—' ) . "\n";
+		$body .= "\nMODELLE: " . ( $attr['modelle'] ? implode( ', ', (array) $attr['modelle'] ) : '—' ) . "\n";
+		$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
 		$body .= "\nDOI: ausstehend (Brevo Phase 2 — API-Key noch nicht gesetzt).\n";
 
 		$headers = array( 'Reply-To: ' . $name . ' <' . $mail . '>' );
-		$sent    = wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
+		wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
 
 		// Hook für die spätere plugin-managed DOI-Pipeline (Liste 3, Attribute MODELLE/KATEGORIEN).
 		do_action( 'm24fz_interessent_submitted', $pid, array(
 			'name'       => $name,
 			'email'      => $mail,
 			'tel'        => $tel,
-			'modelle'    => $modelle,
-			'kategorien' => $kategorien,
+			'modelle'    => $attr['modelle'],
+			'kategorien' => $attr['kategorien'],
 		) );
+	}
 
-		// BEWUSST KEIN M24FZ_Tracking::increment() — IL ist keine Anfrage.
-		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
-
-		return rest_ensure_response( array( 'ok' => true, 'message' => 'Eingetragen! Sie erhalten Ihre Bestätigung in Kürze per E-Mail.' ) );
+	/** Kurzer Datenschutzhinweis mit Link zur Datenschutzerklärung (beide Modals, kein Pflicht-Häkchen). */
+	public static function datenschutz_hint() {
+		$url  = apply_filters( 'm24fz_datenschutz_url', get_privacy_policy_url() );
+		$link = $url ? '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' : 'Datenschutzerklärung';
+		return '<p class="m24fz-dsgvo">Mit dem Absenden verarbeiten wir Ihre Angaben zur Bearbeitung Ihres Anliegens. Mehr in der ' . $link . '.</p>';
 	}
 
 	/** Modal-Markup (einmal pro Detailseite ausgeben). */
@@ -182,9 +215,10 @@ class M24FZ_Anfrage {
 						<div class="m24fz-f"><label for="m24fzT">WhatsApp</label><input id="m24fzT" type="tel" name="tel" placeholder="optional"></div>
 					</div>
 					<div class="m24fz-f"><label for="m24fzM">Nachricht</label><textarea id="m24fzM" name="nachricht" rows="3" placeholder="Ihre Nachricht (optional)"></textarea></div>
-					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste — ähnliche Fahrzeuge zuerst erfahren.</label>
+					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste eintragen — ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit">Anfrage senden</button>
+					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
 					<p class="m24fz-anf-msg" role="status"></p>
 				</form>
 			</div>
@@ -200,15 +234,16 @@ class M24FZ_Anfrage {
 				<button type="button" class="m24fz-anfrage-close" aria-label="Schließen">&times;</button>
 				<h3>Auf die Interessentenliste</h3>
 				<p class="m24fz-anfrage-veh">Tragen Sie sich ein und erfahren Sie als Erster, sobald dieses oder ein ähnliches Fahrzeug verfügbar ist.</p>
-				<form class="m24fz-il-form" data-pid="<?php echo (int) $post_id; ?>">
+				<form class="m24fz-anfrage-form m24fz-il-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-frow">
 						<div class="m24fz-f"><label for="m24ilN">Name <span class="req">*</span></label><input id="m24ilN" type="text" name="name" placeholder="Ihr Name" required></div>
 						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="ihre@email.de" required></div>
 					</div>
 					<div class="m24fz-f"><label for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" type="tel" name="tel" placeholder="optional"></div>
-					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
+					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-il-submit">Eintragen</button>
+					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
 					<p class="m24fz-anf-msg" role="status"></p>
 				</form>
 			</div>
