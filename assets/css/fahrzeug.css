@@ -24,6 +24,7 @@
 .m24fz-hero-title{font-size:30px;font-weight:700;line-height:1.1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 /* Hero-Titel ist jetzt ein <h1> → tagDiv-Theme-h1-Farbe (#111) überschreiben. Zwei Klassen + !important. */
 .m24fz-hero .m24fz-hero-title{color:#fff!important}
+.m24fz-mhead{display:none} /* nur ≤768px sichtbar (Entwurf A) */
 .m24fz-pill{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
 .m24fz-pill:hover{background:rgba(255,255,255,.12)}
 
@@ -195,20 +196,28 @@
 	.m24fz-hero-title{font-size:24px}
 }
 @media(max-width:560px){.m24fz-tel{grid-template-columns:repeat(2,1fr)}.m24fz-simgrid{grid-template-columns:1fr}}
-@media(max-width:480px){
-	/* Hero: Breadcrumb + Titel sauber stapeln, mehr Kontrast, Pill/„Galerie" ohne Überlappung */
-	.m24fz-hero{padding:14px 15px 15px;gap:14px}
-	.m24fz-hero.has-img{min-height:clamp(260px,68vw,420px)}
-	.m24fz-hero-ov{background:linear-gradient(180deg,rgba(20,22,26,.55) 0%,rgba(20,22,26,.12) 30%,rgba(20,22,26,.18) 55%,rgba(20,22,26,.62) 80%,rgba(20,22,26,.9) 100%)}
-	.m24fz-hero-foot{gap:10px}
-	.m24fz-bc{font-size:11px;line-height:1.45}
-	.m24fz-hero-titlerow{flex-direction:column;align-items:flex-start;gap:10px}
-	.m24fz-hero-title{font-size:20px;gap:8px}
-	.m24fz-hero-titlerow .m24fz-gal-launch{align-self:stretch;text-align:center}
-	.m24fz-badge{font-size:11px;padding:4px 10px}
-	/* Keyfacts-Strip + IL-/Anfrage-Box: 2 Spalten, Werte dürfen umbrechen, Buttons gut tappbar */
-	.m24fz-tel{grid-template-columns:repeat(2,1fr)}
-	.m24fz-tel-cell{padding:13px 14px}
-	.m24fz-tel-cell .v{white-space:normal}
+@media(max-width:768px){
+	/* ── Entwurf A — Mobile-Layout (ersetzt provisorischen Hero aus 0.11.23-D) ── */
+	.m24fz-wrap{gap:14px;background:#fafafa}
+	/* Hero: Beitragsbild volle Breite, natürliches Seitenverhältnis, KEIN Crop, KEIN Overlay/Text */
+	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;margin:0 -16px;overflow:visible}
+	.m24fz-hero.has-img{min-height:0}
+	.m24fz-hero-img{position:static;width:100%;height:auto;object-fit:contain}
+	.m24fz-hero-ov,.m24fz-hero-top,.m24fz-hero-foot{display:none}
+	/* Mobile-Head: weiße Karte mit Eyebrow, H1, Status-Pill, Preis, CTAs */
+	.m24fz-mhead{display:block;border-radius:13px}
+	.m24fz-mh-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brass);margin-bottom:6px}
+	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.2;color:var(--ink);margin:0 0 14px}
+	/* Desktop-Pricebox-Aside ausblenden (Inhalt steckt im Mobile-Head) */
+	.m24fz-side{display:none}
+	/* Keyfacts: weiße Karte, 2-spaltig, Messing-Großbuchstaben-Labels */
+	.m24fz-tel{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--brass);border-radius:13px;overflow:hidden;margin-top:0;grid-template-columns:1fr 1fr}
+	.m24fz-tel-cell{border-left:1px solid var(--line);padding:13px 15px}
+	.m24fz-tel-cell:nth-child(odd){border-left:0}
+	.m24fz-tel-cell:nth-child(n+3){border-top:1px solid var(--line)}
+	.m24fz-tel-cell .k{color:var(--brass)}
+	.m24fz-tel-cell .v{color:var(--ink);white-space:normal}
+	/* CI: weiße Karten, Radius 13px, gut tappbare Buttons */
+	.m24fz-card{border-radius:13px}
 	.m24fz-btn{padding:13px 16px}
 }

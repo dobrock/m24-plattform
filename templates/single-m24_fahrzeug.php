@@ -31,6 +31,7 @@ $daten = M24FZ_Template::daten_rows( $id );
 $zust  = M24FZ_Template::chips( $id, '_m24fz_zustand', M24FZ_Telemetry::zustand_options() );
 $ausst = M24FZ_Template::chips( $id, '_m24fz_ausstattung', M24FZ_Telemetry::ausstattung_options() );
 $marke = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
+$baujahr = trim( (string) get_post_meta( $id, '_m24fz_baujahr', true ) );
 $views = M24FZ_Tracking::get( $id, 'view' );
 $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 ?>
@@ -54,6 +55,14 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 					<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
 				</div>
 			</div>
+		</section>
+
+		<!-- 1b. MOBILE-HEAD (nur ≤768px, Entwurf A: weiße Karte unter dem Hero-Bild) -->
+		<section class="m24fz-card m24fz-mhead">
+			<?php $eyebrow = implode( ' · ', array_filter( array( $marke, $baujahr ) ) ); ?>
+			<?php if ( '' !== $eyebrow ) : ?><div class="m24fz-mh-eyebrow"><?php echo esc_html( $eyebrow ); ?></div><?php endif; ?>
+			<h1 class="m24fz-mh-title"><?php echo esc_html( $title ); ?></h1>
+			<div class="m24fz-pricebox"><?php echo M24FZ_Template::pricebox_html( $id ); // phpcs:ignore — Status-Pill/Preis/CTAs (geteilte, getestete Logik) ?></div>
 		</section>
 
 		<!-- 2. TELEMETRIE (eckig, Messing-Oberlinie) -->
