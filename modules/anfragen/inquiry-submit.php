@@ -95,6 +95,27 @@ class M24_Inquiry_Submit {
 		if ( ! $sent ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => __( 'Versand fehlgeschlagen. Bitte später erneut versuchen.', 'm24-plattform' ) ), 500 );
 		}
+
+		// IL-Opt-in (optional): bei gesetztem Häkchen Kontakt in die Interessentenliste (Liste 3) — Teile-Kontext.
+		// Ohne Häkchen: nichts (nur Mail wie gehabt, kein Brevo).
+		if ( ! empty( $params['il_optin'] ) && class_exists( 'M24FZ_Anfrage' ) ) {
+			$part_id    = (int) ( $result['inquiry_source_meta']['src_pid'] ?? 0 );
+			$modelle    = array();
+			$kategorien = array();
+			if ( $part_id && 'm24_teil' === get_post_type( $part_id ) ) {
+				$terms = wp_get_object_terms( $part_id, 'm24_fahrzeugkat', array( 'fields' => 'names' ) );
+				if ( ! is_wp_error( $terms ) ) { $modelle = array_values( $terms ); }
+				$kategorien = array( 'gebraucht' === (string) get_post_meta( $part_id, '_m24_typ', true ) ? 'Oldtimer' : 'Sport' );
+			}
+			M24FZ_Anfrage::register_interessent( $part_id, array(
+				'name'       => $name,
+				'email'      => $result['email'],
+				'kundentyp'  => $kundentyp,
+				'modelle'    => $modelle,
+				'kategorien' => $kategorien,
+			) );
+		}
+
 		return new WP_REST_Response( array( 'ok' => true ), 200 );
 	}
 

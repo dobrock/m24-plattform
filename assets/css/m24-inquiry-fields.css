@@ -14,10 +14,10 @@
 .m24-iqf-seg-btn{flex:1;min-height:48px;min-width:44px;padding:12px 14px;font-family:inherit;font-size:16px;font-weight:600;color:#14161a;background:#fff;border:1.5px solid #ccc;border-radius:11px;cursor:pointer;line-height:1.2;transition:background .12s ease,border-color .12s ease,color .12s ease}
 .m24-iqf-seg-btn[aria-checked="true"]{background:#1f74c4;border-color:#1f74c4;color:#fff}
 .m24-iqf-seg-btn:focus-visible{outline:2px solid #1f74c4;outline-offset:2px}
-/* Consent */
-.m24-iqf-consent{display:flex;gap:10px;align-items:flex-start;min-height:44px;font-family:inherit;font-size:13px;line-height:1.5;color:#6b7077;cursor:pointer}
-.m24-iqf-consent input[type=checkbox]{flex:0 0 auto;width:20px;height:20px;min-height:0;margin:2px 0 0;accent-color:#9a6b25;cursor:pointer}
-.m24-iqf-consent a{color:#1f74c4;text-decoration:underline}
+/* Consent (Pflicht) + IL-Opt-in (optional, eigener Marketing-Zweck) — identisches Styling */
+.m24-iqf-consent,.m24-iqf-optin{display:flex;gap:10px;align-items:flex-start;min-height:44px;font-family:inherit;font-size:13px;line-height:1.5;color:#6b7077;cursor:pointer}
+.m24-iqf-consent input[type=checkbox],.m24-iqf-optin input[type=checkbox]{flex:0 0 auto;width:20px;height:20px;min-height:0;margin:2px 0 0;accent-color:#9a6b25;cursor:pointer}
+.m24-iqf-consent a,.m24-iqf-optin a{color:#1f74c4;text-decoration:underline}
 /* Inline-Fehler */
 .m24-iqf-error{margin:0;color:#9e2b2b;font-family:inherit;font-size:13.5px;font-weight:600}
 .m24-iqf-input.m24-iqf-invalid,.m24-iqf-seg.m24-iqf-invalid .m24-iqf-seg-btn{border-color:#9e2b2b}

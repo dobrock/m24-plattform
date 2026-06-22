@@ -101,6 +101,12 @@ class M24FZ_Anfrage {
 			'nachname'   => '',
 		) );
 
+		// IL-Opt-in (optional): bei gesetztem Häkchen zusätzlich in die Interessentenliste (Liste 3) —
+		// NAME + KUNDENTYP + Fahrzeug-Attribute. Ohne Häkchen: nichts (nur Anfrage-Mail/Desk wie gehabt).
+		if ( ! empty( $p['il_optin'] ) ) {
+			self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'kundentyp' => $kundentyp ) );
+		}
+
 		// Erst bei erfolgreichem Submit zählen (§2).
 		if ( class_exists( 'M24FZ_Tracking' ) ) { M24FZ_Tracking::increment( $pid, 'anfrage' ); }
 
@@ -161,24 +167,31 @@ class M24FZ_Anfrage {
 	 * Interessentenlisten-Registrierung (geteilt von IL-Modal und Anfrage-Opt-in). Erhöht NICHT den
 	 * Anfragen-Zähler. Fallback-Mail (klar markiert) + Hook m24fz_interessent_submitted für Brevo Phase 2 (DOI).
 	 */
-	public static function register_interessent( $pid, $contact ) {
-		$name = (string) ( $contact['name'] ?? '' );
-		$mail = (string) ( $contact['email'] ?? '' );
-		$tel  = (string) ( $contact['tel'] ?? '' );
+	public static function register_interessent( $context_id, $contact ) {
+		$name      = (string) ( $contact['name'] ?? '' );
+		$mail      = (string) ( $contact['email'] ?? '' );
+		$tel       = (string) ( $contact['tel'] ?? '' );
+		$kundentyp = (string) ( $contact['kundentyp'] ?? '' );
 		if ( '' === $name || ! is_email( $mail ) ) { return; }
 
-		$attr  = self::il_attributes( $pid );
-		$title = get_the_title( $pid );
-		$url   = get_permalink( $pid );
+		// Attribute: explizit übergeben (z. B. Teile-Kontext) ODER aus dem Fahrzeug ableiten.
+		if ( isset( $contact['modelle'] ) || isset( $contact['kategorien'] ) ) {
+			$attr = array( 'modelle' => (array) ( $contact['modelle'] ?? array() ), 'kategorien' => (array) ( $contact['kategorien'] ?? array() ) );
+		} else {
+			$attr = self::il_attributes( (int) $context_id );
+		}
+		$title = get_the_title( $context_id );
+		$url   = get_permalink( $context_id );
 		$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
 
-		$body  = "Neuer Interessentenlisten-Eintrag (KEINE Fahrzeug-Anfrage)\n\n";
-		$body .= "Auslösendes Fahrzeug: {$title}\n{$url}\nInserat-ID: {$pid}\n\n";
+		$body  = "Neuer Interessentenlisten-Eintrag (Marketing-Opt-in)\n\n";
+		$body .= "Auslösendes Inserat/Teil: {$title}\n{$url}\nID: {$context_id}\n\n";
 		$body .= "Name: {$name}\nE-Mail: {$mail}\n";
-		if ( '' !== $tel ) { $body .= "Telefon/WhatsApp: {$tel}\n"; }
+		if ( '' !== $kundentyp ) { $body .= "Kundentyp: {$kundentyp}\n"; }
+		if ( '' !== $tel )       { $body .= "Telefon/WhatsApp: {$tel}\n"; }
 		$body .= "\nMODELLE: " . ( $attr['modelle'] ? implode( ', ', (array) $attr['modelle'] ) : '—' ) . "\n";
 		$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
-		$body .= "\nDOI: ausstehend (Brevo Phase 2 — API-Key noch nicht gesetzt).\n";
+		$body .= "\nListe-ID 3 + DOI: plugin-managed (Brevo Phase 2 — API-Key noch nicht gesetzt).\n";
 
 		$headers = array(
 			'From: ' . self::from_header( $name, self::from_email() ),
@@ -186,10 +199,11 @@ class M24FZ_Anfrage {
 		);
 		wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
 
-		// Hook für die spätere plugin-managed DOI-Pipeline (Liste 3, Attribute MODELLE/KATEGORIEN).
-		do_action( 'm24fz_interessent_submitted', $pid, array(
+		// Hook für die plugin-managed DOI-Pipeline (Liste-ID 3; NAME + KUNDENTYP + Attribute MODELLE/KATEGORIEN).
+		do_action( 'm24fz_interessent_submitted', $context_id, array(
 			'name'       => $name,
 			'email'      => $mail,
+			'kundentyp'  => $kundentyp,
 			'tel'        => $tel,
 			'modelle'    => $attr['modelle'],
 			'kategorien' => $attr['kategorien'],

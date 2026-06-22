@@ -75,6 +75,10 @@ function m24_inquiry_fields() {
 			<input type="checkbox" name="consent" value="1" required>
 			<span><?php echo m24_inquiry_consent_html(); // phpcs:ignore WordPress.Security.EscapeOutput — bereits via wp_kses. ?></span>
 		</label>
+		<label class="m24-iqf-optin">
+			<input type="checkbox" name="il_optin" value="1">
+			<span><?php esc_html_e( 'Ja, informiert mich über passende Fahrzeuge/Teile (Interessentenliste, jederzeit abbestellbar).', 'm24-plattform' ); ?></span>
+		</label>
 		<p class="m24-iqf-error" data-m24-iqf-error role="alert" hidden></p>
 	</div>
 	<?php
