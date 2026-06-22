@@ -50,9 +50,14 @@ class M24_Catalog_Gallery {
 		</style>
 		<input type="hidden" id="m24_galerie_ids" name="m24_galerie" value="<?php echo esc_attr( implode( ',', $ids ) ); ?>">
 		<div id="m24_galerie_preview" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">
-			<?php foreach ( $ids as $id ) : $src = wp_get_attachment_image_url( $id, 'thumbnail' ); ?>
+			<?php foreach ( $ids as $id ) :
+				// „medium" (300px) statt „thumbnail" (150px) → auf 80×60 skaliert scharf; srcset = 2x für HiDPI.
+				$src = wp_get_attachment_image_url( $id, 'medium' );
+				if ( ! $src ) { $src = wp_get_attachment_image_url( $id, 'full' ); } // kein Upscaling einer Mini-Größe
+				$srcset = wp_get_attachment_image_srcset( $id, 'medium' );
+				?>
 				<div class="m24-gal-item" data-id="<?php echo esc_attr( $id ); ?>" style="position:relative;width:80px;height:60px;border:1px solid #ddd;border-radius:5px;overflow:hidden">
-					<img src="<?php echo esc_url( $src ); ?>" style="width:100%;height:100%;object-fit:cover">
+					<img src="<?php echo esc_url( $src ); ?>"<?php echo $srcset ? ' srcset="' . esc_attr( $srcset ) . '" sizes="80px"' : ''; ?> style="width:100%;height:100%;object-fit:cover">
 					<button type="button" class="m24-gal-remove" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:3px;cursor:pointer;line-height:1">&times;</button>
 				</div>
 			<?php endforeach; ?>
@@ -77,10 +82,15 @@ class M24_Catalog_Gallery {
 					sel.forEach( function ( a ) {
 						if ( cur.indexOf( String( a.id ) ) === -1 ) {
 							cur.push( String( a.id ) );
-							var url = ( a.sizes && a.sizes.thumbnail ) ? a.sizes.thumbnail.url : a.url;
+							// „medium" bevorzugt (scharf auf 80×60), srcset = 2x für HiDPI; kein Upscaling.
+							var sz = a.sizes || {};
+							var url = ( sz.medium && sz.medium.url ) ? sz.medium.url : ( ( sz.large && sz.large.url ) ? sz.large.url : a.url );
+							var cand = function ( k ) { return ( sz[k] && sz[k].url && sz[k].width ) ? ( sz[k].url + ' ' + sz[k].width + 'w' ) : ''; };
+							var srcset = [ cand( 'thumbnail' ), cand( 'medium' ), cand( 'large' ) ].filter( Boolean ).join( ', ' );
+							var imgAttr = 'src="' + url + '"' + ( srcset ? ( ' srcset="' + srcset + '" sizes="80px"' ) : '' );
 							$( '#m24_galerie_preview' ).append(
 								'<div class="m24-gal-item" data-id="' + a.id + '" style="position:relative;width:80px;height:60px;border:1px solid #ddd;border-radius:5px;overflow:hidden">' +
-								'<img src="' + url + '" style="width:100%;height:100%;object-fit:cover">' +
+								'<img ' + imgAttr + ' style="width:100%;height:100%;object-fit:cover">' +
 								'<button type="button" class="m24-gal-remove" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:3px;cursor:pointer;line-height:1">&times;</button></div>'
 							);
 						}
