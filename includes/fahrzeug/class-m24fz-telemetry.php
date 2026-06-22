@@ -109,6 +109,15 @@ class M24FZ_Telemetry {
 
 	private static function v( $id, $key ) { return trim( (string) get_post_meta( (int) $id, $key, true ) ); }
 
+	/** Farbe-Keypoint: Hersteller-Farbbezeichnung bevorzugt, sonst einfache Außen-/Farbangabe. */
+	private static function farbe_value( $id ) {
+		$b = self::v( $id, '_m24fz_farbbez_hersteller' );
+		if ( '' !== $b ) { return $b; }
+		$a = self::v( $id, '_m24fz_aussenfarbe' );
+		if ( '' !== $a ) { return $a; }
+		return self::v( $id, '_m24fz_farbe' );
+	}
+
 	/**
 	 * Telemetrie-Zellen des Streifens (typabhängig). Nur befüllte Zellen.
 	 * @return array Liste von [ 'label' => …, 'value' => … ] (Wert einzeilig).
@@ -124,14 +133,14 @@ class M24FZ_Telemetry {
 			$add( 'Laufleistung',  self::laufleistung( self::v( $id, '_m24fz_laufleistung' ), self::v( $id, '_m24fz_laufleistung_einheit' ) ) );
 			$add( 'Leistung',      self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe',      self::v( $id, '_m24fz_getriebe' ) );
-			// 5. Zelle „Farbe" = originale Hersteller-Farbbezeichnung (leer ⇒ Zelle weg, kein generischer Name).
-			$add( 'Farbe',         self::v( $id, '_m24fz_farbbez_hersteller' ) );
+			// 5. Zelle „Farbe": Hersteller-Farbbezeichnung, sonst Fallback auf die einfache Außenfarbe.
+			$add( 'Farbe',         self::farbe_value( $id ) );
 			$add( self::v( $id, '_m24fz_tel_opt_label' ), self::v( $id, '_m24fz_tel_opt_value' ) );
 		} else {
 			$add( 'Baujahr',  self::v( $id, '_m24fz_baujahr' ) );
 			$add( 'Leistung', self::leistung_label( self::v( $id, '_m24fz_leistung_ps' ) ) );
 			$add( 'Getriebe', self::v( $id, '_m24fz_getriebe' ) );
-			$add( 'Farbe',    self::v( $id, '_m24fz_farbbez_hersteller' ) );
+			$add( 'Farbe',    self::farbe_value( $id ) );
 			if ( self::v( $id, '_m24fz_wagenpass' ) )    { $add( 'Wagenpass', 'vorhanden' ); }
 			if ( self::v( $id, '_m24fz_rennhistorie' ) ) { $add( 'Rennhistorie', 'dokumentiert' ); }
 			for ( $i = 1; $i <= 3; $i++ ) {

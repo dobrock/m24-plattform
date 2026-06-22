@@ -47,6 +47,19 @@
 
 	var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+	// LazyLoad (WP Rocket) entschleiern: Bilder in ausgeblendeten Reitern werden vom IntersectionObserver
+	// NIE sichtbar → echtes src/srcset aus den data-Attributen sofort setzen (kein Nachladen beim Klick).
+	function unveilLazy(scope) {
+		if (!scope) { return; }
+		[].forEach.call(scope.querySelectorAll('img,source'), function (el) {
+			var s = el.getAttribute('data-lazy-src') || el.getAttribute('data-src');
+			if (s && el.getAttribute('src') !== s) { el.setAttribute('src', s); }
+			var ss = el.getAttribute('data-lazy-srcset') || el.getAttribute('data-srcset');
+			if (ss && el.getAttribute('srcset') !== ss) { el.setAttribute('srcset', ss); }
+			el.classList && el.classList.remove('lazyload');
+		});
+	}
+
 	// Mediagalerie-Chips (Kategorie-Wrapper umschalten — Jetpack-Tiled-Mosaik je Kategorie, Video eigener Tab).
 	var chips = document.querySelectorAll('.m24fz-chip'), wraps = document.querySelectorAll('[data-catwrap]');
 	chips.forEach(function (c) {
@@ -54,7 +67,11 @@
 			chips.forEach(function (x) { x.classList.remove('on'); });
 			c.classList.add('on');
 			var cat = c.getAttribute('data-cat');
-			wraps.forEach(function (w) { w.hidden = w.getAttribute('data-catwrap') !== cat; });
+			wraps.forEach(function (w) {
+				var show = w.getAttribute('data-catwrap') === cat;
+				w.hidden = !show;
+				if (show) { unveilLazy(w); } // Bilder des neuen Reiters sofort anzeigen
+			});
 			// Jetpack vermisst Tiled-Galerien, die erst jetzt Breite > 0 haben.
 			try { window.dispatchEvent(new Event('resize')); } catch (err) {}
 		});
@@ -87,7 +104,7 @@
 	function expand(galcat) {
 		var preview = galcat.querySelector('.m24fz-tg-preview'), full = galcat.querySelector('.m24fz-tg-full'), less = galcat.querySelector('.m24fz-gal-less');
 		if (preview) { preview.hidden = true; }
-		if (full) { full.hidden = false; if (!reduce) { full.classList.add('m24fz-flyin'); } try { window.dispatchEvent(new Event('resize')); } catch (e) {} }
+		if (full) { unveilLazy(full); full.hidden = false; if (!reduce) { full.classList.add('m24fz-flyin'); } try { window.dispatchEvent(new Event('resize')); } catch (e) {} }
 		if (less) { less.hidden = false; }
 		galcat.classList.add('expanded');
 	}

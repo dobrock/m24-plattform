@@ -20,9 +20,9 @@ class M24FZ_Anfrage {
 
 	/** Einmalig: Anfragen-Zähler des Europameister (34294) auf 0 (Test-/Altdaten, §2). */
 	public static function maybe_reset_testdata() {
-		if ( get_option( 'm24fz_anfrage_reset_v1' ) || ! current_user_can( 'manage_options' ) ) { return; }
+		if ( get_option( 'm24fz_anfrage_reset_v2' ) || ! current_user_can( 'manage_options' ) ) { return; }
 		if ( M24FZ_CPT::PT === get_post_type( 34294 ) ) { update_post_meta( 34294, '_m24fz_anfragen_count', 0 ); }
-		update_option( 'm24fz_anfrage_reset_v1', 1 );
+		update_option( 'm24fz_anfrage_reset_v2', 1 );
 	}
 
 	public static function register() {
@@ -100,7 +100,7 @@ class M24FZ_Anfrage {
 				<p class="m24fz-anfrage-veh"><?php echo esc_html( get_the_title( $post_id ) ); ?></p>
 				<form class="m24fz-anfrage-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-f">
-						<label>Anrede</label>
+						<label>Interesse</label>
 						<div class="m24fz-pillseg" role="radiogroup">
 							<label class="on"><input type="radio" name="anrede" value="privat" checked><span>Privat</span></label>
 							<label><input type="radio" name="anrede" value="gewerblich"><span>Gewerblich</span></label>
@@ -112,7 +112,7 @@ class M24FZ_Anfrage {
 					</div>
 					<div class="m24fz-frow">
 						<div class="m24fz-f"><label for="m24fzL">Lieferland</label><select id="m24fzL" name="land"><option value="">Bitte wählen</option><?php foreach ( $countries as $cc => $cn ) { printf( '<option value="%s">%s</option>', esc_attr( $cn ), esc_html( $cn ) ); } ?></select></div>
-						<div class="m24fz-f"><label for="m24fzT">Telefon</label><input id="m24fzT" type="tel" name="tel" placeholder="optional"></div>
+						<div class="m24fz-f"><label for="m24fzT">WhatsApp</label><input id="m24fzT" type="tel" name="tel" placeholder="optional"></div>
 					</div>
 					<div class="m24fz-f"><label for="m24fzM">Nachricht</label><textarea id="m24fzM" name="nachricht" rows="3" placeholder="Ihre Nachricht (optional)"></textarea></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="interessent" value="1"> Zusätzlich auf die Interessentenliste — ähnliche Fahrzeuge zuerst erfahren.</label>
