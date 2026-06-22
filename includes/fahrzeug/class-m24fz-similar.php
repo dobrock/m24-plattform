@@ -39,50 +39,82 @@ class M24FZ_Similar {
 		$all = self::dedupe( $all ); // pro Fahrzeug nur EINE Karte (CPT bevorzugt, da zuerst gemergt)
 		if ( empty( $all ) ) { return array(); }
 
-		// In Eimer einsortieren: Marke-verfügbar / Marke-verkauft / Fremdmarke.
-		$b_avail = array();
-		$b_sold  = array();
-		$foreign = array();
+		// Eimer: EXAKTE Baureihe (verfügbar/verkauft) hat strikte Priorität vor sonstiger gleicher Marke.
+		$exact_avail = array();
+		$exact_sold  = array();
+		$other_avail = array();
+		$other_sold  = array();
+		$foreign     = array();
 		foreach ( $all as $c ) {
-			$c['aff'] = ( '' !== $aff_lo && false !== strpos( $c['hay'], $aff_lo ) );
-			$is_brand = ( '' !== $marke_lo ) && ( 'cpt' === $c['source'] ? ( $c['marke'] === $marke_lo ) : self::title_has_brand( $c['title'], $marke ) );
+			$c['aff']  = ( '' !== $aff_lo && false !== strpos( $c['hay'], $aff_lo ) );
+			$is_brand  = ( '' !== $marke_lo ) && ( 'cpt' === $c['source'] ? ( $c['marke'] === $marke_lo ) : self::title_has_brand( $c['title'], $marke ) );
 			if ( '' === $marke_lo ) { $is_brand = true; } // ohne Marke: nicht filtern
-			if ( ! $is_brand ) { $foreign[] = $c; }
-			elseif ( $c['sold'] || $c['reserved'] ) { $b_sold[] = $c; }
-			else { $b_avail[] = $c; }
+			$sold = ( $c['sold'] || $c['reserved'] );
+			if ( ! $is_brand )        { $foreign[] = $c; }
+			elseif ( $c['aff'] && ! $sold ) { $exact_avail[] = $c; }
+			elseif ( $c['aff'] && $sold )   { $exact_sold[]  = $c; }
+			elseif ( ! $sold )        { $other_avail[] = $c; }
+			else                      { $other_sold[]  = $c; }
 		}
-		$by_aff = static function ( $a, $b ) {
-			if ( $a['aff'] !== $b['aff'] ) { return $a['aff'] ? -1 : 1; }
-			return $b['ts'] <=> $a['ts'];
-		};
-		usort( $b_avail, $by_aff );
-		usort( $b_sold, $by_aff );
+		$by_ts  = static function ( $a, $b ) { return $b['ts'] <=> $a['ts']; };
+		$by_aff = static function ( $a, $b ) { if ( $a['aff'] !== $b['aff'] ) { return $a['aff'] ? -1 : 1; } return $b['ts'] <=> $a['ts']; };
+		usort( $exact_avail, $by_ts );
+		usort( $exact_sold, $by_ts );
+		usort( $other_avail, $by_ts );
+		usort( $other_sold, $by_ts );
 		usort( $foreign, $by_aff );
 
-		$n_foreign = (int) round( $limit * self::FOREIGN_QUOTE );
-		$n_sold    = (int) round( $limit * self::SOLD_QUOTE );
-		$n_avail   = max( 0, $limit - $n_foreign - $n_sold );
+		// Fremdmarke: aufrunden auf ≥1, sofern Kandidat existiert.
+		$n_foreign = $foreign ? max( 1, (int) round( $limit * self::FOREIGN_QUOTE ) ) : 0;
+		$n_brand   = max( 0, $limit - $n_foreign );
 
-		$avail_pick   = array_slice( $b_avail, 0, $n_avail );
-		$sold_pick    = array_slice( $b_sold, 0, $n_sold );
-		$foreign_pick = array_slice( $foreign, 0, $n_foreign );
+		// Gleiche Marke strikt: erst ALLE exakten Baureihe-Treffer (verfügbar, dann verkauft), dann Rest.
+		$brand_ordered = array_merge( $exact_avail, $exact_sold, $other_avail, $other_sold );
+		$brand_pick    = array_slice( $brand_ordered, 0, $n_brand );
 
-		// Anordnung: verfügbare Marke zuerst (Affinität), verkauft + Fremdmarke in der Mitte einstreuen.
-		$final = $avail_pick;
-		foreach ( array_values( $sold_pick ) as $i => $s ) { array_splice( $final, min( count( $final ), 2 + $i ), 0, array( $s ) ); }
-		foreach ( array_values( $foreign_pick ) as $i => $f ) { array_splice( $final, min( count( $final ), 4 + $i ), 0, array( $f ) ); }
+		// 15 %-Mindestquote verkauft/reserviert sicherstellen (bevorzugt eine SOLD-E30).
+		$n_sold_min = (int) round( $limit * self::SOLD_QUOTE );
+		$brand_pick = self::ensure_sold( $brand_pick, $brand_ordered, $n_sold_min );
 
-		// Auffüllen bis $limit (Reste in Priorität verfügbar → verkauft → Fremdmarke), ohne Dubletten.
+		// Anordnung: gleiche Marke (Baureihe zuerst), Fremdmarke in der Mitte einstreuen.
+		$final = $brand_pick;
+		foreach ( array_values( array_slice( $foreign, 0, $n_foreign ) ) as $i => $f ) {
+			array_splice( $final, min( count( $final ), 4 + $i ), 0, array( $f ) );
+		}
+
+		// Auffüllen bis $limit (Reste), ohne Dubletten.
 		$seen = array();
 		foreach ( $final as $c ) { $seen[ $c['id'] ] = 1; }
-		$rest = array_merge( array_slice( $b_avail, count( $avail_pick ) ), array_slice( $b_sold, count( $sold_pick ) ), array_slice( $foreign, count( $foreign_pick ) ) );
-		foreach ( $rest as $c ) {
+		foreach ( array_merge( $brand_ordered, $foreign ) as $c ) {
 			if ( count( $final ) >= $limit ) { break; }
 			if ( isset( $seen[ $c['id'] ] ) ) { continue; }
 			$seen[ $c['id'] ] = 1; $final[] = $c;
 		}
 
 		return array_slice( $final, 0, $limit );
+	}
+
+	/** Mindestens $min verkaufte/reservierte Karten in der Auswahl sicherstellen (tauscht letzte verfügbare). */
+	private static function ensure_sold( $pick, $ordered, $min ) {
+		$is_sold = static function ( $c ) { return ! empty( $c['sold'] ) || ! empty( $c['reserved'] ); };
+		$have = 0;
+		foreach ( $pick as $c ) { if ( $is_sold( $c ) ) { $have++; } }
+		if ( $have >= $min ) { return $pick; }
+
+		$pick_ids = array();
+		foreach ( $pick as $c ) { $pick_ids[ $c['id'] ] = 1; }
+		$cands = array(); // verkaufte Kandidaten außerhalb der Auswahl (Reihenfolge: exakte Baureihe zuerst)
+		foreach ( $ordered as $c ) { if ( $is_sold( $c ) && ! isset( $pick_ids[ $c['id'] ] ) ) { $cands[] = $c; } }
+
+		$need = $min - $have;
+		foreach ( $cands as $cand ) {
+			if ( $need <= 0 ) { break; }
+			// von hinten die letzte NICHT-verkaufte Karte ersetzen
+			for ( $i = count( $pick ) - 1; $i >= 0; $i-- ) {
+				if ( ! $is_sold( $pick[ $i ] ) ) { $pick[ $i ] = $cand; $need--; break; }
+			}
+		}
+		return $pick;
 	}
 
 	/** Rückwärtskompatibel: nur die Post-IDs. */
