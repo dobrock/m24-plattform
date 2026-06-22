@@ -146,7 +146,10 @@ class M24FZ_SEO {
 		$path = get_attached_file( $att );
 		if ( ! $path || ! file_exists( $path ) ) { return null; }
 		if ( ! function_exists( 'image_make_intermediate_size' ) ) { require_once ABSPATH . 'wp-admin/includes/image.php'; }
+		// Qualität NUR für die m24_og-Größe definieren (WebP q72 → ~130 KB); Originale + andere Größen unberührt.
+		add_filter( 'wp_editor_set_quality', array( __CLASS__, 'og_quality' ), 99, 2 );
 		$gen = image_make_intermediate_size( $path, 1200, 0, false ); // false = kein Crop; 0 Höhe = proportional
+		remove_filter( 'wp_editor_set_quality', array( __CLASS__, 'og_quality' ), 99 );
 		if ( ! is_array( $gen ) || empty( $gen['file'] ) ) { return null; } // u. a. wenn Original < 1200 (kein Upscale)
 
 		$meta = wp_get_attachment_metadata( $att );
@@ -157,6 +160,11 @@ class M24FZ_SEO {
 
 		$url = self::size_url( $att, $gen['file'] );
 		return $url ? array( $url, (int) $gen['width'], (int) $gen['height'] ) : null;
+	}
+
+	/** Kompressionsqualität NUR für die m24_og-Größe (filterbar, Default 72) — kleine Share-Datei. */
+	public static function og_quality( $quality, $mime = '' ) {
+		return (int) apply_filters( 'm24fz_og_quality', 72, $mime );
 	}
 
 	/** URL einer Zwischengröße (gleicher Ordner wie das Original; Photon ist im Aufrufer deaktiviert). */
