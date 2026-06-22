@@ -28,9 +28,9 @@ class M24FZ_Template {
 
 	/**
 	 * Rubrik-Auto-Inject auf den tagDiv-Seiten (Slug racecars-for-sale / classic-cars-for-sale):
-	 * EINE gemischte Liste — neue CPT-Fahrzeuge + alte „FOR SALE:"/„SOLD:"-Beiträge, nach Datum.
-	 * Ersetzt den kompletten tagDiv-Inhalt (keine getrennten Blöcke). Sicherheits-Guard: nur
-	 * ersetzen, wenn die gemischte Liste mindestens einen Treffer hat (sonst Originalinhalt).
+	 * CPT-Fahrzeuge als separater Block OBERHALB der Alt-Liste — der originale tagDiv-„FOR SALE"-
+	 * Slider bleibt unangetastet (0.11.13-Stand; das Unified-Grid aus 0.11.14 wurde zurückgenommen,
+	 * weil es den Slider ersetzt hat). Die echte CPT-Integration in den Slider folgt separat.
 	 */
 	public static function inject_rubrik( $content ) {
 		static $done = array();
@@ -41,12 +41,15 @@ class M24FZ_Template {
 		$map  = apply_filters( 'm24fz_rubrik_pages', array( 'racecars-for-sale' => 'race-cars', 'classic-cars-for-sale' => 'classic-cars' ) );
 		if ( ! isset( $map[ $slug ] ) ) { return $content; }
 		$grid = self::rubrik_grid_html( $map[ $slug ] );
-		if ( '' === $grid ) { return $content; } // Guard: leer → tagDiv-Inhalt unangetastet lassen
+		if ( '' === $grid ) { return $content; }
 		$done[ $pid ] = true;
-		return '<h2 class="m24fzr-h">Aktuelle Fahrzeuge</h2>' . $grid; // ersetzt die Alt-Liste komplett
+		return '<h2 class="m24fzr-h">Aktuelle Fahrzeuge</h2>' . $grid . $content; // Slider (= $content) bleibt
 	}
 
-	/** Alt-Beitrags-Kategorien je Rubrik (category-Taxonomie): [for-sale, sold]. Filterbar. */
+	/**
+	 * Alt-Beitrags-Kategorien je Rubrik (category-Taxonomie): [for-sale, sold]. Filterbar.
+	 * Wird vom Reclaim-Editor-Feld („Ersetzt diesen Alt-Beitrag") genutzt.
+	 */
 	public static function rubrik_old_cats( $kat ) {
 		$map = apply_filters( 'm24fz_rubrik_old_cats', array(
 			'race-cars'    => array( 'race-cars-for-sale', 'racecars-sold' ),
@@ -55,18 +58,11 @@ class M24FZ_Template {
 		return isset( $map[ $kat ] ) ? (array) $map[ $kat ] : array();
 	}
 
-	/**
-	 * Gemischte Karten-Liste einer Rubrik: CPT-Fahrzeuge (_m24fz_kat) + alte Beiträge der
-	 * passenden category-Terme, nach Datum (neueste zuerst). Leer → ''.
-	 */
+	/** Karten-Grid der CPT-Fahrzeuge einer _m24fz_kat (race-cars|classic-cars). Leer → ''. */
 	public static function rubrik_grid_html( $kat, $limit = 60 ) {
 		if ( ! in_array( $kat, array( 'race-cars', 'classic-cars' ), true ) ) { return ''; }
 		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
-
-		$items = array();
-
-		// 1) Neue CPT-Fahrzeuge (gelistet/reserviert/verkauft sind alle post_status=publish).
-		$cpt = get_posts( array(
+		$ids = get_posts( array(
 			'post_type'      => M24FZ_CPT::PT,
 			'post_status'    => 'publish',
 			'posts_per_page' => (int) $limit,
@@ -75,77 +71,29 @@ class M24FZ_Template {
 			'orderby'        => 'date', 'order' => 'DESC',
 			'meta_query'     => array( array( 'key' => '_m24fz_kat', 'value' => $kat ) ),
 		) );
-		foreach ( $cpt as $id ) { $items[] = array( 'type' => 'cpt', 'id' => (int) $id, 'ts' => (int) get_post_time( 'U', true, $id ) ); }
-
-		// 2) Alte „FOR SALE:"/„SOLD:"-Beiträge der Rubrik (post + category).
-		$cats    = self::rubrik_old_cats( $kat );
-		$soldcat = isset( $cats[1] ) ? $cats[1] : '';
-		if ( $cats ) {
-			$old = get_posts( array(
-				'post_type'      => 'post',
-				'post_status'    => 'publish',
-				'posts_per_page' => (int) $limit,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				'orderby'        => 'date', 'order' => 'DESC',
-				'tax_query'      => array( array( 'taxonomy' => 'category', 'field' => 'slug', 'terms' => $cats ) ),
-			) );
-			foreach ( $old as $id ) {
-				$sold     = ( '' !== $soldcat ) && has_term( $soldcat, 'category', $id );
-				$items[] = array( 'type' => 'post', 'id' => (int) $id, 'ts' => (int) get_post_time( 'U', true, $id ), 'sold' => $sold );
-			}
-		}
-
-		if ( empty( $items ) ) { return ''; }
-
-		// Gemischt nach Datum (neueste zuerst), dann begrenzen.
-		usort( $items, static function ( $a, $b ) { return $b['ts'] <=> $a['ts']; } );
-		$items = array_slice( $items, 0, (int) $limit );
+		if ( empty( $ids ) ) { return ''; }
 
 		ob_start();
 		echo '<style>' . self::rubrik_css() . '</style>';
 		echo '<div class="m24fzr-grid">';
-		foreach ( $items as $it ) {
-			if ( 'cpt' === $it['type'] ) { self::rubrik_card_cpt( $it['id'] ); }
-			else { self::rubrik_card_post( $it['id'], ! empty( $it['sold'] ) ); }
+		foreach ( $ids as $id ) {
+			$st    = M24FZ_CPT::status( $id );
+			$badge = ( 'verkauft' === $st ) ? 'Verkauft' : ( 'reserviert' === $st ? 'Reserviert' : '' );
+			$keyf  = array_slice( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 0, 3 );
+			$thumb = has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy' ) ) : '';
+			?>
+			<a class="m24fzr-card" href="<?php echo esc_url( get_permalink( $id ) ); ?>">
+				<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $badge ) : ?><span class="m24fzr-badge <?php echo esc_attr( $st ); ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></span>
+				<span class="m24fzr-body">
+					<span class="m24fzr-title"><?php echo esc_html( get_the_title( $id ) ); ?></span>
+					<?php if ( $keyf ) : ?><ul class="m24fzr-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
+					<span class="m24fzr-price"><?php echo self::rubrik_price( $id ); // phpcs:ignore ?></span>
+				</span>
+			</a>
+			<?php
 		}
 		echo '</div>';
 		return ob_get_clean();
-	}
-
-	/** CPT-Karte (volle M24-Optik: Keyfacts, Preis, Status-Badge). */
-	private static function rubrik_card_cpt( $id ) {
-		$st    = M24FZ_CPT::status( $id );
-		$badge = ( 'verkauft' === $st ) ? 'Verkauft' : ( 'reserviert' === $st ? 'Reserviert' : '' );
-		$keyf  = array_slice( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 0, 3 );
-		$thumb = has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy' ) ) : '';
-		?>
-		<a class="m24fzr-card" href="<?php echo esc_url( get_permalink( $id ) ); ?>">
-			<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $badge ) : ?><span class="m24fzr-badge <?php echo esc_attr( $st ); ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></span>
-			<span class="m24fzr-body">
-				<span class="m24fzr-title"><?php echo esc_html( get_the_title( $id ) ); ?></span>
-				<?php if ( $keyf ) : ?><ul class="m24fzr-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
-				<span class="m24fzr-price"><?php echo self::rubrik_price( $id ); // phpcs:ignore ?></span>
-			</span>
-		</a>
-		<?php
-	}
-
-	/** Alt-Beitrags-Karte (einfach: Beitragsbild + Titel + Link, ggf. Verkauft-Badge). */
-	private static function rubrik_card_post( $id, $sold ) {
-		$title = get_the_title( $id );
-		// „FOR SALE: " / „SOLD: "-Präfixe für die Karte entfernen.
-		$clean = preg_replace( '/^\s*(for\s*sale|sold)\s*:\s*/i', '', $title );
-		$thumb = has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy' ) ) : '';
-		?>
-		<a class="m24fzr-card m24fzr-card-alt" href="<?php echo esc_url( get_permalink( $id ) ); ?>">
-			<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $sold ) : ?><span class="m24fzr-badge verkauft">Verkauft</span><?php endif; ?></span>
-			<span class="m24fzr-body">
-				<span class="m24fzr-title"><?php echo esc_html( $clean ); ?></span>
-				<span class="m24fzr-price m24fzr-more">Zum Inserat →</span>
-			</span>
-		</a>
-		<?php
 	}
 
 	/** Kurzer Preis-/Status-Text für die Rubrik-Karte. */
@@ -168,8 +116,7 @@ class M24FZ_Template {
 			. ".m24fzr-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px}"
 			. ".m24fzr-title{font-size:16px;font-weight:700;line-height:1.25}"
 			. ".m24fzr-keyf{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}.m24fzr-keyf li{padding-left:18px;position:relative;font-size:13px;color:#3a3f47}.m24fzr-keyf li:before{content:'✓';position:absolute;left:0;color:#9a6b25;font-weight:700}"
-			. ".m24fzr-price{font-size:17px;font-weight:700;color:#9a6b25;margin-top:auto}.m24fzr-price em{color:#9e2b2b;font-style:normal}"
-			. ".m24fzr-more{font-size:14px;font-weight:600;color:#1f74c4}";
+			. ".m24fzr-price{font-size:17px;font-weight:700;color:#9a6b25;margin-top:auto}.m24fzr-price em{color:#9e2b2b;font-style:normal}";
 	}
 
 	public static function route( $template ) {
