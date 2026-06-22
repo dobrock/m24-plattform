@@ -28,15 +28,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class M24_Settings {
 
-    const OPTION_KEY     = 'm24_plattform_settings';
-    const PAGE_SLUG      = 'm24-plattform';
-    const CAPABILITY     = 'manage_options';
-    const NONCE_ACTION   = 'm24_health_check';
+    const OPTION_KEY      = 'm24_plattform_settings';
+    const PAGE_SLUG       = 'm24-plattform';
+    const CAPABILITY      = 'manage_options';
+    const NONCE_ACTION    = 'm24_health_check';
+    const BREVO_NONCE     = 'm24_brevo_test';
 
     public static function init() {
         add_action( 'admin_menu',     [ __CLASS__, 'register_menu' ] );
         add_action( 'admin_init',     [ __CLASS__, 'register_settings' ] );
         add_action( 'wp_ajax_m24_health_check', [ __CLASS__, 'ajax_health_check' ] );
+        add_action( 'wp_ajax_m24_brevo_test',   [ __CLASS__, 'ajax_brevo_test' ] );
         add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
         add_action( 'admin_notices',  [ __CLASS__, 'maybe_render_test_mode_banner' ] );
     }
@@ -83,6 +85,32 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
+        register_setting(
+            'm24_plattform_group',
+            'm24_brevo_api_key',
+            [
+                'type'              => 'string',
+                'sanitize_callback' => [ __CLASS__, 'sanitize_brevo_key' ],
+                'default'           => '',
+            ]
+        );
+    }
+
+    /**
+     * Masked-Field-Sanitize: Leeres Feld ODER zurückgeschickte Maskierung (•) = unverändert lassen.
+     * Per Konstante M24_BREVO_API_KEY gesetzt → DB-Wert nie überschreiben.
+     */
+    public static function sanitize_brevo_key( $input ) {
+        $existing = (string) get_option( 'm24_brevo_api_key', '' );
+        if ( class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::key_locked_by_config() ) {
+            return $existing;
+        }
+        $val = is_string( $input ) ? trim( $input ) : '';
+        if ( '' === $val || false !== strpos( $val, '•' ) ) {
+            return $existing;
+        }
+        return sanitize_text_field( $val );
     }
 
     public static function defaults() {
@@ -222,8 +250,9 @@ class M24_Settings {
         );
 
         wp_localize_script( 'm24-admin', 'M24Admin', [
-            'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-            'nonce'   => wp_create_nonce( self::NONCE_ACTION ),
+            'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+            'nonce'      => wp_create_nonce( self::NONCE_ACTION ),
+            'brevoNonce' => wp_create_nonce( self::BREVO_NONCE ),
             'i18n'    => [
                 'testing' => __( 'Teste Verbindung...', 'm24-plattform' ),
                 'success' => __( 'Verbindung OK', 'm24-plattform' ),
@@ -341,6 +370,54 @@ class M24_Settings {
                         </td>
                     </tr>
                 </table>
+
+                <h2 style="margin-top:24px;"><?php echo esc_html__( 'Brevo — Interessentenliste (Liste 3)', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row">
+                            <label for="m24_brevo_api_key"><?php echo esc_html__( 'Brevo API-Key', 'm24-plattform' ); ?></label>
+                        </th>
+                        <td>
+                            <?php
+                            $brevo_locked = class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::key_locked_by_config();
+                            $brevo_masked = class_exists( 'M24_Brevo_Client' ) ? M24_Brevo_Client::masked_key() : '';
+                            ?>
+                            <input
+                                type="text"
+                                id="m24_brevo_api_key"
+                                name="m24_brevo_api_key"
+                                value=""
+                                class="regular-text code<?php echo $brevo_locked ? ' m24-config-locked' : ''; ?>"
+                                placeholder="<?php echo esc_attr( $brevo_locked ? __( '(via wp-config.php gesetzt)', 'm24-plattform' ) : ( $brevo_masked !== '' ? $brevo_masked : 'xkeysib-…' ) ); ?>"
+                                autocomplete="off"
+                                spellcheck="false"
+                                <?php echo $brevo_locked ? 'readonly' : ''; ?>
+                            />
+                            <p class="description">
+                                <?php echo esc_html__( 'Wird als Header „api-key" gesendet. Maskiert gespeichert — leer lassen behält den vorhandenen Key.', 'm24-plattform' ); ?>
+                            </p>
+                            <?php if ( $brevo_locked ) : ?>
+                                <p class="m24-config-locked-hint">
+                                    <span class="dashicons dashicons-lock"></span>
+                                    <?php echo esc_html__( 'Wert via wp-config.php (Konstante M24_BREVO_API_KEY) gesetzt — DB-Wert wird ignoriert.', 'm24-plattform' ); ?>
+                                </p>
+                            <?php elseif ( $brevo_masked !== '' ) : ?>
+                                <p class="description" style="color:#1a7a3c;font-size:12px;">
+                                    <span class="dashicons dashicons-yes-alt"></span>
+                                    <?php echo esc_html__( 'Key gespeichert.', 'm24-plattform' ); ?> <code><?php echo esc_html( $brevo_masked ); ?></code>
+                                </p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                </table>
+                <p>
+                    <button type="button" id="m24-brevo-test-button" class="button">
+                        <?php echo esc_html__( 'Verbindung testen', 'm24-plattform' ); ?>
+                    </button>
+                    <span id="m24-brevo-test-result" class="m24-test-result" style="display:none;"></span>
+                    <br>
+                    <span class="description"><?php echo esc_html__( 'Prüft via GET /v3/account. Neu eingetippter Key wird direkt getestet, sonst der gespeicherte.', 'm24-plattform' ); ?></span>
+                </p>
 
                 <h2 style="margin-top:24px;"><?php echo esc_html__( 'Test-Modus (Dev)', 'm24-plattform' ); ?></h2>
                 <table class="form-table" role="presentation">
@@ -553,6 +630,40 @@ class M24_Settings {
             'data'       => $result['data'],
             'error'      => $result['error'],
             'elapsed_ms' => $elapsed,
+        ] );
+    }
+
+    /**
+     * AJAX-Handler fuer den Brevo-Verbindungstest.
+     * Erwartet: action=m24_brevo_test, _ajax_nonce, key (optional, frisch eingetippt).
+     * Antwortet: { ok, code, msg, email }
+     */
+    public static function ajax_brevo_test() {
+        check_ajax_referer( self::BREVO_NONCE );
+
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            wp_send_json_error( [ 'msg' => 'forbidden' ], 403 );
+        }
+        if ( ! class_exists( 'M24_Brevo_Client' ) ) {
+            wp_send_json( [ 'ok' => false, 'code' => 0, 'msg' => 'Brevo-Client nicht geladen' ] );
+        }
+
+        // Maskierten Wert (•) oder leeres Feld als „nicht eingetippt" behandeln → gespeicherter Key.
+        $typed = isset( $_POST['key'] ) ? trim( (string) wp_unslash( $_POST['key'] ) ) : '';
+        if ( '' === $typed || false !== strpos( $typed, '•' ) ) {
+            $typed = null;
+        } else {
+            $typed = sanitize_text_field( $typed );
+        }
+
+        $res   = M24_Brevo_Client::account( $typed );
+        $email = is_array( $res['data'] ) && isset( $res['data']['email'] ) ? (string) $res['data']['email'] : '';
+
+        wp_send_json( [
+            'ok'    => $res['ok'],
+            'code'  => $res['code'],
+            'msg'   => $res['msg'],
+            'email' => $email,
         ] );
     }
 }

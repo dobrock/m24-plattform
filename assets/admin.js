@@ -77,6 +77,59 @@
             } );
         } );
 
+        // ── Brevo-Verbindungstest (GET /v3/account) ──
+        var $brevoBtn    = $( '#m24-brevo-test-button' );
+        var $brevoResult = $( '#m24-brevo-test-result' );
+        var $brevoKey    = $( '#m24_brevo_api_key' );
+
+        if ( $brevoBtn.length ) {
+            $brevoBtn.on( 'click', function( e ) {
+                e.preventDefault();
+
+                $brevoBtn.prop( 'disabled', true );
+                $brevoResult
+                    .removeClass( 'ok fail' )
+                    .addClass( 'testing' )
+                    .text( M24Admin.i18n.testing )
+                    .show();
+
+                $.ajax( {
+                    url:      M24Admin.ajaxUrl,
+                    method:   'POST',
+                    dataType: 'json',
+                    data: {
+                        action:      'm24_brevo_test',
+                        _ajax_nonce: M24Admin.brevoNonce,
+                        key:         $brevoKey.length ? $brevoKey.val() : ''
+                    }
+                } )
+                .done( function( response ) {
+                    if ( response && response.ok ) {
+                        var msg = M24Admin.i18n.success;
+                        if ( response.email ) {
+                            msg = 'Verbunden: ' + response.email;
+                        }
+                        $brevoResult.removeClass( 'testing fail' ).addClass( 'ok' ).text( msg );
+                    } else {
+                        var fail = M24Admin.i18n.error;
+                        if ( response && response.msg ) {
+                            fail += ' — ' + response.msg;
+                        }
+                        $brevoResult.removeClass( 'testing ok' ).addClass( 'fail' ).text( fail );
+                    }
+                } )
+                .fail( function( xhr, textStatus ) {
+                    $brevoResult
+                        .removeClass( 'testing ok' )
+                        .addClass( 'fail' )
+                        .text( M24Admin.i18n.error + ' — AJAX-Fehler: ' + textStatus );
+                } )
+                .always( function() {
+                    $brevoBtn.prop( 'disabled', false );
+                } );
+            } );
+        }
+
     } );
 
 } )( jQuery );
