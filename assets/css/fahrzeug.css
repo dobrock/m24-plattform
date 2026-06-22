@@ -88,12 +88,12 @@
 /* Jetpack Tiled Gallery (Mauerwerk-Mosaik, große Feature- + kleine Kacheln, volle Breite).
    „9 + +X + Fly-out" liegt nur OBENDRAUF — Jetpack rendert die Kachelgrößen selbst. */
 .m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0!important;width:100%!important;max-width:100%!important}
-.m24fz-tg-preview,.m24fz-tg-full{position:relative;display:flex;flex-direction:column;gap:6px} /* Zeilen-Gap (filigran) */
+.m24fz-tg-preview,.m24fz-tg-full{position:relative;display:flex;flex-direction:column;gap:3px} /* Zeilen-Gap (filigran) */
 /* Versetztes Zickzack-Mosaik (eigenes CSS-Grid, eckige Ecken) */
-.m24fz-mz-wrap{display:flex;flex-direction:column;gap:6px}
-.m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:6px;align-items:stretch}
+.m24fz-mz-wrap{display:flex;flex-direction:column;gap:3px}
+.m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:3px;align-items:stretch}
 .m24fz-mz-row.right{grid-template-columns:1fr 2fr}
-.m24fz-mz-side{display:grid;gap:6px;min-height:0}
+.m24fz-mz-side{display:grid;gap:3px;min-height:0}
 .m24fz-mz-side.two{grid-template-rows:1fr 1fr}
 .m24fz-mz-tile{position:relative;display:block;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:#ededea;cursor:pointer}
 .m24fz-mz-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:0}
@@ -131,7 +131,7 @@
 .m24fz-simcard{display:flex;flex-direction:column;gap:6px;text-decoration:none;color:var(--ink)}
 .m24fz-simcard .img{position:relative;aspect-ratio:3/2;border-radius:8px;overflow:hidden;background:#ededea}
 .m24fz-simcard .img img{width:100%;height:100%;object-fit:cover;display:block}
-.m24fz-simcard .meta{color:var(--mut);font-size:13px}.m24fz-simcard .t{font-weight:600;font-size:15px;line-height:1.25}
+.m24fz-simcard .t{font-weight:600;font-size:15px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .m24fz-allmarke{display:inline-block;margin-top:14px;color:var(--brass);border-bottom:1px solid var(--brass);text-decoration:none;font-weight:600}
 
 /* 9. 50/50 + Off-Market */
@@ -209,7 +209,9 @@
 @media(max-width:560px){.m24fz-tel{grid-template-columns:repeat(2,1fr)}.m24fz-simgrid{grid-template-columns:1fr 1fr}}
 @media(max-width:768px){
 	/* ── Entwurf A — Mobile-Layout (optimiert) ── */
-	.m24fz-wrap{gap:14px;background:#fafafa}
+	/* Header→Hero: keinen Spalt (Container-/Wrapper-Top auf 0) */
+	.m24fz.td-container{padding-top:0;margin-top:0}
+	.m24fz-wrap{gap:14px;background:#fafafa;padding-top:0;margin-top:0}
 	/* Hero: echtes Full-Bleed bis an die Bildschirmkanten (unabhängig vom Container-Padding) */
 	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);overflow:visible}
 	.m24fz-hero.has-img{min-height:0}
@@ -218,9 +220,10 @@
 	/* Mobile-Head: weiße Karte; luftigere Typo (Eyebrow→Title→Preis) */
 	.m24fz-mhead{display:block;border-radius:13px}
 	.m24fz-mh-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--brass);margin-bottom:9px}
-	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.24;color:var(--ink);margin:0 0 18px}
-	.m24fz-mhead .m24fz-preis{line-height:1}
-	.m24fz-mhead .m24fz-preis-note{margin:7px 0 20px}
+	/* Title→Preis: viel Luft über dem Preis (Title mb 24), Steuerhinweis eng unter dem Preis */
+	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.24;color:var(--ink);margin:0 0 24px}
+	.m24fz-mhead .m24fz-preis{line-height:1;margin-bottom:0}
+	.m24fz-mhead .m24fz-preis-note{margin:2px 0 20px}
 	/* Desktop-Pricebox-Aside ausblenden (Inhalt steckt im Mobile-Head) */
 	.m24fz-side{display:none}
 	/* Keyfacts: Messing-Eyebrow „Eckdaten" über der Box; weiße Karte OHNE Kupfer-Oberrahmen */
@@ -233,10 +236,10 @@
 	.m24fz-tel-cell .v{color:var(--ink);white-space:normal}
 	/* Zusammenfassung größer */
 	.m24fz-zus{font-size:18px;line-height:1.6}
-	/* Mosaik-Gap mobil filigran (~4px) — einheitlich Zeilen/Spalten/gestapelt */
-	.m24fz-tg-preview,.m24fz-tg-full,.m24fz-mz-wrap,.m24fz-mz-row,.m24fz-mz-side{gap:4px}
-	/* 3er-Teaser als Mosaik: links groß (2fr, 2 Reihen), rechts Bild 2+3 gestapelt (1fr); eckig */
-	.m24fz-photos{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:4px}
+	/* Mosaik-Gap mobil filigran (~2px) — einheitlich Zeilen/Spalten/gestapelt */
+	.m24fz-tg-preview,.m24fz-tg-full,.m24fz-mz-wrap,.m24fz-mz-row,.m24fz-mz-side{gap:2px}
+	/* 3er-Teaser als Mosaik OHNE weiße Karte: volle Content-Breite, kein Padding/BG; links groß (2fr, 2 Reihen), rechts Bild 2+3 gestapelt (1fr); eckig */
+	.m24fz-photos{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:2px;background:none;border:0;box-shadow:none;padding:0;border-radius:0}
 	.m24fz-photos .big{grid-column:1;grid-row:1 / span 2}
 	.m24fz-photos .side{grid-column:2;aspect-ratio:3/2}
 	.m24fz-photos figure{border-radius:0}

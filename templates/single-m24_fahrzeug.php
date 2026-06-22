@@ -164,11 +164,9 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<?php $sim = M24FZ_Similar::cards( $id, 6 ); if ( $sim ) : ?>
 		<section class="m24fz-card m24fz-similar">
 			<h2>Ähnliche Fahrzeuge</h2>
-			<div class="m24fz-simgrid"><?php foreach ( $sim as $c ) :
-				$smeta = trim( ( $c['cc'] ? M24FZ_Telemetry::flag( $c['cc'] ) . ' ' : '' ) . $c['baujahr'] ); ?>
+			<div class="m24fz-simgrid"><?php foreach ( $sim as $c ) : ?>
 				<a class="m24fz-simcard" href="<?php echo esc_url( $c['url'] ); ?>">
 					<span class="img"><?php echo $c['thumb'] ? wp_get_attachment_image( $c['thumb'], 'large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ) : ''; ?><?php if ( $c['sold'] ) : ?><span class="m24fz-badge sm">Verkauft</span><?php elseif ( ! empty( $c['reserved'] ) ) : ?><span class="m24fz-badge sm reserviert">Reserviert</span><?php endif; ?></span>
-					<?php if ( $smeta ) : ?><span class="meta"><?php echo esc_html( $smeta ); ?></span><?php endif; ?>
 					<span class="t"><?php echo esc_html( $c['title'] ); ?></span>
 				</a>
 			<?php endforeach; ?></div>
