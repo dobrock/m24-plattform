@@ -60,7 +60,7 @@ class M24FZ_Editor_Screen {
 		if ( false === strpos( (string) $hook, self::PAGE ) ) { return; }
 		wp_enqueue_media();
 		wp_enqueue_script( 'jquery-ui-sortable' );
-		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap', array(), null );
+		wp_enqueue_style( 'm24fz-saira', plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ), array(), null );
 	}
 
 	/* ── Render-Helfer ───────────────────────────────────────────────────────── */

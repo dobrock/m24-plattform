@@ -203,7 +203,7 @@ class M24_Catalog_Template_Detail {
 		get_header();
 		?>
 		<style>
-		@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;700&display=swap');
+		@import url('<?php echo esc_url( plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ) ); ?>');
 		.m24det{--ink:#14161a;--line:rgba(0,0,0,.12);--tx:#1b1e22;--mut:#6b7077;--surf:#f4f4f2;--blue:#1763ad;--blued:#0e447e;--bronze:#9a6b25;--red:#9e2b2b;--m24-sticky-top:100px;width:100%;margin:22px 0 44px;color:var(--tx)}
 		.m24det *{box-sizing:border-box}
 		.m24det .bc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);margin-bottom:12px}

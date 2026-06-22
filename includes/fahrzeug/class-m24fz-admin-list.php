@@ -43,7 +43,7 @@ class M24FZ_Admin_List {
 		if ( '' === self::$hook || $hook !== self::$hook ) { return; }
 		wp_enqueue_script( 'jquery' );
 		wp_add_inline_script( 'jquery', self::js() );
-		wp_enqueue_style( 'm24fzv-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
+		wp_enqueue_style( 'm24fzv-saira', plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ), array(), null );
 		wp_register_style( 'm24fzv', false ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
 		wp_enqueue_style( 'm24fzv' );
 		wp_add_inline_style( 'm24fzv', self::css() );

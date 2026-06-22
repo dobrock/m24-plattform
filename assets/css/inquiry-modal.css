@@ -2,7 +2,7 @@
  * M24 Plattform — Anfragen: Modal + PPWR-Hinweis + Merkzettel-Mail-Button
  * Tokens an catalog-template-detail.php angeglichen (Saira, Blau-Verlauf …).
  */
-@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;700&display=swap');
+@import url('../fonts/saira.css');
 
 .m24iq-overlay{position:fixed;inset:0;z-index:100000;background:rgba(10,11,13,.6);display:flex;align-items:center;justify-content:center;padding:18px}
 .m24iq-overlay[hidden]{display:none}

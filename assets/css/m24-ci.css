@@ -7,7 +7,7 @@
  * Detailseiten. Die Karten-Komponente (.m24-card*) wird von Archiv UND Hub geteilt.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap');
+@import url('../fonts/saira.css');
 
 :root {
 	--ink: #14161a;

@@ -42,7 +42,7 @@ class M24FZ_Template {
 	/** Karten-Grid der CPT-Fahrzeuge einer _m24fz_kat (race-cars|classic-cars). Leer → ''. */
 	public static function rubrik_grid_html( $kat, $limit = 60 ) {
 		if ( ! in_array( $kat, array( 'race-cars', 'classic-cars' ), true ) ) { return ''; }
-		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
+		wp_enqueue_style( 'm24fz-saira', plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ), array(), null );
 		$ids = get_posts( array(
 			'post_type'      => M24FZ_CPT::PT,
 			'post_status'    => 'publish',
@@ -116,7 +116,7 @@ class M24FZ_Template {
 		$cver = M24_PLATTFORM_VERSION . '.' . (int) filemtime( M24_PLATTFORM_DIR . $css );
 		$jver = M24_PLATTFORM_VERSION . '.' . (int) filemtime( M24_PLATTFORM_DIR . $js );
 		// Saira NUR auf diesem Single-Template (scoped), als Dependency vor dem Template-CSS.
-		wp_enqueue_style( 'm24fz-saira', 'https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap', array(), null );
+		wp_enqueue_style( 'm24fz-saira', plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ), array(), null );
 		wp_enqueue_style( 'm24fz', plugins_url( $css, M24_PLATTFORM_FILE ), array( 'm24fz-saira' ), $cver );
 		wp_enqueue_script( 'm24fz', plugins_url( $js, M24_PLATTFORM_FILE ), array(), $jver, true );
 		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'viewping' => rest_url( 'm24/v1/view-ping' ), 'anfrage' => rest_url( 'm24/v1/fahrzeug-anfrage' ), 'interessent' => rest_url( 'm24/v1/fahrzeug-interessent' ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'pid' => get_queried_object_id() ) );
