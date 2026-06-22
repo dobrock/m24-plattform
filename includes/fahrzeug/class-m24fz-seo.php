@@ -83,24 +83,20 @@ class M24FZ_SEO {
 		return $out;
 	}
 
-	/** Bild-Fallback-Kette: Beitragsbild → erstes Hero-/Galeriebild → Logo/Site-Icon. */
+	/** Bild-Quelle: optionales Vorschaubild → Beitragsbild → erstes Hero-/Galeriebild → Logo/Site-Icon. */
 	private static function og_image( $id ) {
-		$att = (int) get_post_thumbnail_id( $id );
+		$att = (int) get_post_meta( $id, '_m24fz_og_image', true ); // optionales Social-/WhatsApp-Bild
+		if ( ! $att ) { $att = (int) get_post_thumbnail_id( $id ); }
 		if ( ! $att && class_exists( 'M24FZ_Template' ) ) {
 			$hero = (array) M24FZ_Template::hero_images( $id );
 			if ( ! empty( $hero ) ) { $att = (int) $hero[0]; }
 		}
 		if ( $att ) {
-			// Jetpack-Photon (i0.wp.com) für die OG-Meta-URL umgehen → FB holt das Bild direkt von der Domain.
+			// Photon (i0.wp.com) für die finale Meta-URL umgehen → FB/WhatsApp holt direkt von der Domain.
 			add_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-			// WhatsApp-taugliche Share-Größe bevorzugen (m24_og, 1200px, < 300 KB); sonst large; sonst full.
-			// is_intermediate-Flag ($src[3]) unterscheidet eine echte Zwischengröße vom Voll-Fallback.
-			$og    = wp_get_attachment_image_src( $att, 'm24_og' );
-			$src   = ( $og && ! empty( $og[3] ) ) ? $og : null;
-			if ( ! $src ) { $large = wp_get_attachment_image_src( $att, 'large' ); $src = ( $large && ! empty( $large[3] ) ) ? $large : null; }
-			if ( ! $src ) { $src = wp_get_attachment_image_src( $att, 'full' ); }
+			$src = self::share_image( $att ); // [ url, w, h ] — URL und Maße beschreiben IMMER dieselbe Datei
 			remove_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-			if ( $src && ! empty( $src[0] ) ) {
+			if ( $src ) {
 				$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
 				if ( '' === $alt ) { $alt = get_the_title( $id ); }
 				return array( 'url' => $src[0], 'w' => (int) $src[1], 'h' => (int) $src[2], 'alt' => $alt );
@@ -112,6 +108,63 @@ class M24FZ_SEO {
 		if ( '' === $logo ) { $logo = (string) get_site_icon_url( 512 ); }
 		$logo = (string) apply_filters( 'm24fz_og_fallback_image', $logo, $id );
 		return ( '' !== $logo ) ? array( 'url' => $logo, 'w' => 0, 'h' => 0, 'alt' => get_bloginfo( 'name' ) ) : null;
+	}
+
+	/**
+	 * Liefert [ url, width, height ] einer REALEN Datei — URL und Maße beschreiben immer dieselbe Datei.
+	 * Reihenfolge: m24_og (bei Bedarf on-the-fly erzeugt) → large (echte Datei) → full (Original mit echten Maßen).
+	 */
+	private static function share_image( $att ) {
+		$meta = wp_get_attachment_metadata( $att );
+
+		// 1) m24_og bereits vorhanden?
+		if ( is_array( $meta ) && ! empty( $meta['sizes']['m24_og']['file'] ) ) {
+			$url = self::size_url( $att, $meta['sizes']['m24_og']['file'] );
+			if ( $url ) { return array( $url, (int) $meta['sizes']['m24_og']['width'], (int) $meta['sizes']['m24_og']['height'] ); }
+		}
+
+		// 2) m24_og on-the-fly erzeugen (nur wenn Original ≥ 1200, sonst kein Upscale → Fallback).
+		$gen = self::generate_og_size( $att );
+		if ( $gen ) { return $gen; }
+
+		// 3) „large" als echte Datei.
+		if ( is_array( $meta ) && ! empty( $meta['sizes']['large']['file'] ) ) {
+			$url = self::size_url( $att, $meta['sizes']['large']['file'] );
+			if ( $url ) { return array( $url, (int) $meta['sizes']['large']['width'], (int) $meta['sizes']['large']['height'] ); }
+		}
+
+		// 4) Original (Full) mit den ECHTEN Originalmaßen.
+		if ( is_array( $meta ) && ! empty( $meta['width'] ) ) {
+			$url = wp_get_attachment_url( $att );
+			if ( $url ) { return array( $url, (int) $meta['width'], (int) $meta['height'] ); }
+		}
+		return null;
+	}
+
+	/** m24_og-Zwischengröße (1200px breit) erzeugen, in den Attachment-Metadaten registrieren, [url,w,h] zurück. */
+	private static function generate_og_size( $att ) {
+		$path = get_attached_file( $att );
+		if ( ! $path || ! file_exists( $path ) ) { return null; }
+		if ( ! function_exists( 'image_make_intermediate_size' ) ) { require_once ABSPATH . 'wp-admin/includes/image.php'; }
+		$gen = image_make_intermediate_size( $path, 1200, 0, false ); // false = kein Crop; 0 Höhe = proportional
+		if ( ! is_array( $gen ) || empty( $gen['file'] ) ) { return null; } // u. a. wenn Original < 1200 (kein Upscale)
+
+		$meta = wp_get_attachment_metadata( $att );
+		if ( ! is_array( $meta ) ) { $meta = array(); }
+		if ( empty( $meta['sizes'] ) || ! is_array( $meta['sizes'] ) ) { $meta['sizes'] = array(); }
+		$meta['sizes']['m24_og'] = $gen;
+		wp_update_attachment_metadata( $att, $meta );
+
+		$url = self::size_url( $att, $gen['file'] );
+		return $url ? array( $url, (int) $gen['width'], (int) $gen['height'] ) : null;
+	}
+
+	/** URL einer Zwischengröße (gleicher Ordner wie das Original; Photon ist im Aufrufer deaktiviert). */
+	private static function size_url( $att, $file ) {
+		$full = wp_get_attachment_url( $att );
+		if ( ! $full ) { return ''; }
+		$pos = strrpos( $full, '/' );
+		return ( false === $pos ) ? '' : substr( $full, 0, $pos + 1 ) . $file;
 	}
 
 	/** Kurzbeschreibung (~160 Zeichen) aus Zusammenfassung → Beschreibung → Excerpt. */

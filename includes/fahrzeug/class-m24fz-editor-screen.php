@@ -150,6 +150,8 @@ class M24FZ_Editor_Screen {
 		$waehr   = self::g( $id, '_m24fz_waehrung', 'EUR' );
 		$thumb   = $id ? (int) get_post_thumbnail_id( $id ) : 0;
 		$thumbU  = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
+		$ogimg   = (int) self::g( $id, '_m24fz_og_image', 0 );
+		$ogimgU  = $ogimg ? wp_get_attachment_image_url( $ogimg, 'medium' ) : '';
 		$pdraft  = $post && 'draft' === $post->post_status;
 		$pdate   = $post ? mysql2date( 'Y-m-d\TH:i', $post->post_date ) : current_time( 'Y-m-d\TH:i' );
 		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
@@ -403,6 +405,18 @@ class M24FZ_Editor_Screen {
 						</div>
 
 						<div class="fz-f">
+							<label>Vorschaubild (Social/WhatsApp) <span class="fz-help">Optional. Erscheint beim Teilen (Facebook/WhatsApp). Leer = Beitragsbild.</span></label>
+							<div class="fz-thumb">
+								<div class="fz-ogimg-prev<?php echo $ogimgU ? '' : ' empty'; ?>"><span class="fz-titel-tag">SHARE</span><?php if ( $ogimgU ) : ?><img src="<?php echo esc_url( $ogimgU ); ?>" alt=""><?php else : ?><span class="ph">Beitragsbild wird verwendet</span><?php endif; ?></div>
+								<input type="hidden" name="_m24fz_og_image" value="<?php echo (int) $ogimg; ?>">
+								<div class="fz-thumb-btns">
+									<button type="button" class="fz-out" id="fz-ogimg-pick">Vorschaubild wählen</button>
+									<button type="button" class="fz-out ghost" id="fz-ogimg-clear">Entfernen</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="fz-f">
 							<label>Bildergalerie (je Kategorie · ziehen zum Sortieren)</label>
 							<span class="fz-help">Nummer ①–③ (Außen) = Teaser-3er-Block oben im Inserat. Die Mosaik-Kachelgrößen bestimmt die Galerie automatisch.</span>
 							<?php foreach ( array( '_m24fz_gal_aussen' => 'Außen', '_m24fz_gal_innen' => 'Innen', '_m24fz_gal_motor' => 'Motor', '_m24fz_gal_unterboden' => 'Unterboden' ) as $key => $label ) :
@@ -486,6 +500,10 @@ class M24FZ_Editor_Screen {
 		// Beitragsbild (Titelbild).
 		$tid = (int) ( $_POST['_thumbnail_id'] ?? 0 );
 		if ( $tid ) { set_post_thumbnail( $id, $tid ); } else { delete_post_thumbnail( $id ); }
+
+		// Vorschaubild (Social/WhatsApp) — optional; leer → Beitragsbild.
+		$ogid = (int) ( $_POST['_m24fz_og_image'] ?? 0 );
+		if ( $ogid ) { update_post_meta( $id, '_m24fz_og_image', $ogid ); } else { delete_post_meta( $id, '_m24fz_og_image' ); }
 
 		// Neue optionale Felder (nur Komfort-Maske → keine Kollision mit klassischer Box).
 		$unit = ( 'mi' === ( $_POST['_m24fz_laufleistung_einheit'] ?? '' ) ) ? 'mi' : 'km';
@@ -665,6 +683,14 @@ jQuery(function($){
 		fr.open();
 	});
 	$('#fz-thumb-clear').on('click',function(e){ e.preventDefault(); $('input[name=_thumbnail_id]').val(''); $('.fz-thumb-prev').addClass('empty').html('<span class="fz-titel-tag">TITEL</span><span class="ph">Kein Titelbild</span>'); });
+	// Vorschaubild (Social/WhatsApp).
+	$('#fz-ogimg-pick').on('click',function(e){ e.preventDefault();
+		var fr=wp.media({title:'Vorschaubild (Social) wählen',multiple:false,library:{type:'image'}});
+		fr.on('select',function(){ var a=fr.state().get('selection').first().toJSON(); var u=(a.sizes&&a.sizes.medium)?a.sizes.medium.url:a.url;
+			$('input[name=_m24fz_og_image]').val(a.id); $('.fz-ogimg-prev').removeClass('empty').html('<span class="fz-titel-tag">SHARE</span><img src="'+u+'" alt="">'); });
+		fr.open();
+	});
+	$('#fz-ogimg-clear').on('click',function(e){ e.preventDefault(); $('input[name=_m24fz_og_image]').val(''); $('.fz-ogimg-prev').addClass('empty').html('<span class="fz-titel-tag">SHARE</span><span class="ph">Beitragsbild wird verwendet</span>'); });
 	// Galerien.
 	function syncGal(box){ var ids=[]; box.find('.fz-gal span').each(function(){ ids.push($(this).data('id')); }); box.find('input[type=hidden]').val(ids.join(',')); }
 	// Erste 3 Außen-Thumbs nummerieren (Teaser-3er-Block); nur die Außen-Box.
