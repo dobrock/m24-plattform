@@ -383,6 +383,8 @@ class M24FZ_Admin_List {
 .m24fzv-kebab .menu a:hover{background:#f0f0f1}
 .m24fzv-kebab .menu a.danger{color:var(--red)}
 .m24fzv-kebab .menu hr{margin:5px 0;border:0;border-top:1px solid #ececec}
+.m24fzv-kebab .menu .m24fzv-cf{display:block;padding:8px 11px;font-size:13px;color:#1d2327}
+.m24fzv-kebab .menu .m24fzv-cf a{display:inline;padding:0 3px;color:var(--brass);font-weight:600}
 CSS;
 	}
 
@@ -436,8 +438,10 @@ jQuery(function($){
 		// ── Featured (Startseiten-Slider) ──
 		if(doIt==='featured'){ var lnk=$(this); post(id,'featured',{},function(d){ lnk.text(d.label); }); return; }
 
-		// ── Anfrage-Zähler zurücksetzen ──
-		if(doIt==='anfragen-reset'){ if(!confirm('Anfrage-Zähler dieses Fahrzeugs auf 0 zurücksetzen?')){return;} post(id,'anfragen-reset',{},function(d){ tr.find('.m24fzv-anfrage-ct').text('✉ '+(d.anfragen!==undefined?d.anfragen:'0')); closeKebab(tr); }); return; }
+		// ── Anfrage-Zähler zurücksetzen (In-Page-Bestätigung, kein natives confirm) ──
+		if(doIt==='anfragen-reset'){ var ar=$(this); if(ar.next('.m24fzv-cf').length){ return; } ar.hide().after('<span class="m24fzv-cf">Zähler auf 0 setzen? <a href="#" data-do="anfragen-reset-yes">Ja</a> · <a href="#" data-do="anfragen-reset-no">Nein</a></span>'); return; }
+		if(doIt==='anfragen-reset-yes'){ var cf=$(this).closest('.m24fzv-cf'); post(id,'anfragen-reset',{},function(d){ tr.find('.m24fzv-anfrage-ct').text('✉ '+(d.anfragen!==undefined?d.anfragen:'0')); cf.prev('[data-do=anfragen-reset]').show(); cf.remove(); closeKebab(tr); }); return; }
+		if(doIt==='anfragen-reset-no'){ var cf2=$(this).closest('.m24fzv-cf'); cf2.prev('[data-do=anfragen-reset]').show(); cf2.remove(); return; }
 
 		// ── Papierkorb ──
 		if(doIt==='trash'){ if(!confirm('Inserat in den Papierkorb verschieben? (wiederherstellbar)')){return;} post(id,'trash',{},function(d){ updateCounts(d.counts); tr.fadeOut(200,function(){ $(this).remove(); }); }); return; }

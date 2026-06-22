@@ -13,6 +13,102 @@ class M24FZ_SEO {
 		add_filter( 'wpseo_set_title', array( __CLASS__, 'title' ), 99 );
 		add_filter( 'wpseo_set_desc', array( __CLASS__, 'desc' ), 20 );
 		add_action( 'wp_head', array( __CLASS__, 'json_ld' ), 20 );
+		// Open Graph / Twitter: Head puffern (vor Yoast prio 1 starten), nur ergänzen, wenn kein og:image da ist.
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 9 );
+	}
+
+	/* ── Open Graph / Twitter Cards (Beitragsbild statt Favicon beim Teilen) ───────
+	 * HINWEIS: Fallback, weil Yoast für den CPT m24_fahrzeug kein OG erzeugt. Sobald Yoast
+	 * OG für diesen CPT liefert (og:image im Head), unterdrückt der Dedup-Schutz unseren Block.
+	 * Bei dauerhafter Yoast-CPT-OG-Aktivierung diesen Block deaktivieren bzw. auf die
+	 * wpseo_opengraph_*-Filter umstellen. */
+
+	private static $og_buf = false;
+
+	/** Head ab Priorität 0 puffern (vor Yoast prio 1), damit wir ein bereits gesetztes og:image sehen. */
+	public static function og_buffer_start() {
+		if ( is_singular( M24FZ_CPT::PT ) && ! M24FZ_CPT::is_disabled( get_queried_object_id() ) ) {
+			self::$og_buf = true;
+			ob_start();
+		}
+	}
+
+	/** Puffer wieder ausgeben; nur wenn KEIN og:image im Head steht, unseren OG-/Twitter-Satz anhängen. */
+	public static function og_buffer_end() {
+		if ( ! self::$og_buf ) { return; }
+		self::$og_buf = false;
+		$head = ob_get_clean();
+		if ( false === stripos( (string) $head, 'og:image' ) ) {
+			$head .= self::og_tags( get_queried_object_id() );
+		}
+		echo $head; // phpcs:ignore WordPress.Security.EscapeOutput -- Head-Pass-through; eigene Tags sind escaped.
+	}
+
+	/** Vollständiger OG-/Twitter-Tag-Satz für ein Fahrzeug. */
+	private static function og_tags( $id ) {
+		$title = get_the_title( $id );
+		$url   = get_permalink( $id );
+		$desc  = self::og_desc( $id );
+		$img   = self::og_image( $id );
+
+		$out = "\n<!-- M24 Fahrzeug Open Graph (Fallback; Yoast liefert für diesen CPT kein OG) -->\n";
+		$meta = function ( $attr, $key, $val ) use ( &$out ) {
+			if ( '' === (string) $val ) { return; }
+			$out .= '<meta ' . $attr . '="' . esc_attr( $key ) . '" content="' . esc_attr( $val ) . '">' . "\n";
+		};
+		$meta( 'property', 'og:type', 'article' );
+		$meta( 'property', 'og:site_name', 'MOTORSPORT24' );
+		$meta( 'property', 'og:title', $title );
+		$meta( 'property', 'og:description', $desc );
+		$meta( 'property', 'og:url', $url );
+		if ( $img ) {
+			$meta( 'property', 'og:image', $img['url'] );
+			if ( 0 === stripos( $img['url'], 'https://' ) ) { $meta( 'property', 'og:image:secure_url', $img['url'] ); }
+			if ( $img['w'] > 0 ) { $meta( 'property', 'og:image:width', (string) $img['w'] ); }
+			if ( $img['h'] > 0 ) { $meta( 'property', 'og:image:height', (string) $img['h'] ); }
+			$meta( 'property', 'og:image:alt', $img['alt'] );
+		}
+		$meta( 'name', 'twitter:card', 'summary_large_image' );
+		$meta( 'name', 'twitter:title', $title );
+		$meta( 'name', 'twitter:description', $desc );
+		if ( $img ) { $meta( 'name', 'twitter:image', $img['url'] ); }
+		return $out;
+	}
+
+	/** Bild-Fallback-Kette: Beitragsbild → erstes Hero-/Galeriebild → Logo/Site-Icon. */
+	private static function og_image( $id ) {
+		$att = (int) get_post_thumbnail_id( $id );
+		if ( ! $att && class_exists( 'M24FZ_Template' ) ) {
+			$hero = (array) M24FZ_Template::hero_images( $id );
+			if ( ! empty( $hero ) ) { $att = (int) $hero[0]; }
+		}
+		if ( $att ) {
+			// Größtes sinnvolles Format fürs Teilen (≥1200 bevorzugt; sonst „large"). FB-Minimum 600.
+			$full  = wp_get_attachment_image_src( $att, 'full' );
+			$large = wp_get_attachment_image_src( $att, 'large' );
+			$src   = ( $full && (int) $full[1] >= 1200 ) ? $full : ( $large ? $large : $full );
+			if ( $src && ! empty( $src[0] ) ) {
+				$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
+				if ( '' === $alt ) { $alt = get_the_title( $id ); }
+				return array( 'url' => $src[0], 'w' => (int) $src[1], 'h' => (int) $src[2], 'alt' => $alt );
+			}
+		}
+		$logo = '';
+		$cl   = (int) get_theme_mod( 'custom_logo' );
+		if ( $cl ) { $s = wp_get_attachment_image_src( $cl, 'full' ); if ( $s ) { $logo = $s[0]; } }
+		if ( '' === $logo ) { $logo = (string) get_site_icon_url( 512 ); }
+		$logo = (string) apply_filters( 'm24fz_og_fallback_image', $logo, $id );
+		return ( '' !== $logo ) ? array( 'url' => $logo, 'w' => 0, 'h' => 0, 'alt' => get_bloginfo( 'name' ) ) : null;
+	}
+
+	/** Kurzbeschreibung (~160 Zeichen) aus Zusammenfassung → Beschreibung → Excerpt. */
+	private static function og_desc( $id ) {
+		$d = trim( wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) ) );
+		if ( '' === $d ) { $d = trim( wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_beschreibung', true ) ) ); }
+		if ( '' === $d ) { $d = trim( wp_strip_all_tags( get_the_excerpt( $id ) ) ); }
+		$d = preg_replace( '/\s+/', ' ', $d );
+		return ( mb_strlen( $d ) > 160 ) ? rtrim( mb_substr( $d, 0, 159 ) ) . '…' : $d;
 	}
 
 	/** „deaktiviert" → Frontend weg: 404 + noindex. */
