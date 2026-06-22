@@ -68,13 +68,30 @@ class M24FZ_Similar {
 		$n_foreign = $foreign ? max( 1, (int) round( $limit * self::FOREIGN_QUOTE ) ) : 0;
 		$n_brand   = max( 0, $limit - $n_foreign );
 
-		// Gleiche Marke strikt: erst ALLE exakten Baureihe-Treffer (verfügbar, dann verkauft), dann Rest.
-		$brand_ordered = array_merge( $exact_avail, $exact_sold, $other_avail, $other_sold );
-		$brand_pick    = array_slice( $brand_ordered, 0, $n_brand );
+		// EXAKTE Baureihe (E30) IMMER zuerst — verfügbar, dann verkauft. KEINE Sold-Kappung hier.
+		$brand_pick = array_slice( array_merge( $exact_avail, $exact_sold ), 0, $n_brand );
 
-		// 15 %-Mindestquote verkauft/reserviert sicherstellen (bevorzugt eine SOLD-E30).
-		$n_sold_min = (int) round( $limit * self::SOLD_QUOTE );
-		$brand_pick = self::ensure_sold( $brand_pick, $brand_ordered, $n_sold_min );
+		// Reicht die exakte Baureihe nicht: generisch (gleiche Marke, Nicht-Baureihe) auffüllen;
+		// generische VERKAUFTE dabei auf die 15 %-Quote kappen (Kappung NUR auf das generische Auffüllen).
+		if ( count( $brand_pick ) < $n_brand ) {
+			$gen_sold_cap  = (int) round( $limit * self::SOLD_QUOTE );
+			$gen_sold_used = 0;
+			$seen = array();
+			foreach ( $brand_pick as $c ) { $seen[ $c['id'] ] = 1; }
+			foreach ( array_merge( $other_avail, $other_sold ) as $c ) {
+				if ( count( $brand_pick ) >= $n_brand ) { break; }
+				if ( isset( $seen[ $c['id'] ] ) ) { continue; }
+				$is_sold = ( $c['sold'] || $c['reserved'] );
+				if ( $is_sold && $gen_sold_used >= $gen_sold_cap ) { continue; } // generische Sold-Kappung
+				$brand_pick[] = $c; $seen[ $c['id'] ] = 1; if ( $is_sold ) { $gen_sold_used++; }
+			}
+			// Notfall: noch freie Slots → restliche generische Verkaufte zulassen (statt Leerstellen).
+			foreach ( $other_sold as $c ) {
+				if ( count( $brand_pick ) >= $n_brand ) { break; }
+				if ( isset( $seen[ $c['id'] ] ) ) { continue; }
+				$brand_pick[] = $c; $seen[ $c['id'] ] = 1;
+			}
+		}
 
 		// Anordnung: gleiche Marke (Baureihe zuerst), Fremdmarke in der Mitte einstreuen.
 		$final = $brand_pick;
@@ -85,36 +102,13 @@ class M24FZ_Similar {
 		// Auffüllen bis $limit (Reste), ohne Dubletten.
 		$seen = array();
 		foreach ( $final as $c ) { $seen[ $c['id'] ] = 1; }
-		foreach ( array_merge( $brand_ordered, $foreign ) as $c ) {
+		foreach ( array_merge( $exact_avail, $exact_sold, $other_avail, $other_sold, $foreign ) as $c ) {
 			if ( count( $final ) >= $limit ) { break; }
 			if ( isset( $seen[ $c['id'] ] ) ) { continue; }
 			$seen[ $c['id'] ] = 1; $final[] = $c;
 		}
 
 		return array_slice( $final, 0, $limit );
-	}
-
-	/** Mindestens $min verkaufte/reservierte Karten in der Auswahl sicherstellen (tauscht letzte verfügbare). */
-	private static function ensure_sold( $pick, $ordered, $min ) {
-		$is_sold = static function ( $c ) { return ! empty( $c['sold'] ) || ! empty( $c['reserved'] ); };
-		$have = 0;
-		foreach ( $pick as $c ) { if ( $is_sold( $c ) ) { $have++; } }
-		if ( $have >= $min ) { return $pick; }
-
-		$pick_ids = array();
-		foreach ( $pick as $c ) { $pick_ids[ $c['id'] ] = 1; }
-		$cands = array(); // verkaufte Kandidaten außerhalb der Auswahl (Reihenfolge: exakte Baureihe zuerst)
-		foreach ( $ordered as $c ) { if ( $is_sold( $c ) && ! isset( $pick_ids[ $c['id'] ] ) ) { $cands[] = $c; } }
-
-		$need = $min - $have;
-		foreach ( $cands as $cand ) {
-			if ( $need <= 0 ) { break; }
-			// von hinten die letzte NICHT-verkaufte Karte ersetzen
-			for ( $i = count( $pick ) - 1; $i >= 0; $i-- ) {
-				if ( ! $is_sold( $pick[ $i ] ) ) { $pick[ $i ] = $cand; $need--; break; }
-			}
-		}
-		return $pick;
 	}
 
 	/** Rückwärtskompatibel: nur die Post-IDs. */

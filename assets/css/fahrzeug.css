@@ -209,8 +209,8 @@
 @media(max-width:560px){.m24fz-tel{grid-template-columns:repeat(2,1fr)}.m24fz-simgrid{grid-template-columns:1fr 1fr}}
 @media(max-width:768px){
 	/* ── Entwurf A — Mobile-Layout (optimiert) ── */
-	/* Header→Hero: keinen Spalt (Container-/Wrapper-Top auf 0) */
-	.m24fz.td-container{padding-top:0;margin-top:0}
+	/* Header→Hero: keinen Spalt — tagDiv-Default .td-container{padding-top:22px} hart überschreiben */
+	.m24fz.td-container,body .m24fz.td-container{padding-top:0!important;margin-top:0!important}
 	.m24fz-wrap{gap:14px;background:#fafafa;padding-top:0;margin-top:0}
 	/* Hero: echtes Full-Bleed bis an die Bildschirmkanten (unabhängig vom Container-Padding) */
 	.m24fz-hero{display:block;min-height:0;padding:0;border-radius:0;background:none;gap:0;width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);overflow:visible}
