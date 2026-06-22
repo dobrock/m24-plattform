@@ -146,12 +146,12 @@ class M24FZ_CPT {
 		self::sync_rubrik_category( (int) $object_id );
 	}
 
-	/** Einmalig: Slider-Term für bestehende Featured-CPT setzen (fängt vorab markierte nach). */
+	/** Einmalig: Slider-Term („featured") für bestehende Featured-CPT setzen (v2 erzwingt Re-Sync). */
 	public static function maybe_backfill_featured() {
-		if ( get_option( 'm24fz_featured_backfill_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		if ( get_option( 'm24fz_featured_backfill_v2' ) || ! current_user_can( 'edit_posts' ) ) { return; }
 		$ids = get_posts( array( 'post_type' => self::PT, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true ) );
 		foreach ( $ids as $pid ) { self::sync_featured_term( (int) $pid ); }
-		update_option( 'm24fz_featured_backfill_v1', 1 );
+		update_option( 'm24fz_featured_backfill_v2', 1 );
 	}
 
 	/* ── CPT-Fahrzeuge in den tagDiv-„FOR SALE"-Slider einhängen §Slider-Integration ── */
@@ -216,7 +216,7 @@ class M24FZ_CPT {
 
 	/** Slider-Taxonomie + Term-Slug (filterbar). Standard: WP-Kategorie „startseite-slider". */
 	public static function featured_taxonomy() { return (string) apply_filters( 'm24_featured_taxonomy', 'category' ); }
-	public static function featured_term_slug() { return (string) apply_filters( 'm24_featured_term_slug', get_option( 'm24_featured_term_slug', 'startseite-slider' ) ); }
+	public static function featured_term_slug() { return (string) apply_filters( 'm24_featured_term_slug', get_option( 'm24_featured_term_slug', 'featured' ) ); }
 
 	/** Bei Änderung von _m24_featured den Slider-Term zuweisen/entfernen. */
 	public static function on_featured_meta( $meta_id, $object_id, $meta_key ) {

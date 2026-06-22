@@ -144,24 +144,37 @@
 		document.addEventListener('keydown', function (e) { if (!lb.hidden && e.key === 'Escape') { close(); } });
 	}
 
-	// „Jetzt anfragen" / „Auf die Interessentenliste" → Modal + REST-Submit.
-	var am = document.querySelector('.m24fz-anfrage-modal');
-	if (am) {
-		var form = am.querySelector('.m24fz-anfrage-form'), amsg = am.querySelector('.m24fz-anf-msg');
-		function amOpen(asList) {
-			var ck = am.querySelector('input[name=interessent]'); if (ck) { ck.checked = !!asList; }
-			am.hidden = false; am.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
-			var f = am.querySelector('input[name=name]'); if (f) { f.focus(); }
-		}
-		function amClose() { am.hidden = true; am.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+	// „Jetzt anfragen" (Anfrage-Modal) UND „Auf die Interessentenliste" (IL-Modal) — getrennte Modals/Handler.
+	var anfModal = document.getElementById('m24fz-anfrage-modal');
+	var ilModal  = document.getElementById('m24fz-il-modal');
+
+	function modalOpen(m) {
+		if (!m) { return; }
+		m.hidden = false; m.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+		var f = m.querySelector('input[name=name]'); if (f) { f.focus(); }
+	}
+	function modalClose(m) { if (!m) { return; } m.hidden = true; m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+
+	if (anfModal || ilModal) {
 		document.addEventListener('click', function (e) {
-			if (e.target.closest('.m24fz-anfrage-open')) { e.preventDefault(); amOpen(false); return; }
-			if (e.target.closest('.m24fz-il-open')) { e.preventDefault(); amOpen(true); return; }
-			if (e.target.closest('.m24fz-anfrage-close') || e.target === am) { amClose(); }
+			if (e.target.closest('.m24fz-anfrage-open')) { e.preventDefault(); modalOpen(anfModal); return; }
+			if (e.target.closest('.m24fz-il-open'))      { e.preventDefault(); modalOpen(ilModal); return; }
+			if (e.target.closest('.m24fz-anfrage-close')) {
+				modalClose(e.target.closest('.m24fz-anfrage-modal')); return;
+			}
+			if (e.target === anfModal) { modalClose(anfModal); }
+			if (e.target === ilModal)  { modalClose(ilModal); }
 		});
-		document.addEventListener('keydown', function (e) { if (!am.hidden && e.key === 'Escape') { amClose(); } });
-		// Privat/Gewerblich Pill-Umschalter: aktive Pille = .on
-		var seg = am.querySelector('.m24fz-pillseg');
+		document.addEventListener('keydown', function (e) {
+			if (e.key !== 'Escape') { return; }
+			if (anfModal && !anfModal.hidden) { modalClose(anfModal); }
+			if (ilModal && !ilModal.hidden)  { modalClose(ilModal); }
+		});
+	}
+
+	// Privat/Gewerblich Pill-Umschalter im Anfrage-Modal: aktive Pille = .on
+	if (anfModal) {
+		var seg = anfModal.querySelector('.m24fz-pillseg');
 		if (seg) {
 			seg.addEventListener('change', function () {
 				[].forEach.call(seg.querySelectorAll('label'), function (l) {
@@ -169,24 +182,31 @@
 				});
 			});
 		}
-		if (form) {
-			form.addEventListener('submit', function (e) {
-				e.preventDefault();
-				if (!cfg.anfrage || !cfg.nonce) { return; }
-				var fd = new FormData(form); fd.append('post_id', form.getAttribute('data-pid'));
-				var btn = form.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
-				if (amsg) { amsg.textContent = 'Wird gesendet …'; }
-				fetch(cfg.anfrage, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce }, body: fd })
-					.then(function (r) { return r.json(); })
-					.then(function (d) {
-						if (amsg) { amsg.textContent = (d && d.message) ? d.message : 'Danke!'; }
-						if (d && d.ok) { form.reset(); setTimeout(amClose, 1600); }
-						if (btn) { btn.disabled = false; }
-					})
-					.catch(function () { if (amsg) { amsg.textContent = 'Senden fehlgeschlagen. Bitte später erneut.'; } if (btn) { btn.disabled = false; } });
-			});
-		}
 	}
+
+	// Generischer REST-Submit für ein Modal-Formular (eigener Endpoint je Flow).
+	function wireModalForm(modal, formSel, endpoint) {
+		if (!modal) { return; }
+		var form = modal.querySelector(formSel), amsg = modal.querySelector('.m24fz-anf-msg');
+		if (!form) { return; }
+		form.addEventListener('submit', function (e) {
+			e.preventDefault();
+			if (!endpoint || !cfg.nonce) { return; }
+			var fd = new FormData(form); fd.append('post_id', form.getAttribute('data-pid'));
+			var btn = form.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
+			if (amsg) { amsg.textContent = 'Wird gesendet …'; }
+			fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce }, body: fd })
+				.then(function (r) { return r.json(); })
+				.then(function (d) {
+					if (amsg) { amsg.textContent = (d && d.message) ? d.message : 'Danke!'; }
+					if (d && d.ok) { form.reset(); setTimeout(function () { modalClose(modal); }, 1800); }
+					if (btn) { btn.disabled = false; }
+				})
+				.catch(function () { if (amsg) { amsg.textContent = 'Senden fehlgeschlagen. Bitte später erneut.'; } if (btn) { btn.disabled = false; } });
+		});
+	}
+	wireModalForm(anfModal, '.m24fz-anfrage-form', cfg.anfrage);
+	wireModalForm(ilModal, '.m24fz-il-form', cfg.interessent);
 
 	// (Hero-„Galerie"-Scroll ist oben als Document-Delegation gebunden — robust ggü. Timing/Fehlern.)
 

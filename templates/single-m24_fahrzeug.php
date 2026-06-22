@@ -177,5 +177,6 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 	<div class="m24fz-lb" hidden><button class="m24fz-lb-close" type="button">&times;</button><img src="" alt=""><div class="m24fz-lb-frame"></div><button class="m24fz-lb-prev" type="button">‹</button><button class="m24fz-lb-next" type="button">›</button></div>
 
 	<?php M24FZ_Anfrage::modal_html( $id ); // „Jetzt anfragen"-Modal ?>
+	<?php M24FZ_Anfrage::il_modal_html( $id ); // „Auf die Interessentenliste"-Modal (getrennt) ?>
 </div>
 <?php get_footer();
