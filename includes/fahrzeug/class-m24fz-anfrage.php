@@ -232,7 +232,7 @@ class M24FZ_Anfrage {
 				<button type="button" class="m24fz-anfrage-close" aria-label="Schließen">&times;</button>
 				<h3>Fahrzeug anfragen</h3>
 				<p class="m24fz-anfrage-veh"><?php echo esc_html( get_the_title( $post_id ) ); ?></p>
-				<form class="m24fz-anfrage-form" data-pid="<?php echo (int) $post_id; ?>">
+				<form class="m24fz-anfrage-form" data-pid="<?php echo (int) $post_id; ?>" novalidate>
 					<?php m24_inquiry_fields(); // gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent) ?>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit">Anfrage senden</button>
