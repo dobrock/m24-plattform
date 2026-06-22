@@ -3,12 +3,11 @@
  * M24 Fahrzeug — „Ähnliche Fahrzeuge"
  * Modul: includes/fahrzeug/class-m24fz-similar.php
  *
- * Logik (markenprimär, kategorieübergreifend):
- *  1. Primär nach MARKE matchen (Porsche-Seite → nur Porsche, BMW-Seite → nur BMW).
- *  2. Modell-/Baureihen-Affinität ÜBER Kategorien hinweg (ein M3 E30 zieht ALLE E30 aus Race Cars
- *     UND Classic Cars) — bei Modell-Match wird die Kategorie NICHT eingeschränkt.
- *  3. ~10 % Fremdmarken-Quote zur Auflockerung (Konstante FOREIGN_QUOTE).
- *  4. Quellen: neue m24_fahrzeug + alte Legacy-Posts; reclaimte/301-weitergeleitete ausgeschlossen.
+ * Logik (markenprimär HART, kategorieübergreifend):
+ *  1. Pool strikt auf gleiche MARKE; Fremdmarken nur bis zur 10 %-Quote (≈1 von 6).
+ *  2. Modell-/Baureihen-Affinität ÜBER Kategorien (E30 zieht ALLE E30 — CPT + Legacy, Race + Classic).
+ *  3. 15 %-Quote verkauft/reserviert gleicher Marke/Modell (separat von der Fremdmarken-Quote).
+ *  4. Dedup: reclaimte Alt-Posts (_m24fz_reclaim_post) + 301-weitergeleitete raus; pro Fahrzeug 1 Karte.
  *  5. Karten-Bild über m24_og/large (Template).
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -19,51 +18,69 @@ class M24FZ_Similar {
 	const LEGACY_CATS = array( 'race-cars-for-sale', 'racecars-sold', 'classic-cars-for-sale', 'sold-classic-cars' );
 	const LEGACY_SOLD = array( 'racecars-sold', 'sold-classic-cars' );
 
-	/** Anteil Fremdmarken-Kacheln zur Auflockerung (≈1 von 6). */
-	const FOREIGN_QUOTE = 0.10;
+	const FOREIGN_QUOTE = 0.10; // ≈1 von 6 Fremdmarke
+	const SOLD_QUOTE    = 0.15; // ≈1 von 6 verkauft/reserviert (gleiche Marke)
 
-	/** Karten-Deskriptoren (bis $limit): ['id','url','title','thumb','sold','reserved','baujahr','cc']. */
 	public static function cards( $post_id, $limit = 6 ) {
-		$post_id  = (int) $post_id;
-		$marke    = trim( (string) get_post_meta( $post_id, '_m24fz_marke', true ) );
-		$aff      = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
-		if ( '' === $aff ) { $aff = trim( (string) get_post_meta( $post_id, '_m24fz_modell', true ) ); }
+		$post_id = (int) $post_id;
+
+		// Marke robust: Meta, sonst aus dem Titel raten.
+		$marke = trim( (string) get_post_meta( $post_id, '_m24fz_marke', true ) );
+		if ( '' === $marke && class_exists( 'M24FZ_Telemetry' ) ) { $marke = (string) M24FZ_Telemetry::guess_brand( get_the_title( $post_id ) ); }
 		$marke_lo = strtolower( $marke );
-		$aff_lo   = strtolower( $aff );
+
+		// Affinität robust: Baureihe → Modell → Modellschlüssel aus dem Titel (E30/E36/991/Z4 …).
+		$aff = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
+		if ( '' === $aff ) { $aff = trim( (string) get_post_meta( $post_id, '_m24fz_modell', true ) ); }
+		if ( '' === $aff ) { $aff = self::model_key( get_the_title( $post_id ) ); }
+		$aff_lo = strtolower( $aff );
 
 		$all = array_merge( self::cpt_pool( $post_id ), self::legacy_pool( $post_id ) );
+		$all = self::dedupe( $all ); // pro Fahrzeug nur EINE Karte (CPT bevorzugt, da zuerst gemergt)
 		if ( empty( $all ) ) { return array(); }
 
-		// Marken-Split + Affinität markieren.
-		$brand = array();
+		// In Eimer einsortieren: Marke-verfügbar / Marke-verkauft / Fremdmarke.
+		$b_avail = array();
+		$b_sold  = array();
 		$foreign = array();
 		foreach ( $all as $c ) {
 			$c['aff'] = ( '' !== $aff_lo && false !== strpos( $c['hay'], $aff_lo ) );
 			$is_brand = ( '' !== $marke_lo ) && ( 'cpt' === $c['source'] ? ( $c['marke'] === $marke_lo ) : self::title_has_brand( $c['title'], $marke ) );
-			if ( $is_brand ) { $brand[] = $c; } else { $foreign[] = $c; }
+			if ( '' === $marke_lo ) { $is_brand = true; } // ohne Marke: nicht filtern
+			if ( ! $is_brand ) { $foreign[] = $c; }
+			elseif ( $c['sold'] || $c['reserved'] ) { $b_sold[] = $c; }
+			else { $b_avail[] = $c; }
 		}
-		// Ohne gesetzte Marke: keine Fremdmarken-Trennung (alles als „Marke").
-		if ( '' === $marke_lo ) { $brand = $all; $foreign = array(); }
-
-		$cmp = static function ( $a, $b ) {
+		$by_aff = static function ( $a, $b ) {
 			if ( $a['aff'] !== $b['aff'] ) { return $a['aff'] ? -1 : 1; }
 			return $b['ts'] <=> $a['ts'];
 		};
-		usort( $brand, $cmp );
-		usort( $foreign, static function ( $a, $b ) { return $b['ts'] <=> $a['ts']; } );
+		usort( $b_avail, $by_aff );
+		usort( $b_sold, $by_aff );
+		usort( $foreign, $by_aff );
 
-		// ~10 % Fremdmarke einstreuen, Rest gleiche Marke (Modell-Affinität zuerst).
-		$n_foreign     = (int) round( $limit * self::FOREIGN_QUOTE );
-		$foreign_pick  = array_slice( $foreign, 0, $n_foreign );
-		$brand_pick    = array_slice( $brand, 0, max( 0, $limit - count( $foreign_pick ) ) );
-		if ( count( $brand_pick ) + count( $foreign_pick ) < $limit ) {
-			$need         = $limit - count( $brand_pick ) - count( $foreign_pick );
-			$foreign_pick = array_merge( $foreign_pick, array_slice( $foreign, count( $foreign_pick ), max( 0, $need ) ) );
+		$n_foreign = (int) round( $limit * self::FOREIGN_QUOTE );
+		$n_sold    = (int) round( $limit * self::SOLD_QUOTE );
+		$n_avail   = max( 0, $limit - $n_foreign - $n_sold );
+
+		$avail_pick   = array_slice( $b_avail, 0, $n_avail );
+		$sold_pick    = array_slice( $b_sold, 0, $n_sold );
+		$foreign_pick = array_slice( $foreign, 0, $n_foreign );
+
+		// Anordnung: verfügbare Marke zuerst (Affinität), verkauft + Fremdmarke in der Mitte einstreuen.
+		$final = $avail_pick;
+		foreach ( array_values( $sold_pick ) as $i => $s ) { array_splice( $final, min( count( $final ), 2 + $i ), 0, array( $s ) ); }
+		foreach ( array_values( $foreign_pick ) as $i => $f ) { array_splice( $final, min( count( $final ), 4 + $i ), 0, array( $f ) ); }
+
+		// Auffüllen bis $limit (Reste in Priorität verfügbar → verkauft → Fremdmarke), ohne Dubletten.
+		$seen = array();
+		foreach ( $final as $c ) { $seen[ $c['id'] ] = 1; }
+		$rest = array_merge( array_slice( $b_avail, count( $avail_pick ) ), array_slice( $b_sold, count( $sold_pick ) ), array_slice( $foreign, count( $foreign_pick ) ) );
+		foreach ( $rest as $c ) {
+			if ( count( $final ) >= $limit ) { break; }
+			if ( isset( $seen[ $c['id'] ] ) ) { continue; }
+			$seen[ $c['id'] ] = 1; $final[] = $c;
 		}
-
-		$final = $brand_pick;
-		$at    = min( count( $final ), 3 );
-		foreach ( array_values( $foreign_pick ) as $i => $f ) { array_splice( $final, $at + $i, 0, array( $f ) ); }
 
 		return array_slice( $final, 0, $limit );
 	}
@@ -79,7 +96,7 @@ class M24FZ_Similar {
 		$ids = get_posts( array(
 			'post_type'      => M24FZ_CPT::PT,
 			'post_status'    => 'publish',
-			'posts_per_page' => 80,
+			'posts_per_page' => 100,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'post__not_in'   => array( (int) $exclude_id ),
@@ -115,13 +132,14 @@ class M24FZ_Similar {
 
 	private static function legacy_pool( $exclude_id ) {
 		$blocked = self::redirected_paths();
+		$excl    = array_merge( array( (int) $exclude_id ), self::reclaimed_ids() ); // reclaimte Alt-Posts raus
 		$ids = get_posts( array(
 			'post_type'           => 'post',
 			'post_status'         => 'publish',
-			'posts_per_page'      => 120,
+			'posts_per_page'      => 150,
 			'fields'              => 'ids',
 			'no_found_rows'       => true,
-			'post__not_in'        => array( (int) $exclude_id ),
+			'post__not_in'        => $excl,
 			'orderby'             => 'date', 'order' => 'DESC',
 			'ignore_sticky_posts' => true,
 			'tax_query'           => array( array( 'taxonomy' => 'category', 'field' => 'slug', 'terms' => self::LEGACY_CATS ) ),
@@ -129,7 +147,7 @@ class M24FZ_Similar {
 		$out = array();
 		foreach ( $ids as $id ) {
 			$id = (int) $id;
-			if ( in_array( self::path_only( get_permalink( $id ) ), $blocked, true ) ) { continue; } // reclaimt/301
+			if ( in_array( self::path_only( get_permalink( $id ) ), $blocked, true ) ) { continue; } // 301-weitergeleitet
 			$title = get_the_title( $id );
 			$clean = preg_replace( '/^\s*(coming up for sale|for sale|sold|verkauft|reserviert)\s*:\s*/i', '', $title );
 			$year  = preg_match( '/\b(19|20)\d{2}\b/', $title, $m ) ? $m[0] : '';
@@ -149,6 +167,36 @@ class M24FZ_Similar {
 			);
 		}
 		return $out;
+	}
+
+	/* ── Helfer ──────────────────────────────────────────────────────────────── */
+
+	/** Pro Fahrzeug nur EINE Karte: Dedup über normalisierten Titel (erste Sichtung = CPT bevorzugt). */
+	private static function dedupe( $items ) {
+		$out = array();
+		$seen = array();
+		foreach ( $items as $c ) {
+			$key = preg_replace( '/[^a-z0-9]+/', '', strtolower( (string) $c['title'] ) );
+			if ( '' === $key ) { $key = 'id' . $c['id']; }
+			if ( isset( $seen[ $key ] ) ) { continue; }
+			$seen[ $key ] = 1; $out[] = $c;
+		}
+		return $out;
+	}
+
+	/** Alle Alt-Post-IDs, die per _m24fz_reclaim_post von einem CPT abgelöst wurden. */
+	private static function reclaimed_ids() {
+		global $wpdb;
+		$ids = $wpdb->get_col( "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_m24fz_reclaim_post' AND meta_value > 0" ); // phpcs:ignore WordPress.DB
+		return array_filter( array_map( 'intval', (array) $ids ) );
+	}
+
+	/** Modellschlüssel aus dem Titel (BMW-Chassis E30/F82/G80, Z-Reihe, Porsche-Zahlen 911/964/991). */
+	private static function model_key( $title ) {
+		if ( preg_match( '/\b([EFGKUW]\d{2,3})\b/i', $title, $m ) ) { return $m[1]; }
+		if ( preg_match( '/\b(Z\d)\b/i', $title, $m ) ) { return $m[1]; }
+		if ( preg_match( '/\b(9\d{2})\b/', $title, $m ) ) { return $m[1]; }
+		return '';
 	}
 
 	/** Grobe Marken-Erkennung im (Alt-)Titel inkl. einfacher Aliase. */

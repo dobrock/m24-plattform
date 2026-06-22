@@ -88,7 +88,7 @@
 /* Jetpack Tiled Gallery (Mauerwerk-Mosaik, große Feature- + kleine Kacheln, volle Breite).
    „9 + +X + Fly-out" liegt nur OBENDRAUF — Jetpack rendert die Kachelgrößen selbst. */
 .m24fz-galcat .tiled-gallery,.m24fz-galcat .wp-block-jetpack-tiled-gallery{margin:0!important;width:100%!important;max-width:100%!important}
-.m24fz-tg-preview,.m24fz-tg-full{position:relative}
+.m24fz-tg-preview,.m24fz-tg-full{position:relative;display:flex;flex-direction:column;gap:10px} /* Zeilen-Gap */
 /* Versetztes Zickzack-Mosaik (eigenes CSS-Grid, eckige Ecken) */
 .m24fz-mz-wrap{display:flex;flex-direction:column;gap:10px}
 .m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:stretch}
