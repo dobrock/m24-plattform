@@ -3,74 +3,67 @@
  * M24 Fahrzeug — „Ähnliche Fahrzeuge"
  * Modul: includes/fahrzeug/class-m24fz-similar.php
  *
- * Pool = gleiche Aktiv-Kategorie (_m24fz_kat) wie das aktuelle Fahrzeug, aus BEIDEN Quellen:
- *  a) neue m24_fahrzeug-Beiträge,
- *  b) alte Fahrzeug-Posts (Legacy) über ihre WP-Kategorie (race* → Race Cars, classic* → Classic Cars).
- * Ausgeschlossen: aktuelles Fahrzeug, Entwürfe, deaktivierte CPT, sowie bereits per Reclaim
- * 301-weitergeleitete Alt-Posts (Dubletten/Redirect vermeiden).
- * Ranking: Modell-/Baureihen-Affinität zuerst, dann Rest der Kategorie nach Aktualität.
- * Anzeige: bis zu 6 Kacheln (2×3), davon ~15 % verkauft/reserviert (≈1 von 6) bewusst eingestreut.
+ * Logik (markenprimär, kategorieübergreifend):
+ *  1. Primär nach MARKE matchen (Porsche-Seite → nur Porsche, BMW-Seite → nur BMW).
+ *  2. Modell-/Baureihen-Affinität ÜBER Kategorien hinweg (ein M3 E30 zieht ALLE E30 aus Race Cars
+ *     UND Classic Cars) — bei Modell-Match wird die Kategorie NICHT eingeschränkt.
+ *  3. ~10 % Fremdmarken-Quote zur Auflockerung (Konstante FOREIGN_QUOTE).
+ *  4. Quellen: neue m24_fahrzeug + alte Legacy-Posts; reclaimte/301-weitergeleitete ausgeschlossen.
+ *  5. Karten-Bild über m24_og/large (Template).
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24FZ_Similar {
 
-	/** CPT-Kategorie → Alt-Beitrags-Kategorien (Slugs der WP-Standard-Taxonomie `category`). */
-	const LEGACY = array(
-		'race-cars'    => array( 'active' => 'race-cars-for-sale',    'sold' => 'racecars-sold' ),
-		'classic-cars' => array( 'active' => 'classic-cars-for-sale', 'sold' => 'sold-classic-cars' ),
-	);
+	/** Alle Legacy-Fahrzeug-Kategorien (kategorieübergreifend: Race + Classic, aktiv + verkauft). */
+	const LEGACY_CATS = array( 'race-cars-for-sale', 'racecars-sold', 'classic-cars-for-sale', 'sold-classic-cars' );
+	const LEGACY_SOLD = array( 'racecars-sold', 'sold-classic-cars' );
 
-	/** Anteil verkaufter/reservierter Kacheln (≈1 von 6). */
-	const SOLD_QUOTE = 0.15;
+	/** Anteil Fremdmarken-Kacheln zur Auflockerung (≈1 von 6). */
+	const FOREIGN_QUOTE = 0.10;
 
-	/**
-	 * Karten-Deskriptoren (bis $limit): ['id','url','title','thumb','sold','reserved','baujahr','cc'].
-	 * Mischt CPT-Inserate und Alt-Beiträge — das Template rendert quellen-agnostisch.
-	 */
+	/** Karten-Deskriptoren (bis $limit): ['id','url','title','thumb','sold','reserved','baujahr','cc']. */
 	public static function cards( $post_id, $limit = 6 ) {
-		$post_id = (int) $post_id;
-		$kat     = (string) get_post_meta( $post_id, '_m24fz_kat', true );
-		if ( ! isset( self::LEGACY[ $kat ] ) ) { $kat = 'race-cars'; }
-
-		// Affinitäts-Schlüssel: Baureihe bevorzugt, sonst Modell, sonst Marke.
-		$aff = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
+		$post_id  = (int) $post_id;
+		$marke    = trim( (string) get_post_meta( $post_id, '_m24fz_marke', true ) );
+		$aff      = trim( (string) get_post_meta( $post_id, '_m24fz_baureihe', true ) );
 		if ( '' === $aff ) { $aff = trim( (string) get_post_meta( $post_id, '_m24fz_modell', true ) ); }
-		if ( '' === $aff ) { $aff = trim( (string) get_post_meta( $post_id, '_m24fz_marke', true ) ); }
+		$marke_lo = strtolower( $marke );
+		$aff_lo   = strtolower( $aff );
 
-		$pool = array_merge(
-			self::cpt_pool( $kat, $post_id, $aff ),
-			self::legacy_pool( $kat, $post_id, $aff )
-		);
-		if ( empty( $pool ) ) { return array(); }
+		$all = array_merge( self::cpt_pool( $post_id ), self::legacy_pool( $post_id ) );
+		if ( empty( $all ) ) { return array(); }
 
-		// Affinität zuerst, dann Aktualität.
+		// Marken-Split + Affinität markieren.
+		$brand = array();
+		$foreign = array();
+		foreach ( $all as $c ) {
+			$c['aff'] = ( '' !== $aff_lo && false !== strpos( $c['hay'], $aff_lo ) );
+			$is_brand = ( '' !== $marke_lo ) && ( 'cpt' === $c['source'] ? ( $c['marke'] === $marke_lo ) : self::title_has_brand( $c['title'], $marke ) );
+			if ( $is_brand ) { $brand[] = $c; } else { $foreign[] = $c; }
+		}
+		// Ohne gesetzte Marke: keine Fremdmarken-Trennung (alles als „Marke").
+		if ( '' === $marke_lo ) { $brand = $all; $foreign = array(); }
+
 		$cmp = static function ( $a, $b ) {
 			if ( $a['aff'] !== $b['aff'] ) { return $a['aff'] ? -1 : 1; }
 			return $b['ts'] <=> $a['ts'];
 		};
-		$avail = array();
-		$soldr = array();
-		foreach ( $pool as $c ) {
-			if ( $c['sold'] || $c['reserved'] ) { $soldr[] = $c; } else { $avail[] = $c; }
-		}
-		usort( $avail, $cmp );
-		usort( $soldr, $cmp );
+		usort( $brand, $cmp );
+		usort( $foreign, static function ( $a, $b ) { return $b['ts'] <=> $a['ts']; } );
 
-		// Quote: ~15 % verkauft/reserviert (≈1 von 6) — alte SOLD-Posts eignen sich dafür.
-		$n_sold    = (int) round( $limit * self::SOLD_QUOTE );
-		$sold_pick = array_slice( $soldr, 0, $n_sold );
-		$avail_pick = array_slice( $avail, 0, max( 0, $limit - count( $sold_pick ) ) );
-		// Zu wenige Verfügbare → mit weiteren verkauften/reservierten auffüllen.
-		if ( count( $avail_pick ) + count( $sold_pick ) < $limit ) {
-			$need      = $limit - count( $avail_pick ) - count( $sold_pick );
-			$sold_pick = array_merge( $sold_pick, array_slice( $soldr, count( $sold_pick ), max( 0, $need ) ) );
+		// ~10 % Fremdmarke einstreuen, Rest gleiche Marke (Modell-Affinität zuerst).
+		$n_foreign     = (int) round( $limit * self::FOREIGN_QUOTE );
+		$foreign_pick  = array_slice( $foreign, 0, $n_foreign );
+		$brand_pick    = array_slice( $brand, 0, max( 0, $limit - count( $foreign_pick ) ) );
+		if ( count( $brand_pick ) + count( $foreign_pick ) < $limit ) {
+			$need         = $limit - count( $brand_pick ) - count( $foreign_pick );
+			$foreign_pick = array_merge( $foreign_pick, array_slice( $foreign, count( $foreign_pick ), max( 0, $need ) ) );
 		}
 
-		// Verkauft-/Reserviert-Kachel(n) in der Mitte einstreuen statt anhängen.
-		$final = $avail_pick;
+		$final = $brand_pick;
 		$at    = min( count( $final ), 3 );
-		foreach ( array_values( $sold_pick ) as $i => $s ) { array_splice( $final, $at + $i, 0, array( $s ) ); }
+		foreach ( array_values( $foreign_pick ) as $i => $f ) { array_splice( $final, $at + $i, 0, array( $f ) ); }
 
 		return array_slice( $final, 0, $limit );
 	}
@@ -80,29 +73,28 @@ class M24FZ_Similar {
 		return array_map( static function ( $c ) { return $c['id']; }, self::cards( $post_id, $limit ) );
 	}
 
-	/* ── CPT-Quelle ──────────────────────────────────────────────────────────── */
+	/* ── CPT-Quelle (kategorieübergreifend) ──────────────────────────────────── */
 
-	private static function cpt_pool( $kat, $exclude_id, $aff ) {
+	private static function cpt_pool( $exclude_id ) {
 		$ids = get_posts( array(
 			'post_type'      => M24FZ_CPT::PT,
-			'post_status'    => 'publish', // Entwürfe ausgeschlossen
-			'posts_per_page' => 40,
+			'post_status'    => 'publish',
+			'posts_per_page' => 80,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'post__not_in'   => array( (int) $exclude_id ),
 			'orderby'        => 'date', 'order' => 'DESC',
-			'meta_query'     => array( array( 'key' => '_m24fz_kat', 'value' => $kat ) ),
 		) );
-		$out     = array();
-		$aff_low = strtolower( $aff );
+		$out = array();
 		foreach ( $ids as $id ) {
 			$id = (int) $id;
 			if ( M24FZ_CPT::is_disabled( $id ) ) { continue; }
-			$st  = M24FZ_CPT::status( $id );
-			$bau = strtolower( trim( (string) get_post_meta( $id, '_m24fz_baureihe', true ) ) );
-			$mod = strtolower( trim( (string) get_post_meta( $id, '_m24fz_modell', true ) ) );
-			$hay = $bau . ' ' . $mod . ' ' . strtolower( get_the_title( $id ) );
+			$st    = M24FZ_CPT::status( $id );
+			$marke = strtolower( trim( (string) get_post_meta( $id, '_m24fz_marke', true ) ) );
+			$bau   = strtolower( trim( (string) get_post_meta( $id, '_m24fz_baureihe', true ) ) );
+			$mod   = strtolower( trim( (string) get_post_meta( $id, '_m24fz_modell', true ) ) );
 			$out[] = array(
+				'source'   => 'cpt',
 				'id'       => $id,
 				'url'      => get_permalink( $id ),
 				'title'    => get_the_title( $id ),
@@ -111,52 +103,65 @@ class M24FZ_Similar {
 				'reserved' => ( 'reserviert' === $st ),
 				'baujahr'  => (string) get_post_meta( $id, '_m24fz_baujahr', true ),
 				'cc'       => (string) get_post_meta( $id, '_m24fz_standort', true ),
-				'aff'      => ( '' !== $aff_low && false !== strpos( $hay, $aff_low ) ),
+				'marke'    => $marke,
+				'hay'      => $bau . ' ' . $mod . ' ' . strtolower( get_the_title( $id ) ),
 				'ts'       => (int) get_post_time( 'U', true, $id ),
 			);
 		}
 		return $out;
 	}
 
-	/* ── Alt-Beitrags-Quelle ─────────────────────────────────────────────────── */
+	/* ── Alt-Beitrags-Quelle (alle Legacy-Kategorien) ────────────────────────── */
 
-	private static function legacy_pool( $kat, $exclude_id, $aff ) {
-		$slugs     = array_values( self::LEGACY[ $kat ] );      // active + sold
-		$sold_slug = self::LEGACY[ $kat ]['sold'];
-		$blocked   = self::redirected_paths();
+	private static function legacy_pool( $exclude_id ) {
+		$blocked = self::redirected_paths();
 		$ids = get_posts( array(
 			'post_type'           => 'post',
-			'post_status'         => 'publish', // reclaimte (auf Entwurf gesetzte) Alt-Posts fallen automatisch weg
-			'posts_per_page'      => 60,
+			'post_status'         => 'publish',
+			'posts_per_page'      => 120,
 			'fields'              => 'ids',
 			'no_found_rows'       => true,
 			'post__not_in'        => array( (int) $exclude_id ),
 			'orderby'             => 'date', 'order' => 'DESC',
 			'ignore_sticky_posts' => true,
-			'tax_query'           => array( array( 'taxonomy' => 'category', 'field' => 'slug', 'terms' => $slugs ) ),
+			'tax_query'           => array( array( 'taxonomy' => 'category', 'field' => 'slug', 'terms' => self::LEGACY_CATS ) ),
 		) );
 		$out = array();
 		foreach ( $ids as $id ) {
 			$id = (int) $id;
-			// Bereits per Reclaim 301-weitergeleitete Alt-Posts ausschließen.
-			if ( in_array( self::path_only( get_permalink( $id ) ), $blocked, true ) ) { continue; }
+			if ( in_array( self::path_only( get_permalink( $id ) ), $blocked, true ) ) { continue; } // reclaimt/301
 			$title = get_the_title( $id );
 			$clean = preg_replace( '/^\s*(coming up for sale|for sale|sold|verkauft|reserviert)\s*:\s*/i', '', $title );
 			$year  = preg_match( '/\b(19|20)\d{2}\b/', $title, $m ) ? $m[0] : '';
 			$out[] = array(
+				'source'   => 'legacy',
 				'id'       => $id,
 				'url'      => get_permalink( $id ),
 				'title'    => trim( (string) $clean ),
 				'thumb'    => has_post_thumbnail( $id ) ? (int) get_post_thumbnail_id( $id ) : 0,
-				'sold'     => (bool) has_term( $sold_slug, 'category', $id ),
+				'sold'     => (bool) has_term( self::LEGACY_SOLD, 'category', $id ),
 				'reserved' => false,
 				'baujahr'  => $year,
 				'cc'       => '',
-				'aff'      => ( '' !== $aff && false !== stripos( $title, $aff ) ), // Best-Effort über Titel
+				'marke'    => '',
+				'hay'      => strtolower( $title ),
 				'ts'       => (int) get_post_time( 'U', true, $id ),
 			);
 		}
 		return $out;
+	}
+
+	/** Grobe Marken-Erkennung im (Alt-)Titel inkl. einfacher Aliase. */
+	private static function title_has_brand( $title, $marke ) {
+		$aliases = array( $marke );
+		$low     = strtolower( $marke );
+		if ( 'mercedes' === $low || 'mercedes-benz' === $low ) { $aliases[] = 'daimler'; $aliases[] = 'benz'; }
+		if ( 'vw' === $low )         { $aliases[] = 'volkswagen'; }
+		if ( 'volkswagen' === $low ) { $aliases[] = 'vw'; }
+		foreach ( $aliases as $a ) {
+			if ( '' !== $a && false !== stripos( $title, $a ) ) { return true; }
+		}
+		return false;
 	}
 
 	/** Bereits umgeleitete Alt-Pfade (statische Legacy-Map + per Filter gemergte Reclaim-Map). */
