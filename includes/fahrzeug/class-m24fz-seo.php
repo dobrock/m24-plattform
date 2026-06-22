@@ -263,6 +263,13 @@ class M24FZ_SEO {
 		) ); }
 		if ( has_post_thumbnail( $id ) ) { $car['image'] = get_the_post_thumbnail_url( $id, 'large' ); }
 
+		// description: Fahrzeugbeschreibung (Plaintext, gekürzt) → sonst Zusammenfassung → Excerpt.
+		$desc = trim( wp_strip_all_tags( (string) $g( '_m24fz_beschreibung' ) ) );
+		if ( '' === $desc ) { $desc = trim( wp_strip_all_tags( (string) $g( '_m24fz_zusammenfassung' ) ) ); }
+		if ( '' === $desc ) { $desc = trim( wp_strip_all_tags( get_the_excerpt( $id ) ) ); }
+		$desc = preg_replace( '/\s+/', ' ', $desc );
+		if ( '' !== $desc ) { $car['description'] = ( mb_strlen( $desc ) > 320 ) ? rtrim( mb_substr( $desc, 0, 319 ) ) . '…' : $desc; }
+
 		// Offer.
 		$paf   = (int) $g( '_m24fz_preis_auf_anfrage' );
 		$preis = (int) $g( '_m24fz_preis' );
@@ -272,8 +279,13 @@ class M24FZ_SEO {
 		$avail = M24FZ_CPT::is_sold( $id ) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
 		$offer = array( '@type' => 'Offer', 'priceCurrency' => $cur, 'availability' => $avail, 'url' => get_permalink( $id ),
 			'seller' => array( '@type' => 'Organization', 'name' => 'MOTORSPORT24 GmbH' ) );
+		// Eindeutiger Identifier des Einzelstücks: FIN, sonst interne Fahrzeug-ID.
+		$fin = trim( (string) $g( '_m24fz_fin' ) );
+		$offer['sku'] = ( '' !== $fin ) ? $fin : ( 'M24-' . $id );
 		if ( ! $paf && $eff > 0 ) {
 			$offer['price'] = $eff;
+			// Rollend gültig: heute + 12 Monate (ISO-8601).
+			$offer['priceValidUntil'] = gmdate( 'Y-m-d', strtotime( '+12 months' ) );
 			// JSON-LD-Steuersignal (Übergabe v29, von Daniel freigegeben): in BEIDEN Modi true —
 			// der angezeigte Preis ist der All-in-Endpreis (auch bei §25a ist die Margensteuer
 			// eingepreist). Rein maschinenlesbar; Frontend-Hinweis „§25a" bleibt davon unberührt.
