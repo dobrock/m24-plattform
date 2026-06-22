@@ -203,8 +203,8 @@ class M24FZ_Template {
 		ob_start();
 		if ( in_array( $st, array( 'reserviert', 'verkauft' ), true ) ) {
 			$txt = ( 'reserviert' === $st )
-				? 'Dieses Fahrzeug ist aktuell reserviert. Tragen Sie sich ein und erfahren Sie, sobald dieses Fahrzeug nicht verkauft ist und erhalten Sie über zukünftige ähnliche Fahrzeuge als erster eine Nachricht.'
-				: 'Dieses Fahrzeug ist leider schon verkauft. Tragen Sie sich auf die Liste ein, um ähnliche Fahrzeuge in Zukunft als erster zu sehen.';
+				? 'Dieses Fahrzeug ist aktuell reserviert. Tragen Sie sich ein und erfahren Sie ähnliche Fahrzeuge zuerst.'
+				: 'Dieses Fahrzeug ist leider schon verkauft. Tragen Sie sich auf die Liste ein, um ähnliche Fahrzeuge in Zukunft nicht zu verpassen.';
 			echo '<span class="m24fz-statebadge ' . esc_attr( $st ) . '">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
 			echo '<p class="m24fz-iltext">' . esc_html( $txt ) . '</p>';
 			echo '<button class="m24fz-btn m24fz-il-open" type="button">Auf die Interessentenliste</button>';

@@ -16,6 +16,15 @@ $keyf  = (array) get_post_meta( $id, '_m24fz_keyfacts', true );
 $zusam = trim( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) );
 $besch = trim( (string) get_post_meta( $id, '_m24fz_beschreibung', true ) );
 $gals  = M24FZ_Template::galleries( $id );
+// Teil A: die ersten 3 (im 3er-Vorschau-Mosaik gezeigten) Außenbilder NICHT in der Galerie doppeln.
+$blockIds = M24FZ_Template::block_images( $id, 3 );
+if ( $blockIds && $gals ) {
+	$bset = array_flip( $blockIds );
+	foreach ( $gals as $gk => $gv ) {
+		$gv['ids'] = array_values( array_filter( $gv['ids'], static function ( $x ) use ( $bset ) { return ! isset( $bset[ $x ] ); } ) );
+		if ( $gv['ids'] ) { $gals[ $gk ] = $gv; } else { unset( $gals[ $gk ] ); }
+	}
+}
 $vids  = array_values( array_filter( (array) get_post_meta( $id, '_m24fz_videos', true ) ) );
 $heroI = M24FZ_Template::hero_images( $id );
 $daten = M24FZ_Template::daten_rows( $id );

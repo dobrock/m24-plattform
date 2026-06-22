@@ -84,9 +84,12 @@ class M24FZ_SEO {
 			if ( ! empty( $hero ) ) { $att = (int) $hero[0]; }
 		}
 		if ( $att ) {
+			// Jetpack-Photon (i0.wp.com) für die OG-Meta-URL umgehen → FB holt das Bild direkt von der Domain.
+			add_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
 			// Größtes sinnvolles Format fürs Teilen (≥1200 bevorzugt; sonst „large"). FB-Minimum 600.
 			$full  = wp_get_attachment_image_src( $att, 'full' );
 			$large = wp_get_attachment_image_src( $att, 'large' );
+			remove_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
 			$src   = ( $full && (int) $full[1] >= 1200 ) ? $full : ( $large ? $large : $full );
 			if ( $src && ! empty( $src[0] ) ) {
 				$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
