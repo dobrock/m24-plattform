@@ -62,10 +62,13 @@ class M24_Brevo_IL {
 		foreach ( (array) $selectors as $sel ) {
 			$scoped[] = 'body.page-id-' . (int) self::CONFIRM_PAGE . ' ' . $sel;
 		}
-		if ( empty( $scoped ) ) {
-			return;
+		// Verlaufs-CTA per Klasse — inline-Gradient wird beim the_content-Rendering gestrippt,
+		// daher hier; das inline background:#1f74c4 am CTA bleibt als Solid-Fallback.
+		$css = '.m24-il-cta{background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;}';
+		if ( ! empty( $scoped ) ) {
+			$css .= implode( ',', $scoped ) . '{display:none!important;}';
 		}
-		echo '<style id="m24-il-confirm-css">' . implode( ',', $scoped ) . '{display:none!important;}</style>' . "\n";
+		echo '<style id="m24-il-confirm-css">' . $css . '</style>' . "\n";
 	}
 
 	/* =====================================================================
@@ -293,7 +296,7 @@ class M24_Brevo_IL {
 			. '<div style="margin:0 auto 22px;width:72px;height:72px;border-radius:50%;background:' . $ring . ';display:flex;align-items:center;justify-content:center;">' . $icon . '</div>'
 			. '<h2 style="margin:0 0 12px;font-size:28px;color:#10243a;">' . esc_html( $title ) . '</h2>'
 			. '<p style="margin:0 auto 28px;max-width:430px;font-size:16px;line-height:1.6;color:#3a414c;">' . esc_html( $text ) . '</p>'
-			. '<a href="' . $cta . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:600;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeuge ansehen</a>'
+			. '<a href="' . $cta . '" class="m24-il-cta" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeuge ansehen</a>'
 			. '<div style="margin-top:18px;"><a href="' . $home . '" style="color:#1f74c4;text-decoration:none;font-size:14px;">Zur Startseite</a></div>'
 			. '</div>';
 	}
