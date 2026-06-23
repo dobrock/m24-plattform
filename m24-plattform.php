@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.57
+ * Version:           0.11.58
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.57' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.58' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -150,6 +150,7 @@ require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-meta.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-meta-render.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-tracking.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-anfrage.php';     // „Jetzt anfragen" (REST + Modal)
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-alert-box.php';   // M24 Fahrzeug-Alert: Editor-Box + Versand (REST)
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-similar.php';     // reiner Helfer
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-template.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-seo.php';
@@ -247,6 +248,7 @@ add_action( 'plugins_loaded', function() {
     M24FZ_SEO::init();
     M24FZ_Tracking::init();
     M24FZ_Anfrage::init();
+    M24FZ_Alert_Box::init(); // M24 Fahrzeug-Alert: Editor-Box + Versand-REST
     M24_Brevo_IL::init(); // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
     M24_OneClick_Update::init(); // auch im Frontend (Admin-Bar-Node von jeder Seite; übrige Hooks self-gaten)
     M24_Fonts::init();           // Saira self-hosted; googleapis/gstatic-Links (inkl. Revslider Material Icons) kappen

@@ -299,6 +299,39 @@ class M24_Brevo_Client {
 		return array( 'ok' => 0 === $failed, 'created' => $created, 'reused' => $reused, 'failed' => $failed, 'map' => $map, 'msg' => $summary );
 	}
 
+	/* =====================================================================
+	 * E-Mail-Kampagnen (Fahrzeug-Alert-Versand)
+	 * ================================================================== */
+
+	/**
+	 * Kampagne anlegen (Entwurf). @return array ['ok'=>bool,'id'=>int,'msg'=>string]
+	 *
+	 * @param array $sender  ['name'=>string,'email'=>string] (verifizierter Brevo-Absender)
+	 */
+	public static function create_campaign( $name, $subject, $html, $list_ids, $sender ) {
+		$body = array(
+			'name'        => (string) $name,
+			'subject'     => (string) $subject,
+			'sender'      => array( 'name' => (string) ( $sender['name'] ?? 'MOTORSPORT24' ), 'email' => (string) ( $sender['email'] ?? '' ) ),
+			'type'        => 'classic',
+			'htmlContent' => (string) $html,
+			'recipients'  => array( 'listIds' => array_values( array_map( 'intval', (array) $list_ids ) ) ),
+		);
+		$res = self::request( 'POST', '/emailCampaigns', $body );
+		$id  = ( $res['ok'] && is_array( $res['data'] ) && isset( $res['data']['id'] ) ) ? (int) $res['data']['id'] : 0;
+		return array( 'ok' => $res['ok'] && $id > 0, 'id' => $id, 'msg' => $res['msg'] );
+	}
+
+	/** Kampagne sofort senden. @return Result-Format */
+	public static function send_campaign_now( $campaign_id ) {
+		return self::request( 'POST', '/emailCampaigns/' . (int) $campaign_id . '/sendNow' );
+	}
+
+	/** Test-Versand einer Kampagne an konkrete Adressen (QA, ohne echte Listen-Zustellung). */
+	public static function send_campaign_test( $campaign_id, $emails ) {
+		return self::request( 'POST', '/emailCampaigns/' . (int) $campaign_id . '/sendTest', array( 'emailTo' => array_values( (array) $emails ) ) );
+	}
+
 	/** Liste der granularen List-IDs für ein Tag-Set (aus m24_alert_list_ids). */
 	public static function alert_list_ids_for_tags( $tags ) {
 		$map = get_option( self::ALERT_LIST_IDS_OPTION, array() );

@@ -477,6 +477,7 @@ class M24FZ_Editor_Screen {
 					</section>
 				</div>
 			</form>
+			<?php if ( $id ) { do_action( 'm24fz_editor_after_body', $id ); } // M24 Fahrzeug-Alert-Box ?>
 		</div>
 		<script><?php echo self::js(); // phpcs:ignore ?></script>
 		<?php
