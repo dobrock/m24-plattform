@@ -191,7 +191,8 @@ class M24FZ_Anfrage {
 		if ( '' !== $tel )       { $body .= "Telefon/WhatsApp: {$tel}\n"; }
 		$body .= "\nMODELLE: " . ( $attr['modelle'] ? implode( ', ', (array) $attr['modelle'] ) : '—' ) . "\n";
 		$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
-		$body .= "\nListe-ID 3 + DOI: plugin-managed (Brevo Phase 2 — API-Key noch nicht gesetzt).\n";
+		$brevo_ready = class_exists( 'M24_Brevo_Client' ) ? M24_Brevo_Client::is_configured() : ( '' !== (string) get_option( 'm24_brevo_api_key', '' ) );
+		$body .= "\nListe-ID 3 + DOI: plugin-managed (Brevo Phase 2 — " . ( $brevo_ready ? 'API-Key gesetzt, DOI-Mail läuft' : 'API-Key noch nicht gesetzt' ) . ").\n";
 
 		$headers = array(
 			'From: ' . self::from_header( $name, self::from_email() ),

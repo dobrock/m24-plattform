@@ -38,6 +38,34 @@ class M24_Brevo_IL {
 		// Confirm-Handling auf der Bestätigungsseite.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_confirm' ) );
 		add_filter( 'the_content', array( __CLASS__, 'confirm_notice' ), 9 );
+		add_action( 'wp_head', array( __CLASS__, 'confirm_page_styles' ), 99 );
+	}
+
+	/**
+	 * Doppel-Titel vermeiden: Auf der Bestätigungsseite (Seite 34308) trägt das Theme bereits
+	 * einen Seitentitel „Anmeldung bestätigt", der sich mit der Karten-Headline doppelt. Scoped
+	 * CSS — ausschließlich body.page-id-{ID}, keine tagDiv-Templates angefasst. Selektorliste
+	 * via Filter `m24_il_confirm_hide_title_selectors` anpassbar.
+	 */
+	public static function confirm_page_styles() {
+		if ( is_admin() || ! is_page( self::CONFIRM_PAGE ) ) {
+			return;
+		}
+		$selectors = apply_filters( 'm24_il_confirm_hide_title_selectors', array(
+			'.td-page-header',
+			'.td-page-title',
+			'.entry-title',
+			'.tdb-title-text',
+			'.tdb_title',
+		) );
+		$scoped = array();
+		foreach ( (array) $selectors as $sel ) {
+			$scoped[] = 'body.page-id-' . (int) self::CONFIRM_PAGE . ' ' . $sel;
+		}
+		if ( empty( $scoped ) ) {
+			return;
+		}
+		echo '<style id="m24-il-confirm-css">' . implode( ',', $scoped ) . '{display:none!important;}</style>' . "\n";
 	}
 
 	/* =====================================================================
@@ -192,11 +220,11 @@ class M24_Brevo_IL {
 			. '<p style="margin:0 0 14px;">vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
 			. 'über passende Fahrzeuge und Angebote informieren dürfen:</p>'
 			. '<p style="margin:24px 0;text-align:center;">'
-			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1763ad;color:#ffffff;'
+			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
 			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung bestätigen</a>'
 			. '</p>'
 			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:</p>'
-			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1763ad;">' . esc_html( $confirm_url ) . '</a></p>'
+			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>'
 			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach — es passiert nichts.</p>'
 		);
 
@@ -237,21 +265,26 @@ class M24_Brevo_IL {
 
 	/** Status-Box für die Bestätigungsseite. */
 	private static function render_box( $state ) {
-		if ( 'ok' === $state ) {
+		$ok = ( 'ok' === $state );
+		if ( $ok ) {
+			$ring  = '#e7f4ec';
+			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1a7a3c"/><path d="M19 33l9 9 17-19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 			$title = 'Anmeldung bestätigt';
 			$text  = 'Vielen Dank! Ihre Anmeldung ist bestätigt. Wir melden uns, sobald passende Fahrzeuge oder Angebote verfügbar sind.';
-			$color = '#1a7a3c';
-			$bg    = '#edf7f1';
 		} else {
+			$ring  = '#fdf1e0';
+			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#b87000"/><path d="M32 17v23" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="49" r="3.6" fill="#fff"/></svg>';
 			$title = 'Link abgelaufen';
-			$text  = 'Dieser Bestätigungslink ist ungültig oder abgelaufen. Bitte melden Sie sich erneut an.';
-			$color = '#b87000';
-			$bg    = '#fdf5e6';
+			$text  = 'Dieser Bestätigungslink ist ungültig oder abgelaufen. Bitte melden Sie sich einfach erneut an.';
 		}
-		return '<div class="m24-il-confirm" style="max-width:560px;margin:24px auto;padding:22px 26px;border-radius:8px;'
-			. 'border-left:4px solid ' . $color . ';background:' . $bg . ';">'
-			. '<h2 style="margin:0 0 8px;color:' . $color . ';font-size:20px;">' . esc_html( $title ) . '</h2>'
-			. '<p style="margin:0;color:#3a414c;font-size:15px;line-height:1.5;">' . esc_html( $text ) . '</p>'
+		$cta  = esc_url( home_url( '/fahrzeuge/' ) );
+		$home = esc_url( home_url( '/' ) );
+		return '<div class="m24-il-confirm" style="max-width:620px;margin:32px auto;padding:48px 24px 52px;text-align:center;background:#fafafa;border:1px solid #e6e9ee;border-radius:14px;">'
+			. '<div style="margin:0 auto 22px;width:72px;height:72px;border-radius:50%;background:' . $ring . ';display:flex;align-items:center;justify-content:center;">' . $icon . '</div>'
+			. '<h2 style="margin:0 0 12px;font-size:28px;color:#10243a;">' . esc_html( $title ) . '</h2>'
+			. '<p style="margin:0 auto 28px;max-width:430px;font-size:16px;line-height:1.6;color:#3a414c;">' . esc_html( $text ) . '</p>'
+			. '<a href="' . $cta . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeuge ansehen</a>'
+			. '<div style="margin-top:18px;"><a href="' . $home . '" style="color:#1f74c4;text-decoration:none;font-size:14px;">Zur Startseite</a></div>'
 			. '</div>';
 	}
 
@@ -260,13 +293,15 @@ class M24_Brevo_IL {
 		return '<!DOCTYPE html><html lang="de"><body style="margin:0;padding:0;background:#f2f4f7;">'
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:24px 0;"><tr><td align="center">'
 			. '<table role="presentation" width="440" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:8px;overflow:hidden;">'
-			. '<tr><td style="height:3px;background:#1763ad;"></td></tr>'
-			. '<tr><td style="padding:20px 28px 0;text-align:right;font-family:Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:1px;color:#10243a;font-size:14px;">MOTORSPORT24</td></tr>'
+			. '<tr><td style="height:3px;background:#1f74c4;"></td></tr>'
+			. '<tr><td style="padding:18px 28px 6px;text-align:right;">'
+			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="34" style="display:inline-block;height:34px;width:auto;border:0;outline:none;">'
+			. '</td></tr>'
 			. '<tr><td style="padding:8px 28px 24px;font-family:Arial,Helvetica,sans-serif;color:#10243a;">'
 			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;">' . esc_html( $headline ) . '</h1>'
 			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;">' . $inner . '</div>'
 			. '</td></tr>'
-			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9aa3b0;">MOTORSPORT24 GmbH · www.motorsport24.de</td></tr>'
+			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9aa3b0;">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;">www.motorsport24.de</a></td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}
 
