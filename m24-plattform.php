@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.56
+ * Version:           0.11.57
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,11 +17,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.56' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.57' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '004' );
+define( 'M24_PLATTFORM_DB_VERSION',  '005' );
 
 /**
  * Pflicht-Hinweis fuer Rennsport-Neuteile. Wird im Detail-Template als
@@ -105,8 +105,9 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-database.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-logger.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-cache.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-rest-client.php';
-require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo-API-Wrapper (Phase 2: Liste 3)
-require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-taxonomie.php'; // Fahrzeug-Alert: Tag-Landkarte + Rollup (rein)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo-API-Wrapper (Phase 2: Liste 3 + Alert-Listen)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
 require_once M24_PLATTFORM_DIR . 'includes/inquiry-mail-template.php'; // Anfrage-Mail „Variante A" (reines HTML-Rendering)
 require_once M24_PLATTFORM_DIR . 'includes/image-optimization.php';    // WebP-Output + Qualität 90 + 4K-Schwelle (reine Filter)

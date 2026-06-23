@@ -33,12 +33,14 @@ class M24_Settings {
     const CAPABILITY      = 'manage_options';
     const NONCE_ACTION    = 'm24_health_check';
     const BREVO_NONCE     = 'm24_brevo_test';
+    const PROVISION_NONCE = 'm24_brevo_provision';
 
     public static function init() {
         add_action( 'admin_menu',     [ __CLASS__, 'register_menu' ] );
         add_action( 'admin_init',     [ __CLASS__, 'register_settings' ] );
-        add_action( 'wp_ajax_m24_health_check', [ __CLASS__, 'ajax_health_check' ] );
-        add_action( 'wp_ajax_m24_brevo_test',   [ __CLASS__, 'ajax_brevo_test' ] );
+        add_action( 'wp_ajax_m24_health_check',    [ __CLASS__, 'ajax_health_check' ] );
+        add_action( 'wp_ajax_m24_brevo_test',      [ __CLASS__, 'ajax_brevo_test' ] );
+        add_action( 'wp_ajax_m24_brevo_provision', [ __CLASS__, 'ajax_brevo_provision' ] );
         add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
         add_action( 'admin_notices',  [ __CLASS__, 'maybe_render_test_mode_banner' ] );
     }
@@ -250,9 +252,10 @@ class M24_Settings {
         );
 
         wp_localize_script( 'm24-admin', 'M24Admin', [
-            'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
-            'nonce'      => wp_create_nonce( self::NONCE_ACTION ),
-            'brevoNonce' => wp_create_nonce( self::BREVO_NONCE ),
+            'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+            'nonce'          => wp_create_nonce( self::NONCE_ACTION ),
+            'brevoNonce'     => wp_create_nonce( self::BREVO_NONCE ),
+            'provisionNonce' => wp_create_nonce( self::PROVISION_NONCE ),
             'i18n'    => [
                 'testing' => __( 'Teste Verbindung...', 'm24-plattform' ),
                 'success' => __( 'Verbindung OK', 'm24-plattform' ),
@@ -417,6 +420,29 @@ class M24_Settings {
                     <span id="m24-brevo-test-result" class="m24-test-result" style="display:none;"></span>
                     <br>
                     <span class="description"><?php echo esc_html__( 'Prüft via GET /v3/account. Neu eingetippter Key wird direkt getestet, sonst der gespeicherte.', 'm24-plattform' ); ?></span>
+                </p>
+
+                <?php
+                $alert_map   = get_option( 'm24_alert_list_ids', array() );
+                $alert_count = is_array( $alert_map ) ? count( $alert_map ) : 0;
+                $alert_total = class_exists( 'M24_Alert_Taxonomie' ) ? count( M24_Alert_Taxonomie::tags() ) : 0;
+                ?>
+                <p style="margin-top:18px;">
+                    <button type="button" id="m24-alert-provision-button" class="button">
+                        <?php echo esc_html__( 'Alert-Listen anlegen / prüfen', 'm24-plattform' ); ?>
+                    </button>
+                    <span id="m24-alert-provision-result" class="m24-test-result" style="display:none;"></span>
+                    <br>
+                    <span class="description">
+                        <?php
+                        printf(
+                            /* translators: 1: provisioned count, 2: total taxonomy count */
+                            esc_html__( 'Legt fehlende Fahrzeug-Alert-Listen im Brevo-Ordner „M24 Alert" an (idempotent). Aktuell zugeordnet: %1$d von %2$d.', 'm24-plattform' ),
+                            (int) $alert_count,
+                            (int) $alert_total
+                        );
+                        ?>
+                    </span>
                 </p>
 
                 <h2 style="margin-top:24px;"><?php echo esc_html__( 'Test-Modus (Dev)', 'm24-plattform' ); ?></h2>
@@ -665,5 +691,23 @@ class M24_Settings {
             'msg'   => $res['msg'],
             'email' => $email,
         ] );
+    }
+
+    /**
+     * AJAX-Handler fuer das Alert-Listen-Provisioning.
+     * Erwartet: action=m24_brevo_provision, _ajax_nonce. Antwortet: { ok, msg }
+     */
+    public static function ajax_brevo_provision() {
+        check_ajax_referer( self::PROVISION_NONCE );
+
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            wp_send_json_error( [ 'msg' => 'forbidden' ], 403 );
+        }
+        if ( ! class_exists( 'M24_Brevo_Client' ) ) {
+            wp_send_json( [ 'ok' => false, 'msg' => 'Brevo-Client nicht geladen' ] );
+        }
+
+        $res = M24_Brevo_Client::provision_alert_lists();
+        wp_send_json( [ 'ok' => $res['ok'], 'msg' => $res['msg'] ] );
     }
 }

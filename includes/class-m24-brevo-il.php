@@ -112,11 +112,16 @@ class M24_Brevo_IL {
 			$token = self::new_token();
 		}
 
+		// Fahrzeug-Alert-Tags aus dem auslösenden Kontext ableiten (Leaf + marke-alle + art + global).
+		$tags = class_exists( 'M24_Alert_Taxonomie' ) ? M24_Alert_Taxonomie::tags_for_context( $context_id, $contact ) : array();
+
 		$store[ $token ] = array(
 			'email'      => $email,
 			'name'       => $name,
 			'kundentyp'  => sanitize_text_field( (string) ( $contact['kundentyp'] ?? '' ) ),
 			'attributes' => $attributes,
+			'tags'       => $tags,
+			'source_id'  => (int) $context_id,
 			'created'    => time(),
 		);
 		self::save( $store );
@@ -208,8 +213,18 @@ class M24_Brevo_IL {
 
 		$email      = (string) $rec['email'];
 		$attributes = (array) ( $rec['attributes'] ?? array() );
+		$tags       = (array) ( $rec['tags'] ?? array() );
 
-		$res = M24_Brevo_Client::upsert_contact( $email, $attributes, array( M24_Brevo_Client::LIST_ID ) );
+		// Spiegel-Tabelle zuerst (eigene Quelle der Wahrheit, unabhängig vom Brevo-Call).
+		self::record_confirmed( $rec, $tags );
+
+		// Listen: Master (Liste 3) + passende granulare Alert-Listen aus m24_alert_list_ids.
+		$list_ids = array_values( array_unique( array_merge(
+			array( M24_Brevo_Client::LIST_ID ),
+			M24_Brevo_Client::alert_list_ids_for_tags( $tags )
+		) ) );
+
+		$res = M24_Brevo_Client::upsert_contact( $email, $attributes, $list_ids );
 
 		// Pending in jedem Fall erledigt (kein Re-Processing). Lead bei Fehler per Fallback-Mail gerettet.
 		unset( $store[ $token ] );
@@ -217,10 +232,92 @@ class M24_Brevo_IL {
 
 		if ( ! $res['ok'] ) {
 			self::send_fail_fallback( $rec, $res );
-			// Nutzer sieht trotzdem die Erfolgsseite — Lead ist gesichert.
+			// Nutzer sieht trotzdem die Erfolgsseite — Lead ist gesichert (Spiegel-Datensatz steht).
 		}
 
 		return 'ok';
+	}
+
+	/* =====================================================================
+	 * Spiegel-Tabelle (Datenzugriff) — Brevo bleibt Master für den Versand
+	 * ================================================================== */
+
+	/**
+	 * DOI-bestätigten Interessenten upserten (per E-Mail) + Tags in die Relationstabelle
+	 * schreiben (vollständig ersetzen). status=aktiv. Idempotent.
+	 */
+	public static function record_confirmed( $rec, $tags ) {
+		global $wpdb;
+		$email = sanitize_email( (string) ( $rec['email'] ?? '' ) );
+		if ( ! is_email( $email ) ) {
+			return;
+		}
+		$main = M24_Database::table( 'il_interessenten' );
+		$rel  = M24_Database::table( 'il_interessenten_tags' );
+		$now  = current_time( 'mysql' );
+
+		$existing_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $main WHERE email = %s", $email ) );
+
+		$fields = array(
+			'kundentyp'         => sanitize_text_field( (string) ( $rec['kundentyp'] ?? '' ) ),
+			'name'              => sanitize_text_field( (string) ( $rec['name'] ?? '' ) ),
+			'consent_at'        => $now,
+			'source_inserat_id' => (int) ( $rec['source_id'] ?? 0 ),
+			'status'            => 'aktiv',
+			'updated_at'        => $now,
+		);
+
+		if ( $existing_id ) {
+			$wpdb->update( $main, $fields, array( 'id' => $existing_id ) );
+		} else {
+			$fields['email']      = $email;
+			$fields['created_at'] = $now;
+			$wpdb->insert( $main, $fields );
+		}
+
+		// Tags vollständig neu setzen (dedupliziert, nur gültige Slugs).
+		$wpdb->delete( $rel, array( 'email' => $email ) );
+		$seen = array();
+		foreach ( (array) $tags as $tag ) {
+			$tag = sanitize_key( $tag );
+			if ( '' === $tag || isset( $seen[ $tag ] ) ) {
+				continue;
+			}
+			if ( class_exists( 'M24_Alert_Taxonomie' ) && ! M24_Alert_Taxonomie::is_valid( $tag ) ) {
+				continue;
+			}
+			$seen[ $tag ] = true;
+			$wpdb->insert( $rel, array( 'email' => $email, 'tag' => $tag, 'created_at' => $now ) );
+		}
+
+		if ( $wpdb->last_error ) {
+			M24_Logger::error( 'brevo', 'Spiegel-Tabelle Schreibfehler (' . M24_Brevo_Client::mask_email( $email ) . ')', array( 'err' => $wpdb->last_error ) );
+		}
+	}
+
+	/**
+	 * Abmelde-Sync (minimal): „Alle abbestellen" / Brevo-unsubscribed → status=abgemeldet.
+	 * Tags bleiben für die Historie erhalten (kein harter Verlust).
+	 */
+	public static function mark_unsubscribed( $email ) {
+		global $wpdb;
+		$email = sanitize_email( (string) $email );
+		if ( ! is_email( $email ) ) {
+			return;
+		}
+		$main = M24_Database::table( 'il_interessenten' );
+		$wpdb->update( $main, array( 'status' => 'abgemeldet', 'updated_at' => current_time( 'mysql' ) ), array( 'email' => $email ) );
+	}
+
+	/** Lösch-Sync: „Konto löschen" → Datensatz + Tags hart entfernen. */
+	public static function hard_delete( $email ) {
+		global $wpdb;
+		$email = sanitize_email( (string) $email );
+		if ( ! is_email( $email ) ) {
+			return;
+		}
+		$wpdb->delete( M24_Database::table( 'il_interessenten_tags' ), array( 'email' => $email ) );
+		$wpdb->delete( M24_Database::table( 'il_interessenten' ), array( 'email' => $email ) );
 	}
 
 	/* =====================================================================

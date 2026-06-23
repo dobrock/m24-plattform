@@ -130,6 +130,50 @@
             } );
         }
 
+        // ── Alert-Listen-Provisioning (Ordner „M24 Alert" + 20 Listen, idempotent) ──
+        var $provBtn    = $( '#m24-alert-provision-button' );
+        var $provResult = $( '#m24-alert-provision-result' );
+
+        if ( $provBtn.length ) {
+            $provBtn.on( 'click', function( e ) {
+                e.preventDefault();
+
+                $provBtn.prop( 'disabled', true );
+                $provResult
+                    .removeClass( 'ok fail' )
+                    .addClass( 'testing' )
+                    .text( 'Lege Listen an / prüfe…' )
+                    .show();
+
+                $.ajax( {
+                    url:      M24Admin.ajaxUrl,
+                    method:   'POST',
+                    dataType: 'json',
+                    data: {
+                        action:      'm24_brevo_provision',
+                        _ajax_nonce: M24Admin.provisionNonce
+                    }
+                } )
+                .done( function( response ) {
+                    var msg = response && response.msg ? response.msg : '';
+                    if ( response && response.ok ) {
+                        $provResult.removeClass( 'testing fail' ).addClass( 'ok' ).text( msg || 'OK' );
+                    } else {
+                        $provResult.removeClass( 'testing ok' ).addClass( 'fail' ).text( msg || M24Admin.i18n.error );
+                    }
+                } )
+                .fail( function( xhr, textStatus ) {
+                    $provResult
+                        .removeClass( 'testing ok' )
+                        .addClass( 'fail' )
+                        .text( M24Admin.i18n.error + ' — AJAX-Fehler: ' + textStatus );
+                } )
+                .always( function() {
+                    $provBtn.prop( 'disabled', false );
+                } );
+            } );
+        }
+
     } );
 
 } )( jQuery );
