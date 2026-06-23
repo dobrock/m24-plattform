@@ -65,6 +65,15 @@ class M24_Brevo_IL {
 		// Verlaufs-CTA per Klasse — inline-Gradient wird beim the_content-Rendering gestrippt,
 		// daher hier; das inline background:#1f74c4 am CTA bleibt als Solid-Fallback.
 		$css = '.m24-il-cta{background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;}';
+
+		// Sidebar ausblenden + Content auf volle Breite. ZWINGEND auf body.page-id-{ID} gescoped:
+		// .td-pb-span4 kommt 7× vor (Footer!), `.td-pb-span8 + .td-pb-span4` trifft nur die Sidebar
+		// als direkten Nachbarn der Content-Spalte (live verifiziert: Content-Row = genau 2 Spalten).
+		$pid  = (int) self::CONFIRM_PAGE;
+		$css .= 'body.page-id-' . $pid . ' .td-pb-span8 + .td-pb-span4{display:none!important;}';
+		$css .= 'body.page-id-' . $pid . ' .td-pb-span8{width:100%!important;}';
+		$css .= 'body.page-id-' . $pid . ' .m24-il-confirm{margin-left:auto!important;margin-right:auto!important;}';
+
 		if ( ! empty( $scoped ) ) {
 			$css .= implode( ',', $scoped ) . '{display:none!important;}';
 		}
@@ -301,19 +310,28 @@ class M24_Brevo_IL {
 			. '</div>';
 	}
 
-	/** Schmales CI-konformes HTML-Mail-Gerüst (blauer Top-Balken, MOTORSPORT24-Wortmarke). */
+	/**
+	 * Schmales CI-konformes HTML-Mail-Gerüst (Verlaufs-Header-Band, MOTORSPORT24-Logo).
+	 * CI-Font Saira self-hosted (kein Google, DSGVO-sauber): Apple Mail rendert Saira via
+	 * @font-face, Gmail/Outlook fallen sauber auf Arial zurück (Fallback im Font-Stack).
+	 */
 	private static function mail_html( $headline, $inner ) {
-		return '<!DOCTYPE html><html lang="de"><body style="margin:0;padding:0;background:#f2f4f7;">'
+		$font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
+		$stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
+		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
+			. '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
+			. 'body,table,td,h1,div,a,p{' . $stack . '}</style></head>'
+			. '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:24px 0;"><tr><td align="center">'
 			. '<table role="presentation" width="440" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:8px;overflow:hidden;">'
 			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
 			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;">'
 			. '</td></tr>'
-			. '<tr><td style="padding:8px 28px 24px;font-family:Arial,Helvetica,sans-serif;color:#10243a;">'
-			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;">' . esc_html( $headline ) . '</h1>'
-			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;">' . $inner . '</div>'
+			. '<tr><td style="padding:8px 28px 24px;' . $stack . 'color:#10243a;">'
+			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>'
+			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
 			. '</td></tr>'
-			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9aa3b0;">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;">www.motorsport24.de</a></td></tr>'
+			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;' . $stack . 'font-size:11px;color:#9aa3b0;">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a></td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}
 
