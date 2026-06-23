@@ -594,11 +594,18 @@ class M24_Catalog_Hub {
 		if ( '' !== $intro ) { return mb_substr( $intro, 0, 158 ); }
 		return self::h1() . ' — geprüft, mit Historie, weltweiter Versand bei MOTORSPORT24 seit 2006.';
 	}
-	public static function seo_robots( $robots )   {
+	public static function seo_robots( $robots ) {
 		if ( ! self::is_hub() ) { return $robots; }
-		// Filter-/Sortier-/Kategorie-Querystrings sind nicht indexierbar (Duplicate-Schutz).
-		$param = ( '' !== self::current_q() || 'neu' !== self::current_sort() || '' !== self::current_kat() );
-		return $param ? 'noindex, follow' : 'index, follow';
+		// Entscheidung auf Basis ROHER Request-Parameter (nicht der aufgelösten
+		// Defaults — current_sort() liefert sonst 'preis-ab' und kippt die saubere URL).
+		$has_param = ( isset( $_GET['q'] ) && '' !== trim( (string) wp_unslash( $_GET['q'] ) ) ) // phpcs:ignore WordPress.Security.NonceVerification
+			|| isset( $_GET['sort'] )   // phpcs:ignore WordPress.Security.NonceVerification
+			|| isset( $_GET['kat'] )    // phpcs:ignore WordPress.Security.NonceVerification
+			|| self::current_paged() > 1;
+		if ( $has_param ) { return 'noindex, follow'; }
+		// Nur freigegebene (überarbeitete) Hubs index,follow. Default: m3-e36 + z4-gt3.
+		$allow = (array) apply_filters( 'm24_indexable_hub_slugs', array( 'bmw-m3-e36', 'bmw-z4-gt3' ) );
+		return in_array( self::current(), $allow, true ) ? 'index, follow' : 'noindex, follow';
 	}
 	public static function seo_canonical( $url )    {
 		if ( ! self::is_hub() ) { return $url; }
