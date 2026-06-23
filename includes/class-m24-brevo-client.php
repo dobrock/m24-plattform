@@ -332,6 +332,40 @@ class M24_Brevo_Client {
 		return self::request( 'POST', '/emailCampaigns/' . (int) $campaign_id . '/sendTest', array( 'emailTo' => array_values( (array) $emails ) ) );
 	}
 
+	/* =====================================================================
+	 * Kontakt-Mutation (Abmelden / Löschen)
+	 * ================================================================== */
+
+	/** Kontakt aktualisieren (PUT /v3/contacts/{email}), z. B. unlinkListIds / emailBlacklisted. */
+	public static function update_contact( $email, $body ) {
+		$email = sanitize_email( (string) $email );
+		if ( ! is_email( $email ) ) {
+			return array( 'ok' => false, 'code' => 0, 'msg' => 'Ungültige E-Mail', 'data' => null );
+		}
+		return self::request( 'PUT', '/contacts/' . rawurlencode( $email ), $body );
+	}
+
+	/** Kontakt vollständig aus Brevo entfernen (DELETE /v3/contacts/{email}). */
+	public static function delete_contact( $email ) {
+		$email = sanitize_email( (string) $email );
+		if ( ! is_email( $email ) ) {
+			return array( 'ok' => false, 'code' => 0, 'msg' => 'Ungültige E-Mail', 'data' => null );
+		}
+		return self::request( 'DELETE', '/contacts/' . rawurlencode( $email ) );
+	}
+
+	/** Alle bekannten List-IDs (Master 3 + alle Alert-Listen aus m24_alert_list_ids). */
+	public static function all_known_list_ids() {
+		$ids = array( self::LIST_ID );
+		$map = get_option( self::ALERT_LIST_IDS_OPTION, array() );
+		if ( is_array( $map ) ) {
+			foreach ( $map as $lid ) {
+				$ids[] = (int) $lid;
+			}
+		}
+		return array_values( array_unique( array_filter( $ids ) ) );
+	}
+
 	/** Liste der granularen List-IDs für ein Tag-Set (aus m24_alert_list_ids). */
 	public static function alert_list_ids_for_tags( $tags ) {
 		$map = get_option( self::ALERT_LIST_IDS_OPTION, array() );

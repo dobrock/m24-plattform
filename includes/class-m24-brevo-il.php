@@ -296,8 +296,9 @@ class M24_Brevo_IL {
 	}
 
 	/**
-	 * Abmelde-Sync (minimal): „Alle abbestellen" / Brevo-unsubscribed → status=abgemeldet.
-	 * Tags bleiben für die Historie erhalten (kein harter Verlust).
+	 * Abmelde-Sync: status=abgemeldet (lokal) + aus allen Brevo-Listen entfernen (best-effort).
+	 * Tags bleiben für die Historie erhalten (kein harter Verlust). Brevo-Fehler werden geloggt,
+	 * stoppen aber nicht die lokale Abmeldung.
 	 */
 	public static function mark_unsubscribed( $email ) {
 		global $wpdb;
@@ -307,17 +308,72 @@ class M24_Brevo_IL {
 		}
 		$main = M24_Database::table( 'il_interessenten' );
 		$wpdb->update( $main, array( 'status' => 'abgemeldet', 'updated_at' => current_time( 'mysql' ) ), array( 'email' => $email ) );
+
+		if ( M24_Brevo_Client::is_configured() ) {
+			$ids = M24_Brevo_Client::all_known_list_ids();
+			$res = M24_Brevo_Client::update_contact( $email, array( 'unlinkListIds' => $ids ) );
+			if ( $res['ok'] ) {
+				M24_Logger::info( 'brevo', 'Abgemeldet: aus Listen entfernt (' . M24_Brevo_Client::mask_email( $email ) . ')', array( 'unlink' => $ids ) );
+			} else {
+				M24_Logger::warning( 'brevo', 'Abmelden: Brevo-Unlink fehlgeschlagen (' . M24_Brevo_Client::mask_email( $email ) . ')', array( 'code' => $res['code'], 'msg' => $res['msg'] ) );
+			}
+		}
 	}
 
-	/** Lösch-Sync: „Konto löschen" → Datensatz + Tags hart entfernen. */
+	/** Lösch-Sync (DSGVO Art. 17): Brevo-Kontakt löschen (best-effort) + Datensatz/Tags hart entfernen. */
 	public static function hard_delete( $email ) {
 		global $wpdb;
 		$email = sanitize_email( (string) $email );
 		if ( ! is_email( $email ) ) {
 			return;
 		}
+		if ( M24_Brevo_Client::is_configured() ) {
+			$res = M24_Brevo_Client::delete_contact( $email );
+			if ( $res['ok'] ) {
+				M24_Logger::info( 'brevo', 'Gelöscht: Brevo-Kontakt entfernt (' . M24_Brevo_Client::mask_email( $email ) . ')', null );
+			} else {
+				M24_Logger::warning( 'brevo', 'Löschen: Brevo-Delete fehlgeschlagen (' . M24_Brevo_Client::mask_email( $email ) . ')', array( 'code' => $res['code'], 'msg' => $res['msg'] ) );
+			}
+		}
 		$wpdb->delete( M24_Database::table( 'il_interessenten_tags' ), array( 'email' => $email ) );
 		$wpdb->delete( M24_Database::table( 'il_interessenten' ), array( 'email' => $email ) );
+
+		// Evtl. noch offenen Pending-Record (DOI nicht bestätigt) ebenfalls entfernen.
+		$store   = self::load();
+		$changed = false;
+		foreach ( $store as $tok => $rec ) {
+			if ( isset( $rec['email'] ) && strtolower( (string) $rec['email'] ) === strtolower( $email ) ) {
+				unset( $store[ $tok ] );
+				$changed = true;
+			}
+		}
+		if ( $changed ) {
+			self::save( $store );
+		}
+	}
+
+	/**
+	 * Offene DOI-Pending-Einträge (noch nicht bestätigt) für die Admin-Übersicht.
+	 * @return array Liste [ email, name, kundentyp, tags[], source_id, created(ts) ], abgelaufene gefiltert.
+	 */
+	public static function pending_list() {
+		$out = array();
+		$now = time();
+		foreach ( self::load() as $rec ) {
+			$created = (int) ( $rec['created'] ?? 0 );
+			if ( ( $now - $created ) > self::TTL ) {
+				continue; // abgelaufen → nicht anzeigen
+			}
+			$out[] = array(
+				'email'     => (string) ( $rec['email'] ?? '' ),
+				'name'      => (string) ( $rec['name'] ?? '' ),
+				'kundentyp' => (string) ( $rec['kundentyp'] ?? '' ),
+				'tags'      => (array) ( $rec['tags'] ?? array() ),
+				'source_id' => (int) ( $rec['source_id'] ?? 0 ),
+				'created'   => $created,
+			);
+		}
+		return $out;
 	}
 
 	/* =====================================================================
