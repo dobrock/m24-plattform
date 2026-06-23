@@ -275,7 +275,7 @@ class M24_Brevo_IL {
 			$ring  = '#e7f4ec';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1a7a3c"/><path d="M19 33l9 9 17-19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 			$title = 'Anmeldung bestätigt';
-			$text  = 'Vielen Dank! Ihre Anmeldung ist bestätigt. Wir melden uns, sobald passende Fahrzeuge oder Angebote verfügbar sind.';
+			$text  = 'Vielen Dank! Ihre Anmeldung ist bestätigt. Sobald wir passende Fahrzeuge für Sie anbieten, erfahren Sie als erster die Details.';
 		} elseif ( 'neutral' === $state ) {
 			$ring  = '#e8f1fa';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1f74c4"/><path d="M32 28v17" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="20" r="3.6" fill="#fff"/></svg>';
@@ -293,7 +293,7 @@ class M24_Brevo_IL {
 			. '<div style="margin:0 auto 22px;width:72px;height:72px;border-radius:50%;background:' . $ring . ';display:flex;align-items:center;justify-content:center;">' . $icon . '</div>'
 			. '<h2 style="margin:0 0 12px;font-size:28px;color:#10243a;">' . esc_html( $title ) . '</h2>'
 			. '<p style="margin:0 auto 28px;max-width:430px;font-size:16px;line-height:1.6;color:#3a414c;">' . esc_html( $text ) . '</p>'
-			. '<a href="' . $cta . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeuge ansehen</a>'
+			. '<a href="' . $cta . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:600;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeuge ansehen</a>'
 			. '<div style="margin-top:18px;"><a href="' . $home . '" style="color:#1f74c4;text-decoration:none;font-size:14px;">Zur Startseite</a></div>'
 			. '</div>';
 	}
@@ -303,9 +303,8 @@ class M24_Brevo_IL {
 		return '<!DOCTYPE html><html lang="de"><body style="margin:0;padding:0;background:#f2f4f7;">'
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:24px 0;"><tr><td align="center">'
 			. '<table role="presentation" width="440" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:8px;overflow:hidden;">'
-			. '<tr><td style="height:3px;background:#1f74c4;"></td></tr>'
-			. '<tr><td style="padding:18px 28px 6px;text-align:right;">'
-			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="34" style="display:inline-block;height:34px;width:auto;border:0;outline:none;">'
+			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
+			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;">'
 			. '</td></tr>'
 			. '<tr><td style="padding:8px 28px 24px;font-family:Arial,Helvetica,sans-serif;color:#10243a;">'
 			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;">' . esc_html( $headline ) . '</h1>'
