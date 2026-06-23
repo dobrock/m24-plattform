@@ -23,6 +23,8 @@ class M24_Catalog_Hub_CPT {
 	const MIGRATE_FLAG  = 'm24_modellhub_modelle_v1';   // Base /modelle/ + bmw-Slugs + Z4 + default_kat + Menue
 	const MIGRATE2_FLAG = 'm24_modellhub_teile_v1';     // 0.8.0: Base /teile/, H1 neutral, default_kat=alle, _m24_typ-Backfill
 	const MIGRATE3_FLAG = 'm24_modellhub_dualintro_v1'; // 0.8.1: dual-taugliche Intros + neutrale SEO-Titles
+	const MIGRATE4_FLAG = 'm24_modellhub_brandfree_v1'; // markenrechtskonforme Slugs: 'bmw'/'m3' raus, Chassis-Code bleibt
+	const SLUG_REDIRECTS = 'm24_hub_slug_redirects';    // alt→neu Slug-Map (speist legacy_redirect)
 
 	/** Editierbare Felder (Schluessel ohne Prefix). */
 	public static function text_fields() {
@@ -39,6 +41,8 @@ class M24_Catalog_Hub_CPT {
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_modelle' ), 18 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_teile' ), 19 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_dual_intro' ), 20 );
+		add_action( 'init', array( __CLASS__, 'maybe_migrate_brandfree' ), 21 );
+		add_filter( 'm24_hub_legacy_paths', array( __CLASS__, 'inject_slug_redirects' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
@@ -408,6 +412,67 @@ class M24_Catalog_Hub_CPT {
 
 		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
 		flush_rewrite_rules( false );
+	}
+
+	/**
+	 * Markenrechtskonforme Slugs (einmalig, init:21): aus JEDEM publizierten Hub-Post UND jedem
+	 * m24_fahrzeugkat-Term die Segmente 'bmw' und 'm3' entfernen (Chassis-Code bleibt), z. B.
+	 * bmw-m3-e36→e36, bmw-z4-gt3→z4-gt3. Bei Änderung: Slug updaten + alt→neu in die
+	 * Legacy-Redirect-Map (301 /teile/{alt}/ → /teile/{neu}/). Titel/H1/Meta bleiben unberührt.
+	 */
+	public static function maybe_migrate_brandfree() {
+		if ( get_option( self::MIGRATE4_FLAG ) ) { return; }
+		if ( ! taxonomy_exists( self::TAX ) || ! post_type_exists( self::CPT ) ) { return; }
+		update_option( self::MIGRATE4_FLAG, gmdate( 'c' ) );
+
+		$redirects = (array) get_option( self::SLUG_REDIRECTS, array() );
+
+		// 1) Hub-Posts (treiben die /teile/{slug}/-URLs → Redirect-Eintrag).
+		$posts = get_posts( array( 'post_type' => self::CPT, 'post_status' => 'publish', 'numberposts' => -1 ) );
+		foreach ( $posts as $p ) {
+			$old = (string) $p->post_name;
+			$new = self::strip_brand( $old );
+			if ( '' === $new || $new === $old ) { continue; }
+			if ( self::find_by_slug( $new ) ) { continue; } // Slug-Kollision → unverändert lassen
+			wp_update_post( array( 'ID' => $p->ID, 'post_name' => $new ) );
+			$redirects[ $old ] = $new;
+		}
+
+		// 2) Terme (Slug == Hub-Slug; term_id bleibt, Bindungen überleben).
+		$terms = get_terms( array( 'taxonomy' => self::TAX, 'hide_empty' => false ) );
+		if ( ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $t ) {
+				$old = (string) $t->slug;
+				$new = self::strip_brand( $old );
+				if ( '' === $new || $new === $old ) { continue; }
+				$dupe = get_term_by( 'slug', $new, self::TAX );
+				if ( $dupe && (int) $dupe->term_id !== (int) $t->term_id ) { continue; } // Kollision
+				wp_update_term( (int) $t->term_id, self::TAX, array( 'slug' => $new ) );
+			}
+		}
+
+		update_option( self::SLUG_REDIRECTS, $redirects, false );
+
+		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+		flush_rewrite_rules( false );
+	}
+
+	/** Segmente 'bmw' und 'm3' aus einem '-'-Slug entfernen, Rest wieder joinen. */
+	private static function strip_brand( $slug ) {
+		$parts = array_values( array_filter( explode( '-', (string) $slug ), static function ( $s ) {
+			return '' !== $s && 'bmw' !== $s && 'm3' !== $s;
+		} ) );
+		return implode( '-', $parts );
+	}
+
+	/** Migrations-Redirects (alt→neu Hub-Slug) in die legacy_paths-Map einspeisen. */
+	public static function inject_slug_redirects( $map ) {
+		$red = (array) get_option( self::SLUG_REDIRECTS, array() );
+		foreach ( $red as $old => $new ) {
+			if ( '' === (string) $old || '' === (string) $new ) { continue; }
+			$map[ '/teile/' . $old ] = '/teile/' . $new;
+		}
+		return $map;
 	}
 
 	/**

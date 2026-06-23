@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.61
+ * Version:           0.11.62
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.61' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.62' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -201,6 +201,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 if ( is_admin() ) {
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-log-viewer.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-interessenten-page.php'; // Interessenten-Übersicht (Spiegel-Tabellen)
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-sitemap-page.php';       // Sitemap-Panel (Hub-Index-Allowlist + Status/Ping)
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-mock-log-viewer.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-import-status.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-reviews-settings.php';
@@ -260,6 +261,7 @@ add_action( 'plugins_loaded', function() {
     if ( is_admin() ) {
         M24_Log_Viewer::init();
         M24_Interessenten_Page::init();
+        M24_Sitemap_Page::init();
         M24_Mock_Log_Viewer::init();
         M24_Import_Status_Page::init();
         M24_Reviews_Settings::init();

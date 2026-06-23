@@ -272,7 +272,7 @@ class M24_Catalog_SEO {
 	public static function is_indexable_teil( $post_id ) {
 		$slugs = wp_get_post_terms( (int) $post_id, 'm24_fahrzeugkat', array( 'fields' => 'slugs' ) );
 		if ( is_wp_error( $slugs ) || empty( $slugs ) ) { return false; }
-		$allow    = (array) apply_filters( 'm24_indexable_term_slugs', array( 'm3-e36', 'z4-gt3', 'bmw-z4-gt3' ) );
+		$allow    = (array) apply_filters( 'm24_indexable_term_slugs', array( 'e36', 'z4-gt3' ) );
 		$patterns = (array) apply_filters( 'm24_indexable_term_patterns', array( 'e36', 'z4-gt3' ) );
 		foreach ( $slugs as $s ) {
 			if ( in_array( $s, $allow, true ) ) { return true; }

@@ -68,6 +68,18 @@ class M24_Catalog_Hub {
 		// rel=canonical auf den sauberen Hub (kein Duplicate); Filterseite bleibt noindex.
 		add_filter( 'wpseo_set_canonical', array( __CLASS__, 'archive_canonical' ), 99, 1 );
 		add_filter( 'document_title_parts', array( __CLASS__, 'doc_title' ) );
+		// Index-/Sitemap-Allowlist aus der Option m24_indexable_hubs (vom Sitemap-Panel gepflegt) —
+		// EINE Quelle für seo_robots() UND /sitemap-m24-hubs.xml. Option nie gesetzt → inline-Default.
+		add_filter( 'm24_indexable_hub_slugs', array( __CLASS__, 'indexable_from_option' ), 5 );
+	}
+
+	/** Allowlist aus Option m24_indexable_hubs (Array Hub-Slugs); ungesetzt → inline-Default. */
+	public static function indexable_from_option( $default ) {
+		$opt = get_option( 'm24_indexable_hubs', null );
+		if ( is_array( $opt ) ) {
+			return array_values( array_unique( array_filter( array_map( 'sanitize_title', $opt ) ) ) );
+		}
+		return $default;
 	}
 
 	/** Hub-Slugs (regex-escaped, alternation) aus der Registry; '' wenn keine Hubs. */
@@ -604,7 +616,7 @@ class M24_Catalog_Hub {
 			|| self::current_paged() > 1;
 		if ( $has_param ) { return 'noindex, follow'; }
 		// Nur freigegebene (überarbeitete) Hubs index,follow. Default: m3-e36 + z4-gt3.
-		$allow = (array) apply_filters( 'm24_indexable_hub_slugs', array( 'bmw-m3-e36', 'bmw-z4-gt3' ) );
+		$allow = (array) apply_filters( 'm24_indexable_hub_slugs', array( 'e36', 'z4-gt3' ) );
 		return in_array( self::current(), $allow, true ) ? 'index, follow' : 'noindex, follow';
 	}
 	public static function seo_canonical( $url )    {

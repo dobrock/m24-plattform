@@ -57,7 +57,7 @@ class M24_Catalog_Hub_Sitemap {
 
 	/** Valider <urlset> nach sitemaps.org; leere Allowlist ⇒ valide leere Sitemap. */
 	public static function build() {
-		$allow = (array) apply_filters( 'm24_indexable_hub_slugs', array( 'bmw-m3-e36', 'bmw-z4-gt3' ) );
+		$allow = (array) apply_filters( 'm24_indexable_hub_slugs', array( 'e36', 'z4-gt3' ) );
 		$reg   = class_exists( 'M24_Catalog_Hub' ) ? (array) M24_Catalog_Hub::registry() : array();
 
 		$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
