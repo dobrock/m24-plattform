@@ -37,7 +37,7 @@ class M24_Brevo_IL {
 
 		// Confirm-Handling auf der Bestätigungsseite.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_confirm' ) );
-		add_filter( 'the_content', array( __CLASS__, 'confirm_notice' ), 9 );
+		add_filter( 'the_content', array( __CLASS__, 'confirm_notice' ), 9999 );
 		add_action( 'wp_head', array( __CLASS__, 'confirm_page_styles' ), 99 );
 	}
 
@@ -162,12 +162,18 @@ class M24_Brevo_IL {
 		self::$confirm_state = self::confirm_token( $token );
 	}
 
-	/** Status-Box vor den Seiteninhalt setzen (nur Seite 34308, nur wenn ein Token verarbeitet wurde). */
+	/**
+	 * Seiteninhalt auf der Bestätigungsseite (34308) komplett DURCH die Karte ERSETZEN — nicht
+	 * anhängen. So bleibt kein statischer WP-Seitentext darunter stehen (kein Doppel-/Widerspruchs-
+	 * text). Mit Token: render_box('ok'|'invalid'). Ohne Token (Direktaufruf): neutrale Variante.
+	 * Andere Inhalte/Seiten bleiben unberührt (is_page + Main-Query-Guards).
+	 */
 	public static function confirm_notice( $content ) {
-		if ( null === self::$confirm_state || ! is_page( self::CONFIRM_PAGE ) || ! in_the_loop() || ! is_main_query() ) {
+		if ( ! is_page( self::CONFIRM_PAGE ) || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}
-		return self::render_box( self::$confirm_state ) . $content;
+		$state = ( null !== self::$confirm_state ) ? self::$confirm_state : 'neutral';
+		return self::render_box( $state );
 	}
 
 	/**
@@ -263,14 +269,18 @@ class M24_Brevo_IL {
 	 * Render & Helfer
 	 * ================================================================== */
 
-	/** Status-Box für die Bestätigungsseite. */
+	/** Status-Box für die Bestätigungsseite. $state: 'ok' | 'invalid' | 'neutral'. */
 	private static function render_box( $state ) {
-		$ok = ( 'ok' === $state );
-		if ( $ok ) {
+		if ( 'ok' === $state ) {
 			$ring  = '#e7f4ec';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1a7a3c"/><path d="M19 33l9 9 17-19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 			$title = 'Anmeldung bestätigt';
 			$text  = 'Vielen Dank! Ihre Anmeldung ist bestätigt. Wir melden uns, sobald passende Fahrzeuge oder Angebote verfügbar sind.';
+		} elseif ( 'neutral' === $state ) {
+			$ring  = '#e8f1fa';
+			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1f74c4"/><path d="M32 28v17" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="20" r="3.6" fill="#fff"/></svg>';
+			$title = 'Interessentenliste';
+			$text  = 'Diese Seite bestätigt Anmeldungen zur Interessentenliste. Stöbern Sie gern in unseren aktuellen Fahrzeugen.';
 		} else {
 			$ring  = '#fdf1e0';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#b87000"/><path d="M32 17v23" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="49" r="3.6" fill="#fff"/></svg>';
