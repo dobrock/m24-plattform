@@ -44,7 +44,9 @@ class M24FZ_Alert_Box {
 	}
 
 	public static function render_in_comfort( $id ) {
-		echo self::render( (int) $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		// Begrenzter Karten-Wrapper — die Komfort-Maske (.fz-screen) ist ~1360px breit; ohne Limit
+		// blutet der width:100%-Button über und space-between zieht die Pro-Tag-Zeilen auseinander.
+		echo '<div class="m24fz-ab-comfort">' . self::render( (int) $id ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function assets( $hook ) {
@@ -157,7 +159,8 @@ class M24FZ_Alert_Box {
 	}
 
 	private static function css() {
-		return ".m24fz-alertbox{font-family:'Saira',Arial,sans-serif;color:#14161a}"
+		return ".m24fz-ab-comfort{max-width:360px;margin:16px 0 0;background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(20,22,26,.06);font-family:'Saira',sans-serif}"
+			. ".m24fz-alertbox{font-family:'Saira',Arial,sans-serif;color:#14161a}"
 			. ".m24fz-ab-head{text-align:center;margin:6px 0 14px}"
 			. ".m24fz-ab-num{font-size:46px;font-weight:800;line-height:1;color:#9a7b3f}"
 			. ".m24fz-ab-lbl{font-size:13px;letter-spacing:.5px;color:#5a6474;text-transform:uppercase}"
