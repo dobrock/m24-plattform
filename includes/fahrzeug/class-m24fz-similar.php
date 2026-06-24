@@ -131,12 +131,14 @@ class M24FZ_Similar {
 		$available = array();
 		$sold      = array();
 		foreach ( $pool as $c ) {
+			if ( ! empty( $c['is_part'] ) ) { continue; }
 			$text = str_replace( '-', ' ', strtolower( (string) ( $c['hay'] ?? '' ) . ' ' . ( $c['cats'] ?? '' ) ) );
 			$hit  = false;
 			foreach ( $slugs as $slug ) {
 				$token = strtolower( trim( str_replace( '-', ' ', $slug ) ) );
 				if ( '' === $token ) { continue; }
 				if ( 'e9x' === $token ) { if ( preg_match( '/e9[0-9x]/', $text ) ) { $hit = true; break; } }
+				elseif ( 'z4 gt3' === $token ) { if ( preg_match( '/z4 ?(gt3|e89|e86)/', $text ) ) { $hit = true; break; } }
 				elseif ( false !== strpos( $text, $token ) ) { $hit = true; break; }
 			}
 			if ( ! $hit ) { continue; }
@@ -231,8 +233,9 @@ class M24FZ_Similar {
 				'url'      => get_permalink( $id ),
 				'title'    => trim( (string) $clean ),
 				'thumb'    => has_post_thumbnail( $id ) ? (int) get_post_thumbnail_id( $id ) : 0,
-				'sold'     => (bool) has_term( self::LEGACY_SOLD, 'category', $id ),
+				'sold'     => ( (bool) has_term( self::LEGACY_SOLD, 'category', $id ) ) || (bool) preg_match( '/^\s*(sold|verkauft)\b/i', $title ),
 				'reserved' => false,
+				'is_part'  => (bool) preg_match( '/teile|paket/i', $title ),
 				'baujahr'  => $year,
 				'cc'       => '',
 				'marke'    => '',
