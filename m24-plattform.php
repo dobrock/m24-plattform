@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.85
+ * Version:           0.11.86
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.85' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.86' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -109,6 +109,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-taxonomie.php'; // Fa
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo-API-Wrapper (Phase 2: Liste 3 + Alert-Listen)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
 require_once M24_PLATTFORM_DIR . 'includes/inquiry-mail-template.php'; // Anfrage-Mail „Variante A" (reines HTML-Rendering)
 require_once M24_PLATTFORM_DIR . 'includes/image-optimization.php';    // WebP-Output + Qualität 90 + 4K-Schwelle (reine Filter)
@@ -263,7 +264,8 @@ add_action( 'plugins_loaded', function() {
     M24FZ_Anfrage::init();
     M24FZ_Alert_Box::init(); // M24 Fahrzeug-Alert: Editor-Box + Versand-REST
     M24_Brevo_IL::init();
-    add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre) // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
+    add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
+    add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link) // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
     M24_OneClick_Update::init(); // auch im Frontend (Admin-Bar-Node von jeder Seite; übrige Hooks self-gaten)
     M24_Fonts::init();           // Saira self-hosted; googleapis/gstatic-Links (inkl. Revslider Material Icons) kappen
     if ( is_admin() ) {

@@ -168,6 +168,31 @@ class M24_B2B {
         return $row;
     }
 
+    /**
+     * Token einlösen OHNE purpose-Filter (Einmal-Nutzung). Liefert die Zeile inkl. purpose/
+     * wp_user_id/email — der Confirm-Handler entscheidet anhand von purpose, was zu tun ist.
+     */
+    public static function consume_token_any( string $raw ): ?object {
+        global $wpdb;
+        $table = M24_Database::table( 'magic_tokens' );
+
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $table WHERE token_hash = %s AND used_at IS NULL AND expires_at > UTC_TIMESTAMP() LIMIT 1",
+            self::hash_token( $raw )
+        ) );
+        if ( ! $row ) {
+            return null;
+        }
+
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE $table SET used_at = %s WHERE id = %d",
+            gmdate( 'Y-m-d H:i:s' ),
+            (int) $row->id
+        ) );
+
+        return $row;
+    }
+
     /** Abgelaufene/verbrauchte Tokens entfernen (täglicher Cron). */
     public static function cleanup_tokens(): void {
         global $wpdb;

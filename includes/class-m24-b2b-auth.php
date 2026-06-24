@@ -1,0 +1,482 @@
+<?php
+/**
+ * M24 Plattform — B2B/Händler-Registrierung + Magic-Link-Login + Confirm (Garage Phase A, Chunk 2).
+ *
+ * Passwortlos: Registrierung legt einen pending-Händler an und schickt einen Bestätigungslink;
+ * Login schickt einen Magic-Link. Beide Tokens 15 Min, Einmal-Nutzung (M24_B2B). Confirm-Klick
+ * verifiziert (verify) bzw. loggt ein (login) und setzt den Auth-Cookie.
+ *
+ * Pflicht-Schutzmaßnahmen:
+ *   - Anti-Enumeration: Registrierung/Login antworten IMMER mit derselben Erfolgsmeldung.
+ *   - Consent-Snapshot: AGB + Datenschutz als usermeta _m24_consent (mit ts, ip_hash, URLs).
+ *   - Nonce + Honeypot + IP-Rate-Limit auf beiden Formularen.
+ *   - Seiten noindex + WP-Rocket-Cache-Ausschluss; keine rohen Tokens/IPs geloggt.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class M24_B2B_Auth {
+
+    const AGB_PATH = '/agb/';
+    const DS_PATH  = '/datenschutzerklaerung/';
+
+    const OPT_REG_PAGE   = 'm24_haendler_reg_page';
+    const OPT_LOGIN_PAGE = 'm24_haendler_login_page';
+
+    const RL_MAX    = 5;                    // max Versuche
+    const RL_WINDOW = 10 * MINUTE_IN_SECONDS; // je 10 Min / gehashter IP
+
+    /** EU-ISO2 — UID ist in diesen Ländern Pflicht. */
+    const EU = array( 'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE' );
+
+    public static function init() {
+        add_shortcode( 'm24_haendler_registrierung', array( __CLASS__, 'render_registration_form' ) );
+        add_shortcode( 'm24_haendler_login', array( __CLASS__, 'render_login_form' ) );
+
+        add_action( 'admin_post_nopriv_m24_haendler_register', array( __CLASS__, 'handle_register' ) );
+        add_action( 'admin_post_m24_haendler_register', array( __CLASS__, 'handle_register' ) );
+        add_action( 'admin_post_nopriv_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
+        add_action( 'admin_post_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
+
+        add_action( 'template_redirect', array( __CLASS__, 'confirm_intercept' ), 1 );
+        add_action( 'admin_init', array( __CLASS__, 'ensure_pages' ) );
+
+        // noindex + Cache-Ausschluss.
+        add_filter( 'wp_robots', array( __CLASS__, 'robots' ) );
+        add_filter( 'rocket_cache_reject_uri', array( __CLASS__, 'rocket_reject' ) );
+    }
+
+    /* ── Seiten/URLs ─────────────────────────────────────────────────────── */
+
+    private static function reg_page_url(): string {
+        $id = (int) get_option( self::OPT_REG_PAGE, 0 );
+        return $id ? (string) get_permalink( $id ) : home_url( '/haendler-registrierung/' );
+    }
+
+    private static function login_page_url(): string {
+        $id = (int) get_option( self::OPT_LOGIN_PAGE, 0 );
+        return $id ? (string) get_permalink( $id ) : home_url( '/haendler-login/' );
+    }
+
+    public static function ensure_pages() {
+        $defs = array(
+            self::OPT_REG_PAGE   => array( 'Händler-Registrierung', 'haendler-registrierung', '[m24_haendler_registrierung]' ),
+            self::OPT_LOGIN_PAGE => array( 'Händler-Login', 'haendler-login', '[m24_haendler_login]' ),
+        );
+        foreach ( $defs as $opt => $d ) {
+            $id = (int) get_option( $opt, 0 );
+            if ( $id && 'page' === get_post_type( $id ) && 'trash' !== get_post_status( $id ) ) {
+                continue;
+            }
+            $new = wp_insert_post( array(
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+                'post_title'   => $d[0],
+                'post_name'    => $d[1],
+                'post_content' => $d[2],
+            ) );
+            if ( $new && ! is_wp_error( $new ) ) {
+                update_option( $opt, (int) $new );
+            }
+        }
+    }
+
+    public static function robots( $robots ) {
+        $reg   = (int) get_option( self::OPT_REG_PAGE, 0 );
+        $login = (int) get_option( self::OPT_LOGIN_PAGE, 0 );
+        if ( ( $reg || $login ) && is_page( array_filter( array( $reg, $login ) ) ) ) {
+            $robots['noindex'] = true;
+            $robots['follow']  = true;
+            unset( $robots['index'] );
+        }
+        return $robots;
+    }
+
+    public static function rocket_reject( $uris ) {
+        $uris[] = '/haendler-registrierung/(.*)';
+        $uris[] = '/haendler-login/(.*)';
+        return $uris;
+    }
+
+    /* ── Helfer ──────────────────────────────────────────────────────────── */
+
+    private static function ip_hash(): string {
+        return hash( 'sha256', ( $_SERVER['REMOTE_ADDR'] ?? '' ) . wp_salt( 'auth' ) );
+    }
+
+    private static function rate_ok(): bool {
+        $key = 'm24_b2b_rl_' . self::ip_hash();
+        $n   = (int) get_transient( $key );
+        if ( $n >= self::RL_MAX ) {
+            return false;
+        }
+        set_transient( $key, $n + 1, self::RL_WINDOW );
+        return true;
+    }
+
+    private static function is_eu( string $land ): bool {
+        return in_array( strtoupper( $land ), self::EU, true );
+    }
+
+    /** WP-Locale aus dem Land (DE/AT → de_DE, sonst de_DE als Default-Sprache der Plattform). */
+    private static function locale_for( string $land ): string {
+        return in_array( strtoupper( $land ), array( 'DE', 'AT', 'CH', 'LI' ), true ) ? 'de_DE' : 'de_DE';
+    }
+
+    private static function lang_for( string $land ): string {
+        return in_array( strtoupper( $land ), array( 'DE', 'AT', 'CH', 'LI' ), true ) ? 'de' : 'en';
+    }
+
+    /** Auswahl-Länder (Default DE). EU zuerst + gängige Nachbarmärkte. Filterbar. */
+    private static function countries(): array {
+        $list = array_merge( self::EU, array( 'CH', 'LI', 'NO', 'GB', 'US' ) );
+        $list = array_values( array_unique( $list ) );
+        sort( $list );
+        return (array) apply_filters( 'm24_b2b_countries', $list );
+    }
+
+    private static function user_is_haendler( $user ): bool {
+        return $user && in_array( M24_B2B::ROLE, (array) $user->roles, true );
+    }
+
+    /* ── Formulare ───────────────────────────────────────────────────────── */
+
+    private static function form_css(): string {
+        return '<style>'
+            . '.m24b2b{max-width:560px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
+            . '.m24b2b-card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
+            . '.m24b2b h2{font-size:24px;margin:0 0 6px;color:#10243a}'
+            . '.m24b2b .sub{font-size:14px;color:#5a6474;margin:0 0 18px}'
+            . '.m24b2b label{display:block;font-size:13px;font-weight:600;color:#3a414c;margin:12px 0 4px}'
+            . '.m24b2b input[type=text],.m24b2b input[type=email],.m24b2b input[type=tel],.m24b2b select{width:100%;font-size:16px;padding:11px 12px;border:1px solid #d6dae0;border-radius:8px;background:#fff;box-sizing:border-box;font-family:inherit}'
+            . '.m24b2b .row{display:flex;gap:12px;flex-wrap:wrap}.m24b2b .row>div{flex:1 1 200px;min-width:0}'
+            . '.m24b2b .chk{display:flex;gap:9px;align-items:flex-start;margin:14px 0 0;font-size:13px;font-weight:400;color:#3a414c}'
+            . '.m24b2b .chk input{margin-top:3px}'
+            . '.m24b2b .req{color:#9a6b25}'
+            . '.m24b2b .hp{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden}'
+            . '.m24b2b-btn{margin-top:20px;width:100%;background:#1f74c4;color:#fff;border:0;border-radius:8px;padding:14px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)}'
+            . '.m24b2b-note{background:#edf3fb;border:1px solid #cfe0f4;color:#10243a;border-radius:10px;padding:16px 18px;font-size:14.5px;line-height:1.5}'
+            . '.m24b2b-err{background:#fdf1f3;border:1px solid #f0c4cc;color:#9a2530;border-radius:8px;padding:10px 14px;font-size:13.5px;margin:0 0 16px}'
+            . '.m24b2b-ok{font-size:30px;font-weight:800;color:#9a6b25;margin:0 0 8px}'
+            . '</style>';
+    }
+
+    public static function render_registration_form(): string {
+        $sent = isset( $_GET['gesendet'] ); // phpcs:ignore WordPress.Security.NonceVerification
+        ob_start();
+        echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo '<div class="m24b2b"><div class="m24b2b-card">';
+
+        if ( $sent ) {
+            echo '<div class="m24b2b-ok">Fast geschafft!</div>';
+            echo '<div class="m24b2b-note">Wir haben dir eine E-Mail geschickt. Bitte bestätige deine Registrierung über den Link darin (15&nbsp;Minuten gültig).</div>';
+            echo '</div></div>';
+            return (string) ob_get_clean();
+        }
+
+        if ( isset( $_GET['fehler'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            echo '<div class="m24b2b-err">Bitte fülle alle Pflichtfelder korrekt aus (inkl. USt-IdNr. bei EU-Ländern) und stimme Datenschutz &amp; AGB zu.</div>';
+        }
+
+        $ds  = esc_url( home_url( self::DS_PATH ) );
+        $agb = esc_url( home_url( self::AGB_PATH ) );
+        ?>
+        <h2>Händler-Registrierung</h2>
+        <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="m24_haendler_register">
+            <?php wp_nonce_field( 'm24_haendler_register' ); ?>
+            <label for="m24firma">Firma <span class="req">*</span></label>
+            <input type="text" id="m24firma" name="firma" required>
+            <div class="row">
+                <div>
+                    <label for="m24anrede">Anrede</label>
+                    <select id="m24anrede" name="anrede"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
+                </div>
+                <div>
+                    <label for="m24land">Land <span class="req">*</span></label>
+                    <select id="m24land" name="land" required>
+                        <?php foreach ( self::countries() as $cc ) : ?>
+                            <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( 'DE', $cc ); ?>><?php echo esc_html( $cc ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div><label for="m24vorname">Vorname <span class="req">*</span></label><input type="text" id="m24vorname" name="vorname" required></div>
+                <div><label for="m24nachname">Nachname <span class="req">*</span></label><input type="text" id="m24nachname" name="nachname" required></div>
+            </div>
+            <div class="row">
+                <div><label for="m24email">E-Mail <span class="req">*</span></label><input type="email" id="m24email" name="email" required></div>
+                <div><label for="m24tel">Telefon <span class="req">*</span></label><input type="tel" id="m24tel" name="telefon" required></div>
+            </div>
+            <label for="m24uid">USt-IdNr. <span class="req" id="m24uidreq">(Pflicht in der EU)</span></label>
+            <input type="text" id="m24uid" name="uid" placeholder="z. B. DE123456789">
+            <label class="chk"><input type="checkbox" name="consent_ds" value="1" required> Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></label>
+            <label class="chk"><input type="checkbox" name="consent_agb" value="1" required> Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></label>
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
+        </form>
+        <?php
+        echo '</div></div>';
+        return (string) ob_get_clean();
+    }
+
+    public static function render_login_form(): string {
+        ob_start();
+        echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo '<div class="m24b2b"><div class="m24b2b-card">';
+
+        if ( isset( $_GET['gesendet'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            echo '<div class="m24b2b-ok">Check deine Mails</div>';
+            echo '<div class="m24b2b-note">Wir haben dir einen Login-Link geschickt (15&nbsp;Minuten gültig).</div>';
+            echo '</div></div>';
+            return (string) ob_get_clean();
+        }
+        ?>
+        <h2>Händler-Login</h2>
+        <p class="sub">Gib deine E-Mail ein — wir schicken dir einen Login-Link. Kein Passwort nötig.</p>
+        <?php if ( isset( $_GET['fehler'] ) && 'link' === $_GET['fehler'] ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+            <div class="m24b2b-err">Link ungültig oder abgelaufen — fordere einen neuen an.</div>
+        <?php endif; ?>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="m24_haendler_login">
+            <?php wp_nonce_field( 'm24_haendler_login' ); ?>
+            <label for="m24loginmail">E-Mail <span class="req">*</span></label>
+            <input type="email" id="m24loginmail" name="email" required>
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" class="m24b2b-btn">Login-Link anfordern</button>
+        </form>
+        <?php
+        echo '</div></div>';
+        return (string) ob_get_clean();
+    }
+
+    /* ── Handler ─────────────────────────────────────────────────────────── */
+
+    public static function handle_register() {
+        check_admin_referer( 'm24_haendler_register' );
+        $reg = self::reg_page_url();
+
+        // Honeypot + Rate-Limit (Bots/Abuse → still „erfolgreich").
+        if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
+            wp_safe_redirect( add_query_arg( 'gesendet', '1', $reg ) );
+            exit;
+        }
+
+        $firma    = sanitize_text_field( wp_unslash( $_POST['firma'] ?? '' ) );
+        $vorname  = sanitize_text_field( wp_unslash( $_POST['vorname'] ?? '' ) );
+        $nachname = sanitize_text_field( wp_unslash( $_POST['nachname'] ?? '' ) );
+        $anrede   = sanitize_text_field( wp_unslash( $_POST['anrede'] ?? '' ) );
+        $telefon  = sanitize_text_field( wp_unslash( $_POST['telefon'] ?? '' ) );
+        $land     = strtoupper( sanitize_text_field( wp_unslash( $_POST['land'] ?? '' ) ) );
+        $uid      = sanitize_text_field( wp_unslash( $_POST['uid'] ?? '' ) );
+        $email    = strtolower( sanitize_email( wp_unslash( $_POST['email'] ?? '' ) ) );
+        $c_ds     = ! empty( $_POST['consent_ds'] );
+        $c_agb    = ! empty( $_POST['consent_agb'] );
+
+        $ok = ( '' !== $firma && '' !== $vorname && '' !== $nachname && '' !== $telefon
+            && is_email( $email ) && 2 === strlen( $land ) && $c_ds && $c_agb );
+        if ( $ok && self::is_eu( $land ) && '' === $uid ) {
+            $ok = false; // UID-Pflicht in der EU
+        }
+        if ( ! $ok ) {
+            wp_safe_redirect( add_query_arg( 'fehler', '1', $reg ) );
+            exit;
+        }
+
+        $existing = get_user_by( 'email', $email );
+        if ( $existing ) {
+            // Bereits Händler → kein Neuanlegen, stattdessen Login-Link. Andere Rolle → bewusst
+            // nichts tun. Nach außen in beiden Fällen dieselbe Erfolgsmeldung (Anti-Enumeration).
+            if ( self::user_is_haendler( $existing ) ) {
+                $raw = M24_B2B::issue_token( $email, 'login', (int) $existing->ID );
+                self::send_magic_mail( $email, $raw, 'login' );
+            }
+        } else {
+            self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid );
+        }
+
+        wp_safe_redirect( add_query_arg( 'gesendet', '1', $reg ) );
+        exit;
+    }
+
+    private static function create_haendler( string $email, string $firma, string $vorname, string $nachname, string $anrede, string $telefon, string $land, string $uid ): void {
+        $user_id = wp_insert_user( array(
+            'user_login'    => $email,
+            'user_email'    => $email,
+            'user_pass'     => wp_generate_password( 24, true, true ),
+            'display_name'  => $firma,
+            'first_name'    => $vorname,
+            'last_name'     => $nachname,
+            'role'          => M24_B2B::ROLE,
+            'locale'        => self::locale_for( $land ),
+        ) );
+        if ( is_wp_error( $user_id ) ) {
+            return; // still nach außen „erfolgreich"
+        }
+
+        // Profil-Zusatz (nicht in der haendler-Tabelle modelliert) als usermeta.
+        update_user_meta( $user_id, '_m24_anrede', $anrede );
+        update_user_meta( $user_id, '_m24_telefon', $telefon );
+
+        global $wpdb;
+        $wpdb->insert(
+            M24_Database::table( 'haendler' ),
+            array(
+                'wp_user_id'        => (int) $user_id,
+                'firma'             => $firma,
+                'uid'               => '' !== $uid ? $uid : null,
+                'land'              => $land,
+                'sprach_praeferenz' => self::lang_for( $land ),
+                'status'            => 'pending_verification',
+                'created_at'        => current_time( 'mysql', true ),
+            ),
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+        );
+
+        // Consent-Snapshot (DSGVO-Nachweis).
+        update_user_meta( $user_id, '_m24_consent', wp_json_encode( array(
+            'agb'         => true,
+            'datenschutz' => true,
+            'ts'          => gmdate( 'Y-m-d H:i:s' ),
+            'ip_hash'     => self::ip_hash(),
+            'agb_url'     => self::AGB_PATH,
+            'ds_url'      => self::DS_PATH,
+        ) ) );
+
+        $raw = M24_B2B::issue_token( $email, 'verify', (int) $user_id );
+        self::send_magic_mail( $email, $raw, 'verify' );
+    }
+
+    public static function handle_login() {
+        check_admin_referer( 'm24_haendler_login' );
+        $login = self::login_page_url();
+
+        if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
+            wp_safe_redirect( add_query_arg( 'gesendet', '1', $login ) );
+            exit;
+        }
+
+        $email = strtolower( sanitize_email( wp_unslash( $_POST['email'] ?? '' ) ) );
+        if ( is_email( $email ) ) {
+            $user = get_user_by( 'email', $email );
+            if ( $user && self::user_is_haendler( $user ) ) {
+                $raw = M24_B2B::issue_token( $email, 'login', (int) $user->ID );
+                self::send_magic_mail( $email, $raw, 'login' );
+            }
+        }
+        // Anti-Enumeration: immer dieselbe Antwort.
+        wp_safe_redirect( add_query_arg( 'gesendet', '1', $login ) );
+        exit;
+    }
+
+    public static function confirm_intercept() {
+        if ( empty( $_GET['m24_confirm'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            return;
+        }
+        nocache_headers();
+        if ( ! headers_sent() ) {
+            header( 'X-Robots-Tag: noindex', true );
+        }
+
+        $raw = preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_GET['m24_confirm'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+        $row = M24_B2B::consume_token_any( $raw );
+        if ( ! $row ) {
+            wp_safe_redirect( add_query_arg( 'fehler', 'link', self::login_page_url() ) );
+            exit;
+        }
+
+        if ( 'verify' === $row->purpose ) {
+            global $wpdb;
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE " . M24_Database::table( 'haendler' ) . " SET status = 'verified', updated_at = %s WHERE wp_user_id = %d AND status = 'pending_verification'",
+                current_time( 'mysql', true ),
+                (int) $row->wp_user_id
+            ) );
+        }
+
+        wp_set_auth_cookie( (int) $row->wp_user_id, true );
+        wp_safe_redirect( home_url( '/?willkommen=1' ) );
+        exit;
+    }
+
+    /* ── Magic-Mail (Stil identisch zur DOI-Bestätigungsmail) ────────────── */
+
+    public static function send_magic_mail( string $email, string $rawtoken, string $purpose ): void {
+        $url = home_url( '/?m24_confirm=' . rawurlencode( $rawtoken ) );
+
+        if ( 'verify' === $purpose ) {
+            $subject = 'Bitte bestätige deine Registrierung – MOTORSPORT24';
+            $head    = 'Registrierung bestätigen';
+            $text    = 'Klicke zum Bestätigen deiner Händler-Registrierung. Der Link ist 15 Minuten gültig.';
+            $cta     = 'Registrierung bestätigen';
+        } else {
+            $subject = 'Dein Login-Link – MOTORSPORT24';
+            $head    = 'Login bei MOTORSPORT24';
+            $text    = 'Klicke, um dich einzuloggen. Der Link ist 15 Minuten gültig.';
+            $cta     = 'Jetzt einloggen';
+        }
+
+        $inner  = '<p style="margin:0 0 14px;">' . esc_html( $text ) . '</p>';
+        $inner .= '<p style="margin:24px 0;text-align:center;">'
+            . '<a href="' . esc_url( $url ) . '" class="m24-cta" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 30px;border-radius:8px;font-size:15px;">' . esc_html( $cta ) . '</a>'
+            . '</p>';
+        $inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>';
+        $inner .= '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>';
+        $inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn du das nicht angefordert hast, ignoriere diese E-Mail einfach.</p>';
+
+        $body    = self::mail_html( $head, $inner );
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . self::from_header(),
+            'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+        );
+        wp_mail( $email, $subject, $body, $headers );
+    }
+
+    /** CI-Mail-Gerüst — identisch zur DOI-Mail (Gradient-Band, Saira, Logo, Footer). CTA-Gradient als Klasse. */
+    private static function mail_html( string $headline, string $inner ): string {
+        $font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
+        $stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
+        return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
+            . '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
+            . 'body,table,td,h1,div,a,p{' . $stack . '}'
+            . 'a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-weight:inherit!important;}'
+            . '.m24-cta{background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;}</style></head>'
+            . '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:0;"><tr><td align="center" style="padding:24px 16px;">'
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
+            . '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
+            . '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;vertical-align:middle;">'
+            . '</td></tr>'
+            . '<tr><td style="padding:8px 28px 24px;' . $stack . 'color:#10243a;">'
+            . '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>'
+            . '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
+            . '</td></tr>'
+            . '<tr><td style="padding:18px 28px;border-top:1px solid #e6e9ee;text-align:center;' . $stack . 'font-size:11px;line-height:1.6;color:#9aa3b0;">'
+            . '<div style="color:#7e8794;font-size:11.5px;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
+            . '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
+            . '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
+            . '<div style="margin-top:10px;">'
+            . '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
+            . '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
+            . '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
+            . '</div>'
+            . '</td></tr>'
+            . '</table></td></tr></table></body></html>';
+    }
+
+    private static function from_header(): string {
+        $host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+        $host = preg_replace( '/^www\./i', '', $host );
+        if ( '' === $host ) {
+            $host = 'motorsport24.de';
+        }
+        $email = apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
+        $name  = apply_filters( 'm24_brevo_doi_from_name', 'MOTORSPORT24' );
+        return $name . ' <' . $email . '>';
+    }
+}
