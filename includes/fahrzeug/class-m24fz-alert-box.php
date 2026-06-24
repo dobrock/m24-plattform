@@ -82,14 +82,16 @@ class M24FZ_Alert_Box {
 		$rest     = esc_url_raw( rest_url( self::NS . '/fahrzeug-alert-send' ) );
 		$nonce    = wp_create_nonce( 'wp_rest' );
 
-		// ── Statistik ──
-		$post_ts  = (int) get_post_time( 'U', true, $id );
-		$days     = max( 0, (int) floor( ( time() - $post_ts ) / DAY_IN_SECONDS ) );
-		$date     = wp_date( 'd.m.Y', $post_ts );
+		// ── Statistik ── (alle Quellen identisch zur Inserat-Verwaltung)
+		// Tage online + „seit"-Datum: kanonische §3-Quelle (Erstveröffentlichung, NICHT post_date).
+		$days_n   = class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::days_online( $id ) : null;
+		$days     = ( null !== $days_n ) ? (int) $days_n : 0;
+		$first    = class_exists( 'M24FZ_CPT' ) ? (string) get_post_meta( $id, M24FZ_CPT::FIRST_PUB, true ) : '';
+		$first_ts = $first ? strtotime( $first ) : (int) get_post_time( 'U', true, $id );
+		$date     = wp_date( 'd.m.Y', $first_ts ?: time() );
 		$anfragen = (int) apply_filters( 'm24_cockpit_anfragen_count', (int) get_post_meta( $id, '_m24fz_anfragen_count', true ), $id );
-		$besucher = apply_filters( 'm24_cockpit_besucher', null, $id ); // null → Slot „–" (Matomo folgt)
-		$show_gar = (bool) apply_filters( 'm24_cockpit_show_garage', false, $id );
-		$garage   = (int) apply_filters( 'm24_cockpit_garage_count', 0, $id );
+		$aufrufe  = (int) apply_filters( 'm24_cockpit_aufrufe', (int) get_post_meta( $id, '_m24fz_views', true ), $id );
+		$show_gar = (bool) apply_filters( 'm24_cockpit_show_garage', true, $id ); // Default sichtbar (Daniel will sie sehen)
 
 		$pill = sprintf(
 			/* translators: 1: days, 2: date */
@@ -146,22 +148,25 @@ class M24FZ_Alert_Box {
 					<div class="m24cp-coltitle">Statistik</div>
 					<div class="m24cp-grid">
 						<div class="m24cp-tile">
+							<span class="m24cp-badge live">LIVE</span>
 							<div class="v"><?php echo (int) $anfragen; ?></div>
 							<div class="k"><?php esc_html_e( 'Anfragen', 'm24-plattform' ); ?></div>
 						</div>
 						<div class="m24cp-tile">
+							<span class="m24cp-badge live">LIVE</span>
 							<div class="v"><?php echo (int) $days; ?></div>
 							<div class="k"><?php esc_html_e( 'Tage online', 'm24-plattform' ); ?></div>
 							<div class="sub"><?php echo esc_html( sprintf( __( 'seit %s', 'm24-plattform' ), $date ) ); ?></div>
 						</div>
-						<div class="m24cp-tile slot">
-							<div class="v"><?php echo null === $besucher ? '–' : (int) $besucher; ?></div>
-							<div class="k"><?php esc_html_e( 'Besucher', 'm24-plattform' ); ?></div>
-							<?php if ( null === $besucher ) : ?><div class="sub"><?php esc_html_e( 'Matomo folgt', 'm24-plattform' ); ?></div><?php endif; ?>
+						<div class="m24cp-tile">
+							<span class="m24cp-badge live">LIVE</span>
+							<div class="v"><?php echo (int) $aufrufe; ?></div>
+							<div class="k"><?php esc_html_e( 'Aufrufe', 'm24-plattform' ); ?></div>
 						</div>
 						<?php if ( $show_gar ) : ?>
 						<div class="m24cp-tile">
-							<div class="v"><?php echo (int) $garage; ?></div>
+							<span class="m24cp-badge soon"><?php esc_html_e( 'bald', 'm24-plattform' ); ?></span>
+							<div class="v">–</div>
 							<div class="k"><?php esc_html_e( 'In Garage', 'm24-plattform' ); ?></div>
 						</div>
 						<?php endif; ?>
@@ -197,12 +202,15 @@ class M24FZ_Alert_Box {
 			. ".m24-cockpit .m24fz-ab-btn:disabled{background:#c8ccd2;cursor:not-allowed}"
 			. ".m24-cockpit .m24fz-ab-msg{font-size:13px;margin:10px 0 0}"
 			. ".m24-cockpit .m24fz-ab-msg.ok{color:#1a7a3c;font-weight:600}.m24-cockpit .m24fz-ab-msg.fail{color:#c8102e;font-weight:600}"
+			. ".m24-cockpit .m24cp-stats{background:#f4f6f8}"
 			. ".m24-cockpit .m24cp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}"
-			. ".m24-cockpit .m24cp-tile{background:#fafafa;border:1px solid #e6e9ee;border-radius:10px;padding:14px 16px;text-align:center}"
-			. ".m24-cockpit .m24cp-tile .v{font-size:30px;font-weight:800;line-height:1;color:#14161a}"
+			. ".m24-cockpit .m24cp-tile{position:relative;background:#fff;border:1px solid #e6e9ee;border-radius:10px;padding:16px 14px 14px;text-align:center;box-shadow:0 1px 2px rgba(20,22,26,.05)}"
+			. ".m24-cockpit .m24cp-tile .v{font-size:30px;font-weight:800;line-height:1;color:#9a6b25}"
 			. ".m24-cockpit .m24cp-tile .k{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#5a6474;margin-top:6px}"
 			. ".m24-cockpit .m24cp-tile .sub{font-size:11px;color:#9aa3b0;margin-top:3px}"
-			. ".m24-cockpit .m24cp-tile.slot .v{color:#c0c6cf}"
+			. ".m24-cockpit .m24cp-badge{position:absolute;top:8px;right:8px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:6px}"
+			. ".m24-cockpit .m24cp-badge.live{background:#e7f4ec;color:#1a7a3c}"
+			. ".m24-cockpit .m24cp-badge.soon{background:#eef0f3;color:#9aa3b0}"
 			. "@media(max-width:640px){.m24-cockpit .m24cp-col{flex:1 1 100%}.m24-cockpit .m24cp-alert{border-right:0;border-bottom:1px solid #eef0f3}.m24-cockpit .m24cp-pill{white-space:normal}}";
 	}
 
