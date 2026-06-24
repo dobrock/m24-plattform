@@ -27,10 +27,15 @@ class M24_Adminbar {
 			return;
 		}
 		$remove = apply_filters( 'm24_adminbar_remove_nodes', array(
-			'rcb-top-node',           // Cookies (Real Cookie Banner)
-			'omgf',                   // OMGF
-			'td_live_css_css_writer', // Live CSS
-			'wp-rocket',              // WP Rocket
+			'rcb-top-node',              // Cookies (Real Cookie Banner)
+			'omgf',                      // OMGF
+			'td_live_css_css_writer',    // Live CSS
+			'wp-rocket',                 // WP Rocket
+			'customize',                 // Anpassen (Customizer)
+			'comments',                  // Kommentar-Node (Kommentare site-weit aus)
+			'duplicate-post',            // Duplicate Post
+			'tdc_edit',                  // Edit with TagDiv Composer
+			'tdc_page_mobile_template',  // Mobile page
 		) );
 		foreach ( (array) $remove as $node_id ) {
 			$wp_admin_bar->remove_node( $node_id );

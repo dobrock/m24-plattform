@@ -12,6 +12,23 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+/**
+ * Frontend-Anzeige-Label für Modell-Terme: „M3 Exx" → „3er (Exx)" (nur Anzeige).
+ * Term-Namen/Slugs + SEO-Titel bleiben unverändert. Filterbar via `m24_model_label_map`.
+ */
+if ( ! function_exists( 'm24_model_label' ) ) {
+	function m24_model_label( $name ) {
+		$map = apply_filters( 'm24_model_label_map', array(
+			'M3 E30' => '3er (E30)',
+			'M3 E36' => '3er (E36)',
+			'M3 E46' => '3er (E46)',
+			'M3 E9x' => '3er (E9x)',
+		) );
+		$name = (string) $name;
+		return isset( $map[ trim( $name ) ] ) ? $map[ trim( $name ) ] : $name; // Z4 GT3 etc. bleiben
+	}
+}
+
 class M24_Catalog_Hub {
 
 	const QV  = 'm24_hub';

@@ -462,7 +462,7 @@ class M24_Catalog_Archive {
 			'<option value="%s"%s>%s</option>',
 			esc_attr( $term->slug ),
 			selected( $current, $term->slug, false ),
-			esc_html( $term->name )
+			esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $term->name ) : $term->name )
 		);
 	}
 
