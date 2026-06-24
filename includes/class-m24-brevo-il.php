@@ -558,7 +558,14 @@ class M24_Brevo_IL {
 		if ( ! $source || ! get_post( $source ) ) { return ''; }
 
 		$main_id = (int) get_post_thumbnail_id( $source );
-		$main    = $main_id ? wp_get_attachment_image_url( $main_id, 'large' ) : '';
+		// Titelbild: Origin (full) über Photon klein+komprimiert; Fallback medium_large (768).
+		$main = '';
+		if ( $main_id ) {
+			$orig = wp_get_attachment_image_url( $main_id, 'full' );
+			$main = function_exists( 'jetpack_photon_url' ) && $orig
+				? jetpack_photon_url( $orig, array( 'w' => 600, 'quality' => 72 ) )
+				: wp_get_attachment_image_url( $main_id, 'medium_large' );
+		}
 
 		$gal = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $source, '_m24fz_gal_aussen', true ) ) ) );
 		$gal = array_slice( array_diff( $gal, array( $main_id ) ), 0, 3 );
@@ -566,15 +573,19 @@ class M24_Brevo_IL {
 		$html = '';
 		if ( $main ) {
 			$html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;"><tr>'
-				. '<td style="padding:0;"><img src="' . esc_url( $main ) . '" width="400" alt="' . esc_attr( get_the_title( $source ) ) . '" style="display:block;width:100%;max-width:400px;height:auto;border:0;border-radius:6px;"></td>'
+				. '<td style="padding:0;"><img src="' . esc_url( $main ) . '" width="560" alt="' . esc_attr( get_the_title( $source ) ) . '" style="display:block;width:100%;max-width:560px;height:auto;border:0;border-radius:6px;"></td>'
 				. '</tr></table>';
 		}
 		if ( ! empty( $gal ) ) {
 			$cells = '';
 			foreach ( $gal as $gid ) {
-				$u = wp_get_attachment_image_url( $gid, 'medium' );
+				// Außen-Thumbs: einheitlicher 4:3-Crop über Photon; Fallback thumbnail (150).
+				$orig = wp_get_attachment_image_url( $gid, 'full' );
+				$u    = function_exists( 'jetpack_photon_url' ) && $orig
+					? jetpack_photon_url( $orig, array( 'resize' => '200,150', 'quality' => 72 ) )
+					: wp_get_attachment_image_url( $gid, 'thumbnail' );
 				if ( ! $u ) { continue; }
-				$cells .= '<td style="padding:0 4px;" width="130"><img src="' . esc_url( $u ) . '" width="130" alt="" style="display:block;width:100%;max-width:130px;height:auto;border:0;border-radius:4px;"></td>';
+				$cells .= '<td style="padding:0 4px;" width="180"><img src="' . esc_url( $u ) . '" width="180" height="135" alt="" style="display:block;width:100%;max-width:180px;height:auto;border:0;border-radius:4px;"></td>';
 			}
 			if ( '' !== $cells ) {
 				$html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;"><tr>' . $cells . '</tr></table>';
@@ -658,7 +669,7 @@ class M24_Brevo_IL {
 			. 'body,table,td,h1,div,a,p{' . $stack . '}</style></head>'
 			. '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:0;"><tr><td align="center" style="padding:24px 16px;">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:8px;overflow:hidden;">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
 			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
 			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;vertical-align:middle;">'
 			. '</td></tr>'
