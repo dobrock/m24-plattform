@@ -363,7 +363,7 @@ class M24_Catalog_Archive {
 		foreach ( $roots as $root ) {
 			$children = isset( $by_parent[ $root->term_id ] ) ? $by_parent[ $root->term_id ] : array();
 			if ( $children ) {
-				$out .= '<optgroup label="' . esc_attr( $root->name ) . '">' . self::option( $root, $current );
+				$out .= '<optgroup label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">' . self::option( $root, $current );
 				foreach ( $children as $child ) { $out .= self::option( $child, $current ); }
 				$out .= '</optgroup>';
 			} else {
@@ -420,7 +420,7 @@ class M24_Catalog_Archive {
 		foreach ( $roots as $root ) {
 			$children = isset( $by_parent[ $root->term_id ] ) ? $by_parent[ $root->term_id ] : array();
 			if ( $children ) {
-				$options .= '<optgroup label="' . esc_attr( $root->name ) . '">';
+				$options .= '<optgroup label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">';
 				$options .= self::option( $root, $current );
 				foreach ( $children as $child ) {
 					$options .= self::option( $child, $current );
