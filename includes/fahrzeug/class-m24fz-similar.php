@@ -116,6 +116,29 @@ class M24FZ_Similar {
 		return array_slice( $final, 0, $limit );
 	}
 
+	/**
+	 * Fahrzeug-Karten für einen Chassis-/Modell-Token (z.B. "e30") — für die
+	 * Teile-Detailseite. Zum Verkauf zuerst, dann mit verkauften auffüllen.
+	 */
+	public static function cards_for_chassis( $token, $limit = 3 ) {
+		$token = strtolower( trim( str_replace( '-', ' ', (string) $token ) ) );
+		if ( '' === $token ) { return array(); }
+		$pool = self::cpt_pool( 0 ); // alle Fahrzeuge, neueste zuerst (orderby date DESC)
+		$hits = array();
+		foreach ( $pool as $c ) {
+			$hay = str_replace( '-', ' ', (string) ( $c['hay'] ?? '' ) );
+			if ( false !== strpos( $hay, $token ) ) { $hits[] = $c; }
+		}
+		if ( empty( $hits ) ) { return array(); }
+		$available = array();
+		$sold      = array();
+		foreach ( $hits as $c ) {
+			if ( ! empty( $c['sold'] ) ) { $sold[] = $c; } else { $available[] = $c; }
+		}
+		// Zum Verkauf (inkl. reserviert) zuerst, dann verkauft auffüllen. Pool ist bereits neueste-zuerst.
+		return array_slice( array_merge( $available, $sold ), 0, (int) $limit );
+	}
+
 	/** Rückwärtskompatibel: nur die Post-IDs. */
 	public static function ids( $post_id, $limit = 6 ) {
 		return array_map( static function ( $c ) { return $c['id']; }, self::cards( $post_id, $limit ) );

@@ -135,6 +135,18 @@ class M24_Catalog_Template_Detail {
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
 		$related = class_exists( 'M24_Catalog_Related' ) ? M24_Catalog_Related::get( $id, 5 ) : array();
 
+		// Passende Fahrzeuge (kategoriegekoppelt übers Chassis) — zum Verkauf zuerst, dann verkauft.
+		$fahrzeuge = array();
+		if ( class_exists( 'M24FZ_Similar' ) ) {
+			$fz_slugs = wp_get_post_terms( $id, 'm24_fahrzeugkat', array( 'fields' => 'slugs' ) );
+			if ( ! is_wp_error( $fz_slugs ) ) {
+				foreach ( (array) $fz_slugs as $fz_slug ) {
+					$cards = M24FZ_Similar::cards_for_chassis( $fz_slug, 3 );
+					if ( ! empty( $cards ) ) { $fahrzeuge = $cards; break; }
+				}
+			}
+		}
+
 		$ld = array(
 			'@context'        => 'https://schema.org',
 			'@type'           => 'BreadcrumbList',
@@ -356,6 +368,11 @@ class M24_Catalog_Template_Detail {
 		.m24det .ritem .rdesc{display:none}
 		.m24det .ritem .rp{font-family:'Saira',sans-serif;font-weight:700;font-size:14px;color:var(--bronze)}
 		@media(max-width:900px){.m24det .related-grid{grid-template-columns:repeat(2,1fr)}}
+		.m24det .related-grid-fz{grid-template-columns:repeat(3,1fr)}
+		@media(max-width:900px){.m24det .related-grid-fz{grid-template-columns:repeat(2,1fr)}}
+		.m24det .fz-badge{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:10px;font-family:'Saira',sans-serif;font-size:11px;letter-spacing:.5px;vertical-align:middle}
+		.m24det .fz-verkauft{color:#fff;background:#9a6b25}
+		.m24det .fz-reserviert{color:#9a6b25;border:1px solid #9a6b25}
 		.m24-lb{display:none;position:fixed;inset:0;background:rgba(10,11,13,.93);z-index:99999;align-items:center;justify-content:center;padding:30px}
 		.m24-lb .lb-stage{flex:1;display:flex;align-items:center;justify-content:center;height:100%}
 		.m24-lb-img{max-width:100%;max-height:90vh;object-fit:contain;transition:opacity .3s ease}
@@ -593,6 +610,30 @@ class M24_Catalog_Template_Detail {
 									<h4><?php echo esc_html( html_entity_decode( get_the_title( $rp_id ), ENT_QUOTES, 'UTF-8' ) ); ?></h4>
 									<?php if ( '' !== $r_desc ) : ?><div class="rdesc"><?php echo esc_html( $r_desc ); ?></div><?php endif; ?>
 									<div class="rp"><?php echo esc_html( $r_price ); ?></div>
+								</div>
+							</a>
+						<?php endforeach; ?>
+					</div>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( $fahrzeuge ) : ?>
+				<div class="related vehicles">
+					<div class="dl"><?php esc_html_e( 'PASSENDE FAHRZEUGE', 'm24-plattform' ); ?></div>
+					<div class="related-grid related-grid-fz">
+						<?php foreach ( array_slice( $fahrzeuge, 0, 3 ) as $fz ) : ?>
+							<a class="ritem ritem-fz" href="<?php echo esc_url( $fz['url'] ); ?>">
+								<?php if ( ! empty( $fz['thumb'] ) ) : ?>
+									<div class="rimg"><?php echo wp_get_attachment_image( (int) $fz['thumb'], 'medium', false, array( 'alt' => esc_attr( html_entity_decode( $fz['title'], ENT_QUOTES, 'UTF-8' ) ) ) ); // phpcs:ignore ?></div>
+								<?php else : ?>
+									<div class="rimg rimg-noimg" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
+								<?php endif; ?>
+								<div class="rb">
+									<h4><?php echo esc_html( html_entity_decode( $fz['title'], ENT_QUOTES, 'UTF-8' ) ); ?></h4>
+									<div class="rp">
+										<?php if ( ! empty( $fz['baujahr'] ) ) : ?><span class="fz-jahr"><?php echo esc_html( $fz['baujahr'] ); ?></span><?php endif; ?>
+										<?php if ( ! empty( $fz['sold'] ) ) : ?><span class="fz-badge fz-verkauft"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></span><?php elseif ( ! empty( $fz['reserved'] ) ) : ?><span class="fz-badge fz-reserviert"><?php esc_html_e( 'Reserviert', 'm24-plattform' ); ?></span><?php endif; ?>
+									</div>
 								</div>
 							</a>
 						<?php endforeach; ?>
