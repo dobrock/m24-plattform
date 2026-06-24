@@ -67,18 +67,24 @@ class M24_B2B_Auth {
         );
         foreach ( $defs as $opt => $d ) {
             $id = (int) get_option( $opt, 0 );
-            if ( $id && 'page' === get_post_type( $id ) && 'trash' !== get_post_status( $id ) ) {
-                continue;
+            if ( ! ( $id && 'page' === get_post_type( $id ) && 'trash' !== get_post_status( $id ) ) ) {
+                $new = wp_insert_post( array(
+                    'post_status'  => 'publish',
+                    'post_type'    => 'page',
+                    'post_title'   => $d[0],
+                    'post_name'    => $d[1],
+                    'post_content' => $d[2],
+                ) );
+                $id = ( $new && ! is_wp_error( $new ) ) ? (int) $new : 0;
+                if ( $id ) {
+                    update_option( $opt, $id );
+                }
             }
-            $new = wp_insert_post( array(
-                'post_status'  => 'publish',
-                'post_type'    => 'page',
-                'post_title'   => $d[0],
-                'post_name'    => $d[1],
-                'post_content' => $d[2],
-            ) );
-            if ( $new && ! is_wp_error( $new ) ) {
-                update_option( $opt, (int) $new );
+            // wpSEO rendert eigenes robots-Meta und übergeht wp_robots → hier hart auf
+            // „noindex, follow" (wpSEO-Code 4) setzen. Idempotent: korrigiert auch bereits
+            // angelegte Seiten beim nächsten admin_init.
+            if ( $id ) {
+                update_post_meta( $id, '_wpseo_edit_robots', '4' );
             }
         }
     }
