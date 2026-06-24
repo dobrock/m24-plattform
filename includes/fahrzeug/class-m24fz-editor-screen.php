@@ -179,6 +179,7 @@ class M24FZ_Editor_Screen {
 				</header>
 
 				<div class="fz-body">
+					<?php if ( $id ) { do_action( 'm24fz_editor_top', $id ); } // Fahrzeug-Cockpit (nur online) ?>
 					<?php if ( $id && isset( $_GET['updated'] ) ) : ?>
 						<div class="fz-note ok">
 							<?php if ( $pdraft ) : ?>

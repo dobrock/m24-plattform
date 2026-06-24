@@ -27,39 +27,18 @@ class M24FZ_Alert_Box {
 	const TEST_OPTION  = 'm24_alert_test_recipient';
 
 	public static function init() {
-		add_action( 'add_meta_boxes', array( __CLASS__, 'register_box' ) );
-		add_action( 'm24fz_editor_after_body', array( __CLASS__, 'render_in_comfort' ) );
+		add_action( 'm24fz_editor_top', array( __CLASS__, 'render_cockpit' ) ); // Komfort-Maske, ganz oben
 		add_action( 'rest_api_init', array( __CLASS__, 'register_rest' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
 	}
 
-	/* ── Box-Registrierung & Render ──────────────────────────────────────── */
-
-	public static function register_box() {
-		add_meta_box( 'm24fz-alert', 'M24 Fahrzeug-Alert', array( __CLASS__, 'box_cb' ), M24FZ_CPT::PT, 'side', 'high' );
-	}
-
-	public static function box_cb( $post ) {
-		echo self::render( (int) $post->ID ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	}
-
-	public static function render_in_comfort( $id ) {
-		// Begrenzter Karten-Wrapper — die Komfort-Maske (.fz-screen) ist ~1360px breit; ohne Limit
-		// blutet der width:100%-Button über und space-between zieht die Pro-Tag-Zeilen auseinander.
-		echo '<div class="m24fz-ab-comfort">' . self::render( (int) $id ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	public static function render_cockpit( $id ) {
+		echo self::render( (int) $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function assets( $hook ) {
-		// Klassisch/Gutenberg: aktueller Screen gehört zum CPT.
-		$on_cpt = false;
-		if ( function_exists( 'get_current_screen' ) ) {
-			$scr    = get_current_screen();
-			$on_cpt = $scr && isset( $scr->post_type ) && M24FZ_CPT::PT === $scr->post_type;
-		}
-		// Komfort-Maske: Seiten-Hook enthält den Editor-Slug.
-		$on_comfort = class_exists( 'M24FZ_Editor_Screen' ) && is_string( $hook ) && false !== strpos( $hook, M24FZ_Editor_Screen::PAGE );
-
-		if ( ! $on_cpt && ! $on_comfort ) {
+		// NUR auf der Komfort-Editor-Seite (m24fz-editor) — nicht global ins Admin bluten.
+		if ( ! class_exists( 'M24FZ_Editor_Screen' ) || ! is_string( $hook ) || false === strpos( $hook, M24FZ_Editor_Screen::PAGE ) ) {
 			return;
 		}
 		wp_enqueue_script( 'm24fz-alert', plugins_url( 'assets/fz-alert.js', M24_PLATTFORM_FILE ), array(), M24_PLATTFORM_VERSION, true );
@@ -67,21 +46,30 @@ class M24FZ_Alert_Box {
 	}
 
 	/**
-	 * Box-HTML. Daten aus der Spiegel-Tabelle; rest/nonce als data-Attribute → fz-alert.js liest sie.
+	 * Fahrzeug-Cockpit (50/50): Gradient-Header + Interessenten-Alert (links, bestehende Logik
+	 * 1:1) + Statistik (rechts). Rendert NUR wenn das Fahrzeug online ist (publish & nicht
+	 * deaktiviert) — sonst leerer String (kein Modul).
 	 */
 	public static function render( $id ) {
 		if ( ! $id || M24FZ_CPT::PT !== get_post_type( $id ) ) {
 			return '';
 		}
-		$data      = self::recipients( $id );
-		$z         = (int) $data['total'];
-		$published = ( 'publish' === get_post_status( $id ) );
-		$sent_at   = (int) get_post_meta( $id, self::META_AT, true );
-		$sent_cnt  = (int) get_post_meta( $id, self::META_COUNT, true );
-		$test      = trim( (string) get_option( self::TEST_OPTION, '' ) );
-		$test_on   = is_email( $test );
+		// Sichtbarkeit: nur online. Entwurf/auto-draft → publish-Check; deaktiviert → is_disabled.
+		if ( 'publish' !== get_post_status( $id ) ) {
+			return '';
+		}
+		if ( class_exists( 'M24FZ_CPT' ) && M24FZ_CPT::is_disabled( $id ) ) {
+			return '';
+		}
 
-		// Button-Beschriftung & Confirm-Text.
+		// ── Interessenten-Alert (bestehende Logik) ──
+		$data     = self::recipients( $id );
+		$z        = (int) $data['total'];
+		$sent_at  = (int) get_post_meta( $id, self::META_AT, true );
+		$sent_cnt = (int) get_post_meta( $id, self::META_COUNT, true );
+		$test     = trim( (string) get_option( self::TEST_OPTION, '' ) );
+		$test_on  = is_email( $test );
+
 		if ( $sent_at ) {
 			$btn_label = 'Erneut senden';
 		} elseif ( $test_on ) {
@@ -89,93 +77,133 @@ class M24FZ_Alert_Box {
 		} else {
 			$btn_label = 'Jetzt an ' . $z . ' Interessenten senden';
 		}
-		$confirm = $test_on ? ( 'Test-Versand an ' . $test . '?' ) : ( 'An ' . $z . ' Interessenten senden?' );
-		$can_send = $published && ( $test_on || $z > 0 );
+		$confirm  = $test_on ? ( 'Test-Versand an ' . $test . '?' ) : ( 'An ' . $z . ' Interessenten senden?' );
+		$can_send = ( $test_on || $z > 0 ); // online ist hier garantiert
+		$rest     = esc_url_raw( rest_url( self::NS . '/fahrzeug-alert-send' ) );
+		$nonce    = wp_create_nonce( 'wp_rest' );
 
-		$rest  = esc_url_raw( rest_url( self::NS . '/fahrzeug-alert-send' ) );
-		$nonce = wp_create_nonce( 'wp_rest' );
+		// ── Statistik ──
+		$post_ts  = (int) get_post_time( 'U', true, $id );
+		$days     = max( 0, (int) floor( ( time() - $post_ts ) / DAY_IN_SECONDS ) );
+		$date     = wp_date( 'd.m.Y', $post_ts );
+		$anfragen = (int) apply_filters( 'm24_cockpit_anfragen_count', (int) get_post_meta( $id, '_m24fz_anfragen_count', true ), $id );
+		$besucher = apply_filters( 'm24_cockpit_besucher', null, $id ); // null → Slot „–" (Matomo folgt)
+		$show_gar = (bool) apply_filters( 'm24_cockpit_show_garage', false, $id );
+		$garage   = (int) apply_filters( 'm24_cockpit_garage_count', 0, $id );
+
+		$pill = sprintf(
+			/* translators: 1: days, 2: date */
+			_n( 'Online seit %1$d Tag · seit %2$s', 'Online seit %1$d Tagen · seit %2$s', $days, 'm24-plattform' ),
+			$days,
+			$date
+		);
 
 		ob_start();
 		?>
-		<div class="m24fz-alertbox" data-post="<?php echo (int) $id; ?>" data-rest="<?php echo esc_attr( $rest ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-confirm="<?php echo esc_attr( $confirm ); ?>">
+		<div class="m24-cockpit">
 			<style><?php echo self::css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></style>
 
-			<div class="m24fz-ab-head">
-				<div class="m24fz-ab-num"><?php echo (int) $z; ?></div>
-				<div class="m24fz-ab-lbl">Interessenten</div>
+			<div class="m24cp-head">
+				<div class="m24cp-h-l"><span class="m24cp-dot" aria-hidden="true"></span> Fahrzeug-Cockpit</div>
+				<div class="m24cp-pill"><?php echo esc_html( $pill ); ?></div>
 			</div>
 
-			<?php if ( ! empty( $data['breakdown'] ) ) : ?>
-				<div class="m24fz-ab-card">
-					<?php foreach ( $data['breakdown'] as $row ) : ?>
-						<div class="m24fz-ab-line">
-							<span class="t"><?php echo esc_html( $row['label'] ); ?></span>
-							<span class="c"><?php echo (int) $row['count']; ?></span>
+			<div class="m24cp-body">
+				<!-- LINKS: Interessenten-Alert -->
+				<div class="m24cp-col m24cp-alert">
+					<div class="m24cp-coltitle">Interessenten-Alert</div>
+					<div class="m24fz-alertbox" data-post="<?php echo (int) $id; ?>" data-rest="<?php echo esc_attr( $rest ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-confirm="<?php echo esc_attr( $confirm ); ?>">
+						<div class="m24cp-num"><?php echo (int) $z; ?></div>
+						<div class="m24cp-numlbl">Interessenten</div>
+
+						<?php if ( ! empty( $data['breakdown'] ) ) : ?>
+							<div class="m24fz-ab-card">
+								<?php foreach ( $data['breakdown'] as $row ) : ?>
+									<div class="m24fz-ab-line"><span class="t"><?php echo esc_html( $row['label'] ); ?></span><span class="c"><?php echo (int) $row['count']; ?></span></div>
+								<?php endforeach; ?>
+							</div>
+							<p class="m24fz-ab-foot">
+								<?php printf( esc_html__( '%1$d Einträge, %2$d doppelt = %3$d Empfänger', 'm24-plattform' ), (int) $data['entries'], (int) $data['dupes'], (int) $z ); ?>
+							</p>
+						<?php else : ?>
+							<p class="m24fz-ab-foot"><?php echo esc_html__( 'Noch keine passenden Interessenten.', 'm24-plattform' ); ?></p>
+						<?php endif; ?>
+
+						<?php if ( $sent_at ) : ?>
+							<div class="m24fz-ab-sent"><?php printf( esc_html__( '✓ Bereits am %1$s an %2$d gesendet', 'm24-plattform' ), esc_html( wp_date( 'd.m.Y H:i', $sent_at ) ), (int) $sent_cnt ); ?></div>
+						<?php endif; ?>
+						<?php if ( $test_on ) : ?>
+							<p class="m24fz-ab-test"><?php echo esc_html( sprintf( __( 'QA-Modus: Versand geht NUR an %s (Test).', 'm24-plattform' ), $test ) ); ?></p>
+						<?php endif; ?>
+
+						<button type="button" class="m24fz-ab-btn" <?php disabled( ! $can_send ); ?>><?php echo esc_html( $btn_label ); ?></button>
+						<p class="m24fz-ab-msg" role="status"></p>
+					</div>
+				</div>
+
+				<!-- RECHTS: Statistik -->
+				<div class="m24cp-col m24cp-stats">
+					<div class="m24cp-coltitle">Statistik</div>
+					<div class="m24cp-grid">
+						<div class="m24cp-tile">
+							<div class="v"><?php echo (int) $anfragen; ?></div>
+							<div class="k"><?php esc_html_e( 'Anfragen', 'm24-plattform' ); ?></div>
 						</div>
-					<?php endforeach; ?>
+						<div class="m24cp-tile">
+							<div class="v"><?php echo (int) $days; ?></div>
+							<div class="k"><?php esc_html_e( 'Tage online', 'm24-plattform' ); ?></div>
+							<div class="sub"><?php echo esc_html( sprintf( __( 'seit %s', 'm24-plattform' ), $date ) ); ?></div>
+						</div>
+						<div class="m24cp-tile slot">
+							<div class="v"><?php echo null === $besucher ? '–' : (int) $besucher; ?></div>
+							<div class="k"><?php esc_html_e( 'Besucher', 'm24-plattform' ); ?></div>
+							<?php if ( null === $besucher ) : ?><div class="sub"><?php esc_html_e( 'Matomo folgt', 'm24-plattform' ); ?></div><?php endif; ?>
+						</div>
+						<?php if ( $show_gar ) : ?>
+						<div class="m24cp-tile">
+							<div class="v"><?php echo (int) $garage; ?></div>
+							<div class="k"><?php esc_html_e( 'In Garage', 'm24-plattform' ); ?></div>
+						</div>
+						<?php endif; ?>
+					</div>
 				</div>
-				<p class="m24fz-ab-foot">
-					<?php
-					printf(
-						/* translators: 1: entries, 2: duplicates, 3: deduped recipients */
-						esc_html__( '%1$d Einträge, %2$d doppelt = %3$d Empfänger', 'm24-plattform' ),
-						(int) $data['entries'],
-						(int) $data['dupes'],
-						(int) $z
-					);
-					?>
-				</p>
-			<?php else : ?>
-				<p class="m24fz-ab-foot"><?php echo esc_html__( 'Noch keine passenden Interessenten.', 'm24-plattform' ); ?></p>
-			<?php endif; ?>
-
-			<?php if ( $sent_at ) : ?>
-				<div class="m24fz-ab-sent">
-					<?php
-					printf(
-						/* translators: 1: date, 2: count */
-						esc_html__( '✓ Bereits am %1$s an %2$d gesendet', 'm24-plattform' ),
-						esc_html( wp_date( 'd.m.Y H:i', $sent_at ) ),
-						(int) $sent_cnt
-					);
-					?>
-				</div>
-			<?php endif; ?>
-
-			<?php if ( $test_on ) : ?>
-				<p class="m24fz-ab-test"><?php echo esc_html( sprintf( __( 'QA-Modus: Versand geht NUR an %s (Test).', 'm24-plattform' ), $test ) ); ?></p>
-			<?php endif; ?>
-
-			<button type="button" class="m24fz-ab-btn" <?php disabled( ! $can_send ); ?>>
-				<?php echo esc_html( $btn_label ); ?>
-			</button>
-			<?php if ( ! $published ) : ?>
-				<p class="m24fz-ab-hint"><?php echo esc_html__( 'Erst veröffentlichen, dann senden.', 'm24-plattform' ); ?></p>
-			<?php endif; ?>
-			<p class="m24fz-ab-msg" role="status"></p>
+			</div>
 		</div>
 		<?php
 		return ob_get_clean();
 	}
 
 	private static function css() {
-		return ".m24fz-ab-comfort{max-width:360px;margin:16px 0 0;background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(20,22,26,.06);font-family:'Saira',sans-serif}"
-			. ".m24fz-alertbox{font-family:'Saira',Arial,sans-serif;color:#14161a}"
-			. ".m24fz-ab-head{text-align:center;margin:6px 0 14px}"
-			. ".m24fz-ab-num{font-size:46px;font-weight:800;line-height:1;color:#9a7b3f}"
-			. ".m24fz-ab-lbl{font-size:13px;letter-spacing:.5px;color:#5a6474;text-transform:uppercase}"
-			. ".m24fz-ab-card{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:8px 12px;margin:0 0 8px}"
-			. ".m24fz-ab-line{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid #eef0f3}"
-			. ".m24fz-ab-line:last-child{border-bottom:0}"
-			. ".m24fz-ab-line .c{font-weight:700;color:#14161a}"
-			. ".m24fz-ab-foot{font-size:12px;color:#5a6474;margin:0 0 12px;text-align:center}"
-			. ".m24fz-ab-sent{background:#edf7f1;border:1px solid #1a7a3c;color:#1a7a3c;border-radius:6px;padding:7px 10px;font-size:12px;font-weight:600;margin:0 0 10px}"
-			. ".m24fz-ab-test{background:#fdf5e6;border:1px solid #b87000;color:#8a5a00;border-radius:6px;padding:7px 10px;font-size:12px;margin:0 0 10px}"
-			. ".m24fz-ab-btn{width:100%;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;border:0;border-radius:8px;padding:12px 14px;font-size:14px;font-weight:700;cursor:pointer}"
-			. ".m24fz-ab-btn:disabled{background:#c8ccd2;cursor:not-allowed}"
-			. ".m24fz-ab-hint{font-size:12px;color:#b87000;margin:8px 0 0;text-align:center}"
-			. ".m24fz-ab-msg{font-size:13px;margin:10px 0 0;text-align:center}"
-			. ".m24fz-ab-msg.ok{color:#1a7a3c;font-weight:600}.m24fz-ab-msg.fail{color:#c8102e;font-weight:600}";
+		return ".m24-cockpit{font-family:'Saira',Arial,sans-serif;color:#14161a;max-width:1040px;margin:0 auto 22px;border:1px solid #e6e9ee;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(20,22,26,.06)}"
+			. ".m24-cockpit *{box-sizing:border-box}"
+			. ".m24-cockpit .m24cp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff}"
+			. ".m24-cockpit .m24cp-h-l{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;letter-spacing:.3px}"
+			. ".m24-cockpit .m24cp-dot{width:9px;height:9px;border-radius:50%;background:#3fd07a;box-shadow:0 0 0 3px rgba(63,208,122,.25)}"
+			. ".m24-cockpit .m24cp-pill{font-size:12px;font-weight:600;background:rgba(255,255,255,.16);padding:5px 12px;border-radius:999px;white-space:nowrap}"
+			. ".m24-cockpit .m24cp-body{display:flex;flex-wrap:wrap}"
+			. ".m24-cockpit .m24cp-col{flex:1 1 50%;min-width:0;padding:20px 22px}"
+			. ".m24-cockpit .m24cp-alert{border-right:1px solid #eef0f3}"
+			. ".m24-cockpit .m24cp-coltitle{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:#5a6474;margin:0 0 12px;font-weight:700}"
+			. ".m24-cockpit .m24cp-num{font-size:48px;font-weight:800;line-height:1;color:#9a6b25}"
+			. ".m24-cockpit .m24cp-numlbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#5a6474;margin:2px 0 12px}"
+			. ".m24-cockpit .m24fz-ab-card{background:#f7f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:8px 12px;margin:0 0 8px}"
+			. ".m24-cockpit .m24fz-ab-line{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid #eef0f3}"
+			. ".m24-cockpit .m24fz-ab-line:last-child{border-bottom:0}"
+			. ".m24-cockpit .m24fz-ab-line .c{font-weight:700;color:#14161a}"
+			. ".m24-cockpit .m24fz-ab-foot{font-size:12px;color:#5a6474;margin:0 0 12px}"
+			. ".m24-cockpit .m24fz-ab-sent{background:#edf7f1;border:1px solid #1a7a3c;color:#1a7a3c;border-radius:6px;padding:7px 10px;font-size:12px;font-weight:600;margin:0 0 10px}"
+			. ".m24-cockpit .m24fz-ab-test{background:#fdf5e6;border:1px solid #b87000;color:#8a5a00;border-radius:6px;padding:7px 10px;font-size:12px;margin:0 0 10px}"
+			. ".m24-cockpit .m24fz-ab-btn{width:100%;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;border:0;border-radius:8px;padding:12px 14px;font-size:14px;font-weight:700;cursor:pointer}"
+			. ".m24-cockpit .m24fz-ab-btn:disabled{background:#c8ccd2;cursor:not-allowed}"
+			. ".m24-cockpit .m24fz-ab-msg{font-size:13px;margin:10px 0 0}"
+			. ".m24-cockpit .m24fz-ab-msg.ok{color:#1a7a3c;font-weight:600}.m24-cockpit .m24fz-ab-msg.fail{color:#c8102e;font-weight:600}"
+			. ".m24-cockpit .m24cp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}"
+			. ".m24-cockpit .m24cp-tile{background:#fafafa;border:1px solid #e6e9ee;border-radius:10px;padding:14px 16px;text-align:center}"
+			. ".m24-cockpit .m24cp-tile .v{font-size:30px;font-weight:800;line-height:1;color:#14161a}"
+			. ".m24-cockpit .m24cp-tile .k{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#5a6474;margin-top:6px}"
+			. ".m24-cockpit .m24cp-tile .sub{font-size:11px;color:#9aa3b0;margin-top:3px}"
+			. ".m24-cockpit .m24cp-tile.slot .v{color:#c0c6cf}"
+			. "@media(max-width:640px){.m24-cockpit .m24cp-col{flex:1 1 100%}.m24-cockpit .m24cp-alert{border-right:0;border-bottom:1px solid #eef0f3}.m24-cockpit .m24cp-pill{white-space:normal}}";
 	}
 
 	/* ── Zielgruppe / Zähler (Spiegel-Tabelle) ───────────────────────────── */
