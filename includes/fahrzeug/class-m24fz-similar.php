@@ -120,29 +120,38 @@ class M24FZ_Similar {
 	 * Fahrzeug-Karten für einen Chassis-/Modell-Token (z.B. "e30") — für die
 	 * Teile-Detailseite. Zum Verkauf zuerst, dann mit verkauften auffüllen.
 	 */
-	public static function cards_for_chassis( $token, $limit = 3 ) {
-		$token = strtolower( trim( str_replace( '-', ' ', (string) $token ) ) );
-		if ( '' === $token ) { return array(); }
-		$is_e9x = ( 'e9x' === $token ); // Wildcard für E90/E92/E93
-		$match  = static function ( $c ) use ( $token, $is_e9x ) {
-			$text = str_replace( '-', ' ', strtolower( (string) ( $c['hay'] ?? '' ) . ' ' . ( $c['cats'] ?? '' ) ) );
-			if ( $is_e9x ) { return (bool) preg_match( '/e9[0-9x]/', $text ); }
-			return false !== strpos( $text, $token );
-		};
-		// Alle vier Kategorien stecken bereits in legacy_pool (LEGACY_CATS); CPT kommt dazu.
+	/**
+	 * Fahrzeug-Karten als UNION über mehrere Modell-Tags (CPT + Legacy, alle 4 Kategorien).
+	 * Zum Verkauf zuerst, dann verkauft; pro Fahrzeug eine Karte. Pool nur einmal laden.
+	 */
+	public static function cards_for_terms( $slugs, $limit = 3 ) {
+		$slugs = array_filter( array_map( 'strval', (array) $slugs ) );
+		if ( empty( $slugs ) ) { return array(); }
 		$pool = array_merge( self::cpt_pool( 0 ), self::legacy_pool( 0 ) );
 		$available = array();
 		$sold      = array();
 		foreach ( $pool as $c ) {
-			if ( ! $match( $c ) ) { continue; }
+			$text = str_replace( '-', ' ', strtolower( (string) ( $c['hay'] ?? '' ) . ' ' . ( $c['cats'] ?? '' ) ) );
+			$hit  = false;
+			foreach ( $slugs as $slug ) {
+				$token = strtolower( trim( str_replace( '-', ' ', $slug ) ) );
+				if ( '' === $token ) { continue; }
+				if ( 'e9x' === $token ) { if ( preg_match( '/e9[0-9x]/', $text ) ) { $hit = true; break; } }
+				elseif ( false !== strpos( $text, $token ) ) { $hit = true; break; }
+			}
+			if ( ! $hit ) { continue; }
 			if ( ! empty( $c['sold'] ) ) { $sold[] = $c; } else { $available[] = $c; }
 		}
 		if ( empty( $available ) && empty( $sold ) ) { return array(); }
 		$bydate = static function ( $a, $b ) { return ( (int) ( $b['ts'] ?? 0 ) ) <=> ( (int) ( $a['ts'] ?? 0 ) ); };
 		usort( $available, $bydate );
 		usort( $sold, $bydate );
-		// Zum Verkauf zuerst, dann verkauft auffüllen; pro Fahrzeug nur eine Karte.
 		return array_slice( self::dedupe( array_merge( $available, $sold ) ), 0, (int) $limit );
+	}
+
+	/** Dünner Wrapper: ein einzelner Chassis-/Modell-Token. */
+	public static function cards_for_chassis( $token, $limit = 3 ) {
+		return self::cards_for_terms( array( $token ), $limit );
 	}
 
 	/** Rückwärtskompatibel: nur die Post-IDs. */

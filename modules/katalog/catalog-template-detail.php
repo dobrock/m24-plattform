@@ -139,11 +139,8 @@ class M24_Catalog_Template_Detail {
 		$fahrzeuge = array();
 		if ( class_exists( 'M24FZ_Similar' ) ) {
 			$fz_slugs = wp_get_post_terms( $id, 'm24_fahrzeugkat', array( 'fields' => 'slugs' ) );
-			if ( ! is_wp_error( $fz_slugs ) ) {
-				foreach ( (array) $fz_slugs as $fz_slug ) {
-					$cards = M24FZ_Similar::cards_for_chassis( $fz_slug, 3 );
-					if ( ! empty( $cards ) ) { $fahrzeuge = $cards; break; }
-				}
+			if ( ! is_wp_error( $fz_slugs ) && ! empty( $fz_slugs ) ) {
+				$fahrzeuge = M24FZ_Similar::cards_for_terms( $fz_slugs, 3 );
 			}
 		}
 
