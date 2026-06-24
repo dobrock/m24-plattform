@@ -201,10 +201,15 @@ class M24_Interessenten_Page {
 			<h1><?php echo esc_html__( 'MOTORSPORT24 — Interessenten', 'm24-plattform' ); ?></h1>
 			<style><?php echo self::css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></style>
 
-			<?php if ( isset( $_GET['m24il_done'] ) ) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php
-					$done = sanitize_text_field( wp_unslash( $_GET['m24il_done'] ) );
-					echo esc_html( 'deleted' === $done ? __( 'Eintrag gelöscht (Brevo + Tabellen).', 'm24-plattform' ) : __( 'Interessent abgemeldet (Status + Brevo-Listen).', 'm24-plattform' ) );
+			<?php if ( isset( $_GET['m24il_done'] ) ) : $done = sanitize_text_field( wp_unslash( $_GET['m24il_done'] ) ); ?>
+				<div class="notice notice-<?php echo 'remindfail' === $done ? 'error' : 'success'; ?> is-dismissible"><p><?php
+					$map = array(
+						'deleted'    => __( 'Eintrag gelöscht (Brevo + Tabellen).', 'm24-plattform' ),
+						'unsub'      => __( 'Interessent abgemeldet (Status + Brevo-Listen).', 'm24-plattform' ),
+						'remindtest' => __( 'Test-Erinnerung gesendet (siehe Sync-Log „TEST").', 'm24-plattform' ),
+						'remindfail' => __( 'Test-Erinnerung fehlgeschlagen — kein offener Pending zu dieser Adresse.', 'm24-plattform' ),
+					);
+					echo esc_html( $map[ $done ] ?? __( 'Aktion ausgeführt.', 'm24-plattform' ) );
 				?></p></div>
 			<?php endif; ?>
 
@@ -496,6 +501,14 @@ class M24_Interessenten_List_Table extends WP_List_Table {
 
 		if ( 'abgemeldet' !== $item['status'] ) {
 			$actions['unsub'] = '<a href="' . esc_url( $unsub ) . '" onclick="return confirm(\'' . esc_js( sprintf( __( '%s wirklich abmelden? (Status → abgemeldet, raus aus den Brevo-Listen)', 'm24-plattform' ), $email ) ) . '\');">' . esc_html__( 'Abmelden', 'm24-plattform' ) . '</a>';
+		}
+		// QA: Erinnerungsmail für offene DOI-Pendings sofort testen (an m24_alert_test_recipient).
+		if ( 'pending' === $item['status'] ) {
+			$remind = wp_nonce_url(
+				add_query_arg( array( 'action' => 'm24_il_reminder_test', 'email' => $email ), admin_url( 'admin-post.php' ) ),
+				'm24_il_reminder_test_' . $email
+			);
+			$actions['remindtest'] = '<a href="' . esc_url( $remind ) . '">' . esc_html__( 'Erinnerung testen', 'm24-plattform' ) . '</a>';
 		}
 		$actions['delete'] = '<a href="' . esc_url( $delete ) . '" style="color:#b32d2e;" onclick="return confirm(\'' . esc_js( sprintf( __( '%s endgültig löschen? Entfernt den Kontakt aus Brevo und allen Tabellen (DSGVO Art. 17).', 'm24-plattform' ), $email ) ) . '\');">' . esc_html__( 'Löschen', 'm24-plattform' ) . '</a>';
 

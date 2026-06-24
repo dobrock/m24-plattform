@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.64
+ * Version:           0.11.65
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.64' );
+define( 'M24_PLATTFORM_VERSION',     '0.11.65' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
@@ -211,6 +211,7 @@ if ( is_admin() ) {
 register_activation_hook( __FILE__, [ 'M24_Database', 'activate' ] );
 register_deactivation_hook( __FILE__, function() {
     // Nichts loeschen - nur Cron/Action-Scheduler-Jobs deregistrieren
+    wp_clear_scheduled_hook( 'm24_il_reminder_tick' ); // DOI-Erinnerungs-Cron
 } );
 
 add_action( 'plugins_loaded', function() {

@@ -25,8 +25,9 @@ class M24_Brevo_IL {
 
 	const PENDING_OPTION = 'm24_brevo_il_pending';
 	const CONFIRM_PAGE   = 34308; // WP-Seite /anmeldung-bestaetigt/
-	const TTL            = 604800; // 7 Tage in Sekunden
+	const TTL            = 1209600; // 14 Tage in Sekunden
 	const QUERY_VAR      = 'm24il';
+	const CRON_HOOK      = 'm24_il_reminder_tick';
 
 	/** Ergebnis des Confirm-Vorgangs für die_content: 'ok' | 'invalid' | null. */
 	private static $confirm_state = null;
@@ -39,6 +40,13 @@ class M24_Brevo_IL {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_confirm' ) );
 		add_filter( 'the_content', array( __CLASS__, 'confirm_notice' ), 9999 );
 		add_action( 'wp_head', array( __CLASS__, 'confirm_page_styles' ), 99 );
+
+		// DOI-Erinnerung: stündlicher Cron-Tick + QA-Test-Trigger (manage_options).
+		add_action( self::CRON_HOOK, array( __CLASS__, 'reminder_tick' ) );
+		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
+			wp_schedule_event( time() + 60, 'hourly', self::CRON_HOOK );
+		}
+		add_action( 'admin_post_m24_il_reminder_test', array( __CLASS__, 'handle_reminder_test' ) );
 	}
 
 	/**
@@ -115,14 +123,19 @@ class M24_Brevo_IL {
 		// Fahrzeug-Alert-Tags aus dem auslösenden Kontext ableiten (Leaf + marke-alle + art + global).
 		$tags = class_exists( 'M24_Alert_Taxonomie' ) ? M24_Alert_Taxonomie::tags_for_context( $context_id, $contact ) : array();
 
+		// Bestehenden reminded_at-Status erhalten (Re-Submit erneuert den Token, nicht den Reminder-Stand).
+		$reminded_at = isset( $store[ $token ]['reminded_at'] ) ? (int) $store[ $token ]['reminded_at'] : 0;
+
 		$store[ $token ] = array(
-			'email'      => $email,
-			'name'       => $name,
-			'kundentyp'  => sanitize_text_field( (string) ( $contact['kundentyp'] ?? '' ) ),
-			'attributes' => $attributes,
-			'tags'       => $tags,
-			'source_id'  => (int) $context_id,
-			'created'    => time(),
+			'email'       => $email,
+			'name'        => $name,
+			'kundentyp'   => sanitize_text_field( (string) ( $contact['kundentyp'] ?? '' ) ),
+			'lieferland'  => sanitize_text_field( (string) ( $contact['lieferland'] ?? '' ) ),
+			'attributes'  => $attributes,
+			'tags'        => $tags,
+			'source_id'   => (int) $context_id,
+			'created'     => time(),
+			'reminded_at' => $reminded_at,
 		);
 		self::save( $store );
 
@@ -428,6 +441,175 @@ class M24_Brevo_IL {
 			'code'  => (int) $res['code'],
 			'msg'   => (string) $res['msg'],
 		) );
+	}
+
+	/* =====================================================================
+	 * DOI-Erinnerung (Cron, einmalig je Pending, Sonntag-Slot in der Lieferland-TZ)
+	 * ================================================================== */
+
+	/**
+	 * Stündlicher Cron-Tick: noch unbestätigte Pendings, deren Erinnerungstermin erreicht
+	 * und die noch nicht abgelaufen sind, einmalig erinnern. Bestätigte sind nicht mehr im Store.
+	 */
+	public static function reminder_tick() {
+		$store   = self::load();
+		$now     = time();
+		$changed = false;
+		foreach ( $store as $token => $rec ) {
+			if ( 0 !== (int) ( $rec['reminded_at'] ?? 0 ) ) { continue; }            // schon erinnert
+			$created = (int) ( $rec['created'] ?? 0 );
+			if ( $now > $created + self::TTL ) { continue; }                          // abgelaufen
+			if ( $now < self::reminder_due_ts( $rec ) ) { continue; }                 // Termin noch nicht erreicht
+			self::send_reminder_mail( $rec, $token );
+			$store[ $token ]['reminded_at'] = $now;
+			$changed = true;
+		}
+		if ( $changed ) { self::save( $store ); }
+	}
+
+	/**
+	 * Erinnerungstermin (UTC-Timestamp): nächster Sonntag {hour}:00 in der Lieferland-TZ,
+	 * mindestens 1 Tag nach Anmeldung.
+	 * Beispiele: Sa 23:55 → So in 8 Tagen (nicht morgen, weil So-11:00 < Sa23:55+24h);
+	 *            Mo 09:00 → kommender So 11:00.
+	 */
+	public static function reminder_due_ts( $rec ) {
+		$created  = (int) ( $rec['created'] ?? 0 );
+		$hour     = (int) apply_filters( 'm24_il_reminder_hour', 11 );
+		$tz       = new DateTimeZone( self::tz_for_lieferland( (string) ( $rec['lieferland'] ?? '' ) ) );
+		$schwelle = $created + DAY_IN_SECONDS; // >= 1 Tag Abstand
+
+		$d   = ( new DateTime( '@' . $created ) )->setTimezone( $tz );
+		$add = ( 7 - (int) $d->format( 'w' ) ) % 7; // Tage bis Sonntag (0 = heute Sonntag)
+		if ( $add > 0 ) { $d->modify( '+' . $add . ' days' ); }
+		$d->setTime( $hour, 0, 0 );
+		while ( $d->getTimestamp() < $schwelle ) { $d->modify( '+7 days' ); }
+		return $d->getTimestamp();
+	}
+
+	/** Zeitzone aus dem Lieferland-Namen (filterbar). Default Europe/Berlin. */
+	public static function tz_for_lieferland( $land ) {
+		$map = apply_filters( 'm24_il_reminder_tz_map', array(
+			'Deutschland'            => 'Europe/Berlin',
+			'Österreich'             => 'Europe/Berlin',
+			'Schweiz'                => 'Europe/Berlin',
+			'Niederlande'            => 'Europe/Berlin',
+			'Belgien'                => 'Europe/Berlin',
+			'Frankreich'             => 'Europe/Berlin',
+			'Italien'                => 'Europe/Berlin',
+			'Spanien'                => 'Europe/Berlin',
+			'Vereinigtes Königreich' => 'Europe/London',
+			'Großbritannien'         => 'Europe/London',
+			'UK'                     => 'Europe/London',
+			'USA'                    => 'America/New_York',
+			'Vereinigte Staaten'     => 'America/New_York',
+			'Kanada'                 => 'America/Toronto',
+		) );
+		$land = trim( (string) $land );
+		return isset( $map[ $land ] ) ? $map[ $land ] : 'Europe/Berlin';
+	}
+
+	/**
+	 * Erinnerungsmail: Hülle identisch zur DOI-Mail, mit Fahrzeugbildern + DEMSELBEN Confirm-Link.
+	 * Fehlt Fahrzeug/Bild → Block weglassen, Mail trotzdem senden.
+	 */
+	public static function send_reminder_mail( $rec, $token ) {
+		$email = sanitize_email( (string) ( $rec['email'] ?? '' ) );
+		if ( ! is_email( $email ) ) { return; }
+		$name        = (string) ( $rec['name'] ?? '' );
+		$source      = (int) ( $rec['source_id'] ?? 0 );
+		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
+		$subject     = 'Erinnerung: Ihre Anmeldung bei MOTORSPORT24 – noch ein Klick';
+
+		$veh_title = $source ? get_the_title( $source ) : '';
+		$bezug     = '' !== $veh_title
+			? 'Sie hatten sich für <strong>' . esc_html( $veh_title ) . '</strong> auf unsere Interessentenliste eingetragen — Ihre Bestätigung steht aber noch aus.'
+			: 'Ihre Anmeldung auf unsere Interessentenliste steht noch aus.';
+
+		$inner  = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>';
+		$inner .= '<p style="margin:0 0 14px;">' . $bezug . ' Mit einem Klick sind Sie dabei und verpassen kein passendes Fahrzeug mehr:</p>';
+		$inner .= self::vehicle_image_block( $source );
+		$inner .= '<p style="margin:24px 0;text-align:center;">'
+			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
+			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung jetzt bestätigen</a>'
+			. '</p>';
+		$inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:</p>';
+		$inner .= '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>';
+		$inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach — es passiert nichts.</p>';
+
+		$body    = self::mail_html( 'Noch ein Klick zur Bestätigung', $inner );
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: ' . self::from_header(),
+			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+		);
+
+		wp_mail( $email, $subject, $body, $headers );
+		M24_Logger::info( 'brevo', 'DOI-Erinnerung gesendet (' . M24_Brevo_Client::mask_email( $email ) . ')', array(
+			'source_id' => $source,
+		) );
+	}
+
+	/**
+	 * E-Mail-taugliches Bild-Markup aus dem Fahrzeug: Titelbild (large) + bis zu 3 Außenbilder (medium).
+	 * Absolute URLs, feste width-Attribute, Tabellen-Layout. Fehlt alles → leerer String.
+	 */
+	private static function vehicle_image_block( $source ) {
+		if ( ! $source || ! get_post( $source ) ) { return ''; }
+
+		$main_id = (int) get_post_thumbnail_id( $source );
+		$main    = $main_id ? wp_get_attachment_image_url( $main_id, 'large' ) : '';
+
+		$gal = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $source, '_m24fz_gal_aussen', true ) ) ) );
+		$gal = array_slice( array_diff( $gal, array( $main_id ) ), 0, 3 );
+
+		$html = '';
+		if ( $main ) {
+			$html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;"><tr>'
+				. '<td style="padding:0;"><img src="' . esc_url( $main ) . '" width="400" alt="' . esc_attr( get_the_title( $source ) ) . '" style="display:block;width:100%;max-width:400px;height:auto;border:0;border-radius:6px;"></td>'
+				. '</tr></table>';
+		}
+		if ( ! empty( $gal ) ) {
+			$cells = '';
+			foreach ( $gal as $gid ) {
+				$u = wp_get_attachment_image_url( $gid, 'medium' );
+				if ( ! $u ) { continue; }
+				$cells .= '<td style="padding:0 4px;" width="130"><img src="' . esc_url( $u ) . '" width="130" alt="" style="display:block;width:100%;max-width:130px;height:auto;border:0;border-radius:4px;"></td>';
+			}
+			if ( '' !== $cells ) {
+				$html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;"><tr>' . $cells . '</tr></table>';
+			}
+		}
+		return $html;
+	}
+
+	/**
+	 * QA-Trigger (manage_options, nonce): baut die Erinnerungsmail für ein Pending und sendet sie
+	 * sofort an m24_alert_test_recipient (sonst Record-Adresse) — Datumsgate übersprungen, Log „TEST".
+	 */
+	public static function handle_reminder_test() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) );
+		}
+		$email = sanitize_email( wp_unslash( $_GET['email'] ?? '' ) );
+		check_admin_referer( 'm24_il_reminder_test_' . $email );
+
+		$store = self::load();
+		$token = self::find_token_by_email( $store, $email );
+		$ok    = false;
+		if ( null !== $token ) {
+			$rec  = $store[ $token ];
+			$dest = sanitize_email( (string) get_option( 'm24_alert_test_recipient', '' ) );
+			if ( ! is_email( $dest ) ) { $dest = (string) $rec['email']; }
+			$rec['email'] = $dest; // Versand-Ziel überschreiben, Inhalt/Link unverändert
+			self::send_reminder_mail( $rec, $token );
+			$ok = true;
+			M24_Logger::info( 'brevo', 'DOI-Erinnerung [TEST] gesendet an ' . M24_Brevo_Client::mask_email( $dest ), array( 'mode' => 'TEST', 'source_id' => (int) ( $rec['source_id'] ?? 0 ) ) );
+		}
+
+		$back = wp_get_referer() ?: admin_url( 'admin.php?page=m24-interessenten' );
+		wp_safe_redirect( add_query_arg( 'm24il_done', $ok ? 'remindtest' : 'remindfail', remove_query_arg( array( 'm24il_done', '_wpnonce', 'action', 'email' ), $back ) ) );
+		exit;
 	}
 
 	/* =====================================================================

@@ -104,7 +104,7 @@ class M24FZ_Anfrage {
 		// IL-Opt-in (optional): bei gesetztem Häkchen zusätzlich in die Interessentenliste (Liste 3) —
 		// NAME + KUNDENTYP + Fahrzeug-Attribute. Ohne Häkchen: nichts (nur Anfrage-Mail/Desk wie gehabt).
 		if ( ! empty( $p['il_optin'] ) ) {
-			self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'kundentyp' => $kundentyp ) );
+			self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'kundentyp' => $kundentyp, 'lieferland' => $lieferland ) );
 		}
 
 		// Erst bei erfolgreichem Submit zählen (§2).
@@ -168,10 +168,11 @@ class M24FZ_Anfrage {
 	 * Anfragen-Zähler. Fallback-Mail (klar markiert) + Hook m24fz_interessent_submitted für Brevo Phase 2 (DOI).
 	 */
 	public static function register_interessent( $context_id, $contact ) {
-		$name      = (string) ( $contact['name'] ?? '' );
-		$mail      = (string) ( $contact['email'] ?? '' );
-		$tel       = (string) ( $contact['tel'] ?? '' );
-		$kundentyp = (string) ( $contact['kundentyp'] ?? '' );
+		$name       = (string) ( $contact['name'] ?? '' );
+		$mail       = (string) ( $contact['email'] ?? '' );
+		$tel        = (string) ( $contact['tel'] ?? '' );
+		$kundentyp  = (string) ( $contact['kundentyp'] ?? '' );
+		$lieferland = (string) ( $contact['lieferland'] ?? '' ); // für die DOI-Erinnerungs-TZ (Anfrage-Pfad)
 		if ( '' === $name || ! is_email( $mail ) ) { return; }
 
 		// Attribute: explizit übergeben (z. B. Teile-Kontext) ODER aus dem Fahrzeug ableiten.
@@ -206,6 +207,7 @@ class M24FZ_Anfrage {
 			'email'      => $mail,
 			'kundentyp'  => $kundentyp,
 			'tel'        => $tel,
+			'lieferland' => $lieferland,
 			'modelle'    => $attr['modelle'],
 			'kategorien' => $attr['kategorien'],
 		) );
