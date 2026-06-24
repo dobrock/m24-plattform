@@ -194,11 +194,8 @@ class M24_Interessenten_Page {
 			wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) );
 		}
 
-		$counts = self::counts();
-		$args   = self::request_args();
-
-		$table = new M24_Interessenten_List_Table();
-		$table->prepare_items();
+		// ZUERST den Kopf ausgeben — so reißt ein späterer Datenfehler nie die ganze Seite weg
+		// (display_errors ist in Prod aus → sonst weiße Seite).
 		?>
 		<div class="wrap m24il-wrap">
 			<h1><?php echo esc_html__( 'MOTORSPORT24 — Interessenten', 'm24-plattform' ); ?></h1>
@@ -211,12 +208,31 @@ class M24_Interessenten_Page {
 				?></p></div>
 			<?php endif; ?>
 
+			<?php
+			// DANN erst die Datenbeschaffung — in try/catch gekapselt, damit ein DB-/Datenfehler
+			// nur eine Fehlerbox zeigt statt die Seite abzubrechen.
+			$counts = null;
+			$args   = self::request_args();
+			$table  = null;
+			try {
+				$counts = self::counts();
+				$table  = new M24_Interessenten_List_Table();
+				$table->prepare_items();
+			} catch ( \Throwable $e ) {
+				echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Fehler beim Laden der Interessenten:', 'm24-plattform' ) . '</strong> '
+					. esc_html( $e->getMessage() ) . ' <code>' . esc_html( $e->getFile() . ':' . $e->getLine() ) . '</code></p></div>';
+			}
+			?>
+
+			<?php if ( is_array( $counts ) ) : ?>
 			<div class="m24il-tiles">
 				<div class="m24il-tile"><div class="n"><?php echo (int) $counts['aktiv']; ?></div><div class="l"><?php echo esc_html__( 'Aktiv', 'm24-plattform' ); ?></div></div>
 				<div class="m24il-tile"><div class="n y"><?php echo (int) $counts['pending']; ?></div><div class="l"><?php echo esc_html__( 'Pending (DOI offen)', 'm24-plattform' ); ?></div></div>
 				<div class="m24il-tile"><div class="n g"><?php echo (int) $counts['abgemeldet']; ?></div><div class="l"><?php echo esc_html__( 'Abgemeldet', 'm24-plattform' ); ?></div></div>
 			</div>
+			<?php endif; ?>
 
+			<?php if ( $table instanceof M24_Interessenten_List_Table ) : ?>
 			<form method="get" class="m24il-filters">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
 
@@ -274,6 +290,7 @@ class M24_Interessenten_Page {
 
 				<?php $table->display(); ?>
 			</form>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
