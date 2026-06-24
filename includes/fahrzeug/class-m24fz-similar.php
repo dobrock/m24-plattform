@@ -123,20 +123,26 @@ class M24FZ_Similar {
 	public static function cards_for_chassis( $token, $limit = 3 ) {
 		$token = strtolower( trim( str_replace( '-', ' ', (string) $token ) ) );
 		if ( '' === $token ) { return array(); }
-		$pool = self::cpt_pool( 0 ); // alle Fahrzeuge, neueste zuerst (orderby date DESC)
-		$hits = array();
-		foreach ( $pool as $c ) {
-			$hay = str_replace( '-', ' ', (string) ( $c['hay'] ?? '' ) );
-			if ( false !== strpos( $hay, $token ) ) { $hits[] = $c; }
-		}
-		if ( empty( $hits ) ) { return array(); }
+		$is_e9x = ( 'e9x' === $token ); // Wildcard für E90/E92/E93
+		$match  = static function ( $c ) use ( $token, $is_e9x ) {
+			$text = str_replace( '-', ' ', strtolower( (string) ( $c['hay'] ?? '' ) . ' ' . ( $c['cats'] ?? '' ) ) );
+			if ( $is_e9x ) { return (bool) preg_match( '/e9[0-9x]/', $text ); }
+			return false !== strpos( $text, $token );
+		};
+		// Alle vier Kategorien stecken bereits in legacy_pool (LEGACY_CATS); CPT kommt dazu.
+		$pool = array_merge( self::cpt_pool( 0 ), self::legacy_pool( 0 ) );
 		$available = array();
 		$sold      = array();
-		foreach ( $hits as $c ) {
+		foreach ( $pool as $c ) {
+			if ( ! $match( $c ) ) { continue; }
 			if ( ! empty( $c['sold'] ) ) { $sold[] = $c; } else { $available[] = $c; }
 		}
-		// Zum Verkauf (inkl. reserviert) zuerst, dann verkauft auffüllen. Pool ist bereits neueste-zuerst.
-		return array_slice( array_merge( $available, $sold ), 0, (int) $limit );
+		if ( empty( $available ) && empty( $sold ) ) { return array(); }
+		$bydate = static function ( $a, $b ) { return ( (int) ( $b['ts'] ?? 0 ) ) <=> ( (int) ( $a['ts'] ?? 0 ) ); };
+		usort( $available, $bydate );
+		usort( $sold, $bydate );
+		// Zum Verkauf zuerst, dann verkauft auffüllen; pro Fahrzeug nur eine Karte.
+		return array_slice( self::dedupe( array_merge( $available, $sold ) ), 0, (int) $limit );
 	}
 
 	/** Rückwärtskompatibel: nur die Post-IDs. */
@@ -205,6 +211,11 @@ class M24FZ_Similar {
 			$title = get_the_title( $id );
 			$clean = preg_replace( '/^\s*(coming up for sale|for sale|sold|verkauft|reserviert)\s*:\s*/i', '', $title );
 			$year  = preg_match( '/\b(19|20)\d{2}\b/', $title, $m ) ? $m[0] : '';
+			$cat_terms = get_the_terms( $id, 'category' );
+			$cats_txt  = '';
+			if ( is_array( $cat_terms ) ) {
+				foreach ( $cat_terms as $ct ) { $cats_txt .= ' ' . $ct->slug . ' ' . $ct->name; }
+			}
 			$out[] = array(
 				'source'   => 'legacy',
 				'id'       => $id,
@@ -217,6 +228,7 @@ class M24FZ_Similar {
 				'cc'       => '',
 				'marke'    => '',
 				'hay'      => strtolower( $title ),
+				'cats'     => strtolower( $cats_txt ),
 				'ts'       => (int) get_post_time( 'U', true, $id ),
 			);
 		}
