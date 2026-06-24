@@ -173,9 +173,37 @@ class M24_Catalog_Hub {
 	 * UND Querystrings (?sort=/?q=/?kat=). Matcht NUR diese Pfade — Teile-Archiv
 	 * /gebrauchtteile/, /rennsport-teile/ und Detailseiten bleiben unberuehrt.
 	 */
+	/**
+	 * Statische Legacy-Reclaims: tote, abgeschaltete Alt-Deeplinks (.de) mit Linkpower → Live-Hubs.
+	 * KEINE Hub-Slug-Renames (die laufen über die Option m24_hub_slug_redirects / legacy_paths),
+	 * sondern feste 1:1-Umleitungen. Schlüssel normalisiert (lowercase, ohne Rand-Slashes). Filterbar.
+	 */
+	public static function legacy_reclaims() {
+		return apply_filters( 'm24_legacy_reclaims', array(
+			'datenschutz'               => '/datenschutzerklaerung/',
+			'bmw-m3/bmw-m3-e30'         => '/teile/e30/',
+			'bmw-m3/bmw-m3-e36'         => '/teile/e36/',
+			'bmw-m3/bmw-m3-e46'         => '/teile/e46/',
+			'bmw-m3/bmw-m3-e90'         => '/teile/e9x/',
+			'bmw-m3/bmw-m3-e92'         => '/teile/e9x/',
+			'bmw-m3/bmw-m3-f80'         => '/bmw-m3/',
+			'bmw-1er/bmw-m135i-f20-f21' => '/bmw-1er/',
+		) );
+	}
+
 	public static function legacy_redirect() {
 		$path = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) : '';
 		if ( '' === $path ) { return; }
+
+		// 1) Statische Reclaims zuerst — exakter Match, führender/abschließender Slash + Groß/Klein egal.
+		$norm     = strtolower( trim( rawurldecode( $path ), '/' ) );
+		$reclaims = self::legacy_reclaims();
+		if ( isset( $reclaims[ $norm ] ) ) {
+			wp_safe_redirect( home_url( $reclaims[ $norm ] ), 301 );
+			exit;
+		}
+
+		// 2) Hub-Slug-Renames / sonstige Legacy-Pfade (Prefix + Tail/Query erhaltend).
 		$map = self::legacy_paths();
 		foreach ( $map as $old => $new ) {
 			if ( $path === $old || 0 === strpos( $path, $old . '/' ) ) {
