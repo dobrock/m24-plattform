@@ -709,6 +709,12 @@ class M24_Catalog_Template_Detail {
 			var partTitle=<?php echo wp_json_encode( get_the_title( $id ) ); ?>;
 			function railAlt(i){ return i===0?partTitle:partTitle+' – Ansicht '+(i+1); }
 			if(!imgs.length)return;
+			// Alle Vollbilder nach dem ersten Paint in den Cache vorladen → Durchblättern + Lightbox ohne Wartezeit.
+			// Idle (bzw. 800ms-Fallback), konkurriert nicht mit LCP; Hauptbild (imgs[0]) ist eh schon geladen.
+			(function(){
+				var warm=function(){ imgs.forEach(function(im){ if(im&&im.full){ var p=new Image(); p.decoding='async'; p.src=im.full; } }); };
+				if('requestIdleCallback' in window){ requestIdleCallback(warm,{timeout:2000}); } else { setTimeout(warm,800); }
+			})();
 			var idx=0,hovering=false;
 			var mainImg=root.querySelector('.m24-main-img');
 			var lb=root.querySelector('.m24-lb'),lbImg=lb.querySelector('.m24-lb-img'),rail=lb.querySelector('.m24-lb-rail');

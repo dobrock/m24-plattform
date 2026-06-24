@@ -18,16 +18,23 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 if ( ! function_exists( 'm24_model_label' ) ) {
 	function m24_model_label( $name ) {
+		$name = trim( (string) $name );
+		// Nur Sonder-Mappings, die umstrukturieren (M3 Exx → 3er (Exx)). Reines „BMW "-Strippen generisch unten.
 		$map = apply_filters( 'm24_model_label_map', array(
-			'BMW 3er' => '3er',
-			'BMW Z4'  => 'Z4',
-			'M3 E30'  => '3er (E30)',
-			'M3 E36'  => '3er (E36)',
-			'M3 E46'  => '3er (E46)',
-			'M3 E9x'  => '3er (E9x)',
+			'M3 E30' => '3er (E30)',
+			'M3 E36' => '3er (E36)',
+			'M3 E46' => '3er (E46)',
+			'M3 E9x' => '3er (E9x)',
 		) );
-		$name = (string) $name;
-		return isset( $map[ trim( $name ) ] ) ? $map[ trim( $name ) ] : $name; // Z4 GT3 etc. bleiben
+		if ( isset( $map[ $name ] ) ) {
+			return $map[ $name ];
+		}
+		// Markenname aus reinen Anzeige-Labels strippen (KLAKA): „BMW 3er" → „3er", „BMW X5" → „X5".
+		// „Z4 GT3" o. Ä. ohne „BMW "-Präfix bleiben unverändert.
+		if ( 0 === stripos( $name, 'BMW ' ) ) {
+			return trim( substr( $name, 4 ) );
+		}
+		return $name;
 	}
 }
 
