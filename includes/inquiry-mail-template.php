@@ -123,7 +123,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		$LOGO_W    = 112; // Anzeigebreite px (Native 280px → scharf auf Retina)
 
 		// --- Daten normalisieren -----------------------------------------
-		$titel      = isset( $a['titel'] ) && $a['titel'] !== '' ? $a['titel'] : 'Neue Produktanfrage';
+		$titel      = isset( $a['titel'] ) && $a['titel'] !== '' ? $a['titel'] : 'Neue Teileanfrage';
 		$name       = isset( $a['name'] ) ? trim( (string) $a['name'] ) : '';
 		$firma      = isset( $a['firma'] ) ? trim( (string) $a['firma'] ) : '';
 		$email      = isset( $a['email'] ) ? trim( (string) $a['email'] ) : '';
@@ -239,8 +239,8 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 			. '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:' . $BG . ';">' . $preheader . '</div>'
 			// Äußere Bühne
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' . $BG . ';"><tr><td align="center" style="padding:24px 12px;">'
-			// Karte 440px
-			. '<table role="presentation" width="440" cellpadding="0" cellspacing="0" border="0" style="width:440px;max-width:440px;background:' . $PAPER . ';border:1px solid ' . $HAIR . ';">'
+			// Karte 600px
+			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:' . $PAPER . ';border:1px solid ' . $HAIR . ';">'
 			// Blauer Top-Balken 3px
 			. '<tr><td style="background:' . $BLAU . ';font-size:0;line-height:0;height:3px;">&nbsp;</td></tr>'
 			// Kopf: Titel links, Wortmarke rechts

@@ -354,7 +354,7 @@ class M24_Inquiries_Mail_Fallback {
             );
         }
         return m24_render_inquiry_email( array(
-            'titel'      => 'Neue Produktanfrage',
+            'titel'      => 'Neue Teileanfrage',
             'name'       => $name,
             'firma'      => (string) $data['firma'],
             'email'      => (string) $data['email'],

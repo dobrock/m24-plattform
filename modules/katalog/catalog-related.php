@@ -86,7 +86,16 @@ class M24_Catalog_Related {
 				'tax_query'      => array( array( 'taxonomy' => $tax, 'terms' => wp_list_pluck( $terms, 'term_id' ) ) ),
 				'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
 			) );
-			foreach ( self::stable_sort( $ids ) as $pid ) {
+			$sorted = self::stable_sort( $ids );
+			$n      = count( $sorted );
+			if ( $n > 1 ) {
+				// Pro-Seite stabiler Offset (Seed = Teil-ID + Taxonomie): jede Teil-Seite
+				// zeigt eine andere relevante Scheibe → interne Links streuen über die
+				// ganze Kategorie, pro Seite aber crawl-stabil. Kein rand().
+				$offset = (int) ( abs( crc32( $post_id . ':' . $tax ) ) % $n );
+				$sorted = array_merge( array_slice( $sorted, $offset ), array_slice( $sorted, 0, $offset ) );
+			}
+			foreach ( $sorted as $pid ) {
 				$out[] = (int) $pid;
 				if ( count( $out ) >= $need ) { break; }
 			}
