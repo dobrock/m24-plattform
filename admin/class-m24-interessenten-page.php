@@ -45,7 +45,7 @@ class M24_Interessenten_Page {
 
 	/* ── Filter-Argumente aus dem Request ────────────────────────────────── */
 
-	private static function request_args() {
+	public static function request_args() {
 		return array(
 			'vehicle'   => isset( $_REQUEST['f_vehicle'] ) ? (int) $_REQUEST['f_vehicle'] : 0,
 			'tag'       => isset( $_REQUEST['f_tag'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['f_tag'] ) ) : '',
