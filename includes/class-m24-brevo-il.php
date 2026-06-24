@@ -677,7 +677,10 @@ class M24_Brevo_IL {
 			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>'
 			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
 			. '</td></tr>'
-			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;' . $stack . 'font-size:11px;color:#9aa3b0;">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a></td></tr>'
+			. '<tr><td style="padding:14px 28px;border-top:1px solid #e6e9ee;' . $stack . 'font-size:11px;color:#9aa3b0;">'
+			. '<div>MOTORSPORT24 since 2006 · <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a></div>'
+			. '<div style="margin-top:4px;color:#b7bdc7;">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a></div>'
+			. '</td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}
 

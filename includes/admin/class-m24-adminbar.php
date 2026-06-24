@@ -13,14 +13,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class M24_Adminbar {
 
 	public static function init() {
-		add_action( 'admin_bar_menu', array( __CLASS__, 'cleanup' ), 999 );
+		// Eigene Nodes früh genug ergänzen.
+		add_action( 'admin_bar_menu', array( __CLASS__, 'add_nodes' ), 999 );
+		// Fremd-Ballast NACH allen Registrierungen entfernen (omgf/Live-CSS/WP-Rocket
+		// hängen sich spät ein → admin_bar_menu/999 läuft davor und greift ins Leere).
+		add_action( 'wp_before_admin_bar_render', array( __CLASS__, 'remove_nodes' ), 99999 );
 	}
 
-	/**
-	 * @param WP_Admin_Bar $bar
-	 */
-	public static function cleanup( $bar ) {
-		// 1) Fremd-Ballast entfernen (filterbar, falls mal etwas bleiben soll).
+	/** Fremd-Plugin-Nodes entfernen (filterbar). */
+	public static function remove_nodes() {
+		global $wp_admin_bar;
+		if ( ! $wp_admin_bar ) {
+			return;
+		}
 		$remove = apply_filters( 'm24_adminbar_remove_nodes', array(
 			'rcb-top-node',           // Cookies (Real Cookie Banner)
 			'omgf',                   // OMGF
@@ -28,10 +33,16 @@ class M24_Adminbar {
 			'wp-rocket',              // WP Rocket
 		) );
 		foreach ( (array) $remove as $node_id ) {
-			$bar->remove_node( $node_id );
+			$wp_admin_bar->remove_node( $node_id );
 		}
+	}
 
-		// 2) M24-Sprungziele — nur für Redakteure/Admins.
+	/**
+	 * M24-Sprungziele ergänzen — nur für Redakteure/Admins.
+	 *
+	 * @param WP_Admin_Bar $bar
+	 */
+	public static function add_nodes( $bar ) {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			return;
 		}
