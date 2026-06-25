@@ -41,6 +41,7 @@ class M24_B2B_Auth {
         add_action( 'admin_post_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
 
         add_action( 'template_redirect', array( __CLASS__, 'confirm_intercept' ), 1 );
+        add_action( 'template_redirect', array( __CLASS__, 'no_cache' ) );
         add_action( 'admin_init', array( __CLASS__, 'ensure_pages' ) );
 
         // noindex + Cache-Ausschluss.
@@ -104,6 +105,20 @@ class M24_B2B_Auth {
         $uris[] = '/haendler-registrierung/(.*)';
         $uris[] = '/haendler-login/(.*)';
         return $uris;
+    }
+
+    /**
+     * Cache-Write der Händler-Seiten zuverlässig verhindern — DONOTCACHEPAGE greift sofort,
+     * ohne WP-Rocket-Config-Regeneration (rocket_cache_reject_uri allein griff unzuverlässig).
+     */
+    public static function no_cache() {
+        $ids = array_filter( array(
+            (int) get_option( self::OPT_REG_PAGE ),
+            (int) get_option( self::OPT_LOGIN_PAGE ),
+        ) );
+        if ( $ids && is_page( $ids ) && ! defined( 'DONOTCACHEPAGE' ) ) {
+            define( 'DONOTCACHEPAGE', true );
+        }
     }
 
     /* ── Helfer ──────────────────────────────────────────────────────────── */
