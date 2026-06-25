@@ -21,9 +21,9 @@ class M24FZ_Telemetry {
 		return sprintf( '%s kW (%d PS)', $kw, $ps );
 	}
 
-	/** Getriebe darf NUR Manuell|Automatik sein (Dropdown). */
+	/** Getriebe-Whitelist (Validierung). M-Modelle verwischen Straße/Renn → SMG/DKG/Sequentiell zulassen. */
 	public static function getriebe_options() {
-		return array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik' );
+		return array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik', 'Sequentiell' => 'Sequentiell', 'SMG' => 'SMG', 'DKG' => 'DKG' );
 	}
 
 	/** Zustand-Mehrfachauswahl (slug => Label). Filterbar. */
@@ -54,7 +54,7 @@ class M24FZ_Telemetry {
 	public static function antrieb_options()       { return array( 'Heck', 'Front', 'Allrad' ); }
 	public static function kraftstoff_options()    { return array( 'Benzin', 'Diesel' ); }
 	public static function lenkung_options()       { return array( 'Links', 'Rechts' ); }
-	public static function innenmaterial_options() { return array( 'Velours', 'Stoff', 'Kunstleder', 'Leder', 'Vollleder', 'Teilleder / Stoff' ); }
+	public static function innenmaterial_options() { return array( 'Velours', 'Stoff', 'Kunstleder', 'Leder', 'Alcantara', 'Vollleder', 'Teilleder / Stoff' ); }
 	public static function innenfarbe_options()    { return array( 'Grau', 'Schwarz', 'Bordeauxrot', 'Rot', 'Weiß', 'Grün', 'Blau' ); }
 	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Cabriolet', 'Touring', '2-türige Limousine' ); }
 

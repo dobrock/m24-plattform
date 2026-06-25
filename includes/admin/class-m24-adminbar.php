@@ -91,7 +91,7 @@ class M24_Adminbar {
 		// Aktueller Status + mögliche Aktionen je Typ.
 		if ( 'm24_fahrzeug' === $pt ) {
 			$cur     = class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status( $id ) : '';
-			$klar    = array( 'entwurf' => 'Entwurf', 'gelistet' => 'Aktiv', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert' );
+			$klar    = array( 'entwurf' => 'Entwurf', 'gelistet' => 'Gelistet', 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'deaktiviert' => 'Deaktiviert' );
 			$actions = array( 'reserviert' => 'Reserviert', 'verkauft' => 'Verkauft', 'gelistet' => 'Aktivieren' );
 			$type    = 'fahrzeug';
 		} else {

@@ -153,6 +153,8 @@ class M24FZ_Editor_Screen {
 		$ogimg   = (int) self::g( $id, '_m24fz_og_image', 0 );
 		$ogimgU  = $ogimg ? wp_get_attachment_image_url( $ogimg, 'medium' ) : '';
 		$pdraft  = $post && 'draft' === $post->post_status;
+		$is_pub  = ( $id && $post && 'publish' === $post->post_status );
+		$save_label = $is_pub ? 'Aktualisieren' : 'Veröffentlichen'; // bereits veröffentlicht → „Aktualisieren"
 		$pdate   = $post ? mysql2date( 'Y-m-d\TH:i', $post->post_date ) : current_time( 'Y-m-d\TH:i' );
 		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
 		$yearNow = (int) gmdate( 'Y' );
@@ -174,7 +176,7 @@ class M24FZ_Editor_Screen {
 					<div class="fz-tb-right">
 						<span class="fz-seg"><span class="on">Komfort-Maske</span><a href="<?php echo esc_url( $classicU ); ?>">Klassisch</a></span>
 						<?php if ( $id ) : ?><a class="fz-out ghost" href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Vorschau ↗</a><?php endif; ?>
-						<button type="submit" class="fz-save">Speichern &amp; veröffentlichen</button>
+						<button type="submit" class="fz-save"><?php echo esc_html( $save_label ); ?></button>
 					</div>
 				</header>
 
@@ -286,7 +288,7 @@ class M24FZ_Editor_Screen {
 									<?php
 									// Template-abhängig (JS trimmt per Typ): Straße = —/Manuell/Automatik, Renn = —/Manuell/Sequentiell.
 									$gcur = self::g( $id, '_m24fz_getriebe' );
-									foreach ( array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik', 'Sequentiell' => 'Sequentiell' ) as $v => $l ) {
+									foreach ( array( '' => '—', 'Manuell' => 'Manuell', 'Automatik' => 'Automatik', 'Sequentiell' => 'Sequentiell', 'SMG' => 'SMG', 'DKG' => 'DKG' ) as $v => $l ) {
 										printf( '<option value="%s"%s>%s</option>', esc_attr( $v ), selected( $gcur, $v, false ), esc_html( $l ) );
 									}
 									?>
@@ -472,8 +474,11 @@ class M24FZ_Editor_Screen {
 						</div>
 
 						<div class="fz-foot">
-							<button type="submit" class="fz-save">Speichern &amp; veröffentlichen</button>
+							<button type="submit" class="fz-save"><?php echo esc_html( $save_label ); ?></button>
 							<button type="submit" name="fz_draft" value="1" class="fz-out">Als Entwurf speichern</button>
+							<?php if ( $id ) : ?>
+								<button type="submit" name="fz_delete" value="1" class="fz-del" onclick="return confirm('Inserat wirklich in den Papierkorb verschieben?');">Löschen</button>
+							<?php endif; ?>
 						</div>
 					</section>
 				</div>
@@ -491,6 +496,14 @@ class M24FZ_Editor_Screen {
 		check_admin_referer( self::NONCE, self::NONCE );
 
 		$id    = (int) ( $_POST['post_id'] ?? 0 );
+
+		// Löschen (Papierkorb, reversibel) — vor jedem Save-Pfad.
+		if ( ! empty( $_POST['fz_delete'] ) && $id && M24FZ_CPT::PT === get_post_type( $id ) ) {
+			wp_trash_post( $id );
+			wp_safe_redirect( add_query_arg( 'trashed', '1', admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT . '&page=' . self::PAGE ) ) );
+			exit;
+		}
+
 		$title = sanitize_text_field( wp_unslash( $_POST['post_title'] ?? '' ) );
 		if ( '' === $title ) { $title = 'Fahrzeug (Entwurf)'; }
 		$pstat = ! empty( $_POST['fz_draft'] ) ? 'draft' : 'publish';
@@ -607,6 +620,9 @@ class M24FZ_Editor_Screen {
 .fz-note.ok a{color:#0e6b2e;font-weight:700;text-decoration:underline}
 .fz-save{font:inherit;font-weight:700;border:0;border-radius:8px;padding:11px 20px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#1f74c4,#0e447e);font-size:14px}
 .fz-out{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px solid #9a6b25;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block}
+.fz-del{font:inherit;font-weight:600;background:#fff;color:#b32d2e;border:1.5px solid #e3b5b7;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:13px;margin-left:auto}
+.fz-del:hover{background:#fdf1f3;border-color:#b32d2e}
+.fz-save:disabled{opacity:.6;cursor:progress}
 .fz-out.ghost{color:#6b7077;border-color:#d4d4d0}
 .fz-add{font:inherit;font-weight:600;background:#fff;color:#9a6b25;border:1.5px dashed #9a6b25;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;margin-top:6px}
 .fz-titlebar{background:#fff;border:1px solid #e6e6e3;border-radius:12px;padding:16px 18px;margin-bottom:18px}
@@ -676,13 +692,18 @@ CSS;
 	private static function js() {
 		return <<<JS
 jQuery(function($){
+	// Doppel-Submit-Sperre (gegen Doppel-Inserat): nur die .fz-save-Buttons sofort sperren + Text „Speichern…".
+	// Draft (.fz-out) und Löschen (.fz-del) tragen eigene name/value und bleiben aktiv → Wert wird mitgesendet.
+	$('.fz-form').on('submit',function(){
+		$(this).find('.fz-save').prop('disabled',true).text('Speichern…');
+	});
 	// Live PS → kW.
 	function kw(){ var ps=parseInt(($('#_m24fz_leistung_ps').val()||'').replace(/\\D/g,''),10);
 		if(ps>0){ var v=(Math.round(ps*0.73549875*100)/100).toFixed(2).replace('.',','); $('#fz-kw').text(v+' kW ('+ps+' PS)'); }
 		else { $('#fz-kw').text('In PS — kW automatisch.'); } }
 	$('#_m24fz_leistung_ps').on('input',kw); kw();
-	// Getriebe template-abhängig: Straße = —/Manuell/Automatik, Renn = —/Manuell/Sequentiell.
-	var gOpts={ strasse:[['','—'],['Manuell','Manuell'],['Automatik','Automatik']], renn:[['','—'],['Manuell','Manuell'],['Sequentiell','Sequentiell']] };
+	// Getriebe: M-Modelle verwischen Straße/Renn → SMG/DKG/Sequentiell in BEIDEN Listen verfügbar.
+	var gOpts={ strasse:[['','—'],['Manuell','Manuell'],['Automatik','Automatik'],['Sequentiell','Sequentiell'],['SMG','SMG'],['DKG','DKG']], renn:[['','—'],['Manuell','Manuell'],['Automatik','Automatik'],['Sequentiell','Sequentiell'],['SMG','SMG'],['DKG','DKG']] };
 	function fillGetriebe(renn){ var sel=$('#_m24fz_getriebe'); if(!sel.length){ return; } var cur=sel.val(); var list=renn?gOpts.renn:gOpts.strasse;
 		sel.empty(); $.each(list,function(_,o){ sel.append($('<option>').val(o[0]).text(o[1])); });
 		if(sel.find('option[value="'+cur+'"]').length){ sel.val(cur); } else if(cur){ sel.append($('<option>').val(cur).text(cur+' (individuell)')); sel.val(cur); } }
