@@ -384,7 +384,7 @@ class M24FZ_Anfrage {
 				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für Sie und informieren Sie zu diesem und ähnlichen Fahrzeugen.</p>
 				<form class="m24fz-anfrage-form m24fz-park-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="ihre@email.de" required></div>
-					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
+					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>
 					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
