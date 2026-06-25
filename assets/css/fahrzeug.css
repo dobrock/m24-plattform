@@ -261,9 +261,11 @@
 	/* CI: weiße Karten, Radius 13px, gut tappbare Buttons */
 	.m24fz-card{border-radius:13px}
 	.m24fz-btn{padding:13px 16px}
-	/* Mehr nutzbare Breite auf Mobile: Gutter schmaler (12px) + Card-Innenpadding L/R verschlankt (16px). */
-	.m24fz-wrap{padding-left:12px;padding-right:12px}
-	.m24fz-card,.m24fz-mhead{padding-left:16px;padding-right:16px}
+	/* Mehr nutzbare Breite auf Mobile: Gutter 6px + Card-Innenpadding L/R 10px → effektiv ~16px je Seite.
+	   tagDiv-Container darf kein horizontales Padding mehr beisteuern, sonst greifen die 6/10 nicht. */
+	.m24fz.td-container,body .m24fz.td-container{padding-left:0!important;padding-right:0!important}
+	.m24fz-wrap{padding-left:6px;padding-right:6px}
+	.m24fz-card,.m24fz-mhead{padding-left:10px;padding-right:10px}
 	/* Galerie-Reiter bleiben mobil das versetzte Zickzack-Mosaik (Desktop-Grid gilt auch hier) —
 	   KEINE vertikale Bilderkette, große 3:2-Kachel gibt die Zeilenhöhe vor, Hochkant bleibt hochkant. */
 }
