@@ -436,9 +436,14 @@ class M24_Brevo_IL {
 				. 'über passende Fahrzeuge und Angebote informieren dürfen:';
 		}
 
+		// Anrede: nur echter Name (IL-Formular hat ein Namensfeld). Off-Market/Parken haben nur
+		// E-Mail → kein echter Name → neutrale Anrede „Hallo," statt abgeleitetem Localpart.
+		$greet_name = ( 'offmarket' === $variant || 'parked' === $variant ) ? '' : trim( (string) $name );
+		$hallo      = ( '' !== $greet_name ) ? 'Hallo ' . esc_html( $greet_name ) . ',' : 'Hallo,';
+
 		$body = self::mail_html(
 			'Fast geschafft!',
-			'<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
+			'<p style="margin:0 0 14px;">' . $hallo . '</p>'
 			. '<p style="margin:0 0 14px;">' . esc_html( $intro ) . '</p>'
 			. '<p style="margin:24px 0;text-align:center;">'
 			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
