@@ -131,7 +131,7 @@ class M24FZ_CPT {
 		return ".m24-status-ribbon{position:absolute;top:18px;right:-42px;width:172px;height:28px;line-height:28px;text-align:center;padding:0;transform:rotate(45deg);font-family:'Saira',sans-serif;font-weight:800;font-size:12px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.18);z-index:3;pointer-events:none}"
 			. ".m24-status-ribbon.sold{background:linear-gradient(135deg,#bfa166 0%,#9c7e48 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18)}"
 			. ".m24-status-ribbon.res{background:linear-gradient(135deg,#e7d7b4 0%,#d3bd8f 100%);color:#6b4f1c}"
-			. ".m24-status-btn{display:inline-block;padding:11px 20px;border-radius:9px;font-family:'Saira',sans-serif;font-weight:800;font-size:14px;line-height:1;letter-spacing:.16em;text-transform:uppercase}"
+			. ".m24-status-btn{display:block;width:100%;box-sizing:border-box;text-align:center;padding:11px 20px;border-radius:9px;font-family:'Saira',sans-serif;font-weight:800;font-size:14px;line-height:1;letter-spacing:.16em;text-transform:uppercase}"
 			. ".m24-status-btn.sold{background:linear-gradient(135deg,#bfa166 0%,#9c7e48 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18)}"
 			. ".m24-status-btn.res{background:linear-gradient(135deg,#e7d7b4 0%,#d3bd8f 100%);color:#6b4f1c}";
 	}
