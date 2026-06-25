@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.117
+ * Version:           0.11.118
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -17,8 +17,21 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'M24_PLATTFORM_VERSION',     '0.11.117' );
 define( 'M24_PLATTFORM_FILE',        __FILE__ );
+
+/**
+ * Version = EINZIGE Quelle der Wahrheit ist der „Version:"-Header oben. Die Laufzeit-Konstante
+ * (steuert ?ver= der Assets + Updater-Vergleich) wird daraus abgeleitet → Header, Plugins-Seite,
+ * Updater und Asset-Cache-Busting können NICHT mehr auseinanderlaufen. get_file_data() ist zu
+ * diesem Zeitpunkt (Plugin-Load nach wp-includes) verfügbar; Fallback nur als Sicherheitsnetz.
+ */
+if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
+    $m24_hdr = function_exists( 'get_file_data' )
+        ? get_file_data( __FILE__, array( 'v' => 'Version' ) )
+        : array( 'v' => '' );
+    define( 'M24_PLATTFORM_VERSION', ! empty( $m24_hdr['v'] ) ? $m24_hdr['v'] : '0.11.118' );
+    unset( $m24_hdr );
+}
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
 define( 'M24_PLATTFORM_DB_VERSION',  '006' );

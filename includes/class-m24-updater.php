@@ -204,9 +204,11 @@ class M24_Updater {
 
 	/**
 	 * Selbstheilung gegen stale OPcache: Datei-Versions-Header (Text, frisch) vs. geladene
-	 * Konstante (Bytecode). Bei Differenz wird der alte Bytecode trotz neuer Datei serviert
-	 * → opcache_reset(). Einmal pro Mismatch (nach Reset kompiliert der naechste Request frisch,
-	 * Konstante == Datei → kein erneuter Reset). Nur Admin (leichtgewichtig, 1 Datei-Read).
+	 * Konstante. Hinweis (0.11.118): M24_PLATTFORM_VERSION wird inzwischen selbst per
+	 * get_file_data() aus dem Header abgeleitet → liest immer frisch von der Platte, daher
+	 * fällt der Versions-Mismatch als Stale-Bytecode-Kanari faktisch weg (Konstante == Datei).
+	 * Bleibt als günstige Sicherung (1 Datei-Read, nur Admin) bestehen, falls eine Umgebung die
+	 * Ableitung umgeht. Nach Reset kompiliert der nächste Request frisch → kein erneuter Reset.
 	 */
 	public static function selfheal_opcache() {
 		if ( ! function_exists( 'opcache_reset' ) || ! function_exists( 'get_file_data' ) ) { return; }
