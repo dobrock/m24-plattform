@@ -678,11 +678,14 @@ class M24_B2B_Auth {
 
         if ( 'verify' === $row->purpose ) {
             global $wpdb;
-            $wpdb->query( $wpdb->prepare(
+            $aff = $wpdb->query( $wpdb->prepare(
                 "UPDATE " . M24_Database::table( 'haendler' ) . " SET status = 'verified', updated_at = %s WHERE wp_user_id = %d AND status = 'pending_verification'",
                 current_time( 'mysql', true ),
                 (int) $row->wp_user_id
             ) );
+            if ( $aff > 0 ) {
+                self::notify_admin_new_verification( (int) $row->wp_user_id ); // wartet auf Freigabe
+            }
         }
 
         wp_set_auth_cookie( (int) $row->wp_user_id, true );
@@ -765,5 +768,77 @@ class M24_B2B_Auth {
         $email = apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
         $name  = apply_filters( 'm24_brevo_doi_from_name', 'MOTORSPORT24' );
         return $name . ' <' . $email . '>';
+    }
+
+    /* ── Freigabe-/Ablehn-Mails + Admin-Benachrichtigung (Garage A3) ─────── */
+
+    /** ISO-2 → deutscher Klarname (öffentlich für die Admin-Liste). */
+    public static function country_name( string $iso ): string {
+        $iso = strtoupper( trim( $iso ) );
+        $m   = self::countries();
+        return $m[ $iso ] ?? ( '' !== $iso ? $iso : '—' );
+    }
+
+    /** CI-Mail (gleiches Gerüst wie send_magic_mail) versenden. */
+    private static function send_ci( string $to, string $subject, string $headline, string $inner ): void {
+        if ( ! is_email( $to ) ) {
+            return;
+        }
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . self::from_header(),
+            'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+        );
+        wp_mail( $to, $subject, self::mail_html( $headline, $inner ), $headers );
+    }
+
+    public static function send_approval_mail( int $user_id ): void {
+        $u = get_userdata( $user_id );
+        if ( ! $u ) {
+            return;
+        }
+        $name  = $u->first_name ?: $u->display_name;
+        $login = esc_url( home_url( '/haendler-login/' ) );
+        $inner = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
+            . '<p style="margin:0 0 14px;">deine Registrierung wurde geprüft und freigeschaltet. Du kannst dich jetzt einloggen und siehst Händlerpreise.</p>'
+            . '<p style="margin:24px 0;text-align:center;"><a href="' . $login . '" class="m24-cta" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 30px;border-radius:8px;font-size:15px;">Zum Login</a></p>';
+        self::send_ci( $u->user_email, 'Dein Händler-Zugang ist freigeschaltet – MOTORSPORT24', 'Zugang freigeschaltet', $inner );
+    }
+
+    public static function send_rejection_mail( int $user_id, string $grund_text ): void {
+        $u = get_userdata( $user_id );
+        if ( ! $u ) {
+            return;
+        }
+        $name  = $u->first_name ?: $u->display_name;
+        $inner = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
+            . '<p style="margin:0 0 14px;">wir konnten deine Registrierung für den Händlerbereich aktuell nicht freischalten.</p>'
+            . '<p style="margin:0 0 14px;"><strong>Grund:</strong> ' . esc_html( $grund_text ) . '</p>'
+            . '<p style="margin:0;">Falls das ein Irrtum ist oder du Angaben ergänzen möchtest, melde dich gern unter <a href="mailto:service@motorsport24.de" style="color:#1f74c4;">service@motorsport24.de</a>.</p>';
+        self::send_ci( $u->user_email, 'Zu deiner Händler-Registrierung – MOTORSPORT24', 'Zu deiner Registrierung', $inner );
+    }
+
+    /** Admin-Mail bei neuer Verifizierung (wartet auf Freigabe). */
+    private static function notify_admin_new_verification( int $user_id ): void {
+        $u = get_userdata( $user_id );
+        if ( ! $u ) {
+            return;
+        }
+        global $wpdb;
+        $h     = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . M24_Database::table( 'haendler' ) . " WHERE wp_user_id = %d", $user_id ) );
+        $firma = $h ? $h->firma : $u->display_name;
+        $land  = $h ? (string) $h->land : '';
+        $uid   = $h ? (string) $h->uid : '';
+        $vies  = ( $h && null !== $h->uid_valid ) ? ( (int) $h->uid_valid === 1 ? 'gültig' : 'ungültig' ) : 'ungeprüft';
+        $to    = apply_filters( 'm24_haendler_notify_email', 'service@motorsport24.de' );
+        $link  = admin_url( 'admin.php?page=m24-haendler' );
+
+        $body = '<p>Neue Händler-Registrierung wartet auf Freigabe:</p><ul>'
+            . '<li><strong>Firma:</strong> ' . esc_html( $firma ) . '</li>'
+            . '<li><strong>E-Mail:</strong> ' . esc_html( $u->user_email ) . '</li>'
+            . '<li><strong>Land:</strong> ' . esc_html( self::country_name( $land ) ) . '</li>'
+            . '<li><strong>USt-IdNr.:</strong> ' . esc_html( $uid ?: '—' ) . ' (' . esc_html( $vies ) . ')</li>'
+            . '</ul><p><a href="' . esc_url( $link ) . '">Im Admin prüfen &amp; freigeben</a></p>';
+        wp_mail( $to, 'Neue Händler-Registrierung wartet auf Freigabe', $body, array( 'Content-Type: text/html; charset=UTF-8', 'From: ' . self::from_header() ) );
     }
 }
