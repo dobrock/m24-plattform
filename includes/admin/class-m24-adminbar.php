@@ -54,7 +54,7 @@ class M24_Adminbar {
 		}
 		$bar->add_node( array(
 			'id'    => 'm24-inserate',
-			'title' => 'Inserat-Verwaltung',
+			'title' => 'Auto-Verwaltung',
 			'href'  => admin_url( 'admin.php?page=m24fz-verwaltung' ),
 		) );
 		$bar->add_node( array(

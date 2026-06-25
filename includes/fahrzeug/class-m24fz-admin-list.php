@@ -30,7 +30,7 @@ class M24FZ_Admin_List {
 		// (admin.php?page=m24fz-verwaltung), eine einzige Registrierung, manage_options.
 		self::$hook = add_submenu_page(
 			'm24-plattform',
-			'Inserat-Verwaltung', 'Inserat-Verwaltung', self::CAP, self::PAGE, array( __CLASS__, 'render' )
+			'Auto-Verwaltung', 'Auto-Verwaltung', self::CAP, self::PAGE, array( __CLASS__, 'render' )
 		);
 	}
 
@@ -129,10 +129,10 @@ class M24FZ_Admin_List {
 		$base   = admin_url( 'admin.php?page=' . self::PAGE );
 		?>
 		<div class="wrap m24fzv">
-			<nav class="m24fzv-bc">MOTORSPORT24 <span>›</span> Inserat-Verwaltung</nav>
+			<nav class="m24fzv-bc">MOTORSPORT24 <span>›</span> Auto-Verwaltung</nav>
 			<div class="m24fzv-head">
 				<div class="m24fzv-head-l">
-					<h1>Inserat-Verwaltung <span class="m24fzv-pill"><?php echo (int) $counts['alle']; ?> Inserate</span></h1>
+					<h1>Auto-Verwaltung <span class="m24fzv-pill"><?php echo (int) $counts['alle']; ?> Inserate</span></h1>
 					<p class="m24fzv-sub">Bestand verwalten, Status setzen, Statistiken einsehen — alles an einer Stelle.</p>
 				</div>
 				<a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT ) ); ?>" class="m24fzv-newbtn">＋ Neues Fahrzeug</a>
