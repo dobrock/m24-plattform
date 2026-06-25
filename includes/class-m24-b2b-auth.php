@@ -23,6 +23,7 @@ class M24_B2B_Auth {
     const DS_PATH  = '/datenschutzerklaerung/';
 
     const OPT_REG_PAGE   = 'm24_haendler_reg_page';
+    const OPT_REG2_PAGE  = 'm24_haendler_reg2_page';
     const OPT_LOGIN_PAGE = 'm24_haendler_login_page';
 
     const RL_MAX    = 5;                    // max Versuche
@@ -33,6 +34,7 @@ class M24_B2B_Auth {
 
     public static function init() {
         add_shortcode( 'm24_haendler_registrierung', array( __CLASS__, 'render_registration_form' ) );
+        add_shortcode( 'm24_haendler_registrierung_2', array( __CLASS__, 'render_registration_form_v2' ) );
         add_shortcode( 'm24_haendler_login', array( __CLASS__, 'render_login_form' ) );
 
         add_action( 'admin_post_nopriv_m24_haendler_register', array( __CLASS__, 'handle_register' ) );
@@ -59,14 +61,29 @@ class M24_B2B_Auth {
         return $id ? (string) get_permalink( $id ) : home_url( '/haendler-registrierung/' );
     }
 
+    private static function reg2_page_url(): string {
+        $id = (int) get_option( self::OPT_REG2_PAGE, 0 );
+        return $id ? (string) get_permalink( $id ) : home_url( '/haendler-registrierung-2/' );
+    }
+
     private static function login_page_url(): string {
         $id = (int) get_option( self::OPT_LOGIN_PAGE, 0 );
         return $id ? (string) get_permalink( $id ) : home_url( '/haendler-login/' );
     }
 
+    /** IDs aller Händler-Seiten (reg, reg2, login) — eine Quelle für noindex/Cache. */
+    private static function page_ids(): array {
+        return array_filter( array(
+            (int) get_option( self::OPT_REG_PAGE, 0 ),
+            (int) get_option( self::OPT_REG2_PAGE, 0 ),
+            (int) get_option( self::OPT_LOGIN_PAGE, 0 ),
+        ) );
+    }
+
     public static function ensure_pages() {
         $defs = array(
             self::OPT_REG_PAGE   => array( 'Händler-Registrierung', 'haendler-registrierung', '[m24_haendler_registrierung]' ),
+            self::OPT_REG2_PAGE  => array( 'Händler-Registrierung (Variante)', 'haendler-registrierung-2', '[m24_haendler_registrierung_2]' ),
             self::OPT_LOGIN_PAGE => array( 'Händler-Login', 'haendler-login', '[m24_haendler_login]' ),
         );
         foreach ( $defs as $opt => $d ) {
@@ -94,9 +111,8 @@ class M24_B2B_Auth {
     }
 
     public static function robots( $robots ) {
-        $reg   = (int) get_option( self::OPT_REG_PAGE, 0 );
-        $login = (int) get_option( self::OPT_LOGIN_PAGE, 0 );
-        if ( ( $reg || $login ) && is_page( array_filter( array( $reg, $login ) ) ) ) {
+        $ids = self::page_ids();
+        if ( $ids && is_page( $ids ) ) {
             $robots['noindex'] = true;
             $robots['follow']  = true;
             unset( $robots['index'] );
@@ -106,6 +122,7 @@ class M24_B2B_Auth {
 
     public static function rocket_reject( $uris ) {
         $uris[] = '/haendler-registrierung/(.*)';
+        $uris[] = '/haendler-registrierung-2/(.*)';
         $uris[] = '/haendler-login/(.*)';
         return $uris;
     }
@@ -115,10 +132,7 @@ class M24_B2B_Auth {
      * ohne WP-Rocket-Config-Regeneration (rocket_cache_reject_uri allein griff unzuverlässig).
      */
     public static function no_cache() {
-        $ids = array_filter( array(
-            (int) get_option( self::OPT_REG_PAGE ),
-            (int) get_option( self::OPT_LOGIN_PAGE ),
-        ) );
+        $ids = self::page_ids();
         if ( $ids && is_page( $ids ) && ! defined( 'DONOTCACHEPAGE' ) ) {
             define( 'DONOTCACHEPAGE', true );
         }
@@ -245,6 +259,11 @@ class M24_B2B_Auth {
             . '.m24b2b-ok{font-size:30px;font-weight:800;color:#9a6b25;margin:0 0 8px}'
             . '.m24-uid-fb{font-size:12px;margin-top:5px;min-height:16px}'
             . '.m24-uid-fb.checking{color:#5a6474}.m24-uid-fb.ok{color:#1a7a3c;font-weight:600}.m24-uid-fb.bad{color:#c8102e;font-weight:600}.m24-uid-fb.neutral{color:#9aa3b0}'
+            // Variante 2 — Anfrageformular-Optik: große Felder, Label als Placeholder INNEN.
+            . '.m24b2b-v2 .m24f{margin:0 0 12px}'
+            . '.m24b2b-v2 input[type=text],.m24b2b-v2 input[type=email],.m24b2b-v2 input[type=tel],.m24b2b-v2 select{font-size:17px;padding:16px 18px;border-radius:12px}'
+            . '.m24b2b-v2 select{color:#14161a;background:#fff}'
+            . '.m24b2b-v2 .m24-uid-fb{margin:-6px 0 12px}'
             . '</style>';
     }
 
@@ -273,6 +292,7 @@ class M24_B2B_Auth {
         <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="m24_haendler_register">
+            <input type="hidden" name="reg_src" value="<?php echo esc_url( get_permalink() ); ?>">
             <?php wp_nonce_field( 'm24_haendler_register' ); ?>
             <label for="m24firma">Firma <span class="req">*</span></label>
             <input type="text" id="m24firma" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" required>
@@ -377,6 +397,76 @@ class M24_B2B_Auth {
         return $def;
     }
 
+    /**
+     * Variante 2 (A/B-Test) — Anfrageformular-Optik: große Felder, Bezeichnung als Placeholder INNEN.
+     * Gleicher Handler/Nonce/action/Feldnamen + VIES + Feld-Erhalt wie Variante 1.
+     */
+    public static function render_registration_form_v2(): string {
+        ob_start();
+        echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo '<div class="m24b2b m24b2b-v2"><div class="m24b2b-card">';
+
+        if ( isset( $_GET['gesendet'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            echo '<div class="m24b2b-ok">Fast geschafft!</div>';
+            echo '<div class="m24b2b-note">Wir haben dir eine E-Mail geschickt. Bitte bestätige deine Registrierung über den Link darin (15&nbsp;Minuten gültig).</div>';
+            echo '</div></div>';
+            return (string) ob_get_clean();
+        }
+        if ( isset( $_GET['fehler'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            echo '<div class="m24b2b-err">Bitte fülle alle Pflichtfelder korrekt aus (inkl. gültiger USt-IdNr. bei EU-Ländern) und stimme Datenschutz &amp; AGB zu.</div>';
+        }
+
+        $ds       = esc_url( home_url( self::DS_PATH ) );
+        $agb      = esc_url( home_url( self::AGB_PATH ) );
+        $o        = self::old_values();
+        $has_old  = isset( $_GET['r'] ); // phpcs:ignore WordPress.Security.NonceVerification
+        $land_sel = $has_old ? $o['land'] : ''; // frischer Aufruf → „Land *"-Platzhalter
+        ?>
+        <h2>Händler-Registrierung</h2>
+        <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="m24_haendler_register">
+            <input type="hidden" name="reg_src" value="<?php echo esc_url( get_permalink() ); ?>">
+            <?php wp_nonce_field( 'm24_haendler_register' ); ?>
+            <div class="m24f"><input type="text" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" placeholder="Firma *" required></div>
+            <div class="row">
+                <div class="m24f">
+                    <select name="anrede">
+                        <option value="">Anrede</option>
+                        <?php foreach ( array( 'Herr', 'Frau', 'Divers' ) as $a ) : ?>
+                            <option value="<?php echo esc_attr( $a ); ?>" <?php selected( $o['anrede'], $a ); ?>><?php echo esc_html( $a ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="m24f">
+                    <select name="land" required>
+                        <option value="">Land *</option>
+                        <?php foreach ( self::countries() as $cc => $cname ) : ?>
+                            <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( $land_sel, $cc ); ?>><?php echo esc_html( $cname ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="m24f"><input type="text" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" placeholder="Vorname *" required></div>
+                <div class="m24f"><input type="text" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" placeholder="Nachname *" required></div>
+            </div>
+            <div class="row">
+                <div class="m24f"><input type="email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" placeholder="E-Mail *" required></div>
+                <div class="m24f"><input type="tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>" placeholder="Telefon"></div>
+            </div>
+            <div class="m24f"><input type="text" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="USt-IdNr. (Pflicht in der EU)"><div class="m24-uid-fb" aria-live="polite"></div></div>
+            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span>Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></span></label>
+            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span>Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></span></label>
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
+        </form>
+        <?php
+        echo self::vies_assets(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo '</div></div>';
+        return (string) ob_get_clean();
+    }
+
     public static function render_login_form(): string {
         ob_start();
         echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -417,9 +507,22 @@ class M24_B2B_Auth {
         exit;
     }
 
+    /** Redirect-Ziel = die Variante, von der abgeschickt wurde (reg oder reg2), sonst reg. */
+    private static function resolve_reg_src(): string {
+        $src = isset( $_POST['reg_src'] ) ? esc_url_raw( wp_unslash( $_POST['reg_src'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( '' !== $src ) {
+            foreach ( array( self::reg_page_url(), self::reg2_page_url() ) as $a ) {
+                if ( untrailingslashit( $src ) === untrailingslashit( $a ) ) {
+                    return $a;
+                }
+            }
+        }
+        return self::reg_page_url();
+    }
+
     public static function handle_register() {
         check_admin_referer( 'm24_haendler_register' );
-        $reg = self::reg_page_url();
+        $reg = self::resolve_reg_src();
 
         // Honeypot + Rate-Limit (Bots/Abuse → still „erfolgreich").
         if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
