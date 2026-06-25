@@ -393,7 +393,7 @@ class M24_Inquiries_Mail_Fallback {
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#222;font-size:14px;line-height:1.5;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;padding:24px 0;">
 <tr><td align="center">
-<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #ddd;border-radius:4px;max-width:640px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #ddd;border-radius:4px;max-width:600px;">
 
 <!-- Header -->
 <tr>

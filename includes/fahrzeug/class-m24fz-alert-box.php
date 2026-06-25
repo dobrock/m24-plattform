@@ -450,12 +450,12 @@ class M24FZ_Alert_Box {
 			. 'body,table,td,h1,div,a,p{' . $stack . '}</style></head>'
 			. '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:0;"><tr><td align="center" style="padding:24px 16px;">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;background:#ffffff;border-radius:10px;overflow:hidden;">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;">'
 			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 24px;text-align:right;">'
 			. '<span style="color:#fff;font-weight:700;letter-spacing:1px;font-size:14px;">MOTORSPORT24</span></td></tr>';
 
 		if ( $img ) {
-			$html .= '<tr><td style="padding:0;"><img src="' . esc_url( $img ) . '" alt="' . esc_attr( $title ) . '" width="460" style="display:block;width:100%;height:auto;border:0;"></td></tr>';
+			$html .= '<tr><td style="padding:0;"><img src="' . esc_url( $img ) . '" alt="' . esc_attr( $title ) . '" width="600" style="display:block;width:100%;height:auto;border:0;"></td></tr>';
 		}
 
 		$html .= '<tr><td style="padding:22px 24px 8px;">'

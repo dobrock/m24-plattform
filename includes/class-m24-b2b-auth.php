@@ -150,12 +150,21 @@ class M24_B2B_Auth {
         return in_array( strtoupper( $land ), array( 'DE', 'AT', 'CH', 'LI' ), true ) ? 'de' : 'en';
     }
 
-    /** Auswahl-Länder (Default DE). EU zuerst + gängige Nachbarmärkte. Filterbar. */
+    /** Auswahl-Länder ISO-2 ⇒ deutscher Klarname. DE zuerst, Rest alphabetisch nach Name. Filterbar. */
     private static function countries(): array {
-        $list = array_merge( self::EU, array( 'CH', 'LI', 'NO', 'GB', 'US' ) );
-        $list = array_values( array_unique( $list ) );
-        sort( $list );
-        return (array) apply_filters( 'm24_b2b_countries', $list );
+        $names = array(
+            'AT' => 'Österreich', 'BE' => 'Belgien', 'BG' => 'Bulgarien', 'CY' => 'Zypern',
+            'CZ' => 'Tschechien', 'DK' => 'Dänemark', 'EE' => 'Estland', 'FI' => 'Finnland',
+            'FR' => 'Frankreich', 'GB' => 'Vereinigtes Königreich', 'GR' => 'Griechenland',
+            'HR' => 'Kroatien', 'HU' => 'Ungarn', 'IE' => 'Irland', 'IT' => 'Italien',
+            'LI' => 'Liechtenstein', 'LT' => 'Litauen', 'LU' => 'Luxemburg', 'LV' => 'Lettland',
+            'MT' => 'Malta', 'NL' => 'Niederlande', 'NO' => 'Norwegen', 'PL' => 'Polen',
+            'PT' => 'Portugal', 'RO' => 'Rumänien', 'SE' => 'Schweden', 'CH' => 'Schweiz',
+            'SK' => 'Slowakei', 'SI' => 'Slowenien', 'ES' => 'Spanien', 'US' => 'USA',
+        );
+        asort( $names ); // alphabetisch nach Klarname
+        $out = array( 'DE' => 'Deutschland' ) + $names; // DE zuerst (selected)
+        return (array) apply_filters( 'm24_b2b_countries', $out );
     }
 
     private static function user_is_haendler( $user ): bool {
@@ -166,7 +175,9 @@ class M24_B2B_Auth {
 
     private static function form_css(): string {
         return '<style>'
-            . '.m24b2b{max-width:560px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
+            . '.td-pb-row .td-pb-span4{display:none!important}'
+            . '.td-pb-row .td-pb-span8.td-main-content{width:100%!important;float:none!important}'
+            . '.m24b2b{max-width:640px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
             . '.m24b2b-card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
             . '.m24b2b h2{font-size:24px;margin:0 0 6px;color:#10243a}'
             . '.m24b2b .sub{font-size:14px;color:#5a6474;margin:0 0 18px}'
@@ -203,6 +214,7 @@ class M24_B2B_Auth {
 
         $ds  = esc_url( home_url( self::DS_PATH ) );
         $agb = esc_url( home_url( self::AGB_PATH ) );
+        $o   = self::old_values(); // bei ?r= aus Transient vorbelegt, sonst Defaults
         ?>
         <h2>Händler-Registrierung</h2>
         <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
@@ -210,39 +222,63 @@ class M24_B2B_Auth {
             <input type="hidden" name="action" value="m24_haendler_register">
             <?php wp_nonce_field( 'm24_haendler_register' ); ?>
             <label for="m24firma">Firma <span class="req">*</span></label>
-            <input type="text" id="m24firma" name="firma" required>
+            <input type="text" id="m24firma" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" required>
             <div class="row">
                 <div>
                     <label for="m24anrede">Anrede</label>
-                    <select id="m24anrede" name="anrede"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
+                    <select id="m24anrede" name="anrede">
+                        <option value="">—</option>
+                        <?php foreach ( array( 'Herr', 'Frau', 'Divers' ) as $a ) : ?>
+                            <option value="<?php echo esc_attr( $a ); ?>" <?php selected( $o['anrede'], $a ); ?>><?php echo esc_html( $a ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div>
                     <label for="m24land">Land <span class="req">*</span></label>
                     <select id="m24land" name="land" required>
-                        <?php foreach ( self::countries() as $cc ) : ?>
-                            <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( 'DE', $cc ); ?>><?php echo esc_html( $cc ); ?></option>
+                        <?php foreach ( self::countries() as $cc => $cname ) : ?>
+                            <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( $o['land'], $cc ); ?>><?php echo esc_html( $cname ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
             <div class="row">
-                <div><label for="m24vorname">Vorname <span class="req">*</span></label><input type="text" id="m24vorname" name="vorname" required></div>
-                <div><label for="m24nachname">Nachname <span class="req">*</span></label><input type="text" id="m24nachname" name="nachname" required></div>
+                <div><label for="m24vorname">Vorname <span class="req">*</span></label><input type="text" id="m24vorname" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" required></div>
+                <div><label for="m24nachname">Nachname <span class="req">*</span></label><input type="text" id="m24nachname" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" required></div>
             </div>
             <div class="row">
-                <div><label for="m24email">E-Mail <span class="req">*</span></label><input type="email" id="m24email" name="email" required></div>
-                <div><label for="m24tel">Telefon <span class="req">*</span></label><input type="tel" id="m24tel" name="telefon" required></div>
+                <div><label for="m24email">E-Mail <span class="req">*</span></label><input type="email" id="m24email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" required></div>
+                <div><label for="m24tel">Telefon</label><input type="tel" id="m24tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>"></div>
             </div>
             <label for="m24uid">USt-IdNr. <span class="req" id="m24uidreq">(Pflicht in der EU)</span></label>
-            <input type="text" id="m24uid" name="uid" placeholder="z. B. DE123456789">
-            <label class="chk"><input type="checkbox" name="consent_ds" value="1" required> Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></label>
-            <label class="chk"><input type="checkbox" name="consent_agb" value="1" required> Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></label>
+            <input type="text" id="m24uid" name="uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="z. B. DE123456789">
+            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span>Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></span></label>
+            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span>Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></span></label>
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
         </form>
         <?php
         echo '</div></div>';
         return (string) ob_get_clean();
+    }
+
+    /** Bei Validierungsfehler zwischengespeicherte Eingaben (Transient via ?r=) oder Defaults. */
+    private static function old_values(): array {
+        $def = array(
+            'firma' => '', 'anrede' => '', 'vorname' => '', 'nachname' => '',
+            'email' => '', 'telefon' => '', 'land' => 'DE', 'uid' => '',
+            'consent_ds' => false, 'consent_agb' => false,
+        );
+        $tok = isset( $_GET['r'] ) ? sanitize_text_field( wp_unslash( $_GET['r'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( '' === $tok ) {
+            return $def;
+        }
+        $data = get_transient( 'm24_reg_old_' . $tok );
+        if ( is_array( $data ) ) {
+            delete_transient( 'm24_reg_old_' . $tok );
+            return array_merge( $def, $data );
+        }
+        return $def;
     }
 
     public static function render_login_form(): string {
@@ -277,6 +313,14 @@ class M24_B2B_Auth {
 
     /* ── Handler ─────────────────────────────────────────────────────────── */
 
+    /** Validierungsfehler: Eingaben in Transient sichern und mit ?fehler=1&r=<tok> zurück. */
+    private static function fail_register( string $reg, array $old ): void {
+        $tok = wp_generate_password( 20, false );
+        set_transient( 'm24_reg_old_' . $tok, $old, 5 * MINUTE_IN_SECONDS );
+        wp_safe_redirect( add_query_arg( array( 'fehler' => '1', 'r' => $tok ), $reg ) );
+        exit;
+    }
+
     public static function handle_register() {
         check_admin_referer( 'm24_haendler_register' );
         $reg = self::reg_page_url();
@@ -298,14 +342,20 @@ class M24_B2B_Auth {
         $c_ds     = ! empty( $_POST['consent_ds'] );
         $c_agb    = ! empty( $_POST['consent_agb'] );
 
-        $ok = ( '' !== $firma && '' !== $vorname && '' !== $nachname && '' !== $telefon
+        // Eingaben für Feld-Erhalt bei Fehler (Telefon ist KEIN Pflichtfeld).
+        $old = array(
+            'firma' => $firma, 'anrede' => $anrede, 'vorname' => $vorname, 'nachname' => $nachname,
+            'email' => $email, 'telefon' => $telefon, 'land' => $land, 'uid' => $uid,
+            'consent_ds' => $c_ds, 'consent_agb' => $c_agb,
+        );
+
+        $ok = ( '' !== $firma && '' !== $vorname && '' !== $nachname
             && is_email( $email ) && 2 === strlen( $land ) && $c_ds && $c_agb );
         if ( $ok && self::is_eu( $land ) && '' === $uid ) {
             $ok = false; // UID-Pflicht in der EU
         }
         if ( ! $ok ) {
-            wp_safe_redirect( add_query_arg( 'fehler', '1', $reg ) );
-            exit;
+            self::fail_register( $reg, $old );
         }
 
         $existing = get_user_by( 'email', $email );
