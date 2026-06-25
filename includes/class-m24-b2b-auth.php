@@ -240,7 +240,9 @@ class M24_B2B_Auth {
 
     private static function form_css(): string {
         return '<style>'
-            . '.td-pb-row .td-pb-span4{display:none!important}'
+            // Nur die Sidebar direkt neben dem Content treffen (Adjacent-Sibling) — NICHT die Footer-Spalten,
+            // die dieselben .td-pb-row/.td-pb-span4 nutzen (sonst verschwindet der 3-Spalten-Footer).
+            . '.td-pb-row .td-pb-span8.td-main-content + .td-pb-span4{display:none!important}'
             . '.td-pb-row .td-pb-span8.td-main-content{width:100%!important;float:none!important}'
             . '.m24b2b{max-width:640px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
             . '.m24b2b-card{position:relative;background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
