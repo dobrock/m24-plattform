@@ -42,6 +42,11 @@ class M24FZ_Anfrage {
 			'permission_callback' => array( __CLASS__, 'check_nonce' ),
 			'callback'            => array( __CLASS__, 'handle_offmarket' ),
 		) );
+		register_rest_route( self::NS, '/fahrzeug-parken', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check_nonce' ),
+			'callback'            => array( __CLASS__, 'handle_park' ),
+		) );
 	}
 
 	public static function check_nonce( $req ) {
@@ -189,6 +194,49 @@ class M24FZ_Anfrage {
 	}
 
 	/**
+	 * „Fahrzeug parken" (No-Account-Variante) → gleiche DOI-Pipeline, markiert als parked.
+	 * Fahrzeug-spezifisch (post_id Pflicht). Honeypot + eigener Rate-Limit + Anti-Enumeration.
+	 * Merkliste-Zähler erst hier (erfolgreicher Submit), nicht mehr passiv per Tracking-Ping.
+	 */
+	public static function handle_park( WP_REST_Request $req ) {
+		$p = $req->get_params();
+
+		if ( ! empty( $p['website'] ) ) { return rest_ensure_response( array( 'ok' => true ) ); } // Honeypot
+
+		$pid = (int) ( $p['post_id'] ?? 0 );
+		if ( ! $pid || M24FZ_CPT::PT !== get_post_type( $pid ) ) { return new WP_Error( 'm24fz_bad', 'Fahrzeug unbekannt.', array( 'status' => 400 ) ); }
+
+		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? preg_replace( '/[^0-9a-f:.]/i', '', (string) $_SERVER['REMOTE_ADDR'] ) : 'x';
+		$rk  = 'm24fz_pk_' . md5( $ip );
+		$cnt = (int) get_transient( $rk );
+		if ( $cnt >= 5 ) { return new WP_Error( 'm24fz_rate', 'Zu viele Einträge. Bitte später erneut.', array( 'status' => 429 ) ); }
+
+		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		if ( ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+
+		$local = strstr( $mail, '@', true );
+		$name  = ( is_string( $local ) && '' !== $local ) ? ucfirst( $local ) : 'Interessent';
+
+		// Fahrzeug-Attribute (Modell/Kategorie) wie IL ableiten + parked-Markierung.
+		$attr = self::il_attributes( $pid );
+		do_action( 'm24fz_interessent_submitted', $pid, array(
+			'name'         => $name,
+			'email'        => $mail,
+			'parked'       => true,
+			'parked_title' => get_the_title( $pid ),
+			'modelle'      => $attr['modelle'],
+			'kategorien'   => $attr['kategorien'],
+		) );
+
+		// Merkliste-Zähler erst bei erfolgreichem Submit (§2).
+		if ( class_exists( 'M24FZ_Tracking' ) ) { M24FZ_Tracking::increment( $pid, 'merken' ); }
+
+		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
+
+		return rest_ensure_response( array( 'ok' => true, 'message' => '✓ Gemerkt — bitte E-Mail bestätigen.' ) );
+	}
+
+	/**
 	 * Brevo-/Listen-Attribute aus dem Fahrzeug ableiten (einheitlich für IL-Modal + Anfrage-Opt-in):
 	 * MODELLE ← Baureihe (Fallback Modell), KATEGORIEN ← Fahrzeugtyp (Straße/Sport). Werte filterbar.
 	 */
@@ -318,6 +366,27 @@ class M24FZ_Anfrage {
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-il-submit">Eintragen</button>
+					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
+					<p class="m24fz-anf-msg" role="status"></p>
+				</form>
+			</div>
+		</div>
+		<?php
+	}
+
+	/** „Fahrzeug parken"-Modal (No-Account-DOI, nur E-Mail + Consent). */
+	public static function park_modal_html( $post_id ) {
+		?>
+		<div class="m24fz-anfrage-modal m24fz-park-modal" id="m24fz-park-modal" hidden aria-hidden="true">
+			<div class="m24fz-anfrage-box" role="dialog" aria-modal="true" aria-label="Fahrzeug parken">
+				<button type="button" class="m24fz-anfrage-close" aria-label="Schließen">&times;</button>
+				<h3>Fahrzeug parken</h3>
+				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für Sie und informieren Sie zu diesem und ähnlichen Fahrzeugen.</p>
+				<form class="m24fz-anfrage-form m24fz-park-form" data-pid="<?php echo (int) $post_id; ?>">
+					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="ihre@email.de" required></div>
+					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
+					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>
 					<?php echo self::datenschutz_hint(); // phpcs:ignore ?>
 					<p class="m24fz-anf-msg" role="status"></p>
 				</form>

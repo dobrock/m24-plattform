@@ -127,6 +127,8 @@ class M24_Brevo_IL {
 		$reminded_at = isset( $store[ $token ]['reminded_at'] ) ? (int) $store[ $token ]['reminded_at'] : 0;
 
 		$offmarket = ! empty( $contact['offmarket'] );
+		$parked    = ! empty( $contact['parked'] );
+		$variant   = $offmarket ? 'offmarket' : ( $parked ? 'parked' : '' );
 
 		$store[ $token ] = array(
 			'email'       => $email,
@@ -136,13 +138,14 @@ class M24_Brevo_IL {
 			'attributes'  => $attributes,
 			'tags'        => $tags,
 			'offmarket'   => $offmarket,
+			'parked'      => $parked,
 			'source_id'   => (int) $context_id,
 			'created'     => time(),
 			'reminded_at' => $reminded_at,
 		);
 		self::save( $store );
 
-		self::send_doi_mail( $email, $name, $token, $offmarket );
+		self::send_doi_mail( $email, $name, $token, $variant );
 
 		M24_Logger::info( 'brevo', 'DOI-Mail gesendet (' . M24_Brevo_Client::mask_email( $email ) . ')', array(
 			'email'    => M24_Brevo_Client::mask_email( $email ),
@@ -179,6 +182,13 @@ class M24_Brevo_IL {
 		// Off-Market-Quelle markieren (Segment-Flag wie ALLE_*; filterbar, falls Brevo-Attr abweicht).
 		if ( ! empty( $contact['offmarket'] ) ) {
 			$attr['OFFMARKET'] = true;
+		}
+
+		// „Fahrzeug parken": PARKED-Flag + konkretes Fahrzeug (Titel) — filterbar.
+		if ( ! empty( $contact['parked'] ) ) {
+			$attr['PARKED'] = true;
+			$pt = sanitize_text_field( (string) ( $contact['parked_title'] ?? '' ) );
+			if ( '' !== $pt ) { $attr['PARKED_FAHRZEUG'] = $pt; }
 		}
 
 		return apply_filters( 'm24_brevo_il_attributes', $attr, $contact );
@@ -409,17 +419,22 @@ class M24_Brevo_IL {
 	 * ================================================================== */
 
 	/** DOI-Bestätigungsmail an den Interessenten (CI-konform, Bestätigungs-Button). */
-	private static function send_doi_mail( $email, $name, $token, $offmarket = false ) {
+	private static function send_doi_mail( $email, $name, $token, $variant = '' ) {
 		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
-		$subject     = $offmarket
-			? 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24'
-			: 'Bitte bestätigen Sie Ihre Anmeldung — MOTORSPORT24';
 
-		$intro = $offmarket
-			? 'vielen Dank für Ihr Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
-				. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:'
-			: 'vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+		if ( 'offmarket' === $variant ) {
+			$subject = 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24';
+			$intro   = 'vielen Dank für Ihr Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+				. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:';
+		} elseif ( 'parked' === $variant ) {
+			$subject = 'Bestätige dein geparktes Fahrzeug — MOTORSPORT24';
+			$intro   = 'Sie haben ein Fahrzeug geparkt. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+				. 'zu diesem und ähnlichen Fahrzeugen per E-Mail informieren dürfen:';
+		} else {
+			$subject = 'Bitte bestätigen Sie Ihre Anmeldung — MOTORSPORT24';
+			$intro   = 'vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
 				. 'über passende Fahrzeuge und Angebote informieren dürfen:';
+		}
 
 		$body = self::mail_html(
 			'Fast geschafft!',

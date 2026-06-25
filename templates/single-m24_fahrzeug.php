@@ -45,7 +45,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				<span class="m24fz-hero-ov" aria-hidden="true"></span>
 			<?php endif; ?>
 			<div class="m24fz-hero-top">
-				<button class="m24fz-pill" data-m24fz-track="merken" type="button">♡ Merken</button>
+				<button class="m24fz-pill m24fz-park-open" type="button">♡ Merken</button>
 				<button class="m24fz-pill" data-m24fz-share type="button">↗ Teilen</button>
 			</div>
 			<div class="m24fz-hero-foot">
@@ -213,5 +213,6 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 
 	<?php M24FZ_Anfrage::modal_html( $id ); // „Jetzt anfragen"-Modal ?>
 	<?php M24FZ_Anfrage::il_modal_html( $id ); // „Auf die Interessentenliste"-Modal (getrennt) ?>
+	<?php M24FZ_Anfrage::park_modal_html( $id ); // „Fahrzeug parken"-Modal (No-Account-DOI) ?>
 </div>
 <?php get_footer();

@@ -121,7 +121,7 @@ class M24FZ_Template {
 		wp_enqueue_style( 'm24fz-saira', plugins_url( 'assets/fonts/saira.css', M24_PLATTFORM_FILE ), array(), null );
 		wp_enqueue_style( 'm24fz', plugins_url( $css, M24_PLATTFORM_FILE ), array( 'm24fz-saira' ), $cver );
 		wp_enqueue_script( 'm24fz', plugins_url( $js, M24_PLATTFORM_FILE ), array(), $jver, true );
-		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'viewping' => rest_url( 'm24/v1/view-ping' ), 'anfrage' => rest_url( 'm24/v1/fahrzeug-anfrage' ), 'interessent' => rest_url( 'm24/v1/fahrzeug-interessent' ), 'offmarket' => rest_url( 'm24/v1/fahrzeug-offmarket' ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'pid' => get_queried_object_id() ) );
+		wp_localize_script( 'm24fz', 'M24FZ', array( 'ajax' => admin_url( 'admin-ajax.php' ), 'viewping' => rest_url( 'm24/v1/view-ping' ), 'anfrage' => rest_url( 'm24/v1/fahrzeug-anfrage' ), 'interessent' => rest_url( 'm24/v1/fahrzeug-interessent' ), 'offmarket' => rest_url( 'm24/v1/fahrzeug-offmarket' ), 'parken' => rest_url( 'm24/v1/fahrzeug-parken' ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'pid' => get_queried_object_id() ) );
 	}
 
 	/* ── Render-Helfer (von der Template-Datei genutzt) ──────────────────────── */
@@ -273,7 +273,7 @@ class M24FZ_Template {
 		} else {
 			echo self::preis_html( $id ); // phpcs:ignore
 			echo '<button class="m24fz-btn m24fz-anfrage-open" type="button">Jetzt anfragen</button>';
-			echo '<button class="m24fz-btn ghost m24fz-park" data-m24fz-track="merken" type="button">♡ Fahrzeug parken</button>';
+			echo '<button class="m24fz-btn ghost m24fz-park m24fz-park-open" type="button">♡ Fahrzeug parken</button>';
 		}
 		echo '<div class="m24fz-seller"><strong>MOTORSPORT24 GmbH</strong><span>Internationaler Verkauf von Fahrzeugen seit 2006</span></div>';
 		return ob_get_clean();

@@ -168,8 +168,9 @@
 	}
 
 	// „Jetzt anfragen" (Anfrage-Modal) UND „Auf die Interessentenliste" (IL-Modal) — getrennte Modals/Handler.
-	var anfModal = document.getElementById('m24fz-anfrage-modal');
-	var ilModal  = document.getElementById('m24fz-il-modal');
+	var anfModal  = document.getElementById('m24fz-anfrage-modal');
+	var ilModal   = document.getElementById('m24fz-il-modal');
+	var parkModal = document.getElementById('m24fz-park-modal');
 
 	function modalOpen(m) {
 		if (!m) { return; }
@@ -178,20 +179,23 @@
 	}
 	function modalClose(m) { if (!m) { return; } m.hidden = true; m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
 
-	if (anfModal || ilModal) {
+	if (anfModal || ilModal || parkModal) {
 		document.addEventListener('click', function (e) {
 			if (e.target.closest('.m24fz-anfrage-open')) { e.preventDefault(); modalOpen(anfModal); return; }
 			if (e.target.closest('.m24fz-il-open'))      { e.preventDefault(); modalOpen(ilModal); return; }
+			if (e.target.closest('.m24fz-park-open'))    { e.preventDefault(); modalOpen(parkModal); return; }
 			if (e.target.closest('.m24fz-anfrage-close')) {
 				modalClose(e.target.closest('.m24fz-anfrage-modal')); return;
 			}
-			if (e.target === anfModal) { modalClose(anfModal); }
-			if (e.target === ilModal)  { modalClose(ilModal); }
+			if (e.target === anfModal)  { modalClose(anfModal); }
+			if (e.target === ilModal)   { modalClose(ilModal); }
+			if (e.target === parkModal) { modalClose(parkModal); }
 		});
 		document.addEventListener('keydown', function (e) {
 			if (e.key !== 'Escape') { return; }
-			if (anfModal && !anfModal.hidden) { modalClose(anfModal); }
-			if (ilModal && !ilModal.hidden)  { modalClose(ilModal); }
+			if (anfModal && !anfModal.hidden)   { modalClose(anfModal); }
+			if (ilModal && !ilModal.hidden)     { modalClose(ilModal); }
+			if (parkModal && !parkModal.hidden) { modalClose(parkModal); }
 		});
 	}
 
@@ -222,6 +226,35 @@
 	}
 	wireModalForm(anfModal, '.m24fz-anfrage-form', cfg.anfrage);
 	wireModalForm(ilModal, '.m24fz-il-form', cfg.interessent);
+
+	// „Fahrzeug parken"-Modal — gleiche REST-Logik + Button-Feedback (Hero-Pill + Preisbox) nach Erfolg.
+	if (parkModal && cfg.parken) {
+		var pForm = parkModal.querySelector('.m24fz-park-form');
+		var pMsg  = parkModal.querySelector('.m24fz-anf-msg');
+		if (pForm) {
+			pForm.addEventListener('submit', function (e) {
+				e.preventDefault();
+				if (!cfg.nonce) { return; }
+				var fd = new FormData(pForm); fd.append('post_id', pForm.getAttribute('data-pid') || cfg.pid || '0');
+				var btn = pForm.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
+				if (pMsg) { pMsg.textContent = 'Wird gesendet …'; }
+				fetch(cfg.parken, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce }, body: fd })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						if (pMsg) { pMsg.textContent = (d && d.message) ? d.message : 'Bitte E-Mail bestätigen.'; }
+						if (d && d.ok) {
+							pForm.reset();
+							Array.prototype.forEach.call(document.querySelectorAll('.m24fz-park-open'), function (b) {
+								b.textContent = '✓ Gemerkt — bitte E-Mail bestätigen'; b.disabled = true;
+							});
+							setTimeout(function () { modalClose(parkModal); }, 1800);
+						}
+						if (btn) { btn.disabled = false; }
+					})
+					.catch(function () { if (pMsg) { pMsg.textContent = 'Senden fehlgeschlagen. Bitte später erneut.'; } if (btn) { btn.disabled = false; } });
+			});
+		}
+	}
 
 	// Off-Market-Inline-Formular (kein Modal) — gleiche REST-Logik, eigener Endpoint.
 	(function () {
