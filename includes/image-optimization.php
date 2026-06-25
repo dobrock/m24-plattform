@@ -45,3 +45,28 @@ add_filter( 'wp_editor_set_quality', function () { return 90; } );
  *    srcset-Größen → kein Ladezeit-Nachteil, nur mehr Detail beim Vollbild.
  */
 add_filter( 'big_image_size_threshold', function () { return 3840; } );
+
+/**
+ * 4) Footer-Partner-Logos NICHT über Jetpack Photon (i*.wp.com) ausliefern.
+ *    Geräte mit Tracking-Schutz (iPad/Safari) blocken wp.com → die Logos (Intrax, NTM,
+ *    Tractive, Lettieri) laden sonst nicht. Skip serviert sie first-party von der Domain.
+ *    Marker-Liste (Dateiname-Fragmente, case-insensitive) per Filter erweiterbar.
+ */
+function m24_photon_skip_markers() {
+	return apply_filters( 'm24_photon_skip_markers', array( 'intrax', 'ntm', 'tractive', 'lettieri' ) );
+}
+add_filter(
+	'jetpack_photon_skip_for_url',
+	function ( $skip, $src = '' ) {
+		if ( $skip ) { return $skip; }
+		$src = (string) $src;
+		foreach ( m24_photon_skip_markers() as $marker ) {
+			if ( '' !== $marker && false !== stripos( $src, (string) $marker ) ) {
+				return true;
+			}
+		}
+		return $skip;
+	},
+	10,
+	2
+);
