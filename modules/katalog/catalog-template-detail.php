@@ -46,9 +46,14 @@ class M24_Catalog_Template_Detail {
 		@media(max-width:760px){
 			.td-container.m24-katalog-container{
 				width:auto!important;
-				padding-left:16px!important;
-				padding-right:16px!important;
+				padding-left:12px!important;
+				padding-right:12px!important;
 			}
+			/* tagDiv-Innen-Padding (Row/Side) darf auf Mobile nicht zusätzlich Breite fressen,
+			   sonst greift der schmale 12px-Gutter nicht. Analog Fahrzeug-Detail (~16px je Seite). */
+			.m24-katalog-container .td-pb-row,
+			.m24-katalog-container .td-pb-padding-side,
+			.m24-katalog-container .td_block_wrap{padding-left:0!important;padding-right:0!important}
 		}
 		<?php if ( $is_detail ) : ?>
 		/* tagDiv-Wrapper .td-theme-wrap nutzt overflow:hidden → bricht position:sticky
