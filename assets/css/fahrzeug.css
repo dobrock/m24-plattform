@@ -188,7 +188,7 @@
 
 /* Lightbox */
 .m24fz-lb{position:fixed;inset:0;background:rgba(10,12,15,.94);z-index:99999;display:flex;align-items:center;justify-content:center}
-.m24fz-lb img{max-width:92vw;max-height:88vh;object-fit:contain}
+.m24fz-lb img{max-width:92vw;max-height:92vh;width:auto;height:auto;object-fit:contain}
 .m24fz-lb-frame{display:none;width:min(92vw,1280px);aspect-ratio:16/9}
 .m24fz-lb-frame iframe{width:100%;height:100%;border:0;border-radius:8px}
 .m24fz-lb.video img,.m24fz-lb.video .m24fz-lb-prev,.m24fz-lb.video .m24fz-lb-next{display:none}

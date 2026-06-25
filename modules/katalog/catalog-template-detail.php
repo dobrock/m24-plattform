@@ -88,7 +88,10 @@ class M24_Catalog_Template_Detail {
 		}
 		$out = array();
 		foreach ( $ids as $iid ) {
-			$full = wp_get_attachment_image_url( $iid, 'large' );
+			// Höchste sinnvolle WP-Größe für die Lightbox: 2048 → full → large.
+			$full = wp_get_attachment_image_url( $iid, '2048x2048' );
+			if ( ! $full ) { $full = wp_get_attachment_image_url( $iid, 'full' ); }
+			if ( ! $full ) { $full = wp_get_attachment_image_url( $iid, 'large' ); }
 			if ( ! $full ) { continue; }
 			$out[] = array( 'full' => $full, 'thumb' => wp_get_attachment_image_url( $iid, 'medium' ) ?: $full );
 		}
@@ -372,7 +375,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .fz-reserviert{color:#9a6b25;border:1px solid #9a6b25}
 		.m24-lb{display:none;position:fixed;inset:0;background:rgba(10,11,13,.93);z-index:99999;align-items:center;justify-content:center;padding:30px}
 		.m24-lb .lb-stage{flex:1;display:flex;align-items:center;justify-content:center;height:100%}
-		.m24-lb-img{max-width:100%;max-height:90vh;object-fit:contain;transition:opacity .3s ease}
+		.m24-lb-img{max-width:100%;max-height:92vh;width:auto;height:auto;object-fit:contain;transition:opacity .3s ease}
 		.m24-lb-img.m24-fade{opacity:0}
 		.m24-lb-rail{width:112px;height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-left:18px;flex:0 0 auto}
 		.m24-lb-rail img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px;cursor:pointer;opacity:.5;border:2px solid transparent}

@@ -173,11 +173,12 @@ class M24FZ_Template {
 		if ( 0 === $total ) { return ''; }
 		$rest = max( 0, $total - $initial );
 
-		// Lightbox-Bilddaten (WP-Intermediate „large", kein Photon-On-the-fly).
+		// Lightbox-Bilddaten: höchste sinnvolle WP-Größe (2048 → full → large), kein Photon-On-the-fly.
 		$data = array();
 		foreach ( $ids as $att ) {
-			$u   = wp_get_attachment_image_url( $att, 'large' );
+			$u   = wp_get_attachment_image_url( $att, '2048x2048' );
 			if ( ! $u ) { $u = wp_get_attachment_image_url( $att, 'full' ); }
+			if ( ! $u ) { $u = wp_get_attachment_image_url( $att, 'large' ); }
 			$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
 			$data[] = array( 'src' => $u, 'alt' => $alt );
 		}
