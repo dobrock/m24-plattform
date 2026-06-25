@@ -102,31 +102,35 @@ class M24_I18n {
     /* ── Flaggen (Inline-SVG, ~20px) ─────────────────────────────────────── */
 
     public static function flag_de(): string {
-        return '<svg width="26" height="18" viewBox="0 0 5 3" aria-hidden="true"><rect width="5" height="3" fill="#000"/><rect width="5" height="2" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>';
+        return '<svg viewBox="0 0 5 3" aria-hidden="true"><rect width="5" height="3" fill="#000"/><rect width="5" height="2" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>';
     }
 
     public static function flag_en(): string {
-        // Vereinfachter Union Jack.
-        return '<svg width="26" height="18" viewBox="0 0 60 36" aria-hidden="true">'
-            . '<rect width="60" height="36" fill="#012169"/>'
-            . '<path d="M0,0 60,36 M60,0 0,36" stroke="#fff" stroke-width="7"/>'
-            . '<path d="M0,0 60,36 M60,0 0,36" stroke="#C8102E" stroke-width="4"/>'
-            . '<rect x="25" width="10" height="36" fill="#fff"/><rect y="13" width="60" height="10" fill="#fff"/>'
-            . '<rect x="27" width="6" height="36" fill="#C8102E"/><rect y="15" width="60" height="6" fill="#C8102E"/>'
-            . '</svg>';
+        // Kompakte, flache Union-Jack-Konstruktion; clip-path hält die Diagonalen im Rechteck.
+        return '<svg viewBox="0 0 60 30" aria-hidden="true">'
+            . '<clipPath id="m24uk"><rect width="60" height="30"/></clipPath>'
+            . '<g clip-path="url(#m24uk)">'
+            . '<rect width="60" height="30" fill="#012169"/>'
+            . '<path d="M0,0 60,30 M60,0 0,30" stroke="#fff" stroke-width="6"/>'
+            . '<path d="M0,0 60,30 M60,0 0,30" stroke="#C8102E" stroke-width="4"/>'
+            . '<rect x="25" width="10" height="30" fill="#fff"/><rect y="10" width="60" height="10" fill="#fff"/>'
+            . '<rect x="27" width="6" height="30" fill="#C8102E"/><rect y="12" width="60" height="6" fill="#C8102E"/>'
+            . '</g></svg>';
     }
 
-    /** Flag-Umschalter (oben rechts in der Card). Aktive Sprache hervorgehoben, inaktive = ?lang-Link. */
+    /** Flag-Umschalter „Minimal mit Kürzel": kleine Flagge + DE/EN, ein klickbares Element. */
     public static function lang_switcher( ?string $current = null ): string {
         $current = $current ?: self::resolve_lang();
         $row = '<div class="m24b2b-lang" aria-label="Sprache wählen: Deutsch / English">';
         foreach ( array( 'de' => self::flag_de(), 'en' => self::flag_en() ) as $l => $svg ) {
             $label = 'de' === $l ? 'Deutsch' : 'English';
+            $abbr  = strtoupper( $l );
+            $inner = $svg . '<span>' . esc_html( $abbr ) . '</span>';
             if ( $l === $current ) {
-                $row .= '<span class="m24-flag active" title="' . esc_attr( $label ) . '">' . $svg . '</span>';
+                $row .= '<span class="m24-flag active" title="' . esc_attr( $label ) . '">' . $inner . '</span>';
             } else {
-                $url = esc_url( add_query_arg( 'lang', $l ) );
-                $row .= '<a class="m24-flag" href="' . $url . '" title="' . esc_attr( $label ) . '" aria-label="' . esc_attr( $label ) . '">' . $svg . '</a>';
+                $url  = esc_url( add_query_arg( 'lang', $l ) );
+                $row .= '<a class="m24-flag" href="' . $url . '" title="' . esc_attr( $label ) . '" aria-label="' . esc_attr( $label ) . '">' . $inner . '</a>';
             }
         }
         return $row . '</div>';

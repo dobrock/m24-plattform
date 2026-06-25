@@ -245,10 +245,10 @@ class M24_B2B_Auth {
             . '.m24b2b{max-width:640px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
             . '.m24b2b-card{position:relative;background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
             . '.m24b2b-lang{position:absolute;top:18px;right:20px;display:flex;gap:10px;align-items:center}'
-            . '.m24-flag{display:inline-flex;line-height:0;opacity:.45;transition:opacity .15s}'
-            . '.m24-flag:hover{opacity:.8}'
-            . '.m24-flag.active{opacity:1}'
-            . '.m24-flag svg{border-radius:2px}'
+            . '.m24-flag{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:7px;font-size:13px;font-weight:600;color:#5a6474;opacity:.45;text-decoration:none;transition:opacity .15s,background .15s}'
+            . '.m24-flag:hover{opacity:.85}'
+            . '.m24-flag.active{opacity:1;color:#9a6b25;background:#f3ede1}'
+            . '.m24-flag svg{width:20px;height:14px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18);display:block}'
             . '.m24b2b h2{font-size:24px;margin:0 0 6px;color:#10243a}'
             . '.m24b2b .sub{font-size:14px;color:#5a6474;margin:0 0 18px}'
             . '.m24b2b label{display:block;font-size:13px;font-weight:600;color:#3a414c;margin:12px 0 4px}'
@@ -272,9 +272,8 @@ class M24_B2B_Auth {
             . '.m24b2b-v2 input[type=text],.m24b2b-v2 input[type=email],.m24b2b-v2 input[type=tel],.m24b2b-v2 select{font-size:17px;padding:16px 18px;border-radius:12px}'
             . '.m24b2b-v2 select{color:#14161a;background:#fff}'
             . '.m24b2b-v2 .m24-uid-fb{margin:-6px 0 12px}'
-            // Sticky-Footer + Luft NUR auf den B2B-Seiten (dieses <style> lädt nur hier). Kein globaler Eingriff.
-            . '.m24-sidebar__panel{display:flex;flex-direction:column;min-height:calc(100vh - 160px)}'
-            . '.m24-sidebar__footer{margin-top:auto;padding-top:48px}'
+            // (0.11.95-Sticky-Footer-CSS entfernt: .m24-sidebar__* ist die Merkzettel-Sidebar, NICHT der
+            //  Seiten-Footer — der Theme-Footer wird über das Page-Template gerendert, nicht hier.)
             . '</style>';
     }
 
