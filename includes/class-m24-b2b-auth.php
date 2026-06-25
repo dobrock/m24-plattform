@@ -243,7 +243,12 @@ class M24_B2B_Auth {
             . '.td-pb-row .td-pb-span4{display:none!important}'
             . '.td-pb-row .td-pb-span8.td-main-content{width:100%!important;float:none!important}'
             . '.m24b2b{max-width:640px;margin:24px auto;font-family:\'Saira\',Arial,sans-serif;color:#14161a}'
-            . '.m24b2b-card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
+            . '.m24b2b-card{position:relative;background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:26px 26px 30px;box-shadow:0 1px 3px rgba(20,22,26,.06)}'
+            . '.m24b2b-lang{position:absolute;top:18px;right:20px;display:flex;gap:10px;align-items:center}'
+            . '.m24-flag{display:inline-flex;line-height:0;opacity:.45;border-bottom:2px solid transparent;padding-bottom:2px;transition:opacity .15s}'
+            . '.m24-flag:hover{opacity:.8}'
+            . '.m24-flag.active{opacity:1;border-bottom-color:#9a6b25}'
+            . '.m24-flag svg{border-radius:2px}'
             . '.m24b2b h2{font-size:24px;margin:0 0 6px;color:#10243a}'
             . '.m24b2b .sub{font-size:14px;color:#5a6474;margin:0 0 18px}'
             . '.m24b2b label{display:block;font-size:13px;font-weight:600;color:#3a414c;margin:12px 0 4px}'
@@ -268,68 +273,72 @@ class M24_B2B_Auth {
     }
 
     public static function render_registration_form(): string {
+        $lg   = M24_I18n::resolve_lang();
+        $t    = static function ( $k ) use ( $lg ) { return M24_I18n::t( $k, $lg ); };
         $sent = isset( $_GET['gesendet'] ); // phpcs:ignore WordPress.Security.NonceVerification
         ob_start();
         echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '<div class="m24b2b"><div class="m24b2b-card">';
+        echo M24_I18n::lang_switcher( $lg ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 
         if ( $sent ) {
-            echo '<div class="m24b2b-ok">Fast geschafft!</div>';
-            echo '<div class="m24b2b-note">Wir haben dir eine E-Mail geschickt. Bitte bestätige deine Registrierung über den Link darin (15&nbsp;Minuten gültig).</div>';
+            echo '<div class="m24b2b-ok">' . esc_html( $t( 'reg_ok_title' ) ) . '</div>';
+            echo '<div class="m24b2b-note">' . esc_html( $t( 'reg_ok_text' ) ) . '</div>';
             echo '</div></div>';
             return (string) ob_get_clean();
         }
-
         if ( isset( $_GET['fehler'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-            echo '<div class="m24b2b-err">Bitte fülle alle Pflichtfelder korrekt aus (inkl. USt-IdNr. bei EU-Ländern) und stimme Datenschutz &amp; AGB zu.</div>';
+            echo '<div class="m24b2b-err">' . esc_html( $t( 'reg_err' ) ) . '</div>';
         }
 
-        $ds  = esc_url( home_url( self::DS_PATH ) );
-        $agb = esc_url( home_url( self::AGB_PATH ) );
-        $o   = self::old_values(); // bei ?r= aus Transient vorbelegt, sonst Defaults
+        $ds_link  = '<a href="' . esc_url( home_url( self::DS_PATH ) ) . '" target="_blank" rel="noopener">' . esc_html( $t( 'consent_ds_link' ) ) . '</a>';
+        $agb_link = '<a href="' . esc_url( home_url( self::AGB_PATH ) ) . '" target="_blank" rel="noopener">' . esc_html( $t( 'consent_agb_link' ) ) . '</a>';
+        $o        = self::old_values();
+        $req      = '<span class="req">' . esc_html( $t( 'req' ) ) . '</span>';
         ?>
-        <h2>Händler-Registrierung</h2>
-        <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
+        <h2><?php echo esc_html( $t( 'reg_h1' ) ); ?></h2>
+        <p class="sub"><?php echo esc_html( $t( 'reg_sub' ) ); ?></p>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="m24_haendler_register">
             <input type="hidden" name="reg_src" value="<?php echo esc_url( get_permalink() ); ?>">
+            <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
             <?php wp_nonce_field( 'm24_haendler_register' ); ?>
-            <label for="m24firma">Firma <span class="req">*</span></label>
+            <label for="m24firma"><?php echo esc_html( $t( 'f_firma' ) ); ?> <?php echo $req; // phpcs:ignore ?></label>
             <input type="text" id="m24firma" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" required>
             <div class="row">
                 <div>
-                    <label for="m24anrede">Anrede</label>
+                    <label for="m24anrede"><?php echo esc_html( $t( 'f_anrede' ) ); ?></label>
                     <select id="m24anrede" name="anrede">
                         <option value="">—</option>
-                        <?php foreach ( array( 'Herr', 'Frau', 'Divers' ) as $a ) : ?>
-                            <option value="<?php echo esc_attr( $a ); ?>" <?php selected( $o['anrede'], $a ); ?>><?php echo esc_html( $a ); ?></option>
+                        <?php foreach ( array( 'Herr' => $t( 'anrede_herr' ), 'Frau' => $t( 'anrede_frau' ), 'Divers' => $t( 'anrede_divers' ) ) as $val => $lbl ) : ?>
+                            <option value="<?php echo esc_attr( $val ); ?>" <?php selected( $o['anrede'], $val ); ?>><?php echo esc_html( $lbl ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div>
-                    <label for="m24land">Land <span class="req">*</span></label>
+                    <label for="m24land"><?php echo esc_html( $t( 'f_land' ) ); ?> <?php echo $req; // phpcs:ignore ?></label>
                     <select id="m24land" name="land" required>
-                        <?php foreach ( self::countries() as $cc => $cname ) : ?>
+                        <?php foreach ( M24_I18n::countries( $lg ) as $cc => $cname ) : ?>
                             <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( $o['land'], $cc ); ?>><?php echo esc_html( $cname ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
             <div class="row">
-                <div><label for="m24vorname">Vorname <span class="req">*</span></label><input type="text" id="m24vorname" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" required></div>
-                <div><label for="m24nachname">Nachname <span class="req">*</span></label><input type="text" id="m24nachname" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" required></div>
+                <div><label for="m24vorname"><?php echo esc_html( $t( 'f_vorname' ) ); ?> <?php echo $req; // phpcs:ignore ?></label><input type="text" id="m24vorname" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" required></div>
+                <div><label for="m24nachname"><?php echo esc_html( $t( 'f_nachname' ) ); ?> <?php echo $req; // phpcs:ignore ?></label><input type="text" id="m24nachname" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" required></div>
             </div>
             <div class="row">
-                <div><label for="m24email">E-Mail <span class="req">*</span></label><input type="email" id="m24email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" required></div>
-                <div><label for="m24tel">Telefon</label><input type="tel" id="m24tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>"></div>
+                <div><label for="m24email"><?php echo esc_html( $t( 'f_email' ) ); ?> <?php echo $req; // phpcs:ignore ?></label><input type="email" id="m24email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" required></div>
+                <div><label for="m24tel"><?php echo esc_html( $t( 'f_telefon' ) ); ?></label><input type="tel" id="m24tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>"></div>
             </div>
-            <label for="m24uid">USt-IdNr. <span class="req" id="m24uidreq">(Pflicht in der EU)</span></label>
-            <input type="text" id="m24uid" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="z. B. DE123456789">
+            <label for="m24uid"><?php echo esc_html( $t( 'f_uid' ) ); ?> <span class="req" id="m24uidreq"><?php echo esc_html( $t( 'uid_hint' ) ); ?></span></label>
+            <input type="text" id="m24uid" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="<?php echo esc_attr( $t( 'uid_ph' ) ); ?>">
             <div class="m24-uid-fb" aria-live="polite"></div>
-            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span>Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></span></label>
-            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span>Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></span></label>
+            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span><?php echo wp_kses_post( sprintf( $t( 'consent_ds' ), $ds_link ) ); ?> <?php echo $req; // phpcs:ignore ?></span></label>
+            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span><?php echo wp_kses_post( sprintf( $t( 'consent_agb' ), $agb_link ) ); ?> <?php echo $req; // phpcs:ignore ?></span></label>
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-            <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
+            <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_reg' ) ); ?></button>
         </form>
         <?php
         echo self::vies_assets(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -346,11 +355,18 @@ class M24_B2B_Auth {
         $done  = true;
         $nonce = wp_create_nonce( 'm24_vies' );
         $url   = admin_url( 'admin-ajax.php' );
+        $lg    = M24_I18n::resolve_lang();
+        $i18n  = array(
+            'checking' => M24_I18n::t( 'vies_checking', $lg ),
+            'ok'       => M24_I18n::t( 'vies_ok', $lg ),
+            'bad'      => M24_I18n::t( 'vies_bad', $lg ),
+            'na'       => M24_I18n::t( 'vies_na', $lg ),
+        );
         ob_start();
         ?>
         <script>
         (function(){
-            var NONCE=<?php echo wp_json_encode( $nonce ); ?>, URL=<?php echo wp_json_encode( $url ); ?>;
+            var NONCE=<?php echo wp_json_encode( $nonce ); ?>, URL=<?php echo wp_json_encode( $url ); ?>, T=<?php echo wp_json_encode( $i18n ); ?>;
             function bind(inp){
                 if(inp.dataset.viesBound) return; inp.dataset.viesBound='1';
                 var fb=inp.parentNode.querySelector('.m24-uid-fb');
@@ -358,16 +374,16 @@ class M24_B2B_Auth {
                     if(!fb) return;
                     var v=inp.value.trim();
                     if(v.length<4){ fb.className='m24-uid-fb'; fb.textContent=''; return; }
-                    fb.className='m24-uid-fb checking'; fb.textContent='Prüfe USt-IdNr. …';
+                    fb.className='m24-uid-fb checking'; fb.textContent=T.checking;
                     fetch(URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
                         body:'action=m24_vies&_ajax_nonce='+encodeURIComponent(NONCE)+'&uid='+encodeURIComponent(v)})
                     .then(function(r){return r.json();})
                     .then(function(j){
-                        if(j&&j.valid===true){ fb.className='m24-uid-fb ok'; fb.textContent='✓ USt-IdNr. gültig'+(j.name?(' · '+j.name):''); }
-                        else if(j&&j.valid===false){ fb.className='m24-uid-fb bad'; fb.textContent='✗ USt-IdNr. nicht gültig (VIES)'; }
-                        else { fb.className='m24-uid-fb neutral'; fb.textContent='konnte gerade nicht geprüft werden'; }
+                        if(j&&j.valid===true){ fb.className='m24-uid-fb ok'; fb.textContent=T.ok+(j.name?(' · '+j.name):''); }
+                        else if(j&&j.valid===false){ fb.className='m24-uid-fb bad'; fb.textContent=T.bad; }
+                        else { fb.className='m24-uid-fb neutral'; fb.textContent=T.na; }
                     })
-                    .catch(function(){ fb.className='m24-uid-fb neutral'; fb.textContent='konnte gerade nicht geprüft werden'; });
+                    .catch(function(){ fb.className='m24-uid-fb neutral'; fb.textContent=T.na; });
                 });
             }
             function init(){ Array.prototype.forEach.call(document.querySelectorAll('.m24-uid'),bind); }
@@ -402,64 +418,70 @@ class M24_B2B_Auth {
      * Gleicher Handler/Nonce/action/Feldnamen + VIES + Feld-Erhalt wie Variante 1.
      */
     public static function render_registration_form_v2(): string {
+        $lg = M24_I18n::resolve_lang();
+        $t  = static function ( $k ) use ( $lg ) { return M24_I18n::t( $k, $lg ); };
         ob_start();
         echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '<div class="m24b2b m24b2b-v2"><div class="m24b2b-card">';
+        echo M24_I18n::lang_switcher( $lg ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 
         if ( isset( $_GET['gesendet'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-            echo '<div class="m24b2b-ok">Fast geschafft!</div>';
-            echo '<div class="m24b2b-note">Wir haben dir eine E-Mail geschickt. Bitte bestätige deine Registrierung über den Link darin (15&nbsp;Minuten gültig).</div>';
+            echo '<div class="m24b2b-ok">' . esc_html( $t( 'reg_ok_title' ) ) . '</div>';
+            echo '<div class="m24b2b-note">' . esc_html( $t( 'reg_ok_text' ) ) . '</div>';
             echo '</div></div>';
             return (string) ob_get_clean();
         }
         if ( isset( $_GET['fehler'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-            echo '<div class="m24b2b-err">Bitte fülle alle Pflichtfelder korrekt aus (inkl. gültiger USt-IdNr. bei EU-Ländern) und stimme Datenschutz &amp; AGB zu.</div>';
+            echo '<div class="m24b2b-err">' . esc_html( $t( 'reg_err' ) ) . '</div>';
         }
 
-        $ds       = esc_url( home_url( self::DS_PATH ) );
-        $agb      = esc_url( home_url( self::AGB_PATH ) );
+        $ds_link  = '<a href="' . esc_url( home_url( self::DS_PATH ) ) . '" target="_blank" rel="noopener">' . esc_html( $t( 'consent_ds_link' ) ) . '</a>';
+        $agb_link = '<a href="' . esc_url( home_url( self::AGB_PATH ) ) . '" target="_blank" rel="noopener">' . esc_html( $t( 'consent_agb_link' ) ) . '</a>';
         $o        = self::old_values();
         $has_old  = isset( $_GET['r'] ); // phpcs:ignore WordPress.Security.NonceVerification
-        $land_sel = $has_old ? $o['land'] : ''; // frischer Aufruf → „Land *"-Platzhalter
+        $land_sel = $has_old ? $o['land'] : '';
+        $req      = '<span class="req">' . esc_html( $t( 'req' ) ) . '</span>';
+        $star     = ' ' . $t( 'req' );
         ?>
-        <h2>Händler-Registrierung</h2>
-        <p class="sub">Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.</p>
+        <h2><?php echo esc_html( $t( 'reg_h1' ) ); ?></h2>
+        <p class="sub"><?php echo esc_html( $t( 'reg_sub' ) ); ?></p>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="m24_haendler_register">
             <input type="hidden" name="reg_src" value="<?php echo esc_url( get_permalink() ); ?>">
+            <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
             <?php wp_nonce_field( 'm24_haendler_register' ); ?>
-            <div class="m24f"><input type="text" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" placeholder="Firma *" required></div>
+            <div class="m24f"><input type="text" name="firma" value="<?php echo esc_attr( $o['firma'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_firma' ) . $star ); ?>" required></div>
             <div class="row">
                 <div class="m24f">
                     <select name="anrede">
-                        <option value="">Anrede</option>
-                        <?php foreach ( array( 'Herr', 'Frau', 'Divers' ) as $a ) : ?>
-                            <option value="<?php echo esc_attr( $a ); ?>" <?php selected( $o['anrede'], $a ); ?>><?php echo esc_html( $a ); ?></option>
+                        <option value=""><?php echo esc_html( $t( 'f_anrede' ) ); ?></option>
+                        <?php foreach ( array( 'Herr' => $t( 'anrede_herr' ), 'Frau' => $t( 'anrede_frau' ), 'Divers' => $t( 'anrede_divers' ) ) as $val => $lbl ) : ?>
+                            <option value="<?php echo esc_attr( $val ); ?>" <?php selected( $o['anrede'], $val ); ?>><?php echo esc_html( $lbl ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="m24f">
                     <select name="land" required>
-                        <option value="">Land *</option>
-                        <?php foreach ( self::countries() as $cc => $cname ) : ?>
+                        <option value=""><?php echo esc_html( $t( 'f_land' ) . $star ); ?></option>
+                        <?php foreach ( M24_I18n::countries( $lg ) as $cc => $cname ) : ?>
                             <option value="<?php echo esc_attr( $cc ); ?>" <?php selected( $land_sel, $cc ); ?>><?php echo esc_html( $cname ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
             <div class="row">
-                <div class="m24f"><input type="text" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" placeholder="Vorname *" required></div>
-                <div class="m24f"><input type="text" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" placeholder="Nachname *" required></div>
+                <div class="m24f"><input type="text" name="vorname" value="<?php echo esc_attr( $o['vorname'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_vorname' ) . $star ); ?>" required></div>
+                <div class="m24f"><input type="text" name="nachname" value="<?php echo esc_attr( $o['nachname'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_nachname' ) . $star ); ?>" required></div>
             </div>
             <div class="row">
-                <div class="m24f"><input type="email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" placeholder="E-Mail *" required></div>
-                <div class="m24f"><input type="tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>" placeholder="Telefon"></div>
+                <div class="m24f"><input type="email" name="email" value="<?php echo esc_attr( $o['email'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_email' ) . $star ); ?>" required></div>
+                <div class="m24f"><input type="tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_telefon' ) ); ?>"></div>
             </div>
-            <div class="m24f"><input type="text" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="USt-IdNr. (Pflicht in der EU)"><div class="m24-uid-fb" aria-live="polite"></div></div>
-            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span>Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></span></label>
-            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span>Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></span></label>
+            <div class="m24f"><input type="text" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="<?php echo esc_attr( $t( 'f_uid' ) . ' ' . $t( 'uid_hint' ) ); ?>"><div class="m24-uid-fb" aria-live="polite"></div></div>
+            <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span><?php echo wp_kses_post( sprintf( $t( 'consent_ds' ), $ds_link ) ); ?> <?php echo $req; // phpcs:ignore ?></span></label>
+            <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span><?php echo wp_kses_post( sprintf( $t( 'consent_agb' ), $agb_link ) ); ?> <?php echo $req; // phpcs:ignore ?></span></label>
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-            <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
+            <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_reg' ) ); ?></button>
         </form>
         <?php
         echo self::vies_assets(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -468,29 +490,33 @@ class M24_B2B_Auth {
     }
 
     public static function render_login_form(): string {
+        $lg = M24_I18n::resolve_lang();
+        $t  = static function ( $k ) use ( $lg ) { return M24_I18n::t( $k, $lg ); };
         ob_start();
         echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '<div class="m24b2b"><div class="m24b2b-card">';
+        echo M24_I18n::lang_switcher( $lg ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 
         if ( isset( $_GET['gesendet'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-            echo '<div class="m24b2b-ok">Check deine Mails</div>';
-            echo '<div class="m24b2b-note">Wir haben dir einen Login-Link geschickt (15&nbsp;Minuten gültig).</div>';
+            echo '<div class="m24b2b-ok">' . esc_html( $t( 'login_ok_title' ) ) . '</div>';
+            echo '<div class="m24b2b-note">' . esc_html( $t( 'login_ok_text' ) ) . '</div>';
             echo '</div></div>';
             return (string) ob_get_clean();
         }
         ?>
-        <h2>Händler-Login</h2>
-        <p class="sub">Gib deine E-Mail ein — wir schicken dir einen Login-Link. Kein Passwort nötig.</p>
+        <h2><?php echo esc_html( $t( 'login_h1' ) ); ?></h2>
+        <p class="sub"><?php echo esc_html( $t( 'login_sub' ) ); ?></p>
         <?php if ( isset( $_GET['fehler'] ) && 'link' === $_GET['fehler'] ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
-            <div class="m24b2b-err">Link ungültig oder abgelaufen — fordere einen neuen an.</div>
+            <div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_link' ) ); ?></div>
         <?php endif; ?>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="m24_haendler_login">
+            <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
             <?php wp_nonce_field( 'm24_haendler_login' ); ?>
-            <label for="m24loginmail">E-Mail <span class="req">*</span></label>
+            <label for="m24loginmail"><?php echo esc_html( $t( 'f_email' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
             <input type="email" id="m24loginmail" name="email" required>
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-            <button type="submit" class="m24b2b-btn">Login-Link anfordern</button>
+            <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_login' ) ); ?></button>
         </form>
         <?php
         echo '</div></div>';
@@ -499,11 +525,13 @@ class M24_B2B_Auth {
 
     /* ── Handler ─────────────────────────────────────────────────────────── */
 
-    /** Validierungsfehler: Eingaben in Transient sichern und mit ?fehler=1&r=<tok> zurück. */
-    private static function fail_register( string $reg, array $old ): void {
-        $tok = wp_generate_password( 20, false );
+    /** Validierungsfehler: Eingaben in Transient sichern und mit ?fehler=1&r=<tok>&lang= zurück. */
+    private static function fail_register( string $reg, array $old, string $lang = '' ): void {
+        $tok  = wp_generate_password( 20, false );
         set_transient( 'm24_reg_old_' . $tok, $old, 5 * MINUTE_IN_SECONDS );
-        wp_safe_redirect( add_query_arg( array( 'fehler' => '1', 'r' => $tok ), $reg ) );
+        $args = array( 'fehler' => '1', 'r' => $tok );
+        if ( '' !== $lang ) { $args['lang'] = $lang; }
+        wp_safe_redirect( add_query_arg( $args, $reg ) );
         exit;
     }
 
@@ -522,11 +550,12 @@ class M24_B2B_Auth {
 
     public static function handle_register() {
         check_admin_referer( 'm24_haendler_register' );
-        $reg = self::resolve_reg_src();
+        $reg  = self::resolve_reg_src();
+        $lang = self::posted_lang();
 
         // Honeypot + Rate-Limit (Bots/Abuse → still „erfolgreich").
         if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
-            wp_safe_redirect( add_query_arg( 'gesendet', '1', $reg ) );
+            wp_safe_redirect( add_query_arg( array( 'gesendet' => '1', 'lang' => $lang ), $reg ) );
             exit;
         }
 
@@ -554,7 +583,7 @@ class M24_B2B_Auth {
             $ok = false; // UID-Pflicht in der EU
         }
         if ( ! $ok ) {
-            self::fail_register( $reg, $old );
+            self::fail_register( $reg, $old, $lang );
         }
 
         // VIES autoritativ: nur EU + UID gesetzt. FAIL-SAFE — Ausfall blockt NIE.
@@ -563,7 +592,7 @@ class M24_B2B_Auth {
         if ( self::is_eu( $land ) && '' !== $uid ) {
             $v = self::vies_check( $uid );
             if ( false === $v['valid'] ) {
-                self::fail_register( $reg, $old ); // ungültige USt-IdNr.
+                self::fail_register( $reg, $old, $lang ); // ungültige USt-IdNr.
             }
             if ( true === $v['valid'] ) {
                 $uid_valid        = 1;
@@ -581,14 +610,22 @@ class M24_B2B_Auth {
                 self::send_magic_mail( $email, $raw, 'login' );
             }
         } else {
-            self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid, $uid_valid, $uid_validated_at );
+            self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid, $uid_valid, $uid_validated_at, $lang );
         }
 
-        wp_safe_redirect( add_query_arg( 'gesendet', '1', $reg ) );
+        wp_safe_redirect( add_query_arg( array( 'gesendet' => '1', 'lang' => $lang ), $reg ) );
         exit;
     }
 
-    private static function create_haendler( string $email, string $firma, string $vorname, string $nachname, string $anrede, string $telefon, string $land, string $uid, ?int $uid_valid = null, ?string $uid_validated_at = null ): void {
+    /** Gewählte Sprache aus dem Formular (Hidden m24_lang), sonst aktuelle Auflösung. */
+    private static function posted_lang(): string {
+        $l = isset( $_POST['m24_lang'] ) ? strtolower( sanitize_text_field( wp_unslash( $_POST['m24_lang'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        return in_array( $l, array( 'de', 'en' ), true ) ? $l : M24_I18n::resolve_lang();
+    }
+
+    private static function create_haendler( string $email, string $firma, string $vorname, string $nachname, string $anrede, string $telefon, string $land, string $uid, ?int $uid_valid = null, ?string $uid_validated_at = null, string $lang = 'de' ): void {
+        $lang   = in_array( $lang, array( 'de', 'en' ), true ) ? $lang : 'de';
+        $locale = 'en' === $lang ? 'en_US' : 'de_DE';
         $user_id = wp_insert_user( array(
             'user_login'    => $email,
             'user_email'    => $email,
@@ -597,7 +634,7 @@ class M24_B2B_Auth {
             'first_name'    => $vorname,
             'last_name'     => $nachname,
             'role'          => M24_B2B::ROLE,
-            'locale'        => self::locale_for( $land ),
+            'locale'        => $locale,
         ) );
         if ( is_wp_error( $user_id ) ) {
             return; // still nach außen „erfolgreich"
@@ -617,14 +654,14 @@ class M24_B2B_Auth {
                 'uid_valid'         => $uid_valid,        // 1 (VIES gültig) | null (ungeprüft/Ausfall)
                 'uid_validated_at'  => $uid_validated_at, // UTC | null
                 'land'              => $land,
-                'sprach_praeferenz' => self::lang_for( $land ),
+                'sprach_praeferenz' => $lang,             // gewählte UI-Sprache (de|en)
                 'status'            => 'pending_verification',
                 'created_at'        => current_time( 'mysql', true ),
             ),
             array( '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
         );
 
-        // Consent-Snapshot (DSGVO-Nachweis).
+        // Consent-Snapshot (DSGVO-Nachweis) inkl. angezeigter Sprache + String-Version.
         update_user_meta( $user_id, '_m24_consent', wp_json_encode( array(
             'agb'         => true,
             'datenschutz' => true,
@@ -632,6 +669,8 @@ class M24_B2B_Auth {
             'ip_hash'     => self::ip_hash(),
             'agb_url'     => self::AGB_PATH,
             'ds_url'      => self::DS_PATH,
+            'shown_lang'  => $lang,
+            'version'     => M24_I18n::VERSION,
         ) ) );
 
         $raw = M24_B2B::issue_token( $email, 'verify', (int) $user_id );
@@ -641,9 +680,10 @@ class M24_B2B_Auth {
     public static function handle_login() {
         check_admin_referer( 'm24_haendler_login' );
         $login = self::login_page_url();
+        $lang  = self::posted_lang();
 
         if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
-            wp_safe_redirect( add_query_arg( 'gesendet', '1', $login ) );
+            wp_safe_redirect( add_query_arg( array( 'gesendet' => '1', 'lang' => $lang ), $login ) );
             exit;
         }
 
@@ -656,7 +696,7 @@ class M24_B2B_Auth {
             }
         }
         // Anti-Enumeration: immer dieselbe Antwort.
-        wp_safe_redirect( add_query_arg( 'gesendet', '1', $login ) );
+        wp_safe_redirect( add_query_arg( array( 'gesendet' => '1', 'lang' => $lang ), $login ) );
         exit;
     }
 
