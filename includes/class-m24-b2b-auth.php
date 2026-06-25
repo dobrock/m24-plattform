@@ -252,7 +252,8 @@ class M24_B2B_Auth {
             . '.m24b2b h2{font-size:24px;margin:0 0 6px;color:#10243a}'
             . '.m24b2b .sub{font-size:14px;color:#5a6474;margin:0 0 18px}'
             . '.m24b2b label{display:block;font-size:13px;font-weight:600;color:#3a414c;margin:12px 0 4px}'
-            . '.m24b2b input[type=text],.m24b2b input[type=email],.m24b2b input[type=tel],.m24b2b select{width:100%;font-size:16px;padding:11px 12px;border:1px solid #d6dae0;border-radius:8px;background:#fff;box-sizing:border-box;font-family:inherit}'
+            // Theme (tagDiv) erzwingt input{height:34px} → Felder flacher als die Selects. Hier vereinheitlichen.
+            . '.m24b2b input[type=text],.m24b2b input[type=email],.m24b2b input[type=tel],.m24b2b input[type=number],.m24b2b input[type=url],.m24b2b select{width:100%;font-size:17px;height:auto!important;min-height:56px!important;padding:14px 18px;line-height:1.4;border:1px solid #d6dae0;border-radius:12px;background:#fff;box-sizing:border-box;font-family:inherit}'
             . '.m24b2b .row{display:flex;gap:12px;flex-wrap:wrap}.m24b2b .row>div{flex:1 1 200px;min-width:0}'
             . '.m24b2b .chk{display:flex;gap:9px;align-items:flex-start;margin:14px 0 0;font-size:13px;font-weight:400;color:#3a414c}'
             . '.m24b2b .chk input{margin-top:3px}'
@@ -269,6 +270,9 @@ class M24_B2B_Auth {
             . '.m24b2b-v2 input[type=text],.m24b2b-v2 input[type=email],.m24b2b-v2 input[type=tel],.m24b2b-v2 select{font-size:17px;padding:16px 18px;border-radius:12px}'
             . '.m24b2b-v2 select{color:#14161a;background:#fff}'
             . '.m24b2b-v2 .m24-uid-fb{margin:-6px 0 12px}'
+            // Sticky-Footer + Luft NUR auf den B2B-Seiten (dieses <style> lädt nur hier). Kein globaler Eingriff.
+            . '.m24-sidebar__panel{display:flex;flex-direction:column;min-height:calc(100vh - 160px)}'
+            . '.m24-sidebar__footer{margin-top:auto;padding-top:48px}'
             . '</style>';
     }
 
