@@ -383,9 +383,10 @@ class M24_Catalog_Template_Detail {
 		.m24-lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;line-height:1;cursor:pointer;background:none;border:none}
 		.m24-lb-prev,.m24-lb-next{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:22px;cursor:pointer}
 		.m24-lb-prev{left:12px}.m24-lb-next{right:12px}
-		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb-rail{display:none}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
+		@media(max-width:760px){.m24det .row{grid-template-columns:1fr;gap:24px}.m24det h1{font-size:23px}.m24det .m24-detail-head{flex-wrap:wrap;gap:12px}.m24det .m24-detail-head .m24-detail-logo{height:32px}.m24det .m24-detail-head .m24-detail-logo img{max-height:28px;max-width:96px}.m24det .tabbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24det .tabbar::-webkit-scrollbar{display:none}.m24det .tab{padding:12px 16px;font-size:14px;flex:0 0 auto;white-space:nowrap}.m24det .tabpanel[data-panel="fit"]{font-size:16px;line-height:1.7}.m24det .tabpanel[data-panel="desc"]{font-size:16px!important;line-height:1.6!important}.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="desc"] li{font-size:16px!important;line-height:1.6!important}.m24-lb{flex-direction:column;padding:16px 10px}.m24-lb .lb-stage{width:100%}.m24-lb-rail{width:auto;height:auto;max-width:100%;flex-direction:row;overflow-x:auto;overflow-y:hidden;margin:14px 0 0;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}.m24-lb-rail::-webkit-scrollbar{display:none}.m24-lb-rail img{width:64px;height:48px;aspect-ratio:auto;flex:0 0 auto;scroll-snap-align:center}.m24det .m24-right-inner{position:static}.m24det .m24-review-card{float:none;width:auto;margin:0 0 20px}.m24det .m24-rv-tab-btn{display:block}.m24det .tabpanel[data-panel="desc"] .m24-review-card{display:none!important}.m24det .bc{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;max-width:100%;white-space:nowrap;gap:6px;font-size:13px!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}.m24det .bc::-webkit-scrollbar{display:none}.m24det .bc a,.m24det .bc>span{flex:0 0 auto;white-space:nowrap;font-size:13px!important}.m24det .m24-detail-head h1{font-size:21px}}
 		.m24det .m24-mslider{display:none}
-		@media(max-width:760px){.m24det .ratio,.m24det .thumbs{display:none}.m24det .m24-mslider{display:block;position:relative;margin:0}.m24det .m24-mslider-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}.m24det .m24-mslider-track::-webkit-scrollbar{display:none}.m24det .m24-mslide{flex:0 0 100%;scroll-snap-align:center;aspect-ratio:3/2;background:#ededea;border:0;border-radius:0;overflow:hidden}.m24det .m24-mslide img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0;cursor:zoom-in}.m24det .m24-mslider-count{position:absolute;right:10px;bottom:10px;background:rgba(20,22,26,.72);color:#fff;font-family:'Saira',sans-serif;font-size:13px;font-weight:600;line-height:1;padding:5px 10px;border-radius:999px;pointer-events:none}}
+		.m24det .m24-mthumbs{display:none}
+		@media(max-width:760px){.m24det .ratio,.m24det .thumbs{display:none}.m24det .m24-mslider{display:block;position:relative;margin:0}.m24det .m24-mslider-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}.m24det .m24-mslider-track::-webkit-scrollbar{display:none}.m24det .m24-mslide{flex:0 0 100%;scroll-snap-align:center;aspect-ratio:3/2;background:#ededea;border:0;border-radius:0;overflow:hidden}.m24det .m24-mslide img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0;cursor:zoom-in}.m24det .m24-mslider-count{position:absolute;right:10px;bottom:10px;background:rgba(20,22,26,.72);color:#fff;font-family:'Saira',sans-serif;font-size:13px;font-weight:600;line-height:1;padding:5px 10px;border-radius:999px;pointer-events:none}.m24det .m24-mthumbs{display:flex;gap:8px;margin-top:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;padding:2px 0}.m24det .m24-mthumbs::-webkit-scrollbar{display:none}.m24det .m24-mthumb{flex:0 0 auto;width:64px;aspect-ratio:3/2;padding:0;border:2px solid transparent;border-radius:7px;overflow:hidden;background:#ededea;scroll-snap-align:start;cursor:pointer}.m24det .m24-mthumb img{width:100%;height:100%;object-fit:cover;display:block}.m24det .m24-mthumb.active{border-color:var(--brass)}}
 		</style>
 		<script type="application/ld+json"><?php echo wp_json_encode( $ld ); ?></script>
 		<script type="application/ld+json"><?php echo wp_json_encode( $product_ld ); ?></script>
@@ -444,6 +445,13 @@ class M24_Catalog_Template_Detail {
 								</div>
 								<?php if ( count( $imgs ) > 1 ) : ?><div class="m24-mslider-count" aria-hidden="true"><span class="cur">1</span>/<?php echo (int) count( $imgs ); ?></div><?php endif; ?>
 							</div>
+							<?php if ( count( $imgs ) > 1 ) : // Touch: horizontale Thumbnail-Swipe-Leiste unter dem Hauptbild (scroll-snap). ?>
+								<div class="m24-mthumbs" role="tablist" aria-label="<?php esc_attr_e( 'Bildauswahl', 'm24-plattform' ); ?>">
+									<?php foreach ( $imgs as $i => $im ) : ?>
+										<button type="button" class="m24-mthumb<?php echo 0 === $i ? ' active' : ''; ?>" data-i="<?php echo (int) $i; ?>" aria-label="<?php echo esc_attr( 'Bild ' . ( (int) $i + 1 ) ); ?>"><img src="<?php echo esc_url( $im['thumb'] ); ?>" loading="lazy" decoding="async" alt=""></button>
+									<?php endforeach; ?>
+								</div>
+							<?php endif; ?>
 <?php else : ?>
 						<?php // Bildlos: kleiner, gecroppter Platzhalter als CSS-Background — kein <img> (nicht indexierbar),
 						// keine Lightbox/Zoom, keine Thumbnails. ?>
@@ -808,11 +816,16 @@ class M24_Catalog_Template_Detail {
 			rail.querySelectorAll('img').forEach(function(t){t.addEventListener('click',function(){lbSet(parseInt(t.dataset.i,10));});});
 			// Mobile-Swipe-Slider: Zähler beim Wischen aktualisieren, Tap → bestehende Lightbox.
 			var mslider=root.querySelector('.m24-mslider');
+			var mthumbs=root.querySelector('.m24-mthumbs');
+			var mthumbBtns=mthumbs?mthumbs.querySelectorAll('.m24-mthumb'):[];
+			function markMThumb(si){for(var k=0;k<mthumbBtns.length;k++){mthumbBtns[k].classList.toggle('active',parseInt(mthumbBtns[k].dataset.i,10)===si);}}
 			if(mslider){var mtrack=mslider.querySelector('.m24-mslider-track'),mcur=mslider.querySelector('.m24-mslider-count .cur'),mslides=mslider.querySelectorAll('.m24-mslide');
 				if(mtrack&&mslides.length){
-					mtrack.addEventListener('scroll',function(){var w=mtrack.clientWidth||1;var si=Math.round(mtrack.scrollLeft/w);si=Math.max(0,Math.min(si,mslides.length-1));if(mcur)mcur.textContent=(si+1);},{passive:true});
+					mtrack.addEventListener('scroll',function(){var w=mtrack.clientWidth||1;var si=Math.round(mtrack.scrollLeft/w);si=Math.max(0,Math.min(si,mslides.length-1));if(mcur)mcur.textContent=(si+1);markMThumb(si);if(mthumbBtns[si])mthumbBtns[si].scrollIntoView({inline:'nearest',block:'nearest'});},{passive:true});
 					mslides.forEach(function(sl){sl.addEventListener('click',function(){openLb(parseInt(sl.dataset.i,10)||0);});});
 				}
+				// Touch-Thumbnail-Leiste: Tap → Hauptbild-Slider zu diesem Bild scrollen.
+				for(var mt=0;mt<mthumbBtns.length;mt++){(function(btn){btn.addEventListener('click',function(){var ti=parseInt(btn.dataset.i,10)||0;if(mtrack){mtrack.scrollTo({left:ti*(mtrack.clientWidth||0),behavior:'smooth'});}markMThumb(ti);});})(mthumbBtns[mt]);}
 			}
 			function openLb(i){lbSet(i);lb.style.display='flex';document.body.style.overflow='hidden';}
 			function closeLb(){lb.style.display='none';document.body.style.overflow='';}
@@ -821,6 +834,11 @@ class M24_Catalog_Template_Detail {
 			lb.querySelector('.m24-lb-prev').addEventListener('click',function(){lbSet(idx-1);});
 			lb.querySelector('.m24-lb-next').addEventListener('click',function(){lbSet(idx+1);});
 			lb.addEventListener('click',function(e){if(e.target===lb)closeLb();});
+			// Lightbox: horizontaler Touch-Swipe (nur horizontale Geste; vertikales Scrollen ignorieren).
+			(function(){var sx=0,sy=0,on=false;var stage=lb.querySelector('.lb-stage')||lb;
+				stage.addEventListener('touchstart',function(e){if(e.touches.length!==1)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;on=true;},{passive:true});
+				stage.addEventListener('touchend',function(e){if(!on)return;on=false;var t=e.changedTouches[0];var dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)){lbSet(dx<0?idx+1:idx-1);}},{passive:true});
+			})();
 			document.addEventListener('keydown',function(e){
 				var open=(lb.style.display==='flex');
 				var tag=(document.activeElement&&document.activeElement.tagName)||'';
