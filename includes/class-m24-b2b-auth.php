@@ -40,6 +40,9 @@ class M24_B2B_Auth {
         add_action( 'admin_post_nopriv_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
         add_action( 'admin_post_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
 
+        add_action( 'wp_ajax_nopriv_m24_vies', array( __CLASS__, 'ajax_vies' ) );
+        add_action( 'wp_ajax_m24_vies', array( __CLASS__, 'ajax_vies' ) );
+
         add_action( 'template_redirect', array( __CLASS__, 'confirm_intercept' ), 1 );
         add_action( 'template_redirect', array( __CLASS__, 'no_cache' ) );
         add_action( 'admin_init', array( __CLASS__, 'ensure_pages' ) );
@@ -141,6 +144,54 @@ class M24_B2B_Auth {
         return in_array( strtoupper( $land ), self::EU, true );
     }
 
+    /* ── VIES (EU-USt-IdNr.-Live-Prüfung) ────────────────────────────────── */
+
+    /**
+     * Prüft eine EU-USt-IdNr. live gegen den offiziellen VIES-REST-Service. FAIL-SAFE:
+     * jeder Ausfall (Timeout, MS unavailable, Nicht-200) → checked=false/valid=null → blockt NIE.
+     *
+     * @return array{checked:bool,valid:?bool,name:?string}
+     */
+    public static function vies_check( string $uid ): array {
+        $uid  = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $uid ) ); // Leerzeichen/Punkte raus
+        $ms   = substr( $uid, 0, 2 );
+        $num  = substr( $uid, 2 );
+        $fail = array( 'checked' => false, 'valid' => null, 'name' => null );
+
+        if ( ! in_array( $ms, self::EU, true ) || '' === $num ) {
+            return $fail;
+        }
+
+        $url = 'https://ec.europa.eu/taxation_customs/vies/rest-api/ms/' . rawurlencode( $ms ) . '/vat/' . rawurlencode( $num );
+        $res = wp_remote_get( $url, array( 'timeout' => 8, 'headers' => array( 'Accept' => 'application/json' ) ) );
+        if ( is_wp_error( $res ) || 200 !== (int) wp_remote_retrieve_response_code( $res ) ) {
+            return $fail;
+        }
+        $data = json_decode( (string) wp_remote_retrieve_body( $res ), true );
+        if ( ! is_array( $data ) ) {
+            return $fail;
+        }
+
+        // VIES-REST liefert `valid` (bool); defensiv auch `isValid` akzeptieren.
+        $valid = array_key_exists( 'valid', $data ) ? $data['valid'] : ( $data['isValid'] ?? null );
+        if ( true === $valid ) {
+            $name = isset( $data['name'] ) ? trim( (string) $data['name'] ) : '';
+            // VIES gibt bei nicht offengelegtem Namen „---" zurück.
+            $name = ( '' !== $name && '---' !== $name ) ? $name : null;
+            return array( 'checked' => true, 'valid' => true, 'name' => $name );
+        }
+        if ( false === $valid ) {
+            return array( 'checked' => true, 'valid' => false, 'name' => null );
+        }
+        return $fail; // MS unavailable / unklar
+    }
+
+    public static function ajax_vies() {
+        check_ajax_referer( 'm24_vies' );
+        $uid = sanitize_text_field( wp_unslash( $_POST['uid'] ?? '' ) );
+        wp_send_json( self::vies_check( $uid ) );
+    }
+
     /** WP-Locale aus dem Land (DE/AT → de_DE, sonst de_DE als Default-Sprache der Plattform). */
     private static function locale_for( string $land ): string {
         return in_array( strtoupper( $land ), array( 'DE', 'AT', 'CH', 'LI' ), true ) ? 'de_DE' : 'de_DE';
@@ -192,6 +243,8 @@ class M24_B2B_Auth {
             . '.m24b2b-note{background:#edf3fb;border:1px solid #cfe0f4;color:#10243a;border-radius:10px;padding:16px 18px;font-size:14.5px;line-height:1.5}'
             . '.m24b2b-err{background:#fdf1f3;border:1px solid #f0c4cc;color:#9a2530;border-radius:8px;padding:10px 14px;font-size:13.5px;margin:0 0 16px}'
             . '.m24b2b-ok{font-size:30px;font-weight:800;color:#9a6b25;margin:0 0 8px}'
+            . '.m24-uid-fb{font-size:12px;margin-top:5px;min-height:16px}'
+            . '.m24-uid-fb.checking{color:#5a6474}.m24-uid-fb.ok{color:#1a7a3c;font-weight:600}.m24-uid-fb.bad{color:#c8102e;font-weight:600}.m24-uid-fb.neutral{color:#9aa3b0}'
             . '</style>';
     }
 
@@ -251,14 +304,57 @@ class M24_B2B_Auth {
                 <div><label for="m24tel">Telefon</label><input type="tel" id="m24tel" name="telefon" value="<?php echo esc_attr( $o['telefon'] ); ?>"></div>
             </div>
             <label for="m24uid">USt-IdNr. <span class="req" id="m24uidreq">(Pflicht in der EU)</span></label>
-            <input type="text" id="m24uid" name="uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="z. B. DE123456789">
+            <input type="text" id="m24uid" name="uid" class="m24-uid" value="<?php echo esc_attr( $o['uid'] ); ?>" placeholder="z. B. DE123456789">
+            <div class="m24-uid-fb" aria-live="polite"></div>
             <label class="chk"><input type="checkbox" name="consent_ds" value="1" <?php checked( $o['consent_ds'] ); ?> required><span>Ich habe die <a href="<?php echo $ds; // phpcs:ignore ?>" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu. <span class="req">*</span></span></label>
             <label class="chk"><input type="checkbox" name="consent_agb" value="1" <?php checked( $o['consent_agb'] ); ?> required><span>Ich erkenne die <a href="<?php echo $agb; // phpcs:ignore ?>" target="_blank" rel="noopener">AGB</a> an. <span class="req">*</span></span></label>
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn">Registrierung absenden</button>
         </form>
         <?php
+        echo self::vies_assets(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '</div></div>';
+        return (string) ob_get_clean();
+    }
+
+    /** VIES-Live-Feedback (Blur des .m24-uid-Feldes). Einmal pro Seite ausgeben. */
+    private static function vies_assets(): string {
+        static $done = false;
+        if ( $done ) {
+            return '';
+        }
+        $done  = true;
+        $nonce = wp_create_nonce( 'm24_vies' );
+        $url   = admin_url( 'admin-ajax.php' );
+        ob_start();
+        ?>
+        <script>
+        (function(){
+            var NONCE=<?php echo wp_json_encode( $nonce ); ?>, URL=<?php echo wp_json_encode( $url ); ?>;
+            function bind(inp){
+                if(inp.dataset.viesBound) return; inp.dataset.viesBound='1';
+                var fb=inp.parentNode.querySelector('.m24-uid-fb');
+                inp.addEventListener('blur',function(){
+                    if(!fb) return;
+                    var v=inp.value.trim();
+                    if(v.length<4){ fb.className='m24-uid-fb'; fb.textContent=''; return; }
+                    fb.className='m24-uid-fb checking'; fb.textContent='Prüfe USt-IdNr. …';
+                    fetch(URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                        body:'action=m24_vies&_ajax_nonce='+encodeURIComponent(NONCE)+'&uid='+encodeURIComponent(v)})
+                    .then(function(r){return r.json();})
+                    .then(function(j){
+                        if(j&&j.valid===true){ fb.className='m24-uid-fb ok'; fb.textContent='✓ USt-IdNr. gültig'+(j.name?(' · '+j.name):''); }
+                        else if(j&&j.valid===false){ fb.className='m24-uid-fb bad'; fb.textContent='✗ USt-IdNr. nicht gültig (VIES)'; }
+                        else { fb.className='m24-uid-fb neutral'; fb.textContent='konnte gerade nicht geprüft werden'; }
+                    })
+                    .catch(function(){ fb.className='m24-uid-fb neutral'; fb.textContent='konnte gerade nicht geprüft werden'; });
+                });
+            }
+            function init(){ Array.prototype.forEach.call(document.querySelectorAll('.m24-uid'),bind); }
+            if(document.readyState!=='loading'){ init(); } else { document.addEventListener('DOMContentLoaded',init); }
+        })();
+        </script>
+        <?php
         return (string) ob_get_clean();
     }
 
@@ -358,6 +454,21 @@ class M24_B2B_Auth {
             self::fail_register( $reg, $old );
         }
 
+        // VIES autoritativ: nur EU + UID gesetzt. FAIL-SAFE — Ausfall blockt NIE.
+        $uid_valid        = null;
+        $uid_validated_at = null;
+        if ( self::is_eu( $land ) && '' !== $uid ) {
+            $v = self::vies_check( $uid );
+            if ( false === $v['valid'] ) {
+                self::fail_register( $reg, $old ); // ungültige USt-IdNr.
+            }
+            if ( true === $v['valid'] ) {
+                $uid_valid        = 1;
+                $uid_validated_at = gmdate( 'Y-m-d H:i:s' );
+            }
+            // checked===false → uid_valid bleibt NULL, NICHT blocken.
+        }
+
         $existing = get_user_by( 'email', $email );
         if ( $existing ) {
             // Bereits Händler → kein Neuanlegen, stattdessen Login-Link. Andere Rolle → bewusst
@@ -367,14 +478,14 @@ class M24_B2B_Auth {
                 self::send_magic_mail( $email, $raw, 'login' );
             }
         } else {
-            self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid );
+            self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid, $uid_valid, $uid_validated_at );
         }
 
         wp_safe_redirect( add_query_arg( 'gesendet', '1', $reg ) );
         exit;
     }
 
-    private static function create_haendler( string $email, string $firma, string $vorname, string $nachname, string $anrede, string $telefon, string $land, string $uid ): void {
+    private static function create_haendler( string $email, string $firma, string $vorname, string $nachname, string $anrede, string $telefon, string $land, string $uid, ?int $uid_valid = null, ?string $uid_validated_at = null ): void {
         $user_id = wp_insert_user( array(
             'user_login'    => $email,
             'user_email'    => $email,
@@ -400,12 +511,14 @@ class M24_B2B_Auth {
                 'wp_user_id'        => (int) $user_id,
                 'firma'             => $firma,
                 'uid'               => '' !== $uid ? $uid : null,
+                'uid_valid'         => $uid_valid,        // 1 (VIES gültig) | null (ungeprüft/Ausfall)
+                'uid_validated_at'  => $uid_validated_at, // UTC | null
                 'land'              => $land,
                 'sprach_praeferenz' => self::lang_for( $land ),
                 'status'            => 'pending_verification',
                 'created_at'        => current_time( 'mysql', true ),
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+            array( '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
         );
 
         // Consent-Snapshot (DSGVO-Nachweis).
