@@ -108,9 +108,11 @@ class M24FZ_Meta {
 			update_post_meta( $post_id, $k, $ids );
 		}
 
-		// Aktiv-Kategorie speichern (Term-Zuordnung übernimmt set_status bzw. unten).
-		$kat = in_array( ( $_POST['_m24fz_kat'] ?? '' ), array( 'race-cars', 'classic-cars' ), true ) ? $_POST['_m24fz_kat'] : 'race-cars';
-		update_post_meta( $post_id, '_m24fz_kat', $kat );
+		// Aktiv-Kategorie(n) als Array speichern (Doppel-Rubrik möglich, z. B. M3 CSL). Mind. 1, Default race-cars.
+		$kraw = isset( $_POST['_m24fz_kat'] ) ? (array) wp_unslash( $_POST['_m24fz_kat'] ) : array();
+		$kats = array_values( array_intersect( array_map( 'sanitize_key', $kraw ), array( 'race-cars', 'classic-cars' ) ) );
+		if ( empty( $kats ) ) { $kats = array( 'race-cars' ); }
+		update_post_meta( $post_id, '_m24fz_kat', $kats );
 
 		// Status aus Switches → neues Modell (§2). „Gelistet" (keine Switch) lässt Entwurf/Publish
 		// in Ruhe, setzt nur die Inserat-Meta; verkauft/reserviert/deaktiviert via set_status.

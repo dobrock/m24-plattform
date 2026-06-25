@@ -30,7 +30,7 @@ class M24FZ_Meta_Render {
 		wp_nonce_field( M24FZ_Meta::NONCE, M24FZ_Meta::NONCE );
 		$typ    = self::g( $id, '_m24fz_template_typ', 'strasse' );
 		$status = M24FZ_CPT::status( $id );
-		$kat    = self::g( $id, '_m24fz_kat', 'race-cars' );
+		$kats   = M24FZ_CPT::kats( $id ); // Array (race-cars|classic-cars)
 		$paf    = (int) self::g( $id, '_m24fz_preis_auf_anfrage' );
 		?>
 		<style>.m24fz-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.m24fz-sec{border-top:1px solid #e0e0e0;margin-top:14px;padding-top:10px}.m24fz-sec h4{margin:0 0 6px}.m24fz-gal{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.m24fz-gal img{width:62px;height:42px;object-fit:cover;border-radius:4px;cursor:move;border:1px solid #ccc}.m24fz-gal .rm{position:absolute;top:-6px;right:-6px;background:#a00;color:#fff;border-radius:50%;width:16px;height:16px;line-height:14px;text-align:center;font-size:11px;cursor:pointer}.m24fz-gal span{position:relative;display:inline-block}</style>
@@ -39,8 +39,9 @@ class M24FZ_Meta_Render {
 			<p><label style="font-weight:600;font-size:12px;color:#50575e;display:block">Template-Typ</label>
 				<label><input type="radio" name="_m24fz_template_typ" value="strasse" <?php checked( $typ, 'strasse' ); ?>> Straßenfahrzeug</label>
 				<label style="margin-left:10px"><input type="radio" name="_m24fz_template_typ" value="renn" <?php checked( $typ, 'renn' ); ?>> Rennfahrzeug</label></p>
-			<p><label style="font-weight:600;font-size:12px;color:#50575e;display:block">Aktiv-Kategorie</label>
-				<select name="_m24fz_kat" class="widefat"><option value="race-cars" <?php selected( $kat, 'race-cars' ); ?>>Race Cars</option><option value="classic-cars" <?php selected( $kat, 'classic-cars' ); ?>>Classic Cars</option></select></p>
+			<p><label style="font-weight:600;font-size:12px;color:#50575e;display:block">Aktiv-Kategorie (Mehrfachauswahl)</label>
+				<label style="margin-right:14px"><input type="checkbox" name="_m24fz_kat[]" value="race-cars" <?php checked( in_array( 'race-cars', $kats, true ) ); ?>> Race Cars</label>
+				<label><input type="checkbox" name="_m24fz_kat[]" value="classic-cars" <?php checked( in_array( 'classic-cars', $kats, true ) ); ?>> Classic Cars</label></p>
 		</div>
 
 		<div class="m24fz-sec"><h4>Status &amp; Preis</h4>

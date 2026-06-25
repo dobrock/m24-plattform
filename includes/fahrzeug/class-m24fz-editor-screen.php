@@ -143,7 +143,7 @@ class M24FZ_Editor_Screen {
 		$post    = $id ? get_post( $id ) : null;
 		$title   = $post ? $post->post_title : '';
 		$typ     = self::g( $id, '_m24fz_template_typ', 'strasse' );
-		$kat     = self::g( $id, '_m24fz_kat', 'race-cars' );
+		$kats    = M24FZ_CPT::kats( $id ); // Array von Rubriken (race-cars|classic-cars), Doppel möglich
 		$status  = $id ? M24FZ_CPT::status( $id ) : 'gelistet';
 		$paf     = (int) self::g( $id, '_m24fz_preis_auf_anfrage' );
 		$einheit = self::g( $id, '_m24fz_laufleistung_einheit', 'km' );
@@ -211,11 +211,11 @@ class M24FZ_Editor_Screen {
 								</div>
 							</div>
 							<div class="fz-f">
-								<label for="_m24fz_kat">Aktiv-Kategorie</label>
-								<select id="_m24fz_kat" name="_m24fz_kat">
-									<option value="race-cars" <?php selected( $kat, 'race-cars' ); ?>>Race Cars</option>
-									<option value="classic-cars" <?php selected( $kat, 'classic-cars' ); ?>>Classic Cars</option>
-								</select>
+								<label>Aktiv-Kategorie <span class="req">*</span></label>
+								<div class="fz-checks fz-kat">
+									<label class="fz-chip<?php echo in_array( 'race-cars', $kats, true ) ? ' on' : ''; ?>"><input type="checkbox" name="_m24fz_kat[]" value="race-cars" <?php checked( in_array( 'race-cars', $kats, true ) ); ?>><span class="dot"></span>Race Cars</label>
+									<label class="fz-chip<?php echo in_array( 'classic-cars', $kats, true ) ? ' on' : ''; ?>"><input type="checkbox" name="_m24fz_kat[]" value="classic-cars" <?php checked( in_array( 'classic-cars', $kats, true ) ); ?>><span class="dot"></span>Classic Cars</label>
+								</div>
 							</div>
 						</div>
 						<div class="fz-row">
@@ -692,9 +692,17 @@ CSS;
 	private static function js() {
 		return <<<JS
 jQuery(function($){
-	// Doppel-Submit-Sperre (gegen Doppel-Inserat): nur die .fz-save-Buttons sofort sperren + Text „Speichern…".
-	// Draft (.fz-out) und Löschen (.fz-del) tragen eigene name/value und bleiben aktiv → Wert wird mitgesendet.
-	$('.fz-form').on('submit',function(){
+	// Aktiv-Kategorie-Chips: .on-Status spiegeln.
+	$('.fz-kat input').on('change',function(){ $(this).closest('.fz-chip').toggleClass('on',this.checked); });
+	// Doppel-Submit-Sperre (gegen Doppel-Inserat) + Mind.-1-Kategorie-Pflicht. Löschen ausgenommen.
+	$('.fz-form').on('submit',function(e){
+		var sub=(e.originalEvent&&e.originalEvent.submitter)||document.activeElement;
+		if(sub&&$(sub).hasClass('fz-del')){ return; } // Löschen: keine Kat-Pflicht, kein Disable
+		if($('.fz-kat input:checked').length===0){
+			e.preventDefault();
+			alert('Bitte mindestens eine Aktiv-Kategorie wählen (Race Cars und/oder Classic Cars).');
+			return false;
+		}
 		$(this).find('.fz-save').prop('disabled',true).text('Speichern…');
 	});
 	// Live PS → kW.

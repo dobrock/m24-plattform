@@ -110,6 +110,17 @@ class M24FZ_CPT {
 		update_option( 'm24fz_reclaim_seed_v1', 1 );
 	}
 
+	/**
+	 * Zentraler Accessor: Rubrik-Kategorien eines Fahrzeugs IMMER als Array (Teilmenge von
+	 * race-cars|classic-cars). Abwärtskompatibel: alter Einzel-String → [string]. Default race-cars.
+	 */
+	public static function kats( $post_id ): array {
+		$raw = get_post_meta( (int) $post_id, '_m24fz_kat', true );
+		$arr = is_array( $raw ) ? $raw : ( '' !== (string) $raw ? array( (string) $raw ) : array() );
+		$arr = array_values( array_intersect( array_map( 'strval', $arr ), array( 'race-cars', 'classic-cars' ) ) );
+		return $arr ?: array( 'race-cars' );
+	}
+
 	/** _m24fz_kat → WP-Kategorie-Slug (filterbar). No-op, wenn der Term nicht existiert (kein Risiko). */
 	public static function rubrik_map() {
 		return apply_filters( 'm24fz_rubrik_categories', array(
@@ -121,15 +132,27 @@ class M24FZ_CPT {
 	/** Fahrzeug der passenden Rubrik-Kategorie zuordnen (damit Rubrik-Seiten/Blöcke die CPT ziehen). */
 	public static function sync_rubrik_category( $post_id ) {
 		if ( self::$busy || self::PT !== get_post_type( $post_id ) ) { return; }
-		$map = self::rubrik_map();
-		$kat = (string) get_post_meta( $post_id, '_m24fz_kat', true );
-		$all = array();
-		foreach ( $map as $s ) { $t = get_term_by( 'slug', $s, 'category' ); if ( $t ) { $all[] = (int) $t->term_id; } }
-		if ( $all ) { wp_remove_object_terms( $post_id, $all, 'category' ); } // alte Rubrik(en) entfernen
-		if ( isset( $map[ $kat ] ) ) {
-			$t = get_term_by( 'slug', $map[ $kat ], 'category' );
-			if ( $t && ! is_wp_error( $t ) ) { wp_set_object_terms( $post_id, array( (int) $t->term_id ), 'category', true ); }
+		$map     = self::rubrik_map();   // kat → for-sale-Slug
+		$sold    = self::SOLD_MAP;       // kat → sold-Slug
+		$kats    = self::kats( $post_id );
+		$is_sold = ( 'verkauft' === self::status( $post_id ) );
+
+		// Alle vier Rubrik-Terme (for-sale + sold) entfernen, dann je gewähltem kat neu setzen.
+		$remove = array();
+		foreach ( array_merge( array_values( $map ), array_values( $sold ) ) as $s ) {
+			$t = get_term_by( 'slug', $s, 'category' );
+			if ( $t ) { $remove[] = (int) $t->term_id; }
 		}
+		if ( $remove ) { wp_remove_object_terms( $post_id, $remove, 'category' ); }
+
+		$add = array();
+		foreach ( $kats as $k ) {
+			$slug = $is_sold ? ( $sold[ $k ] ?? '' ) : ( $map[ $k ] ?? '' );
+			if ( '' === $slug ) { continue; }
+			$t = get_term_by( 'slug', $slug, 'category' );
+			if ( $t && ! is_wp_error( $t ) ) { $add[] = (int) $t->term_id; }
+		}
+		if ( $add ) { wp_set_object_terms( $post_id, $add, 'category', true ); }
 	}
 
 	/** Einmaliger Backfill der Rubrik-Kategorie für bestehende Fahrzeuge (v2 erzwingt Re-Sync). */

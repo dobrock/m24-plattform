@@ -50,7 +50,8 @@ class M24FZ_Template {
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'orderby'        => 'date', 'order' => 'DESC',
-			'meta_query'     => array( array( 'key' => '_m24fz_kat', 'value' => $kat ) ),
+			// _m24fz_kat ist jetzt ein Array (serialisiert) → LIKE auf den quotierten Slug (Doppel-Rubrik-tauglich).
+			'meta_query'     => array( array( 'key' => '_m24fz_kat', 'value' => '"' . $kat . '"', 'compare' => 'LIKE' ) ),
 		) );
 		if ( empty( $ids ) ) { return ''; }
 
