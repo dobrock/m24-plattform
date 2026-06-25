@@ -56,7 +56,7 @@ class M24FZ_Telemetry {
 	public static function lenkung_options()       { return array( 'Links', 'Rechts' ); }
 	public static function innenmaterial_options() { return array( 'Velours', 'Stoff', 'Kunstleder', 'Leder', 'Alcantara', 'Vollleder', 'Teilleder / Stoff' ); }
 	public static function innenfarbe_options()    { return array( 'Grau', 'Schwarz', 'Bordeauxrot', 'Rot', 'Weiß', 'Grün', 'Blau' ); }
-	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Cabriolet', 'Touring', '2-türige Limousine' ); }
+	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Zweitürige Limousine', 'Cabriolet', 'Touring', '2-türige Limousine' ); }
 
 	/** Fahrzeugtyp-Label (A3 „Bezeichnungen übernehmen"). */
 	public static function typ_label( $typ ) { return ( 'renn' === $typ ) ? 'Rennwagen' : 'Straßenfahrzeug'; }

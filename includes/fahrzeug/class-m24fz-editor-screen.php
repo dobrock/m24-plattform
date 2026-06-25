@@ -316,6 +316,11 @@ class M24FZ_Editor_Screen {
 							<?php
 							self::select( $id, '_m24fz_innenmaterial', 'Innenmaterial', M24FZ_Telemetry::innenmaterial_options(), array( 'cls' => 'fz-renn-hide' ) );
 							self::select( $id, '_m24fz_innenfarbe', 'Innenfarbe', M24FZ_Telemetry::innenfarbe_options(), array( 'req' => ( 'renn' !== $typ ), 'cls' => 'fz-renn-hide' ) );
+							// Stoffbezeichnung — nur sichtbar, wenn Innenmaterial = „Stoff" (JS-Toggle); folgt der Sichtbarkeit des Selects.
+							printf(
+								'<div class="fz-f fz-stoff-only"><label for="_m24fz_innenmaterial_stoff">Stoffbezeichnung</label><input type="text" id="_m24fz_innenmaterial_stoff" name="_m24fz_innenmaterial_stoff" value="%s" placeholder="z. B. Überkaro"></div>',
+								esc_attr( self::g( $id, '_m24fz_innenmaterial_stoff' ) )
+							);
 							?>
 						</div>
 
@@ -724,7 +729,11 @@ jQuery(function($){
 		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn); $('.fz-renn-hide').toggle(!renn); $('.fz-renn-only').toggle(renn);
 		fillGetriebe(renn);
 		if(renn){ var ka=$('#_m24fz_karosserie'); if(ka.length && ka.val()===''){ ka.val('Coupé'); } }
-		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }
+		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on');
+		toggleStoff(); }
+	// Stoffbezeichnung nur bei Innenmaterial „Stoff" (und nur solange das Innenmaterial-Feld sichtbar ist).
+	function toggleStoff(){ var sel=$('#_m24fz_innenmaterial'); var show=sel.length && sel.is(':visible') && sel.val()==='Stoff'; $('.fz-stoff-only').toggle(!!show); }
+	$('#_m24fz_innenmaterial').on('change',toggleStoff);
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
 	// Zustand/Ausstattung Toggle-Chips.
 	$(document).on('change','.fz-chip input',function(){ $(this).closest('.fz-chip').toggleClass('on',this.checked); });

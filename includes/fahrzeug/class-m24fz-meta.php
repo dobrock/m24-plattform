@@ -58,7 +58,7 @@ class M24FZ_Meta {
 			'_m24fz_race_opt1_label', '_m24fz_race_opt1_value', '_m24fz_race_opt2_label', '_m24fz_race_opt2_value',
 			'_m24fz_race_opt3_label', '_m24fz_race_opt3_value',
 			'_m24fz_erstzulassung', '_m24fz_modell', '_m24fz_fin', '_m24fz_karosserie', '_m24fz_baureihe',
-			'_m24fz_hubraum', '_m24fz_lenkung', '_m24fz_antrieb', '_m24fz_kraftstoff', '_m24fz_innenmaterial',
+			'_m24fz_hubraum', '_m24fz_lenkung', '_m24fz_antrieb', '_m24fz_kraftstoff', '_m24fz_innenmaterial', '_m24fz_innenmaterial_stoff',
 			'_m24fz_innenfarbe', '_m24fz_aussenfarbe', '_m24fz_farbbez_hersteller', '_m24fz_neu_gebraucht',
 			'_m24fz_land_erstauslieferung', '_m24fz_standort', '_m24fz_standort_ort', '_m24fz_marke',
 		);

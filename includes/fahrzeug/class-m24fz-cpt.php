@@ -127,7 +127,7 @@ class M24FZ_CPT {
 	 * Je .sold (Verkauft, weiß) / .res (Reserviert, #6b4f1c). Wiederverwendet von Teil + Fahrzeug.
 	 */
 	public static function status_badge_css(): string {
-		return ".m24-status-ribbon{position:absolute;top:16px;left:-42px;transform:rotate(-45deg);width:172px;text-align:center;padding:7px 0;font-family:'Saira',sans-serif;font-weight:800;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.18);z-index:3;pointer-events:none}"
+		return ".m24-status-ribbon{position:absolute;top:16px;left:-42px;transform:rotate(-45deg);width:172px;height:28px;display:flex;align-items:center;justify-content:center;font-family:'Saira',sans-serif;font-weight:800;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.18);z-index:3;pointer-events:none}"
 			. ".m24-status-ribbon.sold{background:linear-gradient(135deg,#bfa166 0%,#9c7e48 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18)}"
 			. ".m24-status-ribbon.res{background:linear-gradient(135deg,#e7d7b4 0%,#d3bd8f 100%);color:#6b4f1c}"
 			. ".m24-status-btn{display:inline-block;padding:11px 20px;border-radius:9px;font-family:'Saira',sans-serif;font-weight:800;font-size:14px;line-height:1;letter-spacing:.16em;text-transform:uppercase}"

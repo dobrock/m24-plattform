@@ -344,6 +344,10 @@ class M24FZ_Template {
 			if ( '' === $v ) { continue; }
 			if ( '_m24fz_leistung_ps' === $k )    { $v = M24FZ_Telemetry::leistung_label( $v ); }
 			if ( '_m24fz_laufleistung' === $k )   { $v = M24FZ_Telemetry::laufleistung( $v, get_post_meta( $id, '_m24fz_laufleistung_einheit', true ) ); }
+			if ( '_m24fz_innenmaterial' === $k && 'Stoff' === $v ) { // Stoffbezeichnung anhängen, falls gepflegt
+				$sb = trim( (string) get_post_meta( $id, '_m24fz_innenmaterial_stoff', true ) );
+				if ( '' !== $sb ) { $v = 'Stoff (' . $sb . ')'; }
+			}
 			$rows[] = array( 'label' => $label, 'value' => $v );
 		}
 		// Optionale Zusatzfelder (leer ⇒ ausgeblendet).
