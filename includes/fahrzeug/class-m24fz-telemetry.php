@@ -56,7 +56,7 @@ class M24FZ_Telemetry {
 	public static function lenkung_options()       { return array( 'Links', 'Rechts' ); }
 	public static function innenmaterial_options() { return array( 'Velours', 'Stoff', 'Kunstleder', 'Leder', 'Alcantara', 'Vollleder', 'Teilleder / Stoff' ); }
 	public static function innenfarbe_options()    { return array( 'Grau', 'Schwarz', 'Bordeauxrot', 'Rot', 'Weiß', 'Grün', 'Blau' ); }
-	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Zweitürige Limousine', 'Cabriolet', 'Touring', '2-türige Limousine' ); }
+	public static function karosserie_options()    { return array( 'Coupé', 'Limousine', 'Zweitürige Limousine', 'Cabriolet', 'Touring' ); }
 
 	/** Fahrzeugtyp-Label (A3 „Bezeichnungen übernehmen"). */
 	public static function typ_label( $typ ) { return ( 'renn' === $typ ) ? 'Rennwagen' : 'Straßenfahrzeug'; }
@@ -79,7 +79,7 @@ class M24FZ_Telemetry {
 			'_m24fz_neu_gebraucht' => array( 'Gebrauchte' => 'Gebraucht', 'Gebrauchtwagen' => 'Gebraucht', 'Neuwagen' => 'Neu' ),
 			'_m24fz_antrieb'       => array( 'Hinterrad' => 'Heck', 'Hinterradantrieb' => 'Heck', 'RWD' => 'Heck', 'Frontantrieb' => 'Front', 'Vorderrad' => 'Front', 'FWD' => 'Front', 'Allradantrieb' => 'Allrad', '4x4' => 'Allrad', 'AWD' => 'Allrad' ),
 			'_m24fz_lenkung'       => array( 'LHD' => 'Links', 'Linkslenker' => 'Links', 'RHD' => 'Rechts', 'Rechtslenker' => 'Rechts' ),
-			'_m24fz_karosserie'    => array( 'Coupe' => 'Coupé', 'Kombi' => 'Touring' ),
+			'_m24fz_karosserie'    => array( 'Coupe' => 'Coupé', 'Kombi' => 'Touring', '2-türige Limousine' => 'Zweitürige Limousine' ),
 		);
 		return $a[ $key ] ?? array();
 	}

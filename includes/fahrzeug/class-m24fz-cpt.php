@@ -43,6 +43,7 @@ class M24FZ_CPT {
 		add_action( 'pre_get_posts', array( __CLASS__, 'inject_into_rubrik_query' ) );
 		// Featured-Slider-Term für bereits markierte CPT nachziehen (einmalig).
 		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_featured' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_karosserie' ) );
 		// Reclaim: Alt-Beitrag→CPT-301-Map in die Katalog-Hub-Legacy-Pfade einspeisen + Einmal-Seed.
 		add_filter( 'm24_hub_legacy_paths', array( __CLASS__, 'merge_reclaim_paths' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_reclaim_seed' ) );
@@ -196,6 +197,22 @@ class M24FZ_CPT {
 	public static function on_kat_meta( $meta_id, $object_id, $meta_key ) {
 		if ( '_m24fz_kat' !== $meta_key || self::PT !== get_post_type( $object_id ) ) { return; }
 		self::sync_rubrik_category( (int) $object_id );
+	}
+
+	/** Einmaliger, idempotenter Backfill: Altwert „2-türige Limousine" → „Zweitürige Limousine". */
+	public static function maybe_backfill_karosserie() {
+		if ( get_option( 'm24fz_karosserie_backfill_v1' ) || ! current_user_can( 'edit_posts' ) ) { return; }
+		$ids = get_posts( array(
+			'post_type'      => self::PT,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_key'       => '_m24fz_karosserie',
+			'meta_value'     => '2-türige Limousine',
+		) );
+		foreach ( $ids as $pid ) { update_post_meta( (int) $pid, '_m24fz_karosserie', 'Zweitürige Limousine' ); }
+		update_option( 'm24fz_karosserie_backfill_v1', 1 );
 	}
 
 	/** Einmalig: Slider-Term („featured") für bestehende Featured-CPT setzen (v2 erzwingt Re-Sync). */
