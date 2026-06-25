@@ -188,8 +188,14 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<?php $om_live = class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::offmarket_list_id() > 0; ?>
 			<div class="m24fz-card m24fz-offmarket">
 				<?php if ( ! $om_live ) : ?><span class="m24fz-badge prep">In Vorbereitung</span><?php endif; ?>
-				<h2>Off-Market</h2>
-				<p>Fahrzeuge vorgestellt, bevor sie offiziell vermarktet werden.</p>
+				<h2>Zuerst sehen, was noch keiner sieht</h2>
+				<p class="m24fz-om-lead">Die begehrtesten Fahrzeuge wechseln den Besitzer, bevor sie je ein Inserat sehen. Sei zuerst dran.</p>
+				<ul class="m24fz-om-benefits">
+					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>Erstzugriff</li>
+					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>Diskret vorab</li>
+					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>Ohne Bieterstress</li>
+					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>Info per E-Mail</li>
+				</ul>
 				<?php if ( $om_live ) : ?>
 					<form class="m24fz-offmarket-form" data-pid="<?php echo (int) get_queried_object_id(); ?>">
 						<div class="row">
@@ -197,7 +203,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 							<button type="submit" class="m24fz-btn m24fz-om-submit">Anmelden</button>
 						</div>
 						<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-						<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ich möchte vorab über Off-Market-Fahrzeuge per E-Mail informiert werden (Double-Opt-in).</label>
+						<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ja, informiert mich vorab über Off-Market-Fahrzeuge per E-Mail.</label>
 						<p class="m24fz-anf-msg" role="status"></p>
 					</form>
 				<?php else : ?>

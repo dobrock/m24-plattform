@@ -139,9 +139,17 @@
 .m24fz-ship ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
 .m24fz-ship ul li{display:flex;align-items:center;gap:12px}
 .m24fz-ship ul li svg{width:27px;height:27px;flex:0 0 27px;color:#10243a}
-.m24fz-offmarket{background:#23282f;color:#fff}.m24fz-offmarket h2{color:#fff}.m24fz-offmarket p{color:#aab4bf}
-.m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input[type=email]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
-.m24fz-offmarket .m24fz-anf-check{display:block;margin-top:10px;color:#aab4bf;font-size:12px;line-height:1.45}
+.m24fz-offmarket{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}.m24fz-offmarket h2{color:#fff;font-family:'Saira',sans-serif;font-weight:700}
+.m24fz-om-lead{color:#fff;opacity:.92;font-size:14px;line-height:1.5;margin:6px 0 16px}
+.m24fz-om-benefits{list-style:none;margin:0 0 18px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:11px 14px}
+.m24fz-om-benefits li{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#fff}
+.m24fz-om-ic{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.14);color:#ffd79a}
+.m24fz-om-ic svg{width:19px;height:19px}
+.m24fz-offmarket .row{display:flex;gap:8px;margin-top:0}
+.m24fz-offmarket input[type=email]{flex:1;height:45px;padding:0 14px;border-radius:9px;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:15px}
+.m24fz-offmarket input[type=email]::placeholder{color:rgba(255,255,255,.7)}
+.m24fz-offmarket .m24fz-om-submit{height:45px;padding:0 22px;background:#9a6b25;color:#fff;border:0;border-radius:9px;font-weight:700;cursor:pointer;flex:0 0 auto}
+.m24fz-offmarket .m24fz-anf-check{display:block;margin-top:10px;color:rgba(255,255,255,.85);font-size:12px;line-height:1.45}
 .m24fz-offmarket .m24fz-anf-check input{margin-right:7px}
 .m24fz-offmarket .m24fz-anf-msg{color:#fff;text-align:left;margin-top:8px}
 
