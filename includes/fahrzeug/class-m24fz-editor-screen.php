@@ -335,6 +335,17 @@ class M24FZ_Editor_Screen {
 								self::field( $id, "_m24fz_race_opt{$i}_label", "Option $i — Label" );
 								self::field( $id, "_m24fz_race_opt{$i}_value", "Option $i — Wert" );
 							} ?></div>
+							<h3>Laufleistung (Rennsport)</h3>
+							<div class="fz-row"><?php foreach ( M24FZ_Telemetry::lauf_fields() as $lk => $llabel ) :
+								$lu = self::g( $id, $lk . '_unit', 'km' ); ?>
+								<div class="fz-f">
+									<label for="<?php echo esc_attr( $lk ); ?>"><?php echo esc_html( $llabel ); ?></label>
+									<div class="fz-inline">
+										<input type="text" id="<?php echo esc_attr( $lk ); ?>" name="<?php echo esc_attr( $lk ); ?>" value="<?php echo esc_attr( self::g( $id, $lk ) ); ?>" placeholder="z. B. 12500" inputmode="numeric" maxlength="7" autocomplete="off">
+										<select name="<?php echo esc_attr( $lk . '_unit' ); ?>" class="fz-unit"><option value="km"<?php selected( $lu, 'km' ); ?>>km</option><option value="h"<?php selected( $lu, 'h' ); ?>>h (Std.)</option></select>
+									</div>
+								</div>
+							<?php endforeach; ?></div>
 						</div>
 					</section>
 

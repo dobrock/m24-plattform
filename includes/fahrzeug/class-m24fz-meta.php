@@ -89,6 +89,22 @@ class M24FZ_Meta {
 			update_post_meta( $post_id, '_m24fz_laufleistung', $km > 0 ? (string) $km : '' );
 		}
 
+		// Rennsport-Laufleistungen (Motor/Getriebe/Diff): je Wert (ganze Zahl, leer erlaubt → '' statt 0)
+		// + Einheit (Whitelist km|h aus der Telemetry). Nicht in int_keys (würde leer als „0" speichern).
+		$lauf_units = class_exists( 'M24FZ_Telemetry' ) ? M24FZ_Telemetry::lauf_units() : array( 'km', 'h' );
+		foreach ( array( '_m24fz_lauf_motor', '_m24fz_lauf_getriebe', '_m24fz_lauf_diff' ) as $lk ) {
+			if ( isset( $_POST[ $lk ] ) ) {
+				$n = (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST[ $lk ] ) );
+				if ( $n > 9999999 ) { $n = 9999999; }
+				update_post_meta( $post_id, $lk, $n > 0 ? (string) $n : '' );
+			}
+			$uk = $lk . '_unit';
+			if ( isset( $_POST[ $uk ] ) ) {
+				$u = strtolower( trim( (string) wp_unslash( $_POST[ $uk ] ) ) );
+				update_post_meta( $post_id, $uk, in_array( $u, $lauf_units, true ) ? $u : 'km' );
+			}
+		}
+
 		// Lange Freitexte.
 		update_post_meta( $post_id, '_m24fz_zusammenfassung', wp_kses_post( wp_unslash( $_POST['_m24fz_zusammenfassung'] ?? '' ) ) );
 		update_post_meta( $post_id, '_m24fz_beschreibung', wp_kses_post( wp_unslash( $_POST['_m24fz_beschreibung'] ?? '' ) ) );

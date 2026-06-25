@@ -350,6 +350,10 @@ class M24FZ_Template {
 			}
 			$rows[] = array( 'label' => $label, 'value' => $v );
 		}
+		// Rennsport-Laufleistungen (Motor/Getriebe/Diff) — nur Rennwagen, nur befüllte Felder.
+		if ( $is_renn ) {
+			foreach ( M24FZ_Telemetry::lauf_rows( $id ) as $lr ) { $rows[] = $lr; }
+		}
 		// Optionale Zusatzfelder (leer ⇒ ausgeblendet).
 		$halter = (int) get_post_meta( $id, '_m24fz_anzahl_halter', true );
 		if ( $halter > 0 ) { $rows[] = array( 'label' => 'Fahrzeughalter', 'value' => (string) $halter ); }

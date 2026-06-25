@@ -156,6 +156,41 @@ class M24FZ_Telemetry {
 		return array_values( array_filter( $out, function ( $c ) { return '' !== trim( (string) $c['label'] ); } ) );
 	}
 
+	/** Erlaubte Einheiten der Rennsport-Laufleistungen (Motor/Getriebe/Diff). Whitelist beim Speichern. */
+	public static function lauf_units() { return array( 'km', 'h' ); }
+
+	/** Meta-Key → Label der 3 Rennsport-Laufleistungen (Wert-Key; Einheit liegt unter „{key}_unit"). */
+	public static function lauf_fields() {
+		return array(
+			'_m24fz_lauf_motor'    => 'Laufleistung Motor',
+			'_m24fz_lauf_getriebe' => 'Laufleistung Getriebe',
+			'_m24fz_lauf_diff'     => 'Laufleistung Differential',
+		);
+	}
+
+	/** Rennsport-Laufleistung formatiert („12.500 km" / „48 h"); leer → ''. */
+	public static function lauf_value( $raw, $unit = 'km' ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) { return ''; }
+		$u = strtolower( trim( (string) $unit ) );
+		$u = in_array( $u, self::lauf_units(), true ) ? $u : 'km';
+		if ( preg_match( '/^\d[\d.\s]*$/', $raw ) ) {
+			return number_format( (int) preg_replace( '/\D/', '', $raw ), 0, ',', '.' ) . ' ' . $u;
+		}
+		return $raw;
+	}
+
+	/** Die 3 Rennsport-Laufleistungen als [label,value]-Zeilen (nur befüllte). Anzeige nur bei Rennwagen. */
+	public static function lauf_rows( $post_id ) {
+		$id   = (int) $post_id;
+		$rows = array();
+		foreach ( self::lauf_fields() as $k => $label ) {
+			$val = self::lauf_value( self::v( $id, $k ), self::v( $id, $k . '_unit' ) );
+			if ( '' !== $val ) { $rows[] = array( 'label' => $label, 'value' => $val ); }
+		}
+		return $rows;
+	}
+
 	/** Laufleistung hübsch („123.456 km" / „… mi"), tolerant ggü. reiner Zahl. */
 	public static function laufleistung( $raw, $unit = 'km' ) {
 		$raw  = trim( (string) $raw );
