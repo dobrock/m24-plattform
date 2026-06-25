@@ -36,7 +36,7 @@ class M24_Catalog_CPT {
 			'view_item'     => 'Teil ansehen',
 			'search_items'  => 'Teile suchen',
 			'not_found'     => 'Keine Teile gefunden',
-			'all_items'     => 'Alle Teile',
+			'all_items'     => 'Teile-Verwaltung', // Sidebar-Submenü (Admin); öffentlicher Archiv-Titel bleibt „Alle Teile"
 		);
 		register_post_type( self::POST_TYPE, array(
 			'labels'          => $labels,

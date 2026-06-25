@@ -862,6 +862,30 @@ class M24_Catalog_Admin_List {
 	 * Inline-Statuswechsel. Mappt auf post_status bzw. _m24_status:
 	 *   aktiv/ausgeblendet/verkauft → publish + Meta · entwurf → draft · geloescht → Papierkorb (reversibel).
 	 */
+	/**
+	 * Kanonischer Teil-Statuswechsel (eine Quelle): aktiv|ausgeblendet|verkauft → publish + _m24_status;
+	 * entwurf → draft; geloescht → Papierkorb (reversibel). Liefert false bei ungültigem Wert.
+	 * Wird von der Inline-AJAX-Aktion UND vom Admin-Bar-Schnellzugriff genutzt.
+	 */
+	public static function set_status( int $post_id, string $val ): bool {
+		if ( ! in_array( $val, array( 'aktiv', 'ausgeblendet', 'verkauft', 'entwurf', 'geloescht' ), true ) ) {
+			return false;
+		}
+		if ( 'geloescht' === $val ) {
+			wp_trash_post( $post_id ); // reversibel, NIE Hard-Delete
+			return true;
+		}
+		if ( 'entwurf' === $val ) {
+			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'draft' ) );
+			return true;
+		}
+		if ( 'publish' !== get_post_status( $post_id ) ) {
+			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'publish' ) );
+		}
+		update_post_meta( $post_id, '_m24_status', $val );
+		return true;
+	}
+
 	public static function ajax_inline_status() {
 		check_ajax_referer( self::NONCE_STATUS, 'nonce' );
 		$post_id = absint( $_POST['post_id'] ?? 0 );
@@ -869,23 +893,10 @@ class M24_Catalog_Admin_List {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_send_json_error( array( 'msg' => 'Keine Berechtigung' ), 403 );
 		}
-		if ( ! in_array( $val, array( 'aktiv', 'ausgeblendet', 'verkauft', 'entwurf', 'geloescht' ), true ) ) {
+		if ( ! self::set_status( $post_id, $val ) ) {
 			wp_send_json_error( array( 'msg' => 'Ungültiger Status' ), 400 );
 		}
-		if ( 'geloescht' === $val ) {
-			wp_trash_post( $post_id ); // reversibel, NIE Hard-Delete
-			wp_send_json_success( array( 'status' => $val, 'trashed' => true ) );
-		}
-		if ( 'entwurf' === $val ) {
-			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'draft' ) );
-			wp_send_json_success( array( 'status' => $val, 'trashed' => false ) );
-		}
-		// aktiv | ausgeblendet | verkauft → sicher veröffentlicht + Meta setzen.
-		if ( 'publish' !== get_post_status( $post_id ) ) {
-			wp_update_post( array( 'ID' => $post_id, 'post_status' => 'publish' ) );
-		}
-		update_post_meta( $post_id, '_m24_status', $val );
-		wp_send_json_success( array( 'status' => $val, 'trashed' => false ) );
+		wp_send_json_success( array( 'status' => $val, 'trashed' => ( 'geloescht' === $val ) ) );
 	}
 
 	// ─── ASSETS ─────────────────────────────────────────────────
