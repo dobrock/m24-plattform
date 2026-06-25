@@ -140,7 +140,10 @@
 .m24fz-ship ul li{display:flex;align-items:center;gap:12px}
 .m24fz-ship ul li svg{width:27px;height:27px;flex:0 0 27px;color:#10243a}
 .m24fz-offmarket{background:#23282f;color:#fff}.m24fz-offmarket h2{color:#fff}.m24fz-offmarket p{color:#aab4bf}
-.m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
+.m24fz-offmarket .row{display:flex;gap:8px;margin-top:12px}.m24fz-offmarket input[type=email]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff}
+.m24fz-offmarket .m24fz-anf-check{display:block;margin-top:10px;color:#aab4bf;font-size:12px;line-height:1.45}
+.m24fz-offmarket .m24fz-anf-check input{margin-right:7px}
+.m24fz-offmarket .m24fz-anf-msg{color:#fff;text-align:left;margin-top:8px}
 
 /* Preisbox-Zustände (reserviert/verkauft → Interessentenliste) */
 .m24fz-statebadge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 13px;border-radius:999px;margin-bottom:8px}

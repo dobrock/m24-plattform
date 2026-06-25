@@ -126,6 +126,8 @@ class M24_Brevo_IL {
 		// Bestehenden reminded_at-Status erhalten (Re-Submit erneuert den Token, nicht den Reminder-Stand).
 		$reminded_at = isset( $store[ $token ]['reminded_at'] ) ? (int) $store[ $token ]['reminded_at'] : 0;
 
+		$offmarket = ! empty( $contact['offmarket'] );
+
 		$store[ $token ] = array(
 			'email'       => $email,
 			'name'        => $name,
@@ -133,13 +135,14 @@ class M24_Brevo_IL {
 			'lieferland'  => sanitize_text_field( (string) ( $contact['lieferland'] ?? '' ) ),
 			'attributes'  => $attributes,
 			'tags'        => $tags,
+			'offmarket'   => $offmarket,
 			'source_id'   => (int) $context_id,
 			'created'     => time(),
 			'reminded_at' => $reminded_at,
 		);
 		self::save( $store );
 
-		self::send_doi_mail( $email, $name, $token );
+		self::send_doi_mail( $email, $name, $token, $offmarket );
 
 		M24_Logger::info( 'brevo', 'DOI-Mail gesendet (' . M24_Brevo_Client::mask_email( $email ) . ')', array(
 			'email'    => M24_Brevo_Client::mask_email( $email ),
@@ -171,6 +174,11 @@ class M24_Brevo_IL {
 		}
 		if ( in_array( 'sport', $katz_lower, true ) ) {
 			$attr['ALLE_SPORT'] = true;
+		}
+
+		// Off-Market-Quelle markieren (Segment-Flag wie ALLE_*; filterbar, falls Brevo-Attr abweicht).
+		if ( ! empty( $contact['offmarket'] ) ) {
+			$attr['OFFMARKET'] = true;
 		}
 
 		return apply_filters( 'm24_brevo_il_attributes', $attr, $contact );
@@ -236,6 +244,13 @@ class M24_Brevo_IL {
 			array( M24_Brevo_Client::LIST_ID ),
 			M24_Brevo_Client::alert_list_ids_for_tags( $tags )
 		) ) );
+
+		// Off-Market-Anmeldung → zusätzlich in die Off-Market-Liste (sofern konfiguriert).
+		if ( ! empty( $rec['offmarket'] ) ) {
+			$om = M24_Brevo_Client::offmarket_list_id();
+			if ( $om > 0 ) { $list_ids[] = $om; }
+			$list_ids = array_values( array_unique( array_filter( $list_ids ) ) );
+		}
 
 		$res = M24_Brevo_Client::upsert_contact( $email, $attributes, $list_ids );
 
@@ -394,15 +409,22 @@ class M24_Brevo_IL {
 	 * ================================================================== */
 
 	/** DOI-Bestätigungsmail an den Interessenten (CI-konform, Bestätigungs-Button). */
-	private static function send_doi_mail( $email, $name, $token ) {
+	private static function send_doi_mail( $email, $name, $token, $offmarket = false ) {
 		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
-		$subject     = 'Bitte bestätigen Sie Ihre Anmeldung — MOTORSPORT24';
+		$subject     = $offmarket
+			? 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24'
+			: 'Bitte bestätigen Sie Ihre Anmeldung — MOTORSPORT24';
+
+		$intro = $offmarket
+			? 'vielen Dank für Ihr Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+				. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:'
+			: 'vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+				. 'über passende Fahrzeuge und Angebote informieren dürfen:';
 
 		$body = self::mail_html(
 			'Fast geschafft!',
 			'<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
-			. '<p style="margin:0 0 14px;">vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
-			. 'über passende Fahrzeuge und Angebote informieren dürfen:</p>'
+			. '<p style="margin:0 0 14px;">' . esc_html( $intro ) . '</p>'
 			. '<p style="margin:24px 0;text-align:center;">'
 			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
 			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung bestätigen</a>'

@@ -223,6 +223,28 @@
 	wireModalForm(anfModal, '.m24fz-anfrage-form', cfg.anfrage);
 	wireModalForm(ilModal, '.m24fz-il-form', cfg.interessent);
 
+	// Off-Market-Inline-Formular (kein Modal) — gleiche REST-Logik, eigener Endpoint.
+	(function () {
+		var omForm = document.querySelector('.m24fz-offmarket-form');
+		if (!omForm || !cfg.offmarket) { return; }
+		var omsg = omForm.querySelector('.m24fz-anf-msg');
+		omForm.addEventListener('submit', function (e) {
+			e.preventDefault();
+			if (!cfg.nonce) { return; }
+			var fd = new FormData(omForm); fd.append('post_id', omForm.getAttribute('data-pid') || '0');
+			var btn = omForm.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; }
+			if (omsg) { omsg.textContent = 'Wird gesendet …'; }
+			fetch(cfg.offmarket, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce }, body: fd })
+				.then(function (r) { return r.json(); })
+				.then(function (d) {
+					if (omsg) { omsg.textContent = (d && d.message) ? d.message : 'Bitte E-Mail bestätigen.'; }
+					if (d && d.ok) { omForm.reset(); }
+					if (btn) { btn.disabled = false; }
+				})
+				.catch(function () { if (omsg) { omsg.textContent = 'Senden fehlgeschlagen. Bitte später erneut.'; } if (btn) { btn.disabled = false; } });
+		});
+	})();
+
 	// (Hero-„Galerie"-Scroll ist oben als Document-Delegation gebunden — robust ggü. Timing/Fehlern.)
 
 	// Galerie-Bilder im Hintergrund vorladen (versteckte Vollgalerie sofort da beim Ausklappen).

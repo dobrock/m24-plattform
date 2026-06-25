@@ -97,6 +97,16 @@ class M24_Settings {
                 'default'           => '',
             ]
         );
+        // Off-Market-Brevo-Liste (DOI). Solange 0/leer: Off-Market-Formular „In Vorbereitung" + disabled.
+        register_setting(
+            'm24_plattform_group',
+            'm24_offmarket_list_id',
+            [
+                'type'              => 'integer',
+                'sanitize_callback' => static function ( $v ) { return max( 0, (int) $v ); },
+                'default'           => 0,
+            ]
+        );
     }
 
     /**
@@ -410,6 +420,23 @@ class M24_Settings {
                                     <?php echo esc_html__( 'Key gespeichert.', 'm24-plattform' ); ?> <code><?php echo esc_html( $brevo_masked ); ?></code>
                                 </p>
                             <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="m24_offmarket_list_id"><?php echo esc_html__( 'Off-Market Listen-ID', 'm24-plattform' ); ?></label>
+                        </th>
+                        <td>
+                            <input
+                                type="number" min="0" step="1"
+                                id="m24_offmarket_list_id"
+                                name="m24_offmarket_list_id"
+                                value="<?php echo esc_attr( (string) (int) get_option( 'm24_offmarket_list_id', 0 ) ); ?>"
+                                class="small-text"
+                            />
+                            <p class="description">
+                                <?php echo esc_html__( 'Brevo-Listen-ID für die Off-Market-Anmeldung (DOI). Solange leer/0: Off-Market-Formular bleibt „In Vorbereitung" und deaktiviert. ID setzen → Formular live.', 'm24-plattform' ); ?>
+                            </p>
                         </td>
                     </tr>
                 </table>

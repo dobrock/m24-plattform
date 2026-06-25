@@ -185,11 +185,24 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 					<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span>Optionale Zolldienstleistung im Empfängerland</span></li>
 				</ul>
 			</div>
+			<?php $om_live = class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::offmarket_list_id() > 0; ?>
 			<div class="m24fz-card m24fz-offmarket">
-				<span class="m24fz-badge prep">In Vorbereitung</span>
+				<?php if ( ! $om_live ) : ?><span class="m24fz-badge prep">In Vorbereitung</span><?php endif; ?>
 				<h2>Off-Market</h2>
 				<p>Fahrzeuge vorgestellt, bevor sie offiziell vermarktet werden.</p>
-				<div class="row"><input type="email" placeholder="E-Mail-Adresse" disabled><button type="button" class="m24fz-btn" disabled>Anmelden</button></div>
+				<?php if ( $om_live ) : ?>
+					<form class="m24fz-offmarket-form" data-pid="<?php echo (int) get_queried_object_id(); ?>">
+						<div class="row">
+							<input type="email" name="email" placeholder="E-Mail-Adresse" required>
+							<button type="submit" class="m24fz-btn m24fz-om-submit">Anmelden</button>
+						</div>
+						<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+						<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ich möchte vorab über Off-Market-Fahrzeuge per E-Mail informiert werden (Double-Opt-in).</label>
+						<p class="m24fz-anf-msg" role="status"></p>
+					</form>
+				<?php else : ?>
+					<div class="row"><input type="email" placeholder="E-Mail-Adresse" disabled><button type="button" class="m24fz-btn" disabled>Anmelden</button></div>
+				<?php endif; ?>
 			</div>
 		</section>
 

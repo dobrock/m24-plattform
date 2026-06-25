@@ -363,7 +363,14 @@ class M24_Brevo_Client {
 				$ids[] = (int) $lid;
 			}
 		}
+		// Off-Market-Liste mit aufnehmen → mark_unsubscribed linkt sie beim Abmelden mit aus (§7 UWG).
+		$ids[] = self::offmarket_list_id();
 		return array_values( array_unique( array_filter( $ids ) ) );
+	}
+
+	/** Off-Market-Brevo-Liste (0 = nicht konfiguriert → Formular „In Vorbereitung"). */
+	public static function offmarket_list_id() {
+		return (int) get_option( 'm24_offmarket_list_id', 0 );
 	}
 
 	/** Liste der granularen List-IDs für ein Tag-Set (aus m24_alert_list_ids). */

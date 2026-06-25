@@ -37,6 +37,11 @@ class M24FZ_Anfrage {
 			'permission_callback' => array( __CLASS__, 'check_nonce' ),
 			'callback'            => array( __CLASS__, 'handle_il' ),
 		) );
+		register_rest_route( self::NS, '/fahrzeug-offmarket', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check_nonce' ),
+			'callback'            => array( __CLASS__, 'handle_offmarket' ),
+		) );
 	}
 
 	public static function check_nonce( $req ) {
@@ -145,6 +150,42 @@ class M24FZ_Anfrage {
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
 
 		return rest_ensure_response( array( 'ok' => true, 'message' => 'Eingetragen! Sie erhalten Ihre Bestätigung in Kürze per E-Mail.' ) );
+	}
+
+	/**
+	 * Off-Market-Anmeldung (nur E-Mail) → gleiche DOI-Pipeline wie IL, markiert als Off-Market.
+	 * Honeypot + eigener Rate-Limit + Anti-Enumeration (immer dieselbe Erfolgsmeldung).
+	 */
+	public static function handle_offmarket( WP_REST_Request $req ) {
+		$p = $req->get_params();
+
+		if ( ! empty( $p['website'] ) ) { return rest_ensure_response( array( 'ok' => true ) ); } // Honeypot
+
+		// Rate-Limit: max 5 Einträge / Stunde je IP (eigener Schlüssel).
+		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? preg_replace( '/[^0-9a-f:.]/i', '', (string) $_SERVER['REMOTE_ADDR'] ) : 'x';
+		$rk  = 'm24fz_om_' . md5( $ip );
+		$cnt = (int) get_transient( $rk );
+		if ( $cnt >= 5 ) { return new WP_Error( 'm24fz_rate', 'Zu viele Einträge. Bitte später erneut.', array( 'status' => 429 ) ); }
+
+		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		if ( ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+
+		// Off-Market-Formular hat nur E-Mail; DOI-Pipeline braucht einen nicht-leeren Namen → aus E-Mail ableiten.
+		$local = strstr( $mail, '@', true );
+		$name  = ( is_string( $local ) && '' !== $local ) ? ucfirst( $local ) : 'Interessent';
+
+		$pid = (int) ( $p['post_id'] ?? 0 ); // optionaler Kontext (auslösendes Inserat)
+
+		do_action( 'm24fz_interessent_submitted', $pid, array(
+			'name'      => $name,
+			'email'     => $mail,
+			'offmarket' => true,
+		) );
+
+		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
+
+		// Anti-Enumeration: immer dieselbe Antwort, egal ob neu/bestehend.
+		return rest_ensure_response( array( 'ok' => true, 'message' => 'Bitte bestätigen Sie Ihre Off-Market-Anmeldung per E-Mail.' ) );
 	}
 
 	/**
