@@ -294,6 +294,10 @@ class M24FZ_Editor_Screen {
 									?>
 								</select>
 							</div>
+							<div class="fz-f fz-renn-only">
+								<label for="_m24fz_gewicht">Fahrzeuggewicht (kg)</label>
+								<input type="text" id="_m24fz_gewicht" name="_m24fz_gewicht" value="<?php echo esc_attr( self::g( $id, '_m24fz_gewicht' ) ); ?>" placeholder="z. B. 1040">
+							</div>
 						</div>
 						<div class="fz-row">
 							<?php
@@ -717,7 +721,7 @@ jQuery(function($){
 		if(sel.find('option[value="'+cur+'"]').length){ sel.val(cur); } else if(cur){ sel.append($('<option>').val(cur).text(cur+' (individuell)')); sel.val(cur); } }
 	// Renn-Block + Segmented-Typ + Hide straßen-/rennspezifischer Felder + Renn-Defaults (nur wenn leer).
 	function toggleRenn(){ var renn=$('input[name=_m24fz_template_typ]:checked').val()==='renn';
-		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn); $('.fz-renn-hide').toggle(!renn);
+		$('[data-renn]').toggle(renn); $('.fz-strasse-only').toggle(!renn); $('.fz-renn-hide').toggle(!renn); $('.fz-renn-only').toggle(renn);
 		fillGetriebe(renn);
 		if(renn){ var ka=$('#_m24fz_karosserie'); if(ka.length && ka.val()===''){ ka.val('Coupé'); } }
 		$('.fz-seg-typ label').removeClass('on'); $('input[name=_m24fz_template_typ]:checked').closest('label').addClass('on'); }

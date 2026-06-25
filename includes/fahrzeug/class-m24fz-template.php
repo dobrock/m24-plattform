@@ -324,6 +324,7 @@ class M24FZ_Template {
 		$fields = array(
 			'_m24fz_erstzulassung' => 'Erstzulassung', '_m24fz_modell' => 'Modell', '_m24fz_baureihe' => 'Baureihe',
 			'_m24fz_karosserie' => 'Karosserie', '_m24fz_hubraum' => 'Hubraum', '_m24fz_leistung_ps' => 'Leistung',
+			'_m24fz_gewicht' => 'Gewicht', // nur Rennwagen (s. Loop), leer/0 = ausgeblendet
 			'_m24fz_getriebe' => 'Getriebe', '_m24fz_antrieb' => 'Antrieb', '_m24fz_lenkung' => 'Lenkung',
 			'_m24fz_kraftstoff' => 'Kraftstoff', '_m24fz_laufleistung' => 'Laufleistung', '_m24fz_aussenfarbe' => 'Außenfarbe',
 			'_m24fz_farbbez_hersteller' => 'Farbbez. Hersteller', '_m24fz_innenfarbe' => 'Innenfarbe',
@@ -335,6 +336,11 @@ class M24FZ_Template {
 		$rows = array();
 		foreach ( $fields as $k => $label ) {
 			$v = trim( (string) get_post_meta( $id, $k, true ) );
+			if ( '_m24fz_gewicht' === $k ) { // nur Rennwagen, 0/leer ausblenden, Format „{n} kg"
+				if ( ! $is_renn || (int) $v <= 0 ) { continue; }
+				$rows[] = array( 'label' => $label, 'value' => number_format( (int) $v, 0, ',', '.' ) . ' kg' );
+				continue;
+			}
 			if ( '' === $v ) { continue; }
 			if ( '_m24fz_leistung_ps' === $k )    { $v = M24FZ_Telemetry::leistung_label( $v ); }
 			if ( '_m24fz_laufleistung' === $k )   { $v = M24FZ_Telemetry::laufleistung( $v, get_post_meta( $id, '_m24fz_laufleistung_einheit', true ) ); }
