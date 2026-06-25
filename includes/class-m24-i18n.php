@@ -190,7 +190,12 @@ class M24_I18n {
                 'mail_rejection_subject'=> 'Zu deiner Händler-Registrierung – MOTORSPORT24',
                 'mail_rejection_headline'=> 'Zu deiner Registrierung',
                 'mail_rejection_body'  => 'Wir konnten deine Registrierung für den Händlerbereich aktuell nicht freischalten.',
+                'mail_rejection_reason'=> 'Grund',
+                'mail_rejection_outro' => 'Falls das ein Irrtum ist oder du Angaben ergänzen möchtest, melde dich gern unter %s.',
                 'mail_footer_tagline'  => 'Classic & Race Cars and Parts Sales since 2006',
+                'mail_footer_imprint'  => 'Impressum',
+                'mail_footer_privacy'  => 'Datenschutz',
+                'mail_hello'           => 'Hallo %s,',
             ),
             'en' => array(
                 'reg_h1'        => 'Dealer registration',
@@ -243,8 +248,37 @@ class M24_I18n {
                 'mail_rejection_subject'=> 'Regarding your dealer registration – MOTORSPORT24',
                 'mail_rejection_headline'=> 'Regarding your registration',
                 'mail_rejection_body'  => 'We were unable to approve your dealer registration at this time.',
+                'mail_rejection_reason'=> 'Reason',
+                'mail_rejection_outro' => 'If this is a mistake or you would like to add information, feel free to contact us at %s.',
                 'mail_footer_tagline'  => 'Classic & Race Cars and Parts Sales since 2006',
+                'mail_footer_imprint'  => 'Imprint',
+                'mail_footer_privacy'  => 'Privacy Policy',
+                'mail_hello'           => 'Hello %s,',
             ),
         );
+    }
+
+    /** Ablehngründe key ⇒ Label je Sprache (Mail nutzt Empfänger-Sprache; Admin/notes_intern = de). */
+    public static function reject_reasons( ?string $lang = null ): array {
+        $lang = $lang ?: self::resolve_lang();
+        $de = array(
+            'gewerbe'    => 'Keine gewerbliche Tätigkeit feststellbar',
+            'uid'        => 'USt-IdNr. ungültig / nicht verifizierbar',
+            'daten'      => 'Angaben unvollständig oder unplausibel',
+            'dublette'   => 'Bereits registriert (Dublette)',
+            'sortiment'  => 'Sortiment/Branche passt nicht',
+            'missbrauch' => 'Verdacht auf Missbrauch/Spam',
+            'sonstiges'  => 'Sonstiges',
+        );
+        $en = array(
+            'gewerbe'    => 'No commercial/business activity could be established',
+            'uid'        => 'VAT ID invalid / not verifiable',
+            'daten'      => 'Details incomplete or implausible',
+            'dublette'   => 'Already registered (duplicate)',
+            'sortiment'  => 'Product range/industry does not fit',
+            'missbrauch' => 'Suspected misuse/spam',
+            'sonstiges'  => 'Other',
+        );
+        return 'en' === $lang ? $en : $de;
     }
 }

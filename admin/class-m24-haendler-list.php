@@ -29,17 +29,9 @@ class M24_Haendler_Page {
         add_submenu_page( 'm24-plattform', __( 'Händler', 'm24-plattform' ), __( 'Händler', 'm24-plattform' ), self::CAPABILITY, self::PAGE_SLUG, array( __CLASS__, 'render_page' ) );
     }
 
-    /** Ablehngründe (Schlüssel → Text). Geteilt von Formular und Handler. */
+    /** Ablehngründe (Schlüssel → DE-Label) für Dropdown + notes_intern. Mail nutzt Empfänger-Sprache. */
     public static function reject_reasons(): array {
-        return array(
-            'gewerbe'    => 'Keine gewerbliche Tätigkeit feststellbar',
-            'uid'        => 'USt-IdNr. ungültig / nicht verifizierbar',
-            'daten'      => 'Angaben unvollständig oder unplausibel',
-            'dublette'   => 'Bereits registriert (Dublette)',
-            'sortiment'  => 'Sortiment/Branche passt nicht',
-            'missbrauch' => 'Verdacht auf Missbrauch/Spam',
-            'sonstiges'  => 'Sonstiges',
-        );
+        return class_exists( 'M24_I18n' ) ? M24_I18n::reject_reasons( 'de' ) : array( 'sonstiges' => 'Sonstiges' );
     }
 
     private static function url(): string {
@@ -150,7 +142,7 @@ class M24_Haendler_Page {
             array( 'wp_user_id' => $uid )
         );
         if ( $notify && class_exists( 'M24_B2B_Auth' ) ) {
-            M24_B2B_Auth::send_rejection_mail( $uid, $text );
+            M24_B2B_Auth::send_rejection_mail( $uid, $key, $frei ); // Mail lokalisiert (Empfänger-Sprache); notes_intern bleibt DE
         }
         wp_safe_redirect( add_query_arg( 'done', 'rejected', self::url() ) );
         exit;

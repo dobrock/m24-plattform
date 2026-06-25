@@ -607,7 +607,7 @@ class M24_B2B_Auth {
             // nichts tun. Nach außen in beiden Fällen dieselbe Erfolgsmeldung (Anti-Enumeration).
             if ( self::user_is_haendler( $existing ) ) {
                 $raw = M24_B2B::issue_token( $email, 'login', (int) $existing->ID );
-                self::send_magic_mail( $email, $raw, 'login' );
+                self::send_magic_mail( $email, $raw, 'login', null, (int) $existing->ID ); // Empfänger-Sprache
             }
         } else {
             self::create_haendler( $email, $firma, $vorname, $nachname, $anrede, $telefon, $land, $uid, $uid_valid, $uid_validated_at, $lang );
@@ -674,7 +674,7 @@ class M24_B2B_Auth {
         ) ) );
 
         $raw = M24_B2B::issue_token( $email, 'verify', (int) $user_id );
-        self::send_magic_mail( $email, $raw, 'verify' );
+        self::send_magic_mail( $email, $raw, 'verify', $lang, (int) $user_id );
     }
 
     public static function handle_login() {
@@ -692,7 +692,7 @@ class M24_B2B_Auth {
             $user = get_user_by( 'email', $email );
             if ( $user && self::user_is_haendler( $user ) ) {
                 $raw = M24_B2B::issue_token( $email, 'login', (int) $user->ID );
-                self::send_magic_mail( $email, $raw, 'login' );
+                self::send_magic_mail( $email, $raw, 'login', null, (int) $user->ID ); // Empfänger-Sprache
             }
         }
         // Anti-Enumeration: immer dieselbe Antwort.
@@ -735,43 +735,54 @@ class M24_B2B_Auth {
 
     /* ── Magic-Mail (Stil identisch zur DOI-Bestätigungsmail) ────────────── */
 
-    public static function send_magic_mail( string $email, string $rawtoken, string $purpose ): void {
-        $url = home_url( '/?m24_confirm=' . rawurlencode( $rawtoken ) );
-
-        if ( 'verify' === $purpose ) {
-            $subject = 'Bitte bestätige deine Registrierung – MOTORSPORT24';
-            $head    = 'Registrierung bestätigen';
-            $text    = 'Klicke zum Bestätigen deiner Händler-Registrierung. Der Link ist 15 Minuten gültig.';
-            $cta     = 'Registrierung bestätigen';
-        } else {
-            $subject = 'Dein Login-Link – MOTORSPORT24';
-            $head    = 'Login bei MOTORSPORT24';
-            $text    = 'Klicke, um dich einzuloggen. Der Link ist 15 Minuten gültig.';
-            $cta     = 'Jetzt einloggen';
+    /** Empfänger-Sprache aus wp_m24_haendler.sprach_praeferenz (∈ de|en), Fallback de. */
+    public static function mail_lang( int $user_id ): string {
+        if ( $user_id <= 0 ) {
+            return 'de';
         }
+        global $wpdb;
+        $l = (string) $wpdb->get_var( $wpdb->prepare( "SELECT sprach_praeferenz FROM " . M24_Database::table( 'haendler' ) . " WHERE wp_user_id = %d", $user_id ) );
+        return in_array( $l, array( 'de', 'en' ), true ) ? $l : 'de';
+    }
+
+    /**
+     * Magic-Mail (Verify/Login) in Empfänger-Sprache. $lang explizit (z. B. aus handle_register);
+     * Fallback mail_lang($user_id) → 'de'.
+     */
+    public static function send_magic_mail( string $email, string $rawtoken, string $purpose, ?string $lang = null, int $user_id = 0 ): void {
+        $lang = in_array( (string) $lang, array( 'de', 'en' ), true ) ? (string) $lang : self::mail_lang( $user_id );
+        $url  = home_url( '/?m24_confirm=' . rawurlencode( $rawtoken ) );
+        $p    = ( 'verify' === $purpose ) ? 'verify' : 'login';
+
+        $subject = M24_I18n::t( 'mail_' . $p . '_subject', $lang );
+        $head    = M24_I18n::t( 'mail_' . $p . '_headline', $lang );
+        $text    = M24_I18n::t( 'mail_' . $p . '_body', $lang );
+        $cta     = M24_I18n::t( 'mail_' . $p . '_button', $lang );
+
+        $hint    = ( 'en' === $lang ) ? 'If the button does not work, copy this link into your browser:' : 'Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:';
+        $ignore  = ( 'en' === $lang ) ? 'If you did not request this, simply ignore this email.' : 'Wenn du das nicht angefordert hast, ignoriere diese E-Mail einfach.';
 
         $inner  = '<p style="margin:0 0 14px;">' . esc_html( $text ) . '</p>';
         $inner .= '<p style="margin:24px 0;text-align:center;">'
             . '<a href="' . esc_url( $url ) . '" class="m24-cta" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 30px;border-radius:8px;font-size:15px;">' . esc_html( $cta ) . '</a>'
             . '</p>';
-        $inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>';
+        $inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">' . esc_html( $hint ) . '</p>';
         $inner .= '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>';
-        $inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn du das nicht angefordert hast, ignoriere diese E-Mail einfach.</p>';
+        $inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
 
-        $body    = self::mail_html( $head, $inner );
-        $headers = array(
-            'Content-Type: text/html; charset=UTF-8',
-            'From: ' . self::from_header(),
-            'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
-        );
-        wp_mail( $email, $subject, $body, $headers );
+        self::send_ci( $email, $subject, $head, $inner, $lang );
     }
 
-    /** CI-Mail-Gerüst — identisch zur DOI-Mail (Gradient-Band, Saira, Logo, Footer). CTA-Gradient als Klasse. */
-    private static function mail_html( string $headline, string $inner ): string {
+    /** CI-Mail-Gerüst — identisch zur DOI-Mail (Gradient-Band, Saira, Logo, Footer). Texte $lang-abhängig. */
+    private static function mail_html( string $headline, string $inner, string $lang = 'de' ): string {
         $font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
         $stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
-        return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
+        $tagline  = M24_I18n::t( 'mail_footer_tagline', $lang );
+        $imprint  = M24_I18n::t( 'mail_footer_imprint', $lang );
+        $privacy  = M24_I18n::t( 'mail_footer_privacy', $lang );
+        $postal   = ( 'en' === $lang ) ? 'Our postal address:' : 'Unsere Postanschrift lautet:';
+        // TODO: Sobald die Rechtsseiten plugin-übersetzt sind, hier ?lang= an /impressum/ + /datenschutz/ hängen.
+        return '<!DOCTYPE html><html lang="' . esc_attr( $lang ) . '"><head><meta charset="utf-8">'
             . '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
             . 'body,table,td,h1,div,a,p{' . $stack . '}'
             . 'a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-weight:inherit!important;}'
@@ -787,12 +798,12 @@ class M24_B2B_Auth {
             . '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
             . '</td></tr>'
             . '<tr><td style="padding:18px 28px;border-top:1px solid #e6e9ee;text-align:center;' . $stack . 'font-size:11px;line-height:1.6;color:#9aa3b0;">'
-            . '<div style="color:#7e8794;font-size:11.5px;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
-            . '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
+            . '<div style="color:#7e8794;font-size:11.5px;">' . esc_html( $tagline ) . '</div>'
+            . '<div style="margin-top:10px;">' . esc_html( $postal ) . '</div>'
             . '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
             . '<div style="margin-top:10px;">'
-            . '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
-            . '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
+            . '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">' . esc_html( $imprint ) . '</a> · '
+            . '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">' . esc_html( $privacy ) . '</a> · '
             . '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
             . '</div>'
             . '</td></tr>'
@@ -819,8 +830,8 @@ class M24_B2B_Auth {
         return $m[ $iso ] ?? ( '' !== $iso ? $iso : '—' );
     }
 
-    /** CI-Mail (gleiches Gerüst wie send_magic_mail) versenden. */
-    private static function send_ci( string $to, string $subject, string $headline, string $inner ): void {
+    /** CI-Mail (gleiches Gerüst wie send_magic_mail) versenden — Texte/Footer in $lang. */
+    private static function send_ci( string $to, string $subject, string $headline, string $inner, string $lang = 'de' ): void {
         if ( ! is_email( $to ) ) {
             return;
         }
@@ -829,7 +840,7 @@ class M24_B2B_Auth {
             'From: ' . self::from_header(),
             'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
         );
-        wp_mail( $to, $subject, self::mail_html( $headline, $inner ), $headers );
+        wp_mail( $to, $subject, self::mail_html( $headline, $inner, $lang ), $headers );
     }
 
     public static function send_approval_mail( int $user_id ): void {
@@ -837,25 +848,41 @@ class M24_B2B_Auth {
         if ( ! $u ) {
             return;
         }
+        $lang  = self::mail_lang( $user_id ); // Empfänger-Sprache
         $name  = $u->first_name ?: $u->display_name;
         $login = esc_url( home_url( '/haendler-login/' ) );
-        $inner = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
-            . '<p style="margin:0 0 14px;">deine Registrierung wurde geprüft und freigeschaltet. Du kannst dich jetzt einloggen und siehst Händlerpreise.</p>'
-            . '<p style="margin:24px 0;text-align:center;"><a href="' . $login . '" class="m24-cta" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 30px;border-radius:8px;font-size:15px;">Zum Login</a></p>';
-        self::send_ci( $u->user_email, 'Dein Händler-Zugang ist freigeschaltet – MOTORSPORT24', 'Zugang freigeschaltet', $inner );
+        $inner = '<p style="margin:0 0 14px;">' . esc_html( sprintf( M24_I18n::t( 'mail_hello', $lang ), $name ) ) . '</p>'
+            . '<p style="margin:0 0 14px;">' . esc_html( M24_I18n::t( 'mail_approval_body', $lang ) ) . '</p>'
+            . '<p style="margin:24px 0;text-align:center;"><a href="' . $login . '" class="m24-cta" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 30px;border-radius:8px;font-size:15px;">' . esc_html( M24_I18n::t( 'mail_approval_button', $lang ) ) . '</a></p>';
+        self::send_ci( $u->user_email, M24_I18n::t( 'mail_approval_subject', $lang ), M24_I18n::t( 'mail_approval_headline', $lang ), $inner, $lang );
     }
 
-    public static function send_rejection_mail( int $user_id, string $grund_text ): void {
+    /**
+     * Ablehn-Mail in Empfänger-Sprache. $grund_key = Grund-Schlüssel (lokalisiertes Label);
+     * $freitext wird unverändert durchgereicht (keine Auto-Übersetzung). notes_intern bleibt DE.
+     */
+    public static function send_rejection_mail( int $user_id, string $grund_key, string $freitext = '' ): void {
         $u = get_userdata( $user_id );
         if ( ! $u ) {
             return;
         }
-        $name  = $u->first_name ?: $u->display_name;
-        $inner = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>'
-            . '<p style="margin:0 0 14px;">wir konnten deine Registrierung für den Händlerbereich aktuell nicht freischalten.</p>'
-            . '<p style="margin:0 0 14px;"><strong>Grund:</strong> ' . esc_html( $grund_text ) . '</p>'
-            . '<p style="margin:0;">Falls das ein Irrtum ist oder du Angaben ergänzen möchtest, melde dich gern unter <a href="mailto:service@motorsport24.de" style="color:#1f74c4;">service@motorsport24.de</a>.</p>';
-        self::send_ci( $u->user_email, 'Zu deiner Händler-Registrierung – MOTORSPORT24', 'Zu deiner Registrierung', $inner );
+        $lang    = self::mail_lang( $user_id );
+        $name    = $u->first_name ?: $u->display_name;
+        $reasons = M24_I18n::reject_reasons( $lang );
+        if ( 'sonstiges' === $grund_key ) {
+            $grund = '' !== $freitext ? $freitext : ( $reasons['sonstiges'] ?? 'Other' );
+        } else {
+            $grund = $reasons[ $grund_key ] ?? ( $reasons['sonstiges'] ?? '' );
+            if ( '' !== $freitext ) {
+                $grund .= ' — ' . $freitext; // Admin-Freitext unverändert
+            }
+        }
+        $contact = '<a href="mailto:service@motorsport24.de" style="color:#1f74c4;">service@motorsport24.de</a>';
+        $inner   = '<p style="margin:0 0 14px;">' . esc_html( sprintf( M24_I18n::t( 'mail_hello', $lang ), $name ) ) . '</p>'
+            . '<p style="margin:0 0 14px;">' . esc_html( M24_I18n::t( 'mail_rejection_body', $lang ) ) . '</p>'
+            . '<p style="margin:0 0 14px;"><strong>' . esc_html( M24_I18n::t( 'mail_rejection_reason', $lang ) ) . ':</strong> ' . esc_html( $grund ) . '</p>'
+            . '<p style="margin:0;">' . wp_kses_post( sprintf( esc_html( M24_I18n::t( 'mail_rejection_outro', $lang ) ), $contact ) ) . '</p>';
+        self::send_ci( $u->user_email, M24_I18n::t( 'mail_rejection_subject', $lang ), M24_I18n::t( 'mail_rejection_headline', $lang ), $inner, $lang );
     }
 
     /** Admin-Mail bei neuer Verifizierung (wartet auf Freigabe). */
