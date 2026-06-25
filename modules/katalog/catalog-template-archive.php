@@ -257,7 +257,7 @@ class M24_Catalog_Archive {
 
 		$is_sold = ( 'verkauft' === $status );
 		$badge   = $is_sold
-			? '<span class="m24-card__badge m24-card__badge--sold">Verkauft</span>'
+			? ( ( class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status_badge_style_once() : '' ) . '<span class="m24-status-ribbon sold">Verkauft</span>' )
 			: '';
 
 		$meta = array();

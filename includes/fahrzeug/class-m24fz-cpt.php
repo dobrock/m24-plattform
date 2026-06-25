@@ -121,6 +121,35 @@ class M24FZ_CPT {
 		return $arr ?: array( 'race-cars' );
 	}
 
+	/**
+	 * Zentrale CI-Status-Komponenten (Sand, 135°-Verlauf wie der blaue Button):
+	 * .m24-status-ribbon (Eckband auf Bildkacheln) + .m24-status-btn (Stempel in der Preisbox).
+	 * Je .sold (Verkauft, weiß) / .res (Reserviert, #6b4f1c). Wiederverwendet von Teil + Fahrzeug.
+	 */
+	public static function status_badge_css(): string {
+		return ".m24-status-ribbon{position:absolute;top:16px;left:-42px;transform:rotate(-45deg);width:172px;text-align:center;padding:7px 0;font-family:'Saira',sans-serif;font-weight:800;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.18);z-index:3;pointer-events:none}"
+			. ".m24-status-ribbon.sold{background:linear-gradient(135deg,#bfa166 0%,#9c7e48 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18)}"
+			. ".m24-status-ribbon.res{background:linear-gradient(135deg,#e7d7b4 0%,#d3bd8f 100%);color:#6b4f1c}"
+			. ".m24-status-btn{display:inline-block;padding:11px 20px;border-radius:9px;font-family:'Saira',sans-serif;font-weight:800;font-size:14px;line-height:1;letter-spacing:.16em;text-transform:uppercase}"
+			. ".m24-status-btn.sold{background:linear-gradient(135deg,#bfa166 0%,#9c7e48 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18)}"
+			. ".m24-status-btn.res{background:linear-gradient(135deg,#e7d7b4 0%,#d3bd8f 100%);color:#6b4f1c}";
+	}
+
+	/** <style> mit den Status-Komponenten — nur einmal pro Request ausgeben. */
+	public static function status_badge_style_once(): string {
+		static $done = false;
+		if ( $done ) { return ''; }
+		$done = true;
+		return '<style id="m24-status-badge-css">' . self::status_badge_css() . '</style>';
+	}
+
+	/** status (verkauft|reserviert|…) → Sand-Klasse sold|res|'' (verfügbar = kein Badge). */
+	public static function status_sand_class( string $status ): string {
+		if ( 'verkauft' === $status ) { return 'sold'; }
+		if ( 'reserviert' === $status ) { return 'res'; }
+		return '';
+	}
+
 	/** _m24fz_kat → WP-Kategorie-Slug (filterbar). No-op, wenn der Term nicht existiert (kein Risiko). */
 	public static function rubrik_map() {
 		return apply_filters( 'm24fz_rubrik_categories', array(

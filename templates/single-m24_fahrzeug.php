@@ -51,7 +51,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<div class="m24fz-hero-foot">
 				<nav class="m24fz-bc"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">Start</a> › <a href="<?php echo esc_url( home_url( '/fahrzeuge/' ) ); ?>">Fahrzeuge</a> › <span><?php echo esc_html( $title ); ?></span></nav>
 				<div class="m24fz-hero-titlerow">
-					<h1 class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : ?> <span class="m24fz-badge <?php echo $sold ? 'verkauft' : 'reserviert'; ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></h1>
+					<h1 class="m24fz-hero-title"><?php echo esc_html( $title ); ?><?php if ( $badge ) : echo M24FZ_CPT::status_badge_style_once(); /* phpcs:ignore */ ?> <span class="m24-status-btn <?php echo $sold ? 'sold' : 'res'; ?>" style="vertical-align:middle;font-size:12px;padding:6px 12px;"><?php echo esc_html( $badge ); ?></span><?php endif; ?></h1>
 					<?php if ( $heroI ) : ?><button class="m24fz-pill m24fz-gal-launch" type="button">▦ Galerie (<?php echo count( $heroI ); ?>)</button><?php endif; ?>
 				</div>
 			</div>
@@ -164,9 +164,10 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<?php $sim = M24FZ_Similar::cards( $id, 6 ); if ( $sim ) : ?>
 		<section class="m24fz-card m24fz-similar">
 			<h2>Ähnliche Fahrzeuge</h2>
+			<?php echo M24FZ_CPT::status_badge_style_once(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<div class="m24fz-simgrid"><?php foreach ( $sim as $c ) : ?>
 				<a class="m24fz-simcard" href="<?php echo esc_url( $c['url'] ); ?>">
-					<span class="img"><?php echo $c['thumb'] ? wp_get_attachment_image( $c['thumb'], 'large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ) : ''; ?><?php if ( $c['sold'] ) : ?><span class="m24fz-badge sm">Verkauft</span><?php elseif ( ! empty( $c['reserved'] ) ) : ?><span class="m24fz-badge sm reserviert">Reserviert</span><?php endif; ?></span>
+					<span class="img"><?php echo $c['thumb'] ? wp_get_attachment_image( $c['thumb'], 'large', false, array( 'loading' => 'lazy', 'sizes' => '(max-width:700px) 50vw, 25vw' ) ) : ''; ?><?php if ( $c['sold'] ) : ?><span class="m24-status-ribbon sold">Verkauft</span><?php elseif ( ! empty( $c['reserved'] ) ) : ?><span class="m24-status-ribbon res">Reserviert</span><?php endif; ?></span>
 					<span class="t"><?php echo esc_html( $c['title'] ); ?></span>
 				</a>
 			<?php endforeach; ?></div>

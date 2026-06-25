@@ -57,15 +57,17 @@ class M24FZ_Template {
 
 		ob_start();
 		echo '<style>' . self::rubrik_css() . '</style>';
+		echo M24FZ_CPT::status_badge_style_once(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo '<div class="m24fzr-grid">';
 		foreach ( $ids as $id ) {
 			$st    = M24FZ_CPT::status( $id );
-			$badge = ( 'verkauft' === $st ) ? 'Verkauft' : ( 'reserviert' === $st ? 'Reserviert' : '' );
+			$rib   = M24FZ_CPT::status_sand_class( $st );
+			$rlbl  = ( 'verkauft' === $st ) ? 'Verkauft' : 'Reserviert';
 			$keyf  = array_slice( (array) get_post_meta( $id, '_m24fz_keyfacts', true ), 0, 3 );
 			$thumb = has_post_thumbnail( $id ) ? get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy' ) ) : '';
 			?>
 			<a class="m24fzr-card" href="<?php echo esc_url( get_permalink( $id ) ); ?>">
-				<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $badge ) : ?><span class="m24fzr-badge <?php echo esc_attr( $st ); ?>"><?php echo esc_html( $badge ); ?></span><?php endif; ?></span>
+				<span class="m24fzr-img"><?php echo $thumb; // phpcs:ignore ?><?php if ( $rib ) : ?><span class="m24-status-ribbon <?php echo esc_attr( $rib ); ?>"><?php echo esc_html( $rlbl ); ?></span><?php endif; ?></span>
 				<span class="m24fzr-body">
 					<span class="m24fzr-title"><?php echo esc_html( get_the_title( $id ) ); ?></span>
 					<?php if ( $keyf ) : ?><ul class="m24fzr-keyf"><?php foreach ( $keyf as $k ) : ?><li><?php echo esc_html( $k ); ?></li><?php endforeach; ?></ul><?php endif; ?>
@@ -93,8 +95,7 @@ class M24FZ_Template {
 			. ".m24fzr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin:0 0 28px;font-family:'Saira',sans-serif}"
 			. ".m24fzr-card{display:flex;flex-direction:column;text-decoration:none;color:#14161a;background:#fff;border:1px solid #e6e6e3;border-radius:12px;overflow:hidden;transition:box-shadow .15s}"
 			. ".m24fzr-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.10)}"
-			. ".m24fzr-img{position:relative;aspect-ratio:3/2;background:#ededea;display:block}.m24fzr-img img{width:100%;height:100%;object-fit:cover;display:block}"
-			. ".m24fzr-badge{position:absolute;top:10px;left:10px;color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px}.m24fzr-badge.verkauft{background:#9e2b2b}.m24fzr-badge.reserviert{background:#9a6b25}"
+			. ".m24fzr-img{position:relative;aspect-ratio:3/2;background:#ededea;display:block;overflow:hidden}.m24fzr-img img{width:100%;height:100%;object-fit:cover;display:block}"
 			. ".m24fzr-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px}"
 			. ".m24fzr-title{font-size:16px;font-weight:700;line-height:1.25}"
 			. ".m24fzr-keyf{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}.m24fzr-keyf li{padding-left:18px;position:relative;font-size:13px;color:#3a3f47}.m24fzr-keyf li:before{content:'✓';position:absolute;left:0;color:#9a6b25;font-weight:700}"
@@ -265,8 +266,9 @@ class M24FZ_Template {
 			$txt = ( 'reserviert' === $st )
 				? 'Dieses Fahrzeug ist aktuell reserviert. Tragen Sie sich ein und erfahren Sie ähnliche Fahrzeuge zuerst.'
 				: 'Dieses Fahrzeug ist leider schon verkauft. Tragen Sie sich auf die Liste ein, um ähnliche Fahrzeuge in Zukunft nicht zu verpassen.';
-			echo '<span class="m24fz-statebadge ' . esc_attr( $st ) . '">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
-			echo '<p class="m24fz-iltext">' . esc_html( $txt ) . '</p>';
+			echo M24FZ_CPT::status_badge_style_once(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo '<span class="m24-status-btn ' . esc_attr( M24FZ_CPT::status_sand_class( $st ) ) . '">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
+			echo '<p class="m24fz-iltext" style="margin-top:12px;">' . esc_html( $txt ) . '</p>';
 			echo '<button class="m24fz-btn m24fz-il-open" type="button">Auf die Interessentenliste</button>';
 		} else {
 			echo self::preis_html( $id ); // phpcs:ignore

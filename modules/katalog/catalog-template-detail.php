@@ -361,7 +361,7 @@ class M24_Catalog_Template_Detail {
 		/* „Weitere Teile": einreihiges Grid — Desktop 5 Spalten, ≤900px 2 Spalten (kein Umbruch/keine Liste). */
 		.m24det .related-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:12px}
 		.m24det .ritem{border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;display:block}
-		.m24det .ritem .rimg{aspect-ratio:4/3;background:#ededea}
+		.m24det .ritem .rimg{position:relative;overflow:hidden;aspect-ratio:4/3;background:#ededea}
 		.m24det .ritem .rimg img{width:100%;height:100%;object-fit:cover;display:block}
 		.m24det .ritem .rb{padding:10px 12px}
 		.m24det .ritem h4{font-family:'Saira',sans-serif;font-weight:500;font-size:13.5px;margin:0 0 5px;line-height:1.25}
@@ -455,7 +455,8 @@ class M24_Catalog_Template_Detail {
 					<div class="m24-right-inner">
 					<?php $pos_list = isset( $opts_data['options'] ) ? $opts_data['options'] : array(); ?>
 					<?php if ( $verkauft ) : ?>
-						<div class="m24-sold-badge"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></div>
+						<?php echo class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status_badge_style_once() : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<span class="m24-status-btn sold"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></span>
 					<?php elseif ( $preis_auf_anfrage ) : ?>
 						<div class="m24-preis-anfrage"><?php esc_html_e( 'Preis auf Anfrage', 'm24-plattform' ); ?></div>
 					<?php else :
@@ -619,21 +620,24 @@ class M24_Catalog_Template_Detail {
 
 			<?php if ( $fahrzeuge ) : ?>
 				<div class="related vehicles">
+					<?php echo class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status_badge_style_once() : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="dl"><?php esc_html_e( 'PASSENDE FAHRZEUGE', 'm24-plattform' ); ?></div>
 					<div class="related-grid related-grid-fz">
 						<?php foreach ( array_slice( $fahrzeuge, 0, 3 ) as $fz ) : ?>
+							<?php
+							$rib_fz  = ! empty( $fz['sold'] ) ? 'sold' : ( ! empty( $fz['reserved'] ) ? 'res' : '' );
+							$rib_lbl = ! empty( $fz['sold'] ) ? __( 'Verkauft', 'm24-plattform' ) : __( 'Reserviert', 'm24-plattform' );
+							$rib_html = $rib_fz ? '<span class="m24-status-ribbon ' . $rib_fz . '">' . esc_html( $rib_lbl ) . '</span>' : '';
+							?>
 							<a class="ritem ritem-fz" href="<?php echo esc_url( $fz['url'] ); ?>">
 								<?php if ( ! empty( $fz['thumb'] ) ) : ?>
-									<div class="rimg"><?php echo wp_get_attachment_image( (int) $fz['thumb'], 'medium', false, array( 'alt' => esc_attr( html_entity_decode( $fz['title'], ENT_QUOTES, 'UTF-8' ) ) ) ); // phpcs:ignore ?></div>
+									<div class="rimg"><?php echo wp_get_attachment_image( (int) $fz['thumb'], 'medium', false, array( 'alt' => esc_attr( html_entity_decode( $fz['title'], ENT_QUOTES, 'UTF-8' ) ) ) ); // phpcs:ignore ?><?php echo $rib_html; // phpcs:ignore ?></div>
 								<?php else : ?>
-									<div class="rimg rimg-noimg" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"></div>
+									<div class="rimg rimg-noimg" role="img" aria-label="<?php esc_attr_e( 'Bild folgt', 'm24-plattform' ); ?>" style="background-image:url('<?php echo esc_url( $noimg_url ); ?>')"><?php echo $rib_html; // phpcs:ignore ?></div>
 								<?php endif; ?>
 								<div class="rb">
 									<h4><?php echo esc_html( html_entity_decode( $fz['title'], ENT_QUOTES, 'UTF-8' ) ); ?></h4>
-									<div class="rp">
-										<?php if ( ! empty( $fz['baujahr'] ) ) : ?><span class="fz-jahr"><?php echo esc_html( $fz['baujahr'] ); ?></span><?php endif; ?>
-										<?php if ( ! empty( $fz['sold'] ) ) : ?><span class="fz-badge fz-verkauft"><?php esc_html_e( 'Verkauft', 'm24-plattform' ); ?></span><?php elseif ( ! empty( $fz['reserved'] ) ) : ?><span class="fz-badge fz-reserviert"><?php esc_html_e( 'Reserviert', 'm24-plattform' ); ?></span><?php endif; ?>
-									</div>
+									<?php if ( ! empty( $fz['baujahr'] ) ) : ?><div class="rp"><span class="fz-jahr"><?php echo esc_html( $fz['baujahr'] ); ?></span></div><?php endif; ?>
 								</div>
 							</a>
 						<?php endforeach; ?>
