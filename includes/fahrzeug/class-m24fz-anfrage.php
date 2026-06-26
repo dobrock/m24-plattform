@@ -385,7 +385,7 @@ class M24FZ_Anfrage {
 						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" class="m24-ci-input" type="email" name="email" placeholder="deine@email.de" required></div>
 						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" class="m24-ci-input" type="tel" name="tel" placeholder="optional"></div>
 					</div>
-					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
+					<input type="hidden" name="lang" value="<?php echo esc_attr( class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de' ); ?>"><?php // Seitensprache automatisch übernehmen (kein In-Form-Switch) ?>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-il-submit">Eintragen</button>
@@ -411,7 +411,7 @@ class M24FZ_Anfrage {
 						<div class="m24-ci-field"><label class="m24-ci-label" for="m24pkN">Nachname</label><input id="m24pkN" class="m24-ci-input" type="text" name="nachname" placeholder="optional"></div>
 					</div>
 					<div class="m24-ci-field"><label class="m24-ci-label" for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" class="m24-ci-input" type="email" name="email" placeholder="deine@email.de" required></div>
-					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
+					<input type="hidden" name="lang" value="<?php echo esc_attr( class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de' ); ?>"><?php // Seitensprache automatisch übernehmen (kein In-Form-Switch) ?>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>

@@ -483,7 +483,7 @@ class M24_Garage {
 		if ( ! is_singular( array( 'm24_teil', 'm24_fahrzeug' ) ) ) {
 			return;
 		}
-		$flags = class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : '';
+		$lang  = class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de'; // aktuelle Seitensprache übernehmen
 		$rest  = esc_url_raw( rest_url( self::NS . '/garage/add' ) );
 		$login = esc_url_raw( rest_url( self::NS . '/garage/login-request' ) );
 		$nonce = wp_create_nonce( 'wp_rest' );
@@ -526,7 +526,7 @@ class M24_Garage {
 						<div class="m24-ci-field"><label class="m24-ci-label">Nachname</label><input type="text" name="nachname" class="m24-ci-input" placeholder="optional"></div>
 					</div>
 					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail <span class="req">*</span></label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
-					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo $flags; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+					<input type="hidden" name="lang" value="<?php echo esc_attr( $lang ); ?>"><?php // Seitensprache; Wechsel später via Garage-Einstellungen (G2b) / Mail-Footer ?>
 					<label class="m24g-check"><input type="checkbox" name="consent" value="1" required> Ja, ich möchte zu meinen gemerkten Fahrzeugen/Teilen per E-Mail informiert werden.</label>
 					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24g-submit">In meiner Garage parken</button>
@@ -535,6 +535,7 @@ class M24_Garage {
 				<p class="m24g-loginlink"><a href="#" class="m24g-login-toggle">Schon eine Garage? Einloggen</a></p>
 				<form class="m24g-login-form" hidden novalidate>
 					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail</label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
+					<input type="hidden" name="lang" value="<?php echo esc_attr( $lang ); ?>">
 					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24g-submit">Login-Link senden</button>
 					<p class="m24g-login-msg" role="status"></p>
