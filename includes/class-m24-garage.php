@@ -485,6 +485,7 @@ class M24_Garage {
 		}
 		$flags = class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : '';
 		$rest  = esc_url_raw( rest_url( self::NS . '/garage/add' ) );
+		$login = esc_url_raw( rest_url( self::NS . '/garage/login-request' ) );
 		$nonce = wp_create_nonce( 'wp_rest' );
 		?>
 		<style id="m24g-css">
@@ -507,6 +508,10 @@ class M24_Garage {
 		.m24-langpick .m24-flag.active{opacity:1;color:#9a6b25;background:#f3ede1}
 		.m24-langpick .m24-flag input{position:absolute;opacity:0;width:0;height:0}
 		.m24-langpick .m24-flag svg{width:20px;height:14px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18);display:block}
+		.m24g-loginlink{margin:14px 0 0;text-align:center;font-size:13px}
+		.m24g-loginlink a{color:#5a6474;text-decoration:underline}
+		.m24g-login-form{display:flex;flex-direction:column;gap:14px;margin-top:14px;border-top:1px solid #eef0f2;padding-top:16px}
+		.m24g-login-msg{font-size:13px;color:#9a6b25;min-height:1em;margin:0;text-align:center}
 		</style>
 		<div class="m24g-modal" id="m24g-modal" aria-hidden="true">
 			<div class="m24g-box" role="dialog" aria-modal="true" aria-label="In meine Garage">
@@ -522,18 +527,26 @@ class M24_Garage {
 					</div>
 					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail <span class="req">*</span></label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
 					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo $flags; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
-					<label class="m24g-check"><input type="checkbox" name="consent" value="1" required> Ja, ich möchte zu meinen gemerkten Fahrzeugen/Teilen per E-Mail informiert werden (Double-Opt-in).</label>
+					<label class="m24g-check"><input type="checkbox" name="consent" value="1" required> Ja, ich möchte zu meinen gemerkten Fahrzeugen/Teilen per E-Mail informiert werden.</label>
 					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-					<button type="submit" class="m24g-submit">In meine Garage</button>
+					<button type="submit" class="m24g-submit">In meiner Garage parken</button>
 					<p class="m24g-msg" role="status"></p>
+				</form>
+				<p class="m24g-loginlink"><a href="#" class="m24g-login-toggle">Schon eine Garage? Einloggen</a></p>
+				<form class="m24g-login-form" hidden novalidate>
+					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail</label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
+					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+					<button type="submit" class="m24g-submit">Login-Link senden</button>
+					<p class="m24g-login-msg" role="status"></p>
 				</form>
 			</div>
 		</div>
 		<script>
 		(function(){
-			var cfg={rest:<?php echo wp_json_encode( $rest ); ?>,nonce:<?php echo wp_json_encode( $nonce ); ?>};
+			var cfg={rest:<?php echo wp_json_encode( $rest ); ?>,login:<?php echo wp_json_encode( $login ); ?>,nonce:<?php echo wp_json_encode( $nonce ); ?>};
 			var modal=document.getElementById('m24g-modal');if(!modal)return;
 			var form=modal.querySelector('.m24g-form'),msg=modal.querySelector('.m24g-msg');
+			var loginForm=modal.querySelector('.m24g-login-form'),loginMsg=modal.querySelector('.m24g-login-msg'),loginLink=modal.querySelector('.m24g-loginlink');
 			function open(type,id){form.item_type.value=type;form.post_id.value=id;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';var f=form.querySelector('[name=vorname]');if(f)f.focus();}
 			function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow='';if(msg)msg.textContent='';}
 			document.addEventListener('click',function(e){
@@ -550,6 +563,18 @@ class M24_Garage {
 					.then(function(d){if(msg)msg.textContent=(d&&d.message)?d.message:'In deine Garage gelegt — bitte E-Mail bestätigen.';if(d&&d.ok){form.reset();}if(btn)btn.disabled=false;})
 					.catch(function(){if(msg)msg.textContent='Senden fehlgeschlagen. Bitte später erneut.';if(btn)btn.disabled=false;});
 			});
+			// Bestandsnutzer: Magic-Link-Login (G2) — Toggle blendet das Add-Formular aus, Login-Form ein.
+			if(loginLink&&loginForm){
+				loginLink.addEventListener('click',function(e){e.preventDefault();var show=loginForm.hidden;loginForm.hidden=!show;form.hidden=show;var fe=loginForm.querySelector('[name=email]');if(show&&fe)fe.focus();});
+				loginForm.addEventListener('submit',function(e){
+					e.preventDefault();
+					var b=loginForm.querySelector('button[type=submit]');if(b)b.disabled=true;if(loginMsg)loginMsg.textContent='Wird gesendet …';
+					fetch(cfg.login,{method:'POST',credentials:'same-origin',headers:{'X-WP-Nonce':cfg.nonce},body:new FormData(loginForm)})
+						.then(function(r){return r.json();})
+						.then(function(d){if(loginMsg)loginMsg.textContent=(d&&d.message)?d.message:'Falls diese E-Mail bekannt ist, haben wir dir einen Login-Link geschickt.';if(d&&d.ok){loginForm.reset();}if(b)b.disabled=false;})
+						.catch(function(){if(loginMsg)loginMsg.textContent='Senden fehlgeschlagen. Bitte später erneut.';if(b)b.disabled=false;});
+				});
+			}
 		})();
 		</script>
 		<?php
