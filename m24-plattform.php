@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.138
+ * Version:           0.11.139
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -123,6 +123,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage.php';      // Meine Garage G1: Store + Add-to-Garage + DOI (No-Account)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
+require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
@@ -230,6 +231,7 @@ if ( is_admin() ) {
 }
 
 register_activation_hook( __FILE__, [ 'M24_Database', 'activate' ] );
+register_activation_hook( __FILE__, [ 'M24_Lang_Endpoint', 'activate' ] ); // /sprache/-Rewrite + Flush
 register_deactivation_hook( __FILE__, function() {
     // Nichts loeschen - nur Cron/Action-Scheduler-Jobs deregistrieren
     wp_clear_scheduled_hook( 'm24_il_reminder_tick' ); // DOI-Erinnerungs-Cron
@@ -296,6 +298,7 @@ add_action( 'plugins_loaded', function() {
     M24_Brevo_IL::init();
     M24_Garage::init(); // Meine Garage G1
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
+    M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
     add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link) // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
     M24_OneClick_Update::init(); // auch im Frontend (Admin-Bar-Node von jeder Seite; übrige Hooks self-gaten)

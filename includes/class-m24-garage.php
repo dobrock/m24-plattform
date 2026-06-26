@@ -291,7 +291,9 @@ class M24_Garage {
 			. '<img src="' . $logo . '" alt="MOTORSPORT24" height="30" style="height:30px;display:block;border:0;"></td></tr>'
 			. '<tr><td style="padding:28px 28px 8px;"><h1 style="margin:0;font-size:22px;font-weight:800;color:#14161a;">' . esc_html( $headline ) . '</h1></td></tr>'
 			. '<tr><td style="padding:6px 28px 28px;color:#14161a;font-size:15px;line-height:1.55;">' . $inner . '</td></tr>'
-			. '<tr><td style="padding:16px 28px;background:#f7f8fa;color:#9aa3b0;font-size:12px;">MOTORSPORT24 GmbH</td></tr>'
+			. '<tr><td style="padding:16px 28px;background:#f7f8fa;color:#9aa3b0;font-size:12px;">MOTORSPORT24 GmbH'
+			. ( class_exists( 'M24_I18n' ) ? M24_I18n::mail_lang_footer( $lang ) : '' )
+			. '</td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}
 

@@ -22,18 +22,52 @@ class M24_I18n {
     public static function init() {
         // Cookie aus ?lang setzen, solange noch keine Header raus sind.
         if ( isset( $_GET['lang'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-            $l = self::norm( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
-            if ( $l && ! headers_sent() ) {
-                setcookie( self::COOKIE, $l, array(
-                    'expires'  => time() + 30 * DAY_IN_SECONDS,
-                    'path'     => '/',
-                    'samesite' => 'Lax',
-                    'httponly' => true,
-                    'secure'   => is_ssl(),
-                ) );
-                $_COOKIE[ self::COOKIE ] = $l;
+            self::set_cookie( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+        }
+    }
+
+    /**
+     * Sprach-Cookie setzen — EINE Quelle für Stil-C-Switcher (?lang), /sprache/-Endpoint, etc.
+     * Validiert über norm() (nur de|en). No-op bei ungültig oder bereits gesendeten Headern.
+     */
+    public static function set_cookie( $lang ): void {
+        $l = self::norm( $lang );
+        if ( '' === $l || headers_sent() ) {
+            return;
+        }
+        setcookie( self::COOKIE, $l, array(
+            'expires'  => time() + 30 * DAY_IN_SECONDS,
+            'path'     => '/',
+            'samesite' => 'Lax',
+            'httponly' => true,
+            'secure'   => is_ssl(),
+        ) );
+        $_COOKIE[ self::COOKIE ] = $l;
+    }
+
+    /**
+     * Wiederverwendbarer Mail-Footer-Block „Sprache ändern: DE | EN" → /sprache/?to=de|en.
+     * Aktive Sprache (= Mailsprache) messing/fett, andere als CI-blauer Link. Reines Inline-CSS
+     * (Saira), keine externen Assets / keine linear-gradients (Mail-Sanitizing-fest).
+     */
+    public static function mail_lang_footer( string $current = '' ): string {
+        $current = self::norm( $current );
+        $base    = home_url( '/sprache/' );
+        $stack   = "font-family:'Saira',Arial,Helvetica,sans-serif;";
+        $label   = ( 'en' === $current ) ? 'Change language' : 'Sprache ändern';
+        $out     = '<span style="color:#9aa3b0;' . $stack . '">' . esc_html( $label ) . ': </span>';
+        $first   = true;
+        foreach ( array( 'de' => 'DE', 'en' => 'EN' ) as $l => $txt ) {
+            if ( ! $first ) { $out .= '<span style="color:#cfd6df;"> | </span>'; }
+            $first = false;
+            if ( $l === $current ) {
+                $out .= '<span style="color:#9a6b25;font-weight:700;' . $stack . '">' . $txt . '</span>';
+            } else {
+                $url  = esc_url( add_query_arg( 'to', $l, $base ) );
+                $out .= '<a href="' . $url . '" style="color:#1f74c4;text-decoration:underline;' . $stack . '">' . $txt . '</a>';
             }
         }
+        return '<div style="margin-top:10px;font-size:12px;' . $stack . '">' . $out . '</div>';
     }
 
     private static function norm( $v ): string {

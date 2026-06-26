@@ -493,7 +493,8 @@ class M24_Brevo_IL {
 			. '</p>'
 			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">' . esc_html( $hint ) . '</p>'
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>'
-			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>'
+			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>',
+			$en ? 'en' : 'de'
 		);
 
 		$headers = array(
@@ -745,7 +746,7 @@ class M24_Brevo_IL {
 	 * CI-Font Saira self-hosted (kein Google, DSGVO-sauber): Apple Mail rendert Saira via
 	 * @font-face, Gmail/Outlook fallen sauber auf Arial zurück (Fallback im Font-Stack).
 	 */
-	private static function mail_html( $headline, $inner ) {
+	private static function mail_html( $headline, $inner, $lang = '' ) {
 		$font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
 		$stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
 		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
@@ -771,6 +772,7 @@ class M24_Brevo_IL {
 			. '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
 			. '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
 			. '</div>'
+			. ( class_exists( 'M24_I18n' ) ? M24_I18n::mail_lang_footer( (string) $lang ) : '' )
 			. '</td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}
