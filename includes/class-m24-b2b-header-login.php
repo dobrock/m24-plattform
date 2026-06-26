@@ -21,8 +21,13 @@ class M24_B2B_Header_Login {
 
 	const OPTION = 'm24_magiclink_enabled';
 
+	private static $rendered = false;
+
 	public static function init() {
 		add_action( 'wp_head', array( __CLASS__, 'styles' ), 99 );
+		// tagDiv-Newspaper ruft do_action('wp_body_open') NICHT auf → primär an wp_footer hängen
+		// (feuert zuverlässig). wp_body_open bleibt als harmloser Sekundär-Hook; Guard verhindert Dopplung.
+		add_action( 'wp_footer', array( __CLASS__, 'render' ) );
 		add_action( 'wp_body_open', array( __CLASS__, 'render' ) );
 	}
 
@@ -41,9 +46,10 @@ class M24_B2B_Header_Login {
 	 * in den Header-Menü-Container hängt. Fallback (Container nicht gefunden): fixiert oben rechts.
 	 */
 	public static function render() {
-		if ( ! self::enabled() ) {
-			return;
+		if ( self::$rendered || ! self::enabled() ) {
+			return; // Guard: Markup garantiert nur EINMAL (falls wp_footer + wp_body_open beide feuern)
 		}
+		self::$rendered = true;
 		if ( m24_is_b2b_authenticated() ) {
 			$url   = wp_logout_url( home_url( '/' ) ); // WP-Core hängt den Nonce an
 			$label = ( 'en' === self::lang() ) ? 'Log out' : 'Abmelden';
