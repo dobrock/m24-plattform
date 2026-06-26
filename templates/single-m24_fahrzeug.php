@@ -45,7 +45,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				<span class="m24fz-hero-ov" aria-hidden="true"></span>
 			<?php endif; ?>
 			<div class="m24fz-hero-top">
-				<button class="m24fz-pill m24fz-park-open" type="button">♡ Merken</button>
+				<button class="m24fz-pill m24-garage-open" data-garage-type="vehicle" data-garage-id="<?php echo (int) $id; ?>" type="button">♡ Merken</button>
 				<button class="m24fz-pill" data-m24fz-share type="button">↗ Teilen</button>
 			</div>
 			<div class="m24fz-hero-foot">

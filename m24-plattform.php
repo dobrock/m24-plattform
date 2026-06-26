@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.127
+ * Version:           0.11.128
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -121,6 +121,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-rest-client.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-taxonomie.php'; // Fahrzeug-Alert: Tag-Landkarte + Rollup (rein)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo-API-Wrapper (Phase 2: Liste 3 + Alert-Listen)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage.php';      // Meine Garage G1: Store + Add-to-Garage + DOI (No-Account)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
@@ -279,6 +280,7 @@ add_action( 'plugins_loaded', function() {
     M24FZ_Anfrage::init();
     M24FZ_Alert_Box::init(); // M24 Fahrzeug-Alert: Editor-Box + Versand-REST
     M24_Brevo_IL::init();
+    M24_Garage::init(); // Meine Garage G1
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
     add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link) // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)

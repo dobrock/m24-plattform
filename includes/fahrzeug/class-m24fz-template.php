@@ -273,7 +273,7 @@ class M24FZ_Template {
 		} else {
 			echo self::preis_html( $id ); // phpcs:ignore
 			echo '<button class="m24fz-btn m24fz-anfrage-open" type="button">Jetzt anfragen</button>';
-			echo '<button class="m24fz-btn ghost m24fz-park m24fz-park-open" type="button">♡ Fahrzeug parken</button>';
+			echo '<button class="m24fz-btn ghost m24fz-park m24-garage-open" data-garage-type="vehicle" data-garage-id="' . (int) $id . '" type="button">♡ In meine Garage</button>';
 		}
 		echo '<div class="m24fz-seller"><strong>MOTORSPORT24 GmbH</strong><span>Internationaler Verkauf von Fahrzeugen seit 2006</span></div>';
 		return ob_get_clean();
