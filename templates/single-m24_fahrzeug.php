@@ -175,42 +175,47 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		</section>
 		<?php endif; ?>
 
-		<!-- 9. 50/50: Lieferung & Zoll + Off-Market-Stub -->
-		<section class="m24fz-5050">
-			<div class="m24fz-card m24fz-ship">
-				<h2>Lieferung &amp; Zoll</h2>
-				<ul>
-					<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 4h13v11H1z"/><path d="M14 8h4l3 3v4h-7z"/><circle cx="5.5" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/></svg><span>Europa- &amp; weltweite Lieferung</span></li>
-					<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 8 8 11 4.6-3 8-6 8-11V5z"/><path d="m8.5 12 2.5 2.5 4.5-4.5"/></svg><span>Zollabwicklung in Deutschland bei Drittland</span></li>
-					<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span>Optionale Zolldienstleistung im Empfängerland</span></li>
-				</ul>
-			</div>
-			<?php $om_live = class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::offmarket_list_id() > 0; ?>
+		<!-- 9. Off-Market-Hero (Variante C): volle Breite, innen 2-spaltig; Lieferung & Zoll als Chip-Streifen -->
+		<?php $om_live = class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::offmarket_list_id() > 0; ?>
+		<section class="m24fz-omhero">
 			<div class="m24fz-card m24fz-offmarket">
-				<?php if ( ! $om_live ) : ?><span class="m24fz-badge prep">In Vorbereitung</span><?php endif; ?>
-				<h2>Zuerst sehen, was noch keiner sieht</h2>
-				<p class="m24fz-om-lead">Die begehrtesten Fahrzeuge wechseln den Besitzer, bevor sie je ein Inserat sehen. Sei zuerst dran.</p>
-				<ul class="m24fz-om-benefits">
-					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>Erstzugriff</li>
-					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>Diskret vorab</li>
-					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>Ohne Bieterstress</li>
-					<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>Info per E-Mail</li>
-				</ul>
-				<?php if ( $om_live ) : ?>
-					<form class="m24fz-offmarket-form" data-pid="<?php echo (int) get_queried_object_id(); ?>">
-						<div class="m24fz-frow">
-							<div class="m24-ci-field on-dark"><label class="m24-ci-label">Vorname <span class="req">*</span></label><input type="text" name="vorname" class="m24-ci-input on-dark" placeholder="Dein Vorname" required></div>
-							<div class="m24-ci-field on-dark"><label class="m24-ci-label">Nachname</label><input type="text" name="nachname" class="m24-ci-input on-dark" placeholder="optional"></div>
-						</div>
-						<div class="m24-ci-field on-dark"><label class="m24-ci-label">E-Mail <span class="req">*</span></label><input type="email" name="email" class="m24-ci-input on-dark" placeholder="deine@email.de" required></div>
-						<?php if ( class_exists( 'M24_I18n' ) ) { echo M24_I18n::flag_radios( 'lang' ); /* phpcs:ignore */ } ?>
-						<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-						<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ja, informiert mich vorab über Off-Market-Fahrzeuge per E-Mail.</label>
-						<p class="m24fz-anf-msg" role="status"></p>
-					</form>
-				<?php else : ?>
-					<div class="row"><input type="email" placeholder="E-Mail-Adresse" disabled><button type="button" class="m24fz-btn" disabled>Anmelden</button></div>
-				<?php endif; ?>
+				<div class="m24fz-om-grid">
+					<div class="m24fz-om-left">
+						<?php if ( ! $om_live ) : ?><span class="m24fz-badge prep">In Vorbereitung</span><?php endif; ?>
+						<h2>Zuerst sehen, was noch keiner sieht</h2>
+						<p class="m24fz-om-lead">Die begehrtesten Fahrzeuge wechseln den Besitzer, bevor sie über unsere internationalen Kanäle vermarktet werden. Sichere dir zuerst dein neues Fahrzeug.</p>
+						<ul class="m24fz-om-benefits">
+							<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>Erstzugriff</li>
+							<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>Diskret vorab</li>
+							<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg></span>Ohne Bieterstress</li>
+							<li><span class="m24fz-om-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>Info per E-Mail</li>
+						</ul>
+					</div>
+					<div class="m24fz-om-right">
+						<?php if ( $om_live ) : ?>
+							<form class="m24fz-offmarket-form" data-pid="<?php echo (int) get_queried_object_id(); ?>">
+								<div class="m24fz-frow">
+									<input type="text" name="vorname" class="m24-ci-input on-dark" placeholder="Vorname" required>
+									<input type="text" name="nachname" class="m24-ci-input on-dark" placeholder="Nachname (optional)">
+								</div>
+								<input type="email" name="email" class="m24-ci-input on-dark" placeholder="E-Mail-Adresse" required>
+								<input type="hidden" name="lang" value="<?php echo esc_attr( class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de' ); ?>">
+								<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+								<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ja, informiert mich vorab über Off-Market-Fahrzeuge per E-Mail.</label>
+								<button type="submit" class="m24fz-om-ghost">Anmelden</button>
+								<p class="m24fz-anf-msg" role="status"></p>
+							</form>
+						<?php else : ?>
+							<input type="email" class="m24-ci-input on-dark" placeholder="E-Mail-Adresse" disabled>
+							<button type="button" class="m24fz-om-ghost" disabled>Anmelden</button>
+						<?php endif; ?>
+					</div>
+				</div>
+			</div>
+			<div class="m24fz-chips">
+				<div class="m24fz-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 4h13v11H1z"/><path d="M14 8h4l3 3v4h-7z"/><circle cx="5.5" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/></svg><span>Europa- &amp; weltweite Lieferung</span></div>
+				<div class="m24fz-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 8 8 11 4.6-3 8-6 8-11V5z"/><path d="m8.5 12 2.5 2.5 4.5-4.5"/></svg><span>Ausfuhr-Zollabwicklung</span></div>
+				<div class="m24fz-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span>Optionale Zolldienstleistung im Empfängerland</span></div>
 			</div>
 		</section>
 

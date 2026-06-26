@@ -135,21 +135,30 @@
 .m24fz-allmarke{display:inline-block;margin-top:14px;color:var(--brass);border-bottom:1px solid var(--brass);text-decoration:none;font-weight:600}
 
 /* 9. 50/50 + Off-Market */
-.m24fz-5050{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:stretch}
-.m24fz-ship ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
-.m24fz-ship ul li{display:flex;align-items:center;gap:12px}
-.m24fz-ship ul li svg{width:27px;height:27px;flex:0 0 27px;color:#10243a}
-.m24fz-offmarket{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}.m24fz-offmarket h2{color:#fff;font-family:'Saira',sans-serif;font-weight:700}
-.m24fz-om-lead{color:#fff;opacity:.92;font-size:14px;line-height:1.5;margin:6px 0 16px}
-.m24fz-om-benefits{list-style:none;margin:0 0 18px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:11px 14px}
-.m24fz-om-benefits li{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#fff}
-.m24fz-om-ic{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.14);color:#ffd79a}
-.m24fz-om-ic svg{width:19px;height:19px}
-/* Off-Market-Felder: Optik kommt zentral aus m24-forms.css (.m24-ci-input.on-dark). Hier nur der Button. */
-.m24fz-offmarket .m24fz-om-submit{width:100%;height:48px;padding:0 22px;background:linear-gradient(180deg,#ffffff,#dfe4ea);color:#0e447e;border:1px solid rgba(255,255,255,.6);border-radius:11px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18);font-family:inherit;margin-top:4px}
+/* ── Off-Market-Hero (Variante C): volle Breite, innen 2-spaltig; Chip-Streifen darunter ── */
+.m24fz-omhero{display:flex;flex-direction:column;gap:14px}
+.m24fz-offmarket{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}
+.m24fz-offmarket h2{color:#fff;font-family:'Saira',sans-serif;font-weight:700;margin:0 0 8px}
+.m24fz-om-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:30px;align-items:center}
+.m24fz-om-left{min-width:0}
+.m24fz-om-right{min-width:0}
+.m24fz-om-lead{color:#fff;opacity:.92;font-size:14px;line-height:1.55;margin:0 0 18px}
+.m24fz-om-benefits{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+.m24fz-om-benefits li{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:#fff}
+.m24fz-om-ic{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:11px;background:rgba(255,255,255,.14);color:#ffd79a}
+.m24fz-om-ic svg{width:26px;height:26px}
+/* Off-Market-Felder: Optik zentral aus m24-forms.css (.m24-ci-input.on-dark). Ghost-Button: */
+.m24fz-om-ghost{width:100%;height:46px;margin-top:4px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.9);border-radius:11px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;transition:background .15s}
+.m24fz-om-ghost:hover{background:rgba(255,255,255,.12)}
+.m24fz-om-ghost:disabled{opacity:.6;cursor:not-allowed}
 .m24fz-offmarket .m24fz-anf-check{display:block;margin-top:10px;color:rgba(255,255,255,.85);font-size:12px;line-height:1.45}
 .m24fz-offmarket .m24fz-anf-check input{margin-right:7px}
 .m24fz-offmarket .m24fz-anf-msg{color:#fff;text-align:left;margin-top:8px}
+/* Lieferung-&-Zoll als 3er-Chip-Streifen unter der Box */
+.m24fz-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.m24fz-chip{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #eef0f2;border-radius:12px;padding:13px 15px;font-size:13.5px;font-weight:600;color:#14161a;line-height:1.3}
+.m24fz-chip svg{width:26px;height:26px;flex:0 0 26px;color:#10243a}
+@media(max-width:760px){.m24fz-om-grid{grid-template-columns:1fr;gap:22px}.m24fz-chips{grid-template-columns:1fr}}
 
 /* Preisbox-Zustände (reserviert/verkauft → Interessentenliste) */
 .m24fz-statebadge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 13px;border-radius:999px;margin-bottom:8px}
@@ -212,7 +221,7 @@
 
 /* Responsive ≤980 */
 @media(max-width:980px){
-	.m24fz-main,.m24fz-photos,.m24fz-5050{grid-template-columns:1fr}
+	.m24fz-main,.m24fz-photos{grid-template-columns:1fr}
 	.m24fz-photos{grid-template-rows:auto}.m24fz-photos .big{grid-row:auto}.m24fz-photos .side{grid-column:1}
 	.m24fz-side{position:static}
 	.m24fz-tel{grid-template-columns:repeat(3,1fr)}
