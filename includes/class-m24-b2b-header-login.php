@@ -96,10 +96,14 @@ class M24_B2B_Header_Login {
 		if ( ! self::enabled() ) {
 			return;
 		}
-		// Hohe Spezifität + !important gegen die tagDiv-Menü-Kaskade (Open Sans, UPPERCASE, padding:0).
-		$sel = '.m24-b2b-login-mi a.m24-b2b-login-a,.m24-b2b-login-fallback a.m24-b2b-login-a';
+		// Selektoren mit Menü-Container-ID prefixen → schlagen tagDivs line-height:80px;display:block.
+		// (Basis-Klassen-Selektor zusätzlich, damit Fallback/generisches Menü ohne ID auch greift.)
+		$sel = '#menu-header-menu-2 li.m24-b2b-login-mi a.m24-b2b-login-a,'
+			. '.td-mobile-main-menu li.m24-b2b-login-mi a.m24-b2b-login-a,'
+			. '.m24-b2b-login-mi a.m24-b2b-login-a,'
+			. '.m24-b2b-login-fallback a.m24-b2b-login-a';
 		echo '<style id="m24-b2b-login-mi-css">'
-			. $sel . '{display:inline-block!important;background:#1f74c4!important;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;color:#fff!important;'
+			. $sel . '{display:inline-block!important;height:auto!important;background:#1f74c4!important;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;color:#fff!important;'
 			. 'padding:8px 16px!important;border-radius:8px!important;font-family:\'Saira\',Arial,sans-serif!important;font-weight:700!important;font-size:14px!important;'
 			. 'line-height:1.1!important;text-transform:none!important;text-decoration:none!important;white-space:nowrap!important}'
 			. $sel . ':hover{filter:brightness(1.06)}'
