@@ -127,7 +127,7 @@ class M24_Inquiries_Form {
                 <input type="hidden" name="items_json" value="<?php echo esc_attr( wp_json_encode( $items ) ); ?>">
 
                 <fieldset class="m24-form__section m24-form__section--customer">
-                    <legend class="m24-form__legend"><?php esc_html_e( 'Ihre Kontaktdaten', 'm24-plattform' ); ?></legend>
+                    <legend class="m24-form__legend"><?php esc_html_e( 'Deine Kontaktdaten', 'm24-plattform' ); ?></legend>
 
                     <div class="m24-form__field">
                         <label for="m24-biz-toggle"><?php esc_html_e( 'Anfrage als', 'm24-plattform' ); ?> <span class="m24-form__required">*</span></label>
@@ -197,11 +197,11 @@ class M24_Inquiries_Form {
                 </fieldset>
 
                 <fieldset class="m24-form__section m24-form__section--items">
-                    <legend class="m24-form__legend"><?php esc_html_e( 'Ihre Anfrage-Positionen', 'm24-plattform' ); ?></legend>
+                    <legend class="m24-form__legend"><?php esc_html_e( 'Deine Anfrage-Positionen', 'm24-plattform' ); ?></legend>
 
                     <?php if ( empty( $items ) ) : ?>
                         <p class="m24-form__hint">
-                            <?php esc_html_e( 'Sie haben noch keine Positionen ausgewählt. Nutzen Sie die Sammelanfrage-Sidebar (folgt in Schritt B2), um Pakete oder Artikel hinzuzufügen.', 'm24-plattform' ); ?>
+                            <?php esc_html_e( 'Du hast noch keine Positionen ausgewählt. Nutze die Sammelanfrage-Sidebar (folgt in Schritt B2), um Pakete oder Artikel hinzuzufügen.', 'm24-plattform' ); ?>
                         </p>
                     <?php else : ?>
                         <ul class="m24-form__items">
@@ -435,8 +435,8 @@ class M24_Inquiries_Form {
         ?>
         <div class="m24-form-wrap m24-form-wrap--success">
             <div class="m24-form__notice m24-form__notice--success" role="status">
-                <h3><?php esc_html_e( 'Vielen Dank — Ihre Sammelanfrage ist bei uns eingegangen.', 'm24-plattform' ); ?></h3>
-                <p><?php esc_html_e( 'Wir melden uns in Kürze bei Ihnen.', 'm24-plattform' ); ?></p>
+                <h3><?php esc_html_e( 'Vielen Dank — deine Sammelanfrage ist bei uns eingegangen.', 'm24-plattform' ); ?></h3>
+                <p><?php esc_html_e( 'Wir melden uns in Kürze bei dir.', 'm24-plattform' ); ?></p>
                 <?php if ( $inquiry_id ) : ?>
                     <p class="m24-form__ref">
                         <?php echo esc_html( sprintf( __( 'Vorgangs-Nr.: #%d', 'm24-plattform' ), $inquiry_id ) ); ?>

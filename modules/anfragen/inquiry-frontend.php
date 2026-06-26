@@ -76,12 +76,12 @@ class M24_Inquiry_Frontend {
 			'userCanSeePrices' => class_exists( 'M24_Inquiries' ) ? M24_Inquiries::user_can_see_prices() : false,
 			'i18n'             => array(
 				'emailToMe'   => __( 'Merkzettel per E-Mail senden', 'm24-plattform' ),
-				'emailPrompt' => __( 'Ihre E-Mail (für Rückfragen, optional):', 'm24-plattform' ),
+				'emailPrompt' => __( 'Deine E-Mail (für Rückfragen, optional):', 'm24-plattform' ),
 				'sent'        => __( 'Gesendet ✓', 'm24-plattform' ),
 				'added'       => __( 'Zum Merkzettel hinzugefügt', 'm24-plattform' ),
 				'genericErr'  => __( 'Es ist ein Fehler aufgetreten.', 'm24-plattform' ),
 				'landUnknown' => __( 'Bitte ein Land aus der Liste wählen.', 'm24-plattform' ),
-				'success'     => 'Vielen Dank, Ihre Anfrage ist eingegangen. Wir melden uns kurzfristig bei Ihnen.',
+				'success'     => 'Vielen Dank, deine Anfrage ist eingegangen. Wir melden uns kurzfristig bei dir.',
 			),
 		) );
 	}

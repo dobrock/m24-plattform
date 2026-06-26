@@ -81,7 +81,7 @@ class M24_Inquiry_Submit {
 
 		// Name (neues Pflichtfeld) serverseitig: min. 2 Zeichen.
 		if ( mb_strlen( $name ) < 2 ) {
-			return new WP_REST_Response( array( 'ok' => false, 'code' => 'm24_name_missing', 'error' => __( 'Bitte Ihren Namen angeben (mind. 2 Zeichen).', 'm24-plattform' ) ), 422 );
+			return new WP_REST_Response( array( 'ok' => false, 'code' => 'm24_name_missing', 'error' => __( 'Bitte deinen Namen angeben (mind. 2 Zeichen).', 'm24-plattform' ) ), 422 );
 		}
 
 		// Lesbare Felder fürs Mail/Listen-Mapping (NAME = voller Name; KUNDENTYP = lesbar; Lieferland-Name).
@@ -135,7 +135,7 @@ class M24_Inquiry_Submit {
 		}
 		$items = M24_Inquiries_Form::sanitize_items( (array) $items_raw );
 		if ( empty( $items ) ) {
-			return new WP_REST_Response( array( 'ok' => false, 'error' => __( 'Ihr Merkzettel ist leer.', 'm24-plattform' ) ), 422 );
+			return new WP_REST_Response( array( 'ok' => false, 'error' => __( 'Dein Merkzettel ist leer.', 'm24-plattform' ) ), 422 );
 		}
 
 		$sent = M24_Inquiries_Mail_Fallback::send_data( array(

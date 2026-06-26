@@ -50,7 +50,7 @@ class M24_Inquiries_Validation {
         if ( '1' !== $consent ) {
             return new WP_Error(
                 'm24_consent_missing',
-                __( 'Bitte stimmen Sie der Datenschutzerklärung zu.', 'm24-plattform' )
+                __( 'Bitte stimme der Datenschutzerklärung zu.', 'm24-plattform' )
             );
         }
 
@@ -66,7 +66,7 @@ class M24_Inquiries_Validation {
         if ( ! empty( $missing ) ) {
             return new WP_Error(
                 'm24_required_missing',
-                __( 'Bitte füllen Sie alle Pflichtfelder aus.', 'm24-plattform' ),
+                __( 'Bitte fülle alle Pflichtfelder aus.', 'm24-plattform' ),
                 [ 'fields' => $missing ]
             );
         }
@@ -87,7 +87,7 @@ class M24_Inquiries_Validation {
         if ( '' === $email || ! is_email( $email ) ) {
             return new WP_Error(
                 'm24_email_invalid',
-                __( 'Bitte geben Sie eine gültige E-Mail-Adresse an.', 'm24-plattform' ),
+                __( 'Bitte gib eine gültige E-Mail-Adresse an.', 'm24-plattform' ),
                 [ 'fields' => [ 'email' ] ]
             );
         }
@@ -120,7 +120,7 @@ class M24_Inquiries_Validation {
         if ( '' === trim( $items_raw ) ) {
             return new WP_Error(
                 'm24_items_empty',
-                __( 'Ihre Anfrage enthält keine Positionen.', 'm24-plattform' )
+                __( 'Deine Anfrage enthält keine Positionen.', 'm24-plattform' )
             );
         }
         $decoded = json_decode( $items_raw, true );
@@ -134,7 +134,7 @@ class M24_Inquiries_Validation {
         if ( empty( $items ) ) {
             return new WP_Error(
                 'm24_items_empty',
-                __( 'Ihre Anfrage enthält keine gültigen Positionen.', 'm24-plattform' )
+                __( 'Deine Anfrage enthält keine gültigen Positionen.', 'm24-plattform' )
             );
         }
 
