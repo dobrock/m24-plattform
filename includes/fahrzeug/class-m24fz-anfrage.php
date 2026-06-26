@@ -122,7 +122,7 @@ class M24FZ_Anfrage {
 
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
 
-		return rest_ensure_response( array( 'ok' => (bool) $sent, 'message' => $sent ? 'Danke! Ihre Anfrage ist eingegangen.' : 'Anfrage gespeichert, Mailversand verzögert.' ) );
+		return rest_ensure_response( array( 'ok' => (bool) $sent, 'message' => $sent ? 'Danke! Deine Anfrage ist eingegangen.' : 'Anfrage gespeichert, Mailversand verzögert.' ) );
 	}
 
 	/**
@@ -154,7 +154,7 @@ class M24FZ_Anfrage {
 		// BEWUSST KEIN M24FZ_Tracking::increment() — IL ist keine Anfrage.
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
 
-		return rest_ensure_response( array( 'ok' => true, 'message' => 'Eingetragen! Sie erhalten Ihre Bestätigung in Kürze per E-Mail.' ) );
+		return rest_ensure_response( array( 'ok' => true, 'message' => 'Eingetragen! Du erhältst deine Bestätigung in Kürze per E-Mail.' ) );
 	}
 
 	/**
@@ -190,7 +190,7 @@ class M24FZ_Anfrage {
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
 
 		// Anti-Enumeration: immer dieselbe Antwort, egal ob neu/bestehend.
-		return rest_ensure_response( array( 'ok' => true, 'message' => 'Bitte bestätigen Sie Ihre Off-Market-Anmeldung per E-Mail.' ) );
+		return rest_ensure_response( array( 'ok' => true, 'message' => 'Bitte bestätige deine Off-Market-Anmeldung per E-Mail.' ) );
 	}
 
 	/**
@@ -327,7 +327,7 @@ class M24FZ_Anfrage {
 	public static function datenschutz_hint() {
 		$url  = apply_filters( 'm24fz_datenschutz_url', get_privacy_policy_url() );
 		$link = $url ? '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' : 'Datenschutzerklärung';
-		return '<p class="m24fz-dsgvo">Mit dem Absenden verarbeiten wir Ihre Angaben zur Bearbeitung Ihres Anliegens. Mehr in der ' . $link . '.</p>';
+		return '<p class="m24fz-dsgvo">Mit dem Absenden verarbeiten wir deine Angaben zur Bearbeitung deines Anliegens. Mehr in der ' . $link . '.</p>';
 	}
 
 	/** Modal-Markup (einmal pro Detailseite ausgeben). */
@@ -356,11 +356,11 @@ class M24FZ_Anfrage {
 			<div class="m24fz-anfrage-box" role="dialog" aria-modal="true" aria-label="Auf die Interessentenliste">
 				<button type="button" class="m24fz-anfrage-close" aria-label="Schließen">&times;</button>
 				<h3>Auf die Interessentenliste</h3>
-				<p class="m24fz-anfrage-veh">Tragen Sie sich ein und erfahren Sie als Erster, sobald dieses oder ein ähnliches Fahrzeug verfügbar ist.</p>
+				<p class="m24fz-anfrage-veh">Trag dich ein und erfahre als Erster, sobald dieses oder ein ähnliches Fahrzeug verfügbar ist.</p>
 				<form class="m24fz-anfrage-form m24fz-il-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24ilN">Name <span class="req">*</span></label><input id="m24ilN" type="text" name="name" placeholder="Ihr Name" required></div>
-						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="ihre@email.de" required></div>
+						<div class="m24fz-f"><label for="m24ilN">Name <span class="req">*</span></label><input id="m24ilN" type="text" name="name" placeholder="Dein Name" required></div>
+						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="deine@email.de" required></div>
 					</div>
 					<div class="m24fz-f"><label for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" type="tel" name="tel" placeholder="optional"></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
@@ -381,9 +381,9 @@ class M24FZ_Anfrage {
 			<div class="m24fz-anfrage-box" role="dialog" aria-modal="true" aria-label="Fahrzeug parken">
 				<button type="button" class="m24fz-anfrage-close" aria-label="Schließen">&times;</button>
 				<h3>Fahrzeug parken</h3>
-				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für Sie und informieren Sie zu diesem und ähnlichen Fahrzeugen.</p>
+				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für dich und informieren dich zu diesem und ähnlichen Fahrzeugen.</p>
 				<form class="m24fz-anfrage-form m24fz-park-form" data-pid="<?php echo (int) $post_id; ?>">
-					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="ihre@email.de" required></div>
+					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="deine@email.de" required></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>

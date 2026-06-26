@@ -424,15 +424,15 @@ class M24_Brevo_IL {
 
 		if ( 'offmarket' === $variant ) {
 			$subject = 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24';
-			$intro   = 'vielen Dank für Ihr Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+			$intro   = 'vielen Dank für dein Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätige mit einem Klick, dass wir dich '
 				. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:';
 		} elseif ( 'parked' === $variant ) {
 			$subject = 'Bestätige dein geparktes Fahrzeug — MOTORSPORT24';
-			$intro   = 'Sie haben ein Fahrzeug geparkt. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+			$intro   = 'Du hast ein Fahrzeug geparkt. Bitte bestätige mit einem Klick, dass wir dich '
 				. 'zu diesem und ähnlichen Fahrzeugen per E-Mail informieren dürfen:';
 		} else {
-			$subject = 'Bitte bestätigen Sie Ihre Anmeldung — MOTORSPORT24';
-			$intro   = 'vielen Dank für Ihr Interesse. Bitte bestätigen Sie mit einem Klick, dass wir Sie '
+			$subject = 'Bitte bestätige deine Anmeldung — MOTORSPORT24';
+			$intro   = 'vielen Dank für dein Interesse. Bitte bestätige mit einem Klick, dass wir dich '
 				. 'über passende Fahrzeuge und Angebote informieren dürfen:';
 		}
 
@@ -449,9 +449,9 @@ class M24_Brevo_IL {
 			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
 			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung bestätigen</a>'
 			. '</p>'
-			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:</p>'
+			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>'
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>'
-			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach — es passiert nichts.</p>'
+			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach — es passiert nichts.</p>'
 		);
 
 		$headers = array(
@@ -561,23 +561,23 @@ class M24_Brevo_IL {
 		$name        = (string) ( $rec['name'] ?? '' );
 		$source      = (int) ( $rec['source_id'] ?? 0 );
 		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
-		$subject     = 'Erinnerung: Ihre Anmeldung bei MOTORSPORT24 – noch ein Klick';
+		$subject     = 'Erinnerung: deine Anmeldung bei MOTORSPORT24 – noch ein Klick';
 
 		$veh_title = $source ? get_the_title( $source ) : '';
 		$bezug     = '' !== $veh_title
-			? 'Sie hatten sich für <strong>' . esc_html( $veh_title ) . '</strong> auf unsere Interessentenliste eingetragen — Ihre Bestätigung steht aber noch aus.'
-			: 'Ihre Anmeldung auf unsere Interessentenliste steht noch aus.';
+			? 'Du hattest dich für <strong>' . esc_html( $veh_title ) . '</strong> auf unsere Interessentenliste eingetragen — deine Bestätigung steht aber noch aus.'
+			: 'Deine Anmeldung auf unsere Interessentenliste steht noch aus.';
 
 		$inner  = '<p style="margin:0 0 14px;">Hallo ' . esc_html( $name ) . ',</p>';
-		$inner .= '<p style="margin:0 0 14px;">' . $bezug . ' Mit einem Klick sind Sie dabei und verpassen kein passendes Fahrzeug mehr:</p>';
+		$inner .= '<p style="margin:0 0 14px;">' . $bezug . ' Mit einem Klick bist du dabei und verpasst kein passendes Fahrzeug mehr:</p>';
 		$inner .= self::vehicle_image_block( $source );
 		$inner .= '<p style="margin:24px 0;text-align:center;">'
 			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
 			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung jetzt bestätigen</a>'
 			. '</p>';
-		$inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:</p>';
+		$inner .= '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>';
 		$inner .= '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>';
-		$inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn Sie sich nicht angemeldet haben, ignorieren Sie diese E-Mail einfach — es passiert nichts.</p>';
+		$inner .= '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach — es passiert nichts.</p>';
 
 		$body    = self::mail_html( 'Noch ein Klick zur Bestätigung', $inner );
 		$headers = array(
@@ -675,17 +675,17 @@ class M24_Brevo_IL {
 			$ring  = '#e7f4ec';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1a7a3c"/><path d="M19 33l9 9 17-19" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 			$title = 'Anmeldung bestätigt';
-			$text  = 'Vielen Dank! Ihre Anmeldung ist bestätigt. Sobald wir passende Fahrzeuge für Sie anbieten, erfahren Sie als erster die Details.';
+			$text  = 'Vielen Dank! Deine Anmeldung ist bestätigt. Sobald wir passende Fahrzeuge für dich anbieten, erfährst du als Erster die Details.';
 		} elseif ( 'neutral' === $state ) {
 			$ring  = '#e8f1fa';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#1f74c4"/><path d="M32 28v17" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="20" r="3.6" fill="#fff"/></svg>';
 			$title = 'Interessentenliste';
-			$text  = 'Diese Seite bestätigt Anmeldungen zur Interessentenliste. Stöbern Sie gern in unseren aktuellen Fahrzeugen.';
+			$text  = 'Diese Seite bestätigt Anmeldungen zur Interessentenliste. Stöber gern in unseren aktuellen Fahrzeugen.';
 		} else {
 			$ring  = '#fdf1e0';
 			$icon  = '<svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#b87000"/><path d="M32 17v23" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="49" r="3.6" fill="#fff"/></svg>';
 			$title = 'Link abgelaufen';
-			$text  = 'Dieser Bestätigungslink ist ungültig oder abgelaufen. Bitte melden Sie sich einfach erneut an.';
+			$text  = 'Dieser Bestätigungslink ist ungültig oder abgelaufen. Bitte melde dich einfach erneut an.';
 		}
 		$cta  = esc_url( home_url( '/fahrzeuge/' ) );
 		$home = esc_url( home_url( '/' ) );
