@@ -175,7 +175,7 @@
 	function modalOpen(m) {
 		if (!m) { return; }
 		m.hidden = false; m.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
-		var f = m.querySelector('input[name=name]'); if (f) { f.focus(); }
+		var f = m.querySelector('input[name=vorname], input[name=name]'); if (f) { f.focus(); }
 	}
 	function modalClose(m) { if (!m) { return; } m.hidden = true; m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
 

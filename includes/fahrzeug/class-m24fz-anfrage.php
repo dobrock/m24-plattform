@@ -144,12 +144,17 @@ class M24FZ_Anfrage {
 		$cnt = (int) get_transient( $rk );
 		if ( $cnt >= 5 ) { return new WP_Error( 'm24fz_rate', 'Zu viele Einträge. Bitte später erneut.', array( 'status' => 429 ) ); }
 
-		$name = sanitize_text_field( (string) ( $p['name'] ?? '' ) );
-		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
-		$tel  = sanitize_text_field( (string) ( $p['tel'] ?? '' ) );
-		if ( '' === $name || ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte Name und gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
+		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
+		$mail     = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		$tel      = sanitize_text_field( (string) ( $p['tel'] ?? '' ) );
+		$lang     = ( 'en' === strtolower( (string) ( $p['lang'] ?? '' ) ) ) ? 'en' : 'de';
+		// Abwärtskompat: falls noch ein altes Single-Name-Feld kommt, als Vorname nehmen.
+		if ( '' === $vorname ) { $vorname = sanitize_text_field( (string) ( $p['name'] ?? '' ) ); }
+		if ( '' === $vorname || ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte Vorname und gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		$name = trim( $vorname . ' ' . $nachname );
 
-		self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'tel' => $tel ) );
+		self::register_interessent( $pid, array( 'name' => $name, 'vorname' => $vorname, 'nachname' => $nachname, 'lang' => $lang, 'email' => $mail, 'tel' => $tel ) );
 
 		// BEWUSST KEIN M24FZ_Tracking::increment() — IL ist keine Anfrage.
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
@@ -304,6 +309,9 @@ class M24FZ_Anfrage {
 		// Hook für die plugin-managed DOI-Pipeline (Liste-ID 3; NAME + KUNDENTYP + Attribute MODELLE/KATEGORIEN).
 		do_action( 'm24fz_interessent_submitted', $context_id, array(
 			'name'       => $name,
+			'vorname'    => (string) ( $contact['vorname'] ?? '' ),
+			'nachname'   => (string) ( $contact['nachname'] ?? '' ),
+			'lang'       => (string) ( $contact['lang'] ?? '' ),
 			'email'      => $mail,
 			'kundentyp'  => $kundentyp,
 			'tel'        => $tel,
@@ -370,10 +378,14 @@ class M24FZ_Anfrage {
 				<p class="m24fz-anfrage-veh">Trag dich ein und erfahre als Erster, sobald dieses oder ein ähnliches Fahrzeug verfügbar ist.</p>
 				<form class="m24fz-anfrage-form m24fz-il-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24ilN">Name <span class="req">*</span></label><input id="m24ilN" type="text" name="name" placeholder="Dein Name" required></div>
-						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="deine@email.de" required></div>
+						<div class="m24fz-f"><label for="m24ilV">Vorname <span class="req">*</span></label><input id="m24ilV" type="text" name="vorname" placeholder="Dein Vorname" required></div>
+						<div class="m24fz-f"><label for="m24ilNn">Nachname</label><input id="m24ilNn" type="text" name="nachname" placeholder="optional"></div>
 					</div>
-					<div class="m24fz-f"><label for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" type="tel" name="tel" placeholder="optional"></div>
+					<div class="m24fz-frow">
+						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="deine@email.de" required></div>
+						<div class="m24fz-f"><label for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" type="tel" name="tel" placeholder="optional"></div>
+					</div>
+					<div class="m24fz-f"><label>Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-il-submit">Eintragen</button>
