@@ -87,6 +87,16 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // G2a: Magic-Link-Header-Login (Beta). Default AUS — erst nach Live-Verifikation einschalten.
+        register_setting(
+            'm24_plattform_group',
+            'm24_magiclink_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
         // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
         register_setting(
             'm24_plattform_group',
@@ -538,6 +548,22 @@ class M24_Settings {
                                     <br><span class="m24-config-locked-hint"><span class="dashicons dashicons-lock"></span>
                                     <?php echo esc_html__( 'Per Konstante M24_TEILE_INDEX gesetzt — Schalter inaktiv.', 'm24-plattform' ); ?></span>
                                 <?php endif; ?>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2 style="margin-top:24px;"><?php echo esc_html__( 'Magic-Link-Login (Beta, G2a)', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Header-Login-Button', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_magiclink_enabled" value="1" <?php checked( (bool) get_option( 'm24_magiclink_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Login-/Abmelden-Button im Header anzeigen (nutzt die bestehende /haendler-login/-Magic-Link-Strecke)', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Erst nach Live-Verifikation aktivieren. Steuert nur den Header-Button — die bestehende Händler-Login-Seite bleibt unabhängig davon aktiv.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>

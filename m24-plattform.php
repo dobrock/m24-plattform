@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.139
+ * Version:           0.11.140
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -126,6 +126,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-
 require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-header-login.php'; // G2a: Header-Login-Button + Auth-Helper (Flag)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
 require_once M24_PLATTFORM_DIR . 'includes/inquiry-mail-template.php'; // Anfrage-Mail „Variante A" (reines HTML-Rendering)
 require_once M24_PLATTFORM_DIR . 'includes/image-optimization.php';    // WebP-Output + Qualität 90 + 4K-Schwelle (reine Filter)
@@ -300,7 +301,8 @@ add_action( 'plugins_loaded', function() {
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
-    add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link) // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
+    add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link)
+    M24_B2B_Header_Login::init(); // G2a: Header-Login-Button (Flag) + m24_is_b2b_authenticated() // IL-DOI-Pipeline (Submit→Pending→Mail→Confirm→Brevo Liste 3)
     M24_OneClick_Update::init(); // auch im Frontend (Admin-Bar-Node von jeder Seite; übrige Hooks self-gaten)
     M24_Fonts::init();           // Saira self-hosted; googleapis/gstatic-Links (inkl. Revslider Material Icons) kappen
     if ( is_admin() ) {
