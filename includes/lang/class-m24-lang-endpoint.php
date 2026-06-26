@@ -19,6 +19,9 @@ class M24_Lang_Endpoint {
 
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'add_rule' ) );
+		// Self-Healing-Flush NACH der Rule-Registrierung (Prio 20 > 10): register_activation_hook
+		// feuert beim One-Click-UPDATE nicht → versions-getriggert nachflushen, sonst /sprache/ = 404.
+		add_action( 'init', array( __CLASS__, 'maybe_flush' ), 20 );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_handle' ), 1 );
 	}
@@ -27,15 +30,25 @@ class M24_Lang_Endpoint {
 		add_rewrite_rule( '^sprache/?$', 'index.php?' . self::QV . '=1', 'top' );
 	}
 
+	/** Einmaliger Soft-Flush bei Rewrite-Versions-Mismatch (kein Flush bei jedem Request). */
+	public static function maybe_flush() {
+		$target = defined( 'M24_REWRITE_VERSION' ) ? M24_REWRITE_VERSION : '1';
+		if ( get_option( 'm24_rewrite_version' ) !== $target ) {
+			flush_rewrite_rules( false ); // soft: kein .htaccess-Write nötig (Rules stehen bereits via init)
+			update_option( 'm24_rewrite_version', $target );
+		}
+	}
+
 	public static function query_vars( $vars ) {
 		$vars[] = self::QV;
 		return $vars;
 	}
 
-	/** Bei Plugin-Aktivierung: Rule registrieren + einmalig flushen. */
+	/** Bei Plugin-Aktivierung (Erstinstallation): Rule registrieren + hart flushen + Version stempeln. */
 	public static function activate() {
 		self::add_rule();
 		flush_rewrite_rules();
+		update_option( 'm24_rewrite_version', defined( 'M24_REWRITE_VERSION' ) ? M24_REWRITE_VERSION : '1' );
 	}
 
 	public static function maybe_handle() {
