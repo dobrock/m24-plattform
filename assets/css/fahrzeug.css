@@ -168,7 +168,16 @@
 .m24fz-anfrage-form{display:flex;flex-direction:column;gap:16px}
 /* Feld-Styling NUR fürs IL-Modal (Anfrage-Modal nutzt das geteilte .m24-iqf-Set). */
 .m24fz-il-form .m24fz-f,.m24fz-park-form .m24fz-f{display:flex;flex-direction:column;gap:6px}
-.m24fz-il-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.m24fz-il-form .m24fz-frow,.m24fz-park-form .m24fz-frow,.m24fz-offmarket-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+/* Sprach-Umschalter „Minimal mit Kürzel" als Radios (Modal/Off-Market) — Optik wie B2B-Switcher. */
+.m24-langpick{display:flex;gap:10px;align-items:center}
+.m24-langpick .m24-flag{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:7px;font-size:13px;font-weight:600;color:#5a6474;opacity:.5;cursor:pointer;transition:opacity .15s,background .15s}
+.m24-langpick .m24-flag:hover{opacity:.85}
+.m24-langpick .m24-flag.active{opacity:1;color:#9a6b25;background:#f3ede1}
+.m24-langpick .m24-flag input{position:absolute;opacity:0;width:0;height:0}
+.m24-langpick .m24-flag svg{width:20px;height:14px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18);display:block}
+.m24fz-offmarket .m24-langpick .m24-flag{color:rgba(255,255,255,.8)}
+.m24fz-offmarket .m24-langpick .m24-flag.active{color:#fff;background:rgba(255,255,255,.18)}
 .m24fz-il-form label,.m24fz-park-form label{font-size:12px;font-weight:700;color:#3a3f47}
 .m24fz-il-form .req,.m24fz-park-form .req{color:#9e2b2b}
 .m24fz-il-form input[type=text],.m24fz-il-form input[type=email],.m24fz-il-form input[type=tel],.m24fz-il-form select,.m24fz-il-form textarea,.m24fz-park-form input[type=email]{font:inherit;font-size:15px;min-height:48px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;width:100%;background:#fff;-webkit-appearance:none;appearance:none}

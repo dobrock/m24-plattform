@@ -198,10 +198,15 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 				</ul>
 				<?php if ( $om_live ) : ?>
 					<form class="m24fz-offmarket-form" data-pid="<?php echo (int) get_queried_object_id(); ?>">
+						<div class="m24fz-frow">
+							<input type="text" name="vorname" placeholder="Vorname" required>
+							<input type="text" name="nachname" placeholder="Nachname (optional)">
+						</div>
 						<div class="row">
 							<input type="email" name="email" placeholder="E-Mail-Adresse" required>
 							<button type="submit" class="m24fz-btn m24fz-om-submit">Anmelden</button>
 						</div>
+						<?php if ( class_exists( 'M24_I18n' ) ) { echo M24_I18n::flag_radios( 'lang' ); /* phpcs:ignore */ } ?>
 						<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 						<label class="m24fz-anf-check m24fz-om-check"><input type="checkbox" name="consent" value="1" required> Ja, informiert mich vorab über Off-Market-Fahrzeuge per E-Mail.</label>
 						<p class="m24fz-anf-msg" role="status"></p>

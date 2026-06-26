@@ -67,11 +67,14 @@ class M24_Interessenten_Page {
 		$rel  = M24_Database::table( 'il_interessenten_tags' );
 
 		$rows  = array();
-		$mrows = $wpdb->get_results( "SELECT email, name, kundentyp, source_inserat_id, status, created_at, consent_at FROM $main", ARRAY_A );
+		$mrows = $wpdb->get_results( "SELECT email, name, vorname, nachname, sprache, kundentyp, source_inserat_id, status, created_at, consent_at FROM $main", ARRAY_A );
 		foreach ( (array) $mrows as $r ) {
+			// Echter Name: „Vorname Nachname" falls vorhanden, sonst gespeichertes name-Feld.
+			$disp = trim( (string) ( $r['vorname'] ?? '' ) . ' ' . (string) ( $r['nachname'] ?? '' ) );
 			$rows[ strtolower( $r['email'] ) ] = array(
 				'email'        => $r['email'],
-				'name'         => (string) $r['name'],
+				'name'         => '' !== $disp ? $disp : (string) $r['name'],
+				'sprache'      => (string) ( $r['sprache'] ?? '' ),
 				'kundentyp'    => (string) $r['kundentyp'],
 				'source_id'    => (int) $r['source_inserat_id'],
 				'status'       => (string) $r['status'],
@@ -92,6 +95,7 @@ class M24_Interessenten_Page {
 				$rows[ $k ] = array(
 					'email'         => $p['email'],
 					'name'          => $p['name'],
+					'sprache'       => (string) ( $p['lang'] ?? '' ),
 					'kundentyp'     => $p['kundentyp'],
 					'source_id'     => (int) $p['source_id'],
 					'status'        => 'pending',
@@ -412,6 +416,7 @@ class M24_Interessenten_List_Table extends WP_List_Table {
 		return array(
 			'email'      => __( 'E-Mail', 'm24-plattform' ),
 			'name'       => __( 'Name', 'm24-plattform' ),
+			'sprache'    => __( 'Sprache', 'm24-plattform' ),
 			'kundentyp'  => __( 'Kundentyp', 'm24-plattform' ),
 			'fahrzeug'   => __( 'Auslösendes Fahrzeug', 'm24-plattform' ),
 			'tags'       => __( 'Modellreihen / Tags', 'm24-plattform' ),
@@ -475,6 +480,8 @@ class M24_Interessenten_List_Table extends WP_List_Table {
 		switch ( $column ) {
 			case 'name':
 				return esc_html( $item['name'] );
+			case 'sprache':
+				return '' !== ( $item['sprache'] ?? '' ) ? esc_html( strtoupper( $item['sprache'] ) ) : '—';
 			case 'kundentyp':
 				return esc_html( $item['kundentyp'] );
 			case 'angemeldet':

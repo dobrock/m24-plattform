@@ -175,14 +175,19 @@ class M24FZ_Anfrage {
 		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
 		if ( ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
 
-		// Off-Market-Formular hat nur E-Mail; DOI-Pipeline braucht einen nicht-leeren Namen → aus E-Mail ableiten.
-		$local = strstr( $mail, '@', true );
-		$name  = ( is_string( $local ) && '' !== $local ) ? ucfirst( $local ) : 'Interessent';
+		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
+		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
+		if ( '' === $vorname ) { return new WP_Error( 'm24fz_form', 'Bitte deinen Vornamen angeben.', array( 'status' => 422 ) ); }
+		$lang = ( 'en' === strtolower( (string) ( $p['lang'] ?? '' ) ) ) ? 'en' : 'de';
+		$name = trim( $vorname . ' ' . $nachname );
 
 		$pid = (int) ( $p['post_id'] ?? 0 ); // optionaler Kontext (auslösendes Inserat)
 
 		do_action( 'm24fz_interessent_submitted', $pid, array(
 			'name'      => $name,
+			'vorname'   => $vorname,
+			'nachname'  => $nachname,
+			'lang'      => $lang,
 			'email'     => $mail,
 			'offmarket' => true,
 		) );
@@ -214,13 +219,19 @@ class M24FZ_Anfrage {
 		$mail = sanitize_email( (string) ( $p['email'] ?? '' ) );
 		if ( ! is_email( $mail ) ) { return new WP_Error( 'm24fz_form', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
 
-		$local = strstr( $mail, '@', true );
-		$name  = ( is_string( $local ) && '' !== $local ) ? ucfirst( $local ) : 'Interessent';
+		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
+		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
+		if ( '' === $vorname ) { return new WP_Error( 'm24fz_form', 'Bitte deinen Vornamen angeben.', array( 'status' => 422 ) ); }
+		$lang = ( 'en' === strtolower( (string) ( $p['lang'] ?? '' ) ) ) ? 'en' : 'de';
+		$name = trim( $vorname . ' ' . $nachname );
 
 		// Fahrzeug-Attribute (Modell/Kategorie) wie IL ableiten + parked-Markierung.
 		$attr = self::il_attributes( $pid );
 		do_action( 'm24fz_interessent_submitted', $pid, array(
 			'name'         => $name,
+			'vorname'      => $vorname,
+			'nachname'     => $nachname,
+			'lang'         => $lang,
 			'email'        => $mail,
 			'parked'       => true,
 			'parked_title' => get_the_title( $pid ),
@@ -383,7 +394,12 @@ class M24FZ_Anfrage {
 				<h3>Fahrzeug parken</h3>
 				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für dich und informieren dich zu diesem und ähnlichen Fahrzeugen.</p>
 				<form class="m24fz-anfrage-form m24fz-park-form" data-pid="<?php echo (int) $post_id; ?>">
+					<div class="m24fz-frow">
+						<div class="m24fz-f"><label for="m24pkV">Vorname <span class="req">*</span></label><input id="m24pkV" type="text" name="vorname" placeholder="Dein Vorname" required></div>
+						<div class="m24fz-f"><label for="m24pkN">Nachname</label><input id="m24pkN" type="text" name="nachname" placeholder="optional"></div>
+					</div>
 					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="deine@email.de" required></div>
+					<div class="m24fz-f"><label>Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>

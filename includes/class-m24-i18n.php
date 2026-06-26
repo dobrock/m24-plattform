@@ -136,6 +136,26 @@ class M24_I18n {
         return $row . '</div>';
     }
 
+    /**
+     * Formular-Variante des Sprach-Umschalters „Minimal mit Kürzel": Flagge + DE/EN als
+     * Radio-Buttons (setzt einen Formularwert statt zu navigieren — für Modals/Formulare).
+     * Optik identisch zum lang_switcher (.m24-flag). Default = aktuelle Seitensprache.
+     */
+    public static function flag_radios( string $name = 'lang', ?string $current = null ): string {
+        $current = $current ?: self::resolve_lang();
+        $out = '<div class="m24-langpick" role="radiogroup" aria-label="Sprache wählen: Deutsch / English">';
+        foreach ( array( 'de' => self::flag_de(), 'en' => self::flag_en() ) as $l => $svg ) {
+            $label   = 'de' === $l ? 'Deutsch' : 'English';
+            $checked = ( $l === $current ) ? ' checked' : '';
+            $on      = ( $l === $current ) ? ' active' : '';
+            $inner   = $svg . '<span>' . esc_html( strtoupper( $l ) ) . '</span>';
+            $out    .= '<label class="m24-flag' . $on . '" title="' . esc_attr( $label ) . '">'
+                . '<input type="radio" name="' . esc_attr( $name ) . '" value="' . esc_attr( $l ) . '"' . $checked . '>'
+                . $inner . '</label>';
+        }
+        return $out . '</div>';
+    }
+
     /* ── String-Registry ─────────────────────────────────────────────────── */
 
     public static function strings(): array {

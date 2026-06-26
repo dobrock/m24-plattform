@@ -129,10 +129,16 @@ class M24_Brevo_IL {
 		$offmarket = ! empty( $contact['offmarket'] );
 		$parked    = ! empty( $contact['parked'] );
 		$variant   = $offmarket ? 'offmarket' : ( $parked ? 'parked' : '' );
+		$vorname   = sanitize_text_field( (string) ( $contact['vorname'] ?? '' ) );
+		$nachname  = sanitize_text_field( (string) ( $contact['nachname'] ?? '' ) );
+		$lang      = ( 'en' === strtolower( (string) ( $contact['lang'] ?? '' ) ) ) ? 'en' : 'de';
 
 		$store[ $token ] = array(
 			'email'       => $email,
 			'name'        => $name,
+			'vorname'     => $vorname,
+			'nachname'    => $nachname,
+			'lang'        => $lang,
 			'kundentyp'   => sanitize_text_field( (string) ( $contact['kundentyp'] ?? '' ) ),
 			'lieferland'  => sanitize_text_field( (string) ( $contact['lieferland'] ?? '' ) ),
 			'attributes'  => $attributes,
@@ -145,7 +151,7 @@ class M24_Brevo_IL {
 		);
 		self::save( $store );
 
-		self::send_doi_mail( $email, $name, $token, $variant );
+		self::send_doi_mail( $email, $name, $token, $variant, $lang, $vorname );
 
 		M24_Logger::info( 'brevo', 'DOI-Mail gesendet (' . M24_Brevo_Client::mask_email( $email ) . ')', array(
 			'email'    => M24_Brevo_Client::mask_email( $email ),
@@ -162,13 +168,20 @@ class M24_Brevo_IL {
 		$modelle    = array_values( array_filter( array_map( 'trim', (array) ( $contact['modelle'] ?? array() ) ) ) );
 		$kategorien = array_values( array_filter( array_map( 'trim', (array) ( $contact['kategorien'] ?? array() ) ) ) );
 
+		$vorname  = sanitize_text_field( (string) ( $contact['vorname'] ?? '' ) );
+		$nachname = sanitize_text_field( (string) ( $contact['nachname'] ?? '' ) );
 		$attr = array(
-			'NAME'       => sanitize_text_field( (string) ( $contact['name'] ?? '' ) ),
+			// Brevo-Standard (DE): VORNAME = Vorname, NAME = Nachname. Fallback NAME = voller Name (IL ohne Split).
+			'VORNAME'    => $vorname,
+			'NAME'       => '' !== $nachname ? $nachname : sanitize_text_field( (string) ( $contact['name'] ?? '' ) ),
 			'KUNDENTYP'  => sanitize_text_field( (string) ( $contact['kundentyp'] ?? '' ) ),
 			'MODELLE'    => implode( ', ', $modelle ),
 			'KATEGORIEN' => implode( ', ', $kategorien ),
 			'ALLE'       => true, // jeder Listen-Kontakt
 		);
+		if ( ! empty( $contact['lang'] ) ) {
+			$attr['SPRACHE'] = ( 'en' === strtolower( (string) $contact['lang'] ) ) ? 'EN' : 'DE';
+		}
 
 		// Kategorie-abgeleitete Segment-Flags. Oldtimer/Straße → ALLE_OLDTIMER, Sport → ALLE_SPORT.
 		$katz_lower = array_map( 'mb_strtolower', $kategorien );
@@ -299,6 +312,9 @@ class M24_Brevo_IL {
 		$fields = array(
 			'kundentyp'         => sanitize_text_field( (string) ( $rec['kundentyp'] ?? '' ) ),
 			'name'              => sanitize_text_field( (string) ( $rec['name'] ?? '' ) ),
+			'vorname'           => sanitize_text_field( (string) ( $rec['vorname'] ?? '' ) ),
+			'nachname'          => sanitize_text_field( (string) ( $rec['nachname'] ?? '' ) ),
+			'sprache'           => ( 'en' === strtolower( (string) ( $rec['lang'] ?? '' ) ) ) ? 'en' : 'de',
 			'consent_at'        => $now,
 			'source_inserat_id' => (int) ( $rec['source_id'] ?? 0 ),
 			'status'            => 'aktiv',
@@ -405,6 +421,7 @@ class M24_Brevo_IL {
 			$out[] = array(
 				'email'     => (string) ( $rec['email'] ?? '' ),
 				'name'      => (string) ( $rec['name'] ?? '' ),
+				'lang'      => (string) ( $rec['lang'] ?? '' ),
 				'kundentyp' => (string) ( $rec['kundentyp'] ?? '' ),
 				'tags'      => (array) ( $rec['tags'] ?? array() ),
 				'source_id' => (int) ( $rec['source_id'] ?? 0 ),
@@ -418,40 +435,65 @@ class M24_Brevo_IL {
 	 * Mails
 	 * ================================================================== */
 
-	/** DOI-Bestätigungsmail an den Interessenten (CI-konform, Bestätigungs-Button). */
-	private static function send_doi_mail( $email, $name, $token, $variant = '' ) {
+	/** DOI-Bestätigungsmail an den Interessenten (CI-konform, Bestätigungs-Button). Sprache DE|EN. */
+	private static function send_doi_mail( $email, $name, $token, $variant = '', $lang = 'de', $vorname = '' ) {
 		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
+		$en          = ( 'en' === strtolower( (string) $lang ) );
+		// Anrede: Vorname (Off-Market/Parken). Fallback voller Name (IL hat ein Namensfeld), sonst neutral.
+		$greet = trim( (string) $vorname );
+		if ( '' === $greet && '' === $variant ) { $greet = trim( (string) $name ); }
 
-		if ( 'offmarket' === $variant ) {
-			$subject = 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24';
-			$intro   = 'vielen Dank für dein Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätige mit einem Klick, dass wir dich '
-				. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:';
-		} elseif ( 'parked' === $variant ) {
-			$subject = 'Bestätige dein geparktes Fahrzeug — MOTORSPORT24';
-			$intro   = 'Du hast ein Fahrzeug geparkt. Bitte bestätige mit einem Klick, dass wir dich '
-				. 'zu diesem und ähnlichen Fahrzeugen per E-Mail informieren dürfen:';
+		if ( $en ) {
+			if ( 'offmarket' === $variant ) {
+				$subject = 'Confirm your off-market sign-up — MOTORSPORT24';
+				$intro   = 'thank you for your interest in our off-market vehicles. Please confirm with one click that we may inform you '
+					. 'about vehicles before they are officially marketed:';
+			} elseif ( 'parked' === $variant ) {
+				$subject = 'Confirm your parked vehicle — MOTORSPORT24';
+				$intro   = 'you parked a vehicle. Please confirm with one click that we may inform you '
+					. 'about this and similar vehicles by email:';
+			} else {
+				$subject = 'Please confirm your sign-up — MOTORSPORT24';
+				$intro   = 'thank you for your interest. Please confirm with one click that we may inform you '
+					. 'about matching vehicles and offers:';
+			}
+			$headline = 'Almost done!';
+			$cta      = 'Confirm sign-up';
+			$hint     = 'If the button does not work, copy this link into your browser:';
+			$ignore   = 'If you did not sign up, simply ignore this email — nothing happens.';
+			$hallo    = ( '' !== $greet ) ? 'Hi ' . esc_html( $greet ) . ',' : 'Hi,';
 		} else {
-			$subject = 'Bitte bestätige deine Anmeldung — MOTORSPORT24';
-			$intro   = 'vielen Dank für dein Interesse. Bitte bestätige mit einem Klick, dass wir dich '
-				. 'über passende Fahrzeuge und Angebote informieren dürfen:';
+			if ( 'offmarket' === $variant ) {
+				$subject = 'Bestätige deine Off-Market-Anmeldung — MOTORSPORT24';
+				$intro   = 'vielen Dank für dein Interesse an unseren Off-Market-Fahrzeugen. Bitte bestätige mit einem Klick, dass wir dich '
+					. 'vorab über Fahrzeuge informieren dürfen, bevor sie offiziell vermarktet werden:';
+			} elseif ( 'parked' === $variant ) {
+				$subject = 'Bestätige dein geparktes Fahrzeug — MOTORSPORT24';
+				$intro   = 'du hast ein Fahrzeug geparkt. Bitte bestätige mit einem Klick, dass wir dich '
+					. 'zu diesem und ähnlichen Fahrzeugen per E-Mail informieren dürfen:';
+			} else {
+				$subject = 'Bitte bestätige deine Anmeldung — MOTORSPORT24';
+				$intro   = 'vielen Dank für dein Interesse. Bitte bestätige mit einem Klick, dass wir dich '
+					. 'über passende Fahrzeuge und Angebote informieren dürfen:';
+			}
+			$headline = 'Fast geschafft!';
+			$cta      = 'Anmeldung bestätigen';
+			$hint     = 'Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:';
+			$ignore   = 'Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach — es passiert nichts.';
+			$hallo    = ( '' !== $greet ) ? 'Hallo ' . esc_html( $greet ) . ',' : 'Hallo,';
 		}
 
-		// Anrede: nur echter Name (IL-Formular hat ein Namensfeld). Off-Market/Parken haben nur
-		// E-Mail → kein echter Name → neutrale Anrede „Hallo," statt abgeleitetem Localpart.
-		$greet_name = ( 'offmarket' === $variant || 'parked' === $variant ) ? '' : trim( (string) $name );
-		$hallo      = ( '' !== $greet_name ) ? 'Hallo ' . esc_html( $greet_name ) . ',' : 'Hallo,';
-
 		$body = self::mail_html(
-			'Fast geschafft!',
+			$headline,
 			'<p style="margin:0 0 14px;">' . $hallo . '</p>'
 			. '<p style="margin:0 0 14px;">' . esc_html( $intro ) . '</p>'
 			. '<p style="margin:24px 0;text-align:center;">'
 			. '<a href="' . esc_url( $confirm_url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;'
-			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">Anmeldung bestätigen</a>'
+			. 'text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">' . esc_html( $cta ) . '</a>'
 			. '</p>'
-			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>'
+			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">' . esc_html( $hint ) . '</p>'
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $confirm_url ) . '" style="color:#1f74c4;">' . esc_html( $confirm_url ) . '</a></p>'
-			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach — es passiert nichts.</p>'
+			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>'
 		);
 
 		$headers = array(
