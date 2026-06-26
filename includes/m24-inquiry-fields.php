@@ -48,10 +48,10 @@ function m24_inquiry_fields() {
 	?>
 	<div class="m24-iqf">
 		<div class="m24-iqf-field">
-			<input type="text" name="name" class="m24-iqf-input" placeholder="<?php esc_attr_e( 'Vor- und Nachname', 'm24-plattform' ); ?>" required minlength="2" autocomplete="name">
+			<input type="text" name="name" class="m24-iqf-input m24-ci-input" placeholder="<?php esc_attr_e( 'Vor- und Nachname', 'm24-plattform' ); ?>" required minlength="2" autocomplete="name">
 		</div>
 		<div class="m24-iqf-field">
-			<input type="email" name="email" class="m24-iqf-input" placeholder="<?php esc_attr_e( 'E-Mail *', 'm24-plattform' ); ?>" required autocomplete="email">
+			<input type="email" name="email" class="m24-iqf-input m24-ci-input" placeholder="<?php esc_attr_e( 'E-Mail *', 'm24-plattform' ); ?>" required autocomplete="email">
 		</div>
 		<div class="m24-iqf-field">
 			<div class="m24-iqf-seg" role="radiogroup" aria-label="<?php esc_attr_e( 'Kundentyp', 'm24-plattform' ); ?>" data-m24-kundentyp>
@@ -61,7 +61,7 @@ function m24_inquiry_fields() {
 			</div>
 		</div>
 		<div class="m24-iqf-field">
-			<select name="lieferland" class="m24-iqf-input m24-iqf-select" required>
+			<select name="lieferland" class="m24-iqf-input m24-iqf-select m24-ci-input" required>
 				<option value="" disabled selected><?php esc_html_e( 'Lieferland (bitte wählen) *', 'm24-plattform' ); ?></option>
 				<?php foreach ( $countries as $iso => $label ) : ?>
 					<option value="<?php echo esc_attr( $iso ); ?>"><?php echo esc_html( $label ); ?></option>
@@ -69,7 +69,7 @@ function m24_inquiry_fields() {
 			</select>
 		</div>
 		<div class="m24-iqf-field">
-			<textarea name="nachricht" class="m24-iqf-input m24-iqf-textarea" rows="3" placeholder="<?php esc_attr_e( 'Nachricht (optional)', 'm24-plattform' ); ?>"></textarea>
+			<textarea name="nachricht" class="m24-iqf-input m24-iqf-textarea m24-ci-input" rows="3" placeholder="<?php esc_attr_e( 'Nachricht (optional)', 'm24-plattform' ); ?>"></textarea>
 		</div>
 		<label class="m24-iqf-consent">
 			<input type="checkbox" name="consent" value="1" required>

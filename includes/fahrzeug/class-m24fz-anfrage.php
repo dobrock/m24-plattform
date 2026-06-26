@@ -378,14 +378,14 @@ class M24FZ_Anfrage {
 				<p class="m24fz-anfrage-veh">Trag dich ein und erfahre als Erster, sobald dieses oder ein ähnliches Fahrzeug verfügbar ist.</p>
 				<form class="m24fz-anfrage-form m24fz-il-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24ilV">Vorname <span class="req">*</span></label><input id="m24ilV" type="text" name="vorname" placeholder="Dein Vorname" required></div>
-						<div class="m24fz-f"><label for="m24ilNn">Nachname</label><input id="m24ilNn" type="text" name="nachname" placeholder="optional"></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilV">Vorname <span class="req">*</span></label><input id="m24ilV" class="m24-ci-input" type="text" name="vorname" placeholder="Dein Vorname" required></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilNn">Nachname</label><input id="m24ilNn" class="m24-ci-input" type="text" name="nachname" placeholder="optional"></div>
 					</div>
 					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" type="email" name="email" placeholder="deine@email.de" required></div>
-						<div class="m24fz-f"><label for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" type="tel" name="tel" placeholder="optional"></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilE">E-Mail <span class="req">*</span></label><input id="m24ilE" class="m24-ci-input" type="email" name="email" placeholder="deine@email.de" required></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24ilT">Telefon / WhatsApp</label><input id="m24ilT" class="m24-ci-input" type="tel" name="tel" placeholder="optional"></div>
 					</div>
-					<div class="m24fz-f"><label>Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
+					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte per E-Mail über ähnliche Fahrzeuge benachrichtigt werden und stimme der Anmeldung (Double-Opt-in) zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-il-submit">Eintragen</button>
@@ -407,11 +407,11 @@ class M24FZ_Anfrage {
 				<p class="m24fz-anfrage-veh">Wir merken uns dieses Fahrzeug für dich und informieren dich zu diesem und ähnlichen Fahrzeugen.</p>
 				<form class="m24fz-anfrage-form m24fz-park-form" data-pid="<?php echo (int) $post_id; ?>">
 					<div class="m24fz-frow">
-						<div class="m24fz-f"><label for="m24pkV">Vorname <span class="req">*</span></label><input id="m24pkV" type="text" name="vorname" placeholder="Dein Vorname" required></div>
-						<div class="m24fz-f"><label for="m24pkN">Nachname</label><input id="m24pkN" type="text" name="nachname" placeholder="optional"></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24pkV">Vorname <span class="req">*</span></label><input id="m24pkV" class="m24-ci-input" type="text" name="vorname" placeholder="Dein Vorname" required></div>
+						<div class="m24-ci-field"><label class="m24-ci-label" for="m24pkN">Nachname</label><input id="m24pkN" class="m24-ci-input" type="text" name="nachname" placeholder="optional"></div>
 					</div>
-					<div class="m24fz-f"><label for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" type="email" name="email" placeholder="deine@email.de" required></div>
-					<div class="m24fz-f"><label>Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
+					<div class="m24-ci-field"><label class="m24-ci-label" for="m24pkE">E-Mail <span class="req">*</span></label><input id="m24pkE" class="m24-ci-input" type="email" name="email" placeholder="deine@email.de" required></div>
+					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo class_exists( 'M24_I18n' ) ? M24_I18n::flag_radios( 'lang' ) : ''; // phpcs:ignore ?></div>
 					<label class="m24fz-anf-check"><input type="checkbox" name="consent" value="1" required> Ich möchte zu diesem und ähnlichen Fahrzeugen per E-Mail informiert werden und stimme der Anmeldung zu.</label>
 					<input type="text" name="website" class="m24fz-anf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24fz-btn m24fz-anf-submit m24fz-park-submit">Fahrzeug parken</button>

@@ -496,10 +496,6 @@ class M24_Garage {
 		.m24g-box p.sub{color:#6b7077;font-size:14px;margin:0 0 18px}
 		.m24g-form{display:flex;flex-direction:column;gap:14px}
 		.m24g-frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-		.m24g-form label.fl{font-size:12px;font-weight:700;color:#3a3f47;display:block;margin-bottom:5px}
-		.m24g-req{color:#9e2b2b}
-		.m24g-form input[type=text],.m24g-form input[type=email]{font:inherit;font-size:15px;width:100%;min-height:48px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;background:#fff;-webkit-appearance:none;appearance:none;box-sizing:border-box}
-		.m24g-form input:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 		.m24g-hp{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0}
 		.m24g-check{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#3a3f47;line-height:1.45}
 		.m24g-check input{flex:0 0 auto;width:18px;height:18px;margin-top:1px;accent-color:#9a6b25}
@@ -521,11 +517,11 @@ class M24_Garage {
 					<input type="hidden" name="item_type" value="">
 					<input type="hidden" name="post_id" value="">
 					<div class="m24g-frow">
-						<div><label class="fl">Vorname <span class="m24g-req">*</span></label><input type="text" name="vorname" placeholder="Dein Vorname" required></div>
-						<div><label class="fl">Nachname</label><input type="text" name="nachname" placeholder="optional"></div>
+						<div class="m24-ci-field"><label class="m24-ci-label">Vorname <span class="req">*</span></label><input type="text" name="vorname" class="m24-ci-input" placeholder="Dein Vorname" required></div>
+						<div class="m24-ci-field"><label class="m24-ci-label">Nachname</label><input type="text" name="nachname" class="m24-ci-input" placeholder="optional"></div>
 					</div>
-					<div><label class="fl">E-Mail <span class="m24g-req">*</span></label><input type="email" name="email" placeholder="deine@email.de" required></div>
-					<div><label class="fl">Sprache</label><?php echo $flags; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail <span class="req">*</span></label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
+					<div class="m24-ci-field"><label class="m24-ci-label">Sprache</label><?php echo $flags; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 					<label class="m24g-check"><input type="checkbox" name="consent" value="1" required> Ja, ich möchte zu meinen gemerkten Fahrzeugen/Teilen per E-Mail informiert werden (Double-Opt-in).</label>
 					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24g-submit">In meine Garage</button>

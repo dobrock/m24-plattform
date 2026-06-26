@@ -145,10 +145,8 @@
 .m24fz-om-benefits li{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#fff}
 .m24fz-om-ic{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.14);color:#ffd79a}
 .m24fz-om-ic svg{width:19px;height:19px}
-.m24fz-offmarket .row{display:flex;gap:8px;margin-top:0}
-.m24fz-offmarket input[type=email],.m24fz-offmarket input[type=text]{flex:1;height:45px;padding:0 14px;border-radius:9px;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:15px;box-sizing:border-box}
-.m24fz-offmarket input[type=email]::placeholder,.m24fz-offmarket input[type=text]::placeholder{color:rgba(255,255,255,.7)}
-.m24fz-offmarket .m24fz-om-submit{height:45px;padding:0 22px;background:linear-gradient(180deg,#ffffff,#dfe4ea);color:#0e447e;border:1px solid rgba(255,255,255,.6);border-radius:9px;font-weight:700;cursor:pointer;flex:0 0 auto;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+/* Off-Market-Felder: Optik kommt zentral aus m24-forms.css (.m24-ci-input.on-dark). Hier nur der Button. */
+.m24fz-offmarket .m24fz-om-submit{width:100%;height:48px;padding:0 22px;background:linear-gradient(180deg,#ffffff,#dfe4ea);color:#0e447e;border:1px solid rgba(255,255,255,.6);border-radius:11px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18);font-family:inherit;margin-top:4px}
 .m24fz-offmarket .m24fz-anf-check{display:block;margin-top:10px;color:rgba(255,255,255,.85);font-size:12px;line-height:1.45}
 .m24fz-offmarket .m24fz-anf-check input{margin-right:7px}
 .m24fz-offmarket .m24fz-anf-msg{color:#fff;text-align:left;margin-top:8px}
@@ -166,8 +164,8 @@
 .m24fz-anfrage-box h3{font-size:22px;font-weight:800;margin:0 0 2px}
 .m24fz-anfrage-veh{color:var(--mut);font-size:14px;margin:0 0 18px}
 .m24fz-anfrage-form{display:flex;flex-direction:column;gap:16px}
-/* Feld-Styling NUR fürs IL-Modal (Anfrage-Modal nutzt das geteilte .m24-iqf-Set). */
-.m24fz-il-form .m24fz-f,.m24fz-park-form .m24fz-f{display:flex;flex-direction:column;gap:6px}
+/* Feld-Optik kommt zentral aus m24-forms.css (.m24-ci-field/.m24-ci-label/.m24-ci-input).
+   Hier nur noch das 2-spaltige Zeilen-Layout der Modals. */
 .m24fz-il-form .m24fz-frow,.m24fz-park-form .m24fz-frow,.m24fz-offmarket-form .m24fz-frow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 /* Sprach-Umschalter „Minimal mit Kürzel" als Radios (Modal/Off-Market) — Optik wie B2B-Switcher. */
 .m24-langpick{display:flex;gap:10px;align-items:center}
@@ -178,12 +176,6 @@
 .m24-langpick .m24-flag svg{width:20px;height:14px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18);display:block}
 .m24fz-offmarket .m24-langpick .m24-flag{color:rgba(255,255,255,.8)}
 .m24fz-offmarket .m24-langpick .m24-flag.active{color:#fff;background:rgba(255,255,255,.18)}
-.m24fz-il-form label,.m24fz-park-form label{font-size:12px;font-weight:700;color:#3a3f47}
-.m24fz-il-form .req,.m24fz-park-form .req{color:#9e2b2b}
-.m24fz-il-form input[type=text],.m24fz-il-form input[type=email],.m24fz-il-form input[type=tel],.m24fz-il-form select,.m24fz-il-form textarea,.m24fz-park-form input[type=text],.m24fz-park-form input[type=email]{font:inherit;font-size:15px;min-height:48px;padding:12px 13px;border:1.5px solid #e4e7ec;border-radius:11px;width:100%;background:#fff;-webkit-appearance:none;appearance:none}
-.m24fz-il-form textarea{min-height:auto}
-.m24fz-il-form select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2350575e' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
-.m24fz-il-form input[type=text]:focus,.m24fz-il-form input[type=email]:focus,.m24fz-il-form input[type=tel]:focus,.m24fz-il-form select:focus,.m24fz-il-form textarea:focus,.m24fz-park-form input[type=text]:focus,.m24fz-park-form input[type=email]:focus{outline:0;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.12)}
 /* Privat/Gewerblich Pill-Umschalter — ~50% Breite, linksbündig, Höhe wie die Felder */
 .m24fz-pillseg{display:flex;gap:4px;background:#f1f3f6;border-radius:11px;padding:4px;width:calc((100% - 16px) / 2);min-width:210px;min-height:48px;align-self:flex-start}
 .m24fz-pillseg label{flex:1;text-align:center;cursor:pointer;margin:0;display:flex}
