@@ -61,20 +61,28 @@ class M24_B2B_Header_Login {
 		<div id="m24-b2b-login" hidden><a class="m24-b2b-login-a" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $label ); ?></a></div>
 		<script>
 		(function(){
+			function slot(menu,a){
+				var li=document.createElement('li');
+				li.className='menu-item m24-b2b-login-mi';
+				li.appendChild(a);
+				menu.appendChild(li);
+			}
 			function place(){
 				var w=document.getElementById('m24-b2b-login'); if(!w) return;
 				var a=w.querySelector('.m24-b2b-login-a'); if(!a) return;
-				var menu=document.querySelector('#menu-header-menu-2,.tdb-block-menu ul.sf-menu,.td-header-menu-wrap ul.sf-menu,ul.sf-menu');
-				if(menu){
-					var li=document.createElement('li');
-					li.className='menu-item m24-b2b-login-mi';
-					li.appendChild(a);
-					menu.appendChild(li);
-					if(w.parentNode){ w.parentNode.removeChild(w); }
-				} else {
-					w.className='m24-b2b-login-fallback';
-					w.hidden=false;
+				// Desktop- + Mobile-Menü: in BEIDE hängen (Media-Queries zeigen je nur eines).
+				var desktop=document.querySelector('#menu-header-menu-2,.tdb-block-menu ul.sf-menu,.td-header-menu-wrap ul.sf-menu');
+				var mobile=document.querySelector('#menu-header-menu-1,.td-mobile-main-menu');
+				var placed=false;
+				if(desktop){ slot(desktop,a); placed=true; }
+				if(mobile){ slot(mobile, a.cloneNode(true)); placed=true; }
+				if(!placed){
+					// kein bekanntes Menü → letzter Versuch generisch, sonst fixierter Fallback.
+					var any=document.querySelector('ul.sf-menu');
+					if(any){ slot(any,a); placed=true; }
 				}
+				if(placed){ if(w.parentNode){ w.parentNode.removeChild(w); } }
+				else { w.className='m24-b2b-login-fallback'; w.hidden=false; }
 			}
 			if(document.readyState!=='loading'){ place(); }
 			else { document.addEventListener('DOMContentLoaded', place); }
@@ -88,10 +96,14 @@ class M24_B2B_Header_Login {
 		if ( ! self::enabled() ) {
 			return;
 		}
+		// Hohe Spezifität + !important gegen die tagDiv-Menü-Kaskade (Open Sans, UPPERCASE, padding:0).
+		$sel = '.m24-b2b-login-mi a.m24-b2b-login-a,.m24-b2b-login-fallback a.m24-b2b-login-a';
 		echo '<style id="m24-b2b-login-mi-css">'
-			. '.m24-b2b-login-a{display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff!important;padding:8px 16px;border-radius:8px;font-family:\'Saira\',Arial,sans-serif;font-weight:700;font-size:14px;text-decoration:none;line-height:1.1;white-space:nowrap}'
-			. '.m24-b2b-login-a:hover{filter:brightness(1.06)}'
-			. '.m24-b2b-login-mi{display:flex;align-items:center}'
+			. $sel . '{display:inline-block!important;background:#1f74c4!important;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)!important;color:#fff!important;'
+			. 'padding:8px 16px!important;border-radius:8px!important;font-family:\'Saira\',Arial,sans-serif!important;font-weight:700!important;font-size:14px!important;'
+			. 'line-height:1.1!important;text-transform:none!important;text-decoration:none!important;white-space:nowrap!important}'
+			. $sel . ':hover{filter:brightness(1.06)}'
+			. '.m24-b2b-login-mi{display:flex!important;align-items:center!important}'
 			. '.m24-b2b-login-fallback{position:fixed;top:10px;right:14px;z-index:99999}'
 			. '</style>' . "\n";
 	}
