@@ -20,12 +20,20 @@ class M24_Garage {
 	const SCHEMA_VER     = '1';
 	const PENDING_OPTION = 'm24_garage_pending'; // token => array(email, created)
 	const QUERY_VAR      = 'm24garage';
-	const TTL            = 1209600; // 14 Tage
+	const TTL            = 1209600; // 14 Tage (DOI-Confirm)
+	const LOGIN_PURPOSE  = 'garage_login';
+	const LOGIN_TTL      = 1800;    // 30 Min Magic-Link
+	const LOGIN_QUERY    = 'm24login';
+	const LOGOUT_QUERY   = 'm24garage_logout';
+	const SESSION_COOKIE = 'm24_garage_sess';
+	const SESSION_TTL    = 604800;  // 7 Tage Session
 
 	public static function init() {
 		add_action( 'admin_init', array( __CLASS__, 'maybe_ensure_tables' ) );
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_confirm' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_login' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_logout' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_modal' ) );
 	}
 
@@ -87,6 +95,11 @@ class M24_Garage {
 			'methods'             => 'POST',
 			'permission_callback' => array( __CLASS__, 'check_nonce' ),
 			'callback'            => array( __CLASS__, 'handle_add' ),
+		) );
+		register_rest_route( self::NS, '/garage/login-request', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check_nonce' ),
+			'callback'            => array( __CLASS__, 'handle_login_request' ),
 		) );
 	}
 
@@ -303,6 +316,165 @@ class M24_Garage {
 		update_option( self::PENDING_OPTION, $store, false );
 		wp_safe_redirect( add_query_arg( 'm24_garage', $ok ? 'confirmed' : 'invalid', home_url( '/' ) ) );
 		exit;
+	}
+
+	/* ── G2a: Magic-Link-Login ───────────────────────────────────────────── */
+
+	/**
+	 * Bekannte E-Mail? (Garage-User ODER bestätigter IL-/Interessenten-Mirror.)
+	 * @return array|null array(vorname, lang) wenn bekannt, sonst null.
+	 */
+	private static function lookup_known( $email ) {
+		global $wpdb;
+		$email = strtolower( sanitize_email( $email ) );
+		if ( ! is_email( $email ) ) { return null; }
+
+		$u = self::users_table();
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT vorname, sprache FROM $u WHERE email = %s", $email ), ARRAY_A );
+		if ( $row ) {
+			return array( 'vorname' => (string) $row['vorname'], 'lang' => ( 'en' === strtolower( (string) $row['sprache'] ) ) ? 'en' : 'de' );
+		}
+		// IL-/Interessenten-Spiegel (Migration 007: vorname/sprache vorhanden).
+		$il = M24_Database::table( 'il_interessenten' );
+		if ( $il === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $il ) ) ) {
+			$r2 = $wpdb->get_row( $wpdb->prepare( "SELECT vorname, sprache FROM $il WHERE email = %s", $email ), ARRAY_A );
+			if ( $r2 ) {
+				return array( 'vorname' => (string) ( $r2['vorname'] ?? '' ), 'lang' => ( 'en' === strtolower( (string) ( $r2['sprache'] ?? '' ) ) ) ? 'en' : 'de' );
+			}
+		}
+		return null;
+	}
+
+	public static function handle_login_request( WP_REST_Request $req ) {
+		$p = $req->get_params();
+		if ( ! empty( $p['website'] ) ) { return rest_ensure_response( array( 'ok' => true ) ); } // Honeypot
+
+		// Rate-Limit: max 5 Login-Anfragen / Stunde je IP.
+		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? preg_replace( '/[^0-9a-f:.]/i', '', (string) $_SERVER['REMOTE_ADDR'] ) : 'x';
+		$rk  = 'm24g_login_' . md5( $ip );
+		$cnt = (int) get_transient( $rk );
+		if ( $cnt >= 5 ) { return new WP_Error( 'm24g_rate', 'Zu viele Anfragen. Bitte später erneut.', array( 'status' => 429 ) ); }
+		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
+
+		$email = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		$en_req = ( 'en' === strtolower( (string) ( $p['lang'] ?? '' ) ) );
+		// Einheitliche Erfolgsmeldung (Anti-Enumeration) — egal ob bekannt oder nicht.
+		$msg = $en_req
+			? 'If this email is known, we have sent you a login link.'
+			: 'Falls diese E-Mail bekannt ist, haben wir dir einen Login-Link geschickt.';
+
+		if ( is_email( $email ) ) {
+			$known = self::lookup_known( $email );
+			if ( $known && class_exists( 'M24_B2B' ) ) {
+				$raw = M24_B2B::issue_token( $email, self::LOGIN_PURPOSE, null, self::LOGIN_TTL );
+				self::send_login_mail( $email, $known['vorname'], $known['lang'], $raw );
+			}
+		}
+		return rest_ensure_response( array( 'ok' => true, 'message' => $msg ) );
+	}
+
+	private static function send_login_mail( $email, $vorname, $lang, $raw_token ) {
+		$url = add_query_arg( self::LOGIN_QUERY, $raw_token, home_url( '/' ) );
+		$en  = ( 'en' === strtolower( (string) $lang ) );
+
+		if ( $en ) {
+			$subject  = 'Your garage login — MOTORSPORT24';
+			$headline = 'Your garage login';
+			$hallo    = ( '' !== trim( (string) $vorname ) ) ? 'Hi ' . esc_html( $vorname ) . ',' : 'Hi,';
+			$intro    = 'click the button to open your garage. The link is valid for 30 minutes and can be used once:';
+			$cta      = 'Open garage';
+			$hint     = 'If the button does not work, copy this link into your browser:';
+			$ignore   = 'If you did not request this, simply ignore this email.';
+		} else {
+			$subject  = 'Dein Garage-Login — MOTORSPORT24';
+			$headline = 'Dein Garage-Login';
+			$hallo    = ( '' !== trim( (string) $vorname ) ) ? 'Hallo ' . esc_html( $vorname ) . ',' : 'Hallo,';
+			$intro    = 'klicke auf den Button, um deine Garage zu öffnen. Der Link gilt 30 Minuten und ist einmal nutzbar:';
+			$cta      = 'Garage öffnen';
+			$hint     = 'Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:';
+			$ignore   = 'Wenn du das nicht angefordert hast, ignoriere diese E-Mail einfach.';
+		}
+
+		$inner = '<p style="margin:0 0 14px;">' . $hallo . '</p>'
+			. '<p style="margin:0 0 14px;">' . esc_html( $intro ) . '</p>'
+			. '<p style="margin:24px 0;text-align:center;"><a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;color:#ffffff;text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;">' . esc_html( $cta ) . '</a></p>'
+			. '<p style="margin:0 0 8px;color:#5a6474;font-size:13px;">' . esc_html( $hint ) . '</p>'
+			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>'
+			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: ' . self::from_header(),
+			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+		);
+		wp_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), $headers );
+	}
+
+	/** ?m24login=TOKEN → Token verbrauchen → E-Mail-gebundene Session → Redirect Garage-Seite (G2b). */
+	public static function maybe_login() {
+		if ( empty( $_GET[ self::LOGIN_QUERY ] ) || ! class_exists( 'M24_B2B' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+		$raw = sanitize_text_field( wp_unslash( $_GET[ self::LOGIN_QUERY ] ) ); // phpcs:ignore
+		$row = M24_B2B::consume_token( $raw, self::LOGIN_PURPOSE );
+		$ok  = false;
+		if ( $row && ! empty( $row->email ) ) {
+			self::start_session( (string) $row->email );
+			$ok = true;
+		}
+		// G2b liefert die Garage-Seite; bis dahin Redirect auf Home mit Status-Flag.
+		wp_safe_redirect( add_query_arg( 'm24_garage', $ok ? 'eingeloggt' : 'login-ungueltig', home_url( '/' ) ) );
+		exit;
+	}
+
+	public static function maybe_logout() {
+		if ( empty( $_GET[ self::LOGOUT_QUERY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+		self::end_session();
+		wp_safe_redirect( add_query_arg( 'm24_garage', 'abgemeldet', home_url( '/' ) ) );
+		exit;
+	}
+
+	/* ── Session (E-Mail-gebunden; Cookie = Zufalls-SID, Transient hält die E-Mail) ── */
+
+	private static function start_session( $email ) {
+		$email = strtolower( sanitize_email( $email ) );
+		if ( ! is_email( $email ) ) { return; }
+		$sid = bin2hex( random_bytes( 24 ) );
+		set_transient( 'm24_garage_sess_' . $sid, $email, self::SESSION_TTL );
+		$secure = is_ssl();
+		setcookie( self::SESSION_COOKIE, $sid, array(
+			'expires'  => time() + self::SESSION_TTL,
+			'path'     => COOKIEPATH ?: '/',
+			'domain'   => COOKIE_DOMAIN ?: '',
+			'secure'   => $secure,
+			'httponly' => true,
+			'samesite' => 'Lax',
+		) );
+		$_COOKIE[ self::SESSION_COOKIE ] = $sid; // sofort im selben Request verfügbar
+	}
+
+	private static function end_session() {
+		$sid = isset( $_COOKIE[ self::SESSION_COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::SESSION_COOKIE ] ) ) : '';
+		if ( '' !== $sid ) { delete_transient( 'm24_garage_sess_' . $sid ); }
+		setcookie( self::SESSION_COOKIE, '', array(
+			'expires'  => time() - 3600,
+			'path'     => COOKIEPATH ?: '/',
+			'domain'   => COOKIE_DOMAIN ?: '',
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		) );
+		unset( $_COOKIE[ self::SESSION_COOKIE ] );
+	}
+
+	/** Eingeloggte Garage-E-Mail (für G2b) oder '' wenn keine gültige Session. */
+	public static function current_email(): string {
+		$sid = isset( $_COOKIE[ self::SESSION_COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::SESSION_COOKIE ] ) ) : '';
+		if ( '' === $sid ) { return ''; }
+		$email = get_transient( 'm24_garage_sess_' . $sid );
+		return ( is_string( $email ) && is_email( $email ) ) ? $email : '';
 	}
 
 	/* ── Frontend: Modal + JS + CSS (Detailseiten) ───────────────────────── */

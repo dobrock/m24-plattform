@@ -117,10 +117,11 @@ class M24_B2B {
      * Token ausstellen. Gibt den ROHEN Token zurück (nur für den Link, nie in der DB).
      * Ältere offene Tokens gleicher email+purpose werden entwertet.
      */
-    public static function issue_token( string $email, string $purpose, ?int $user_id = null ): string {
+    public static function issue_token( string $email, string $purpose, ?int $user_id = null, ?int $ttl = null ): string {
         global $wpdb;
         $table = M24_Database::table( 'magic_tokens' );
         $email = strtolower( sanitize_email( $email ) );
+        $ttl   = ( null !== $ttl && $ttl > 0 ) ? $ttl : self::TOKEN_TTL; // purpose-spezifische TTL (z. B. Garage 30 Min)
 
         $wpdb->query( $wpdb->prepare(
             "UPDATE $table SET used_at = UTC_TIMESTAMP() WHERE email = %s AND purpose = %s AND used_at IS NULL",
@@ -136,7 +137,7 @@ class M24_B2B {
                 'wp_user_id' => $user_id,
                 'token_hash' => self::hash_token( $raw ),
                 'purpose'    => $purpose,
-                'expires_at' => gmdate( 'Y-m-d H:i:s', time() + self::TOKEN_TTL ),
+                'expires_at' => gmdate( 'Y-m-d H:i:s', time() + $ttl ),
                 'ip_hash'    => self::ip_hash(),
             ],
             [ '%s', '%d', '%s', '%s', '%s', '%s' ]
