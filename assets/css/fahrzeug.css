@@ -157,11 +157,11 @@
 .m24fz-offmarket .m24fz-anf-check{display:block;margin-top:16px;color:rgba(255,255,255,.85);font-size:12px;line-height:1.45}
 .m24fz-offmarket .m24fz-anf-check input{margin-right:7px}
 .m24fz-offmarket .m24fz-anf-msg{color:#fff;text-align:left;margin-top:8px}
-/* Lieferung-&-Zoll als 3er-Chip-Streifen unter der Box */
-.m24fz-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.m24fz-chip{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #eef0f2;border-radius:12px;padding:13px 15px;font-size:13.5px;font-weight:600;color:#14161a;line-height:1.3}
-.m24fz-chip svg{width:26px;height:26px;flex:0 0 26px;color:#10243a}
-@media(max-width:760px){.m24fz-om-grid{grid-template-columns:1fr;gap:22px}.m24fz-chips{grid-template-columns:1fr}}
+/* Lieferung-&-Zoll als 3er-Chip-Streifen unter der Box (eigene Klasse → keine Kollision mit den Galerie-Tabs .m24fz-chips) */
+.m24fz-trust{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.m24fz-trust-chip{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #eef0f2;border-radius:12px;padding:13px 15px;font-size:13.5px;font-weight:600;color:#14161a;line-height:1.3}
+.m24fz-trust-chip svg{width:26px;height:26px;flex:0 0 26px;color:#10243a}
+@media(max-width:760px){.m24fz-om-grid{grid-template-columns:1fr;gap:22px}.m24fz-trust{grid-template-columns:1fr}}
 
 /* Preisbox-Zustände (reserviert/verkauft → Interessentenliste) */
 .m24fz-statebadge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:5px 13px;border-radius:999px;margin-bottom:8px}
