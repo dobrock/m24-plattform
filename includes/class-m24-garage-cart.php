@@ -550,6 +550,9 @@ class M24_Garage_Cart {
 				<?php if ( $has_unpriced ) : ?>
 					<p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
 				<?php endif; ?>
+				<div class="m24gc-pageactions">
+					<a class="m24gc-pdf-btn" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Garage als PDF herunterladen</a>
+				</div>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -642,6 +645,9 @@ class M24_Garage_Cart {
 				<?php if ( $has_unpriced ) : ?>
 					<p class="m24gc-note">Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
 				<?php endif; ?>
+				<div class="m24gc-pageactions">
+					<a class="m24gc-pdf-btn" href="<?php echo esc_url( M24_Garage_PDF::share_url( $token ) ); ?>">Als PDF herunterladen</a>
+				</div>
 			<?php endif; ?>
 		</div>
 		<?php

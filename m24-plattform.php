@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.150
+ * Version:           0.11.151
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -125,6 +125,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage.php';      // Meine Garage G1: Store + Add-to-Garage + DOI (No-Account)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-cart.php'; // Meine Garage Etappe 1: kontogebundener Warenkorb (Menge, Garage-Seite, Zähler)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-pdf.php';  // Meine Garage Etappe 3: Garage als PDF (Dompdf, vendor/)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
 require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
@@ -302,6 +303,7 @@ add_action( 'plugins_loaded', function() {
     M24_Brevo_IL::init();
     M24_Garage::init(); // Meine Garage G1
     M24_Garage_Cart::init(); // Meine Garage Etappe 1: kontogebundener Warenkorb
+    M24_Garage_PDF::init();  // Meine Garage Etappe 3: PDF-Download (admin-post)
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)

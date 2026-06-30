@@ -1,0 +1,16 @@
+{
+    "name": "motorsport24/m24-plattform",
+    "description": "M24 Plattform — gebündelte Vendor-Abhängigkeiten (Dompdf für Garage-PDF).",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.0",
+        "dompdf/dompdf": "^2.0"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.0.0"
+        }
+    }
+}
