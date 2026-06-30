@@ -1,0 +1,53 @@
+/* M24 „Meine Garage" — kontogebundener Warenkorb (Etappe 1): Schwebe-Zähler + Garage-Seite. */
+
+/* ── Schwebe-Zähler (FAB). Rechts unten, gestapelt ÜBER der Sammelanfrage-Sidebar (deren Toggle sitzt bei ~16px). ── */
+.m24gc-fab{position:fixed;right:18px;bottom:84px;z-index:99990;display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;box-shadow:0 6px 18px rgba(10,12,16,.28);text-decoration:none;transition:transform .15s,box-shadow .15s}
+.m24gc-fab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(10,12,16,.34);color:#fff}
+.m24gc-fab svg{width:24px;height:24px;display:block}
+.m24gc-fab.is-empty{display:none}
+.m24gc-fab-badge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;background:#9a6b25;color:#fff;border-radius:11px;font:700 12px/1 'Saira',Arial,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+
+/* ── Garage-Seite ── */
+.m24gc-page{max-width:880px;margin:0 auto;font-family:'Saira',Arial,sans-serif;color:#14161a}
+.m24gc-h{font-size:26px;font-weight:800;margin:0 0 18px}
+.m24gc-empty{color:#5a6474;font-size:15px;line-height:1.6}
+.m24gc-list{display:flex;flex-direction:column;gap:12px}
+
+.m24gc-row{display:grid;grid-template-columns:84px 1fr auto auto 28px;align-items:center;gap:14px;background:#fff;border:1px solid #eef0f2;border-radius:14px;padding:12px 14px}
+.m24gc-thumb{display:block;width:84px;height:64px;border-radius:9px;overflow:hidden;background:#f3f5f7;flex:0 0 auto}
+.m24gc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.m24gc-thumb-ph{display:block;width:100%;height:100%;background:repeating-linear-gradient(45deg,#eef0f2,#eef0f2 8px,#f6f8fa 8px,#f6f8fa 16px)}
+.m24gc-info{min-width:0;display:flex;flex-direction:column;gap:3px}
+.m24gc-title{font-size:15px;font-weight:700;color:#14161a;text-decoration:none;line-height:1.3}
+.m24gc-title:hover{color:#1f74c4}
+.m24gc-artnr{font-size:12px;color:#8a929c}
+.m24gc-unit{font-size:13px;color:#5a6474}
+
+.m24gc-qty{display:inline-flex;align-items:center;gap:0;border:1px solid #e3e7eb;border-radius:9px;overflow:hidden}
+.m24gc-qty button{width:32px;height:32px;border:0;background:#f7f8fa;color:#14161a;font-size:17px;line-height:1;cursor:pointer;font-family:inherit}
+.m24gc-qty button:hover{background:#eef0f2}
+.m24gc-qty button:disabled{opacity:.4;cursor:not-allowed}
+.m24gc-qty-val{min-width:34px;text-align:center;font-size:14px;font-weight:700}
+
+.m24gc-line{font-size:15px;font-weight:700;text-align:right;white-space:nowrap;min-width:96px}
+.m24gc-remove{width:28px;height:28px;border:0;background:none;color:#9aa0a8;font-size:22px;line-height:1;cursor:pointer}
+.m24gc-remove:hover{color:#9e2b2b}
+
+.m24gc-summary{display:flex;align-items:baseline;justify-content:flex-end;gap:16px;margin-top:18px;padding-top:16px;border-top:2px solid #14161a}
+.m24gc-summary-label{font-size:15px;font-weight:600;color:#5a6474}
+.m24gc-grand{font-size:22px;font-weight:800}
+.m24gc-note{margin:8px 0 0;text-align:right;font-size:12px;color:#8a929c}
+
+/* ── Add-Toast (Button-Verdrahtung auf Detailseiten) ── */
+.m24gc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:100002;background:#14161a;color:#fff;font-family:'Saira',Arial,sans-serif;font-size:14px;font-weight:600;padding:12px 20px;border-radius:11px;box-shadow:0 8px 24px rgba(10,12,16,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+.m24gc-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:620px){
+	.m24gc-row{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb info remove" "thumb qty line";row-gap:10px}
+	.m24gc-thumb{grid-area:thumb;width:64px;height:64px}
+	.m24gc-info{grid-area:info}
+	.m24gc-qty{grid-area:qty}
+	.m24gc-line{grid-area:line;align-self:center}
+	.m24gc-remove{grid-area:remove;justify-self:end}
+	.m24gc-fab{right:14px;bottom:78px}
+}
