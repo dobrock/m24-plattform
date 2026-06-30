@@ -38,6 +38,26 @@
 .m24gc-grand{font-size:22px;font-weight:800}
 .m24gc-note{margin:8px 0 0;text-align:right;font-size:12px;color:#8a929c}
 
+/* ── Geteilte Garage: statische Menge (read-only) ── */
+.m24gc-qty-static{display:inline-flex;align-items:center;gap:3px;font-size:14px;font-weight:700;color:#14161a;border:0;background:none;padding:0;justify-content:flex-end;min-width:48px}
+.m24gc-qty-static .m24gc-qty-x{color:#8a929c;font-weight:600}
+.m24gc-shared .m24gc-row{grid-template-columns:84px 1fr auto auto}
+.m24gc-shared-hint{color:#5a6474;font-size:14px;margin:0 0 16px}
+
+/* ── „Garage-Link versenden"-Panel (nur Eigentümer) ── */
+.m24gc-share{background:#f7f9fb;border:1px solid #e7ebf0;border-radius:14px;padding:16px 18px;margin:0 0 22px}
+.m24gc-share-h{font-size:16px;font-weight:800;margin:0 0 4px}
+.m24gc-share-sub{font-size:13px;color:#5a6474;margin:0 0 14px;line-height:1.5}
+.m24gc-share-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.m24gc-share-input{flex:1 1 260px;min-width:0;height:42px;padding:0 12px;border:1px solid #d8dee4;border-radius:9px;background:#fff;font-family:inherit;font-size:13px;color:#14161a}
+.m24gc-share-btn{display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 16px;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 13.5px/1 inherit;cursor:pointer;text-decoration:none}
+.m24gc-share-btn:hover{filter:brightness(1.05);color:#fff}
+.m24gc-share-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+.m24gc-share-gen{height:40px;padding:0 18px;border:0;border-radius:9px;background:#9a6b25;color:#fff;font:700 13.5px/1 inherit;cursor:pointer}
+.m24gc-share-rotate{border:0;background:none;color:#5a6474;font:600 13px/1 inherit;text-decoration:underline;cursor:pointer;padding:0}
+.m24gc-share-rotate:hover{color:#9e2b2b}
+.m24gc-share-msg{font-size:12.5px;color:#1f74c4;min-height:1em}
+
 /* ── Add-Toast (Button-Verdrahtung auf Detailseiten) ── */
 .m24gc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:100002;background:#14161a;color:#fff;font-family:'Saira',Arial,sans-serif;font-size:14px;font-weight:600;padding:12px 20px;border-radius:11px;box-shadow:0 8px 24px rgba(10,12,16,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 .m24gc-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}

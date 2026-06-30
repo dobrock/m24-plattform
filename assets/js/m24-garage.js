@@ -124,4 +124,72 @@
 			});
 		});
 	}
+
+	/* ── Garage-Link versenden (nur Eigentümer, Etappe 2) ── */
+	var sharePanel = document.querySelector('[data-m24gc-share]');
+	if (sharePanel && cfg.share) {
+		var inEl = sharePanel.querySelector('[data-m24gc-share-input]');
+		var copyBtn = sharePanel.querySelector('[data-m24gc-share-copy]');
+		var mailBtn = sharePanel.querySelector('[data-m24gc-share-mail]');
+		var genBtn = sharePanel.querySelector('[data-m24gc-share-generate]');
+		var rotBtn = sharePanel.querySelector('[data-m24gc-share-rotate]');
+		var msgEl = sharePanel.querySelector('[data-m24gc-share-msg]');
+
+		function shareMsg(t) { if (msgEl) { msgEl.textContent = t || ''; } }
+
+		function buildMailto(url) {
+			var i18n = cfg.i18n || {};
+			var subj = encodeURIComponent(i18n.mailSubject || 'Garage');
+			var body = encodeURIComponent((i18n.mailBody || '') + '\n\n' + url);
+			return 'mailto:?subject=' + subj + '&body=' + body;
+		}
+
+		function applyUrl(url) {
+			if (inEl) { inEl.value = url || ''; }
+			var has = !!url;
+			if (copyBtn) { copyBtn.hidden = !has; }
+			if (mailBtn) { mailBtn.hidden = !has; if (has) { mailBtn.setAttribute('href', buildMailto(url)); } }
+			if (genBtn) { genBtn.hidden = has; }
+			if (rotBtn) { rotBtn.hidden = !has; }
+		}
+
+		// mailto-href initial setzen, falls schon ein Link da ist.
+		if (inEl && inEl.value) { applyUrl(inEl.value); }
+
+		function shareReq(action, after) {
+			return fetch(cfg.share, {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: headers(),
+				body: JSON.stringify({ action: action })
+			}).then(function (r) { return r.json(); }).then(function (d) {
+				if (d && d.ok) { applyUrl(d.url); if (after) { after(d); } }
+				else { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); }
+			}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); });
+		}
+
+		if (genBtn) {
+			genBtn.addEventListener('click', function () { shareMsg(''); shareReq('generate'); });
+		}
+		if (rotBtn) {
+			rotBtn.addEventListener('click', function () {
+				shareReq('rotate', function () { shareMsg((cfg.i18n && cfg.i18n.rotated) || ''); });
+			});
+		}
+		if (copyBtn) {
+			copyBtn.addEventListener('click', function () {
+				var val = inEl ? inEl.value : '';
+				if (!val) { return; }
+				var done = function () { shareMsg((cfg.i18n && cfg.i18n.copied) || 'Kopiert.'); };
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(val).then(done).catch(function () {
+						if (inEl) { inEl.select(); document.execCommand && document.execCommand('copy'); done(); }
+					});
+				} else if (inEl) {
+					inEl.select(); document.execCommand && document.execCommand('copy'); done();
+				}
+			});
+		}
+		// mailBtn ist ein echter <a href="mailto:…"> — Klick öffnet das Mailprogramm; href wird in applyUrl gesetzt.
+	}
 })();

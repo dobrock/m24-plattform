@@ -29,6 +29,11 @@ class M24_Garage_Cart {
 	const PAGE_SLUG     = 'meine-garage';
 	const MAX_QTY       = 99;
 
+	// Etappe 2: Garage-Link teilen. Ein aktueller Token je Account (usermeta); rotieren = alter Link tot.
+	const SHARE_QUERY   = 'm24garage_share';        // öffentliche Read-only-Ansicht: /meine-garage/?m24garage_share=TOKEN
+	const META_TOKEN    = 'm24_garage_share_token'; // usermeta: aktueller Roh-Token (Vorhandensein = aktiv)
+	const META_CREATED  = 'm24_garage_share_created';
+
 	public static function init() {
 		add_action( 'admin_init', array( __CLASS__, 'maybe_ensure_table' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_create_page' ) );
@@ -36,6 +41,7 @@ class M24_Garage_Cart {
 		add_action( 'init', array( __CLASS__, 'register_shortcode' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_counter' ) );
+		add_action( 'wp_head', array( __CLASS__, 'maybe_noindex' ) );
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -115,6 +121,53 @@ class M24_Garage_Cart {
 		return home_url( '/' );
 	}
 
+	/* ── Etappe 2: Share-Token (ein aktueller Token je Account, in usermeta) ── */
+
+	private static function new_token(): string {
+		return function_exists( 'random_bytes' ) ? bin2hex( random_bytes( 32 ) ) : wp_generate_password( 64, false, false );
+	}
+
+	/** Vorhandenen Token lesen (kein Erzeugen). '' = noch keiner / widerrufen. */
+	public static function share_token_existing( int $acc ): string {
+		return $acc > 0 ? (string) get_user_meta( $acc, self::META_TOKEN, true ) : '';
+	}
+
+	/** Token holen oder (falls keiner) erzeugen. */
+	public static function share_token_get_or_create( int $acc ): string {
+		$tok = self::share_token_existing( $acc );
+		return ( '' !== $tok ) ? $tok : self::share_token_rotate( $acc );
+	}
+
+	/** Neuen Token erzeugen → alter Token wird ungültig (zurückziehen + neu). */
+	public static function share_token_rotate( int $acc ): string {
+		$tok = self::new_token();
+		update_user_meta( $acc, self::META_TOKEN, $tok );
+		update_user_meta( $acc, self::META_CREATED, current_time( 'mysql' ) );
+		return $tok;
+	}
+
+	/** Token widerrufen (Link tot, kein neuer). */
+	public static function share_token_revoke( int $acc ): void {
+		delete_user_meta( $acc, self::META_TOKEN );
+		delete_user_meta( $acc, self::META_CREATED );
+	}
+
+	/** Token → account_id (0 = ungültig/widerrufen). */
+	public static function resolve_share_token( string $token ): int {
+		$token = preg_replace( '/[^A-Za-z0-9]/', '', $token );
+		if ( strlen( $token ) < 32 ) { return 0; }
+		global $wpdb;
+		$uid = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+			self::META_TOKEN, $token
+		) );
+		return $uid > 0 ? $uid : 0;
+	}
+
+	public static function share_url( string $token ): string {
+		return add_query_arg( self::SHARE_QUERY, $token, self::page_url() );
+	}
+
 	/* ── REST ────────────────────────────────────────────────────────────── */
 
 	public static function register_routes() {
@@ -138,6 +191,27 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_qty' ),
 		) );
+		// Etappe 2: Share-Link erzeugen/rotieren/widerrufen (nonce + Login).
+		register_rest_route( self::NS, '/garage/share', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_share' ),
+		) );
+	}
+
+	public static function handle_share( WP_REST_Request $req ) {
+		$acc    = self::current_account_id();
+		$action = (string) $req->get_param( 'action' );
+
+		if ( 'rotate' === $action ) {
+			$tok = self::share_token_rotate( $acc );
+		} elseif ( 'revoke' === $action ) {
+			self::share_token_revoke( $acc );
+			return rest_ensure_response( array( 'ok' => true, 'url' => '', 'token' => '' ) );
+		} else { // generate / default: vorhandenen Token zeigen oder erzeugen
+			$tok = self::share_token_get_or_create( $acc );
+		}
+		return rest_ensure_response( array( 'ok' => true, 'url' => self::share_url( $tok ), 'token' => $tok ) );
 	}
 
 	/** Nonce + Login. Ohne Account → 401 (Frontend fällt für Gäste auf die DOI-Merkliste zurück). */
@@ -381,13 +455,18 @@ class M24_Garage_Cart {
 		wp_enqueue_script( 'm24-garage', M24_PLATTFORM_URL . $js, array(), $jv, true );
 		wp_localize_script( 'm24-garage', 'M24GarageCart', array(
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
+			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
 			'i18n'     => array(
-				'added'   => 'In deine Garage gelegt.',
-				'failed'  => 'Aktion fehlgeschlagen. Bitte später erneut.',
-				'login'   => 'Bitte einloggen, um deine Garage zu nutzen.',
+				'added'       => 'In deine Garage gelegt.',
+				'failed'      => 'Aktion fehlgeschlagen. Bitte später erneut.',
+				'login'       => 'Bitte einloggen, um deine Garage zu nutzen.',
+				'copied'      => 'Link kopiert.',
+				'rotated'     => 'Neuer Link erzeugt — der alte Link ist nicht mehr gültig.',
+				'mailSubject' => 'Meine MOTORSPORT24 Garage',
+				'mailBody'    => 'Hier ist meine Garage bei MOTORSPORT24:',
 			),
 		) );
 	}
@@ -414,6 +493,12 @@ class M24_Garage_Cart {
 	}
 
 	public static function shortcode( $atts = array() ) {
+		// Etappe 2: öffentliche, schreibgeschützte Ansicht über Token (ohne Login, zeigt Token-Eigentümer-Garage).
+		$share = isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' !== $share ) {
+			return self::render_shared( $share );
+		}
+
 		$acc = self::current_account_id();
 		ob_start();
 
@@ -430,8 +515,28 @@ class M24_Garage_Cart {
 		$items = self::items( $acc );
 		list( , $grand_fmt, $has_unpriced ) = self::grand_total( $items );
 		?>
+		<?php
+		$share_tok = self::share_token_existing( $acc );
+		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
+		?>
 		<div class="m24gc-page" data-m24gc-page>
 			<h2 class="m24gc-h">Meine Garage</h2>
+
+			<div class="m24gc-share" data-m24gc-share>
+				<h3 class="m24gc-share-h">Garage-Link versenden</h3>
+				<p class="m24gc-share-sub">Teile den aktuellen Inhalt deiner Garage. Empfänger sehen ihn ohne Login, schreibgeschützt inkl. Preise.</p>
+				<div class="m24gc-share-row">
+					<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
+					<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
+					<a class="m24gc-share-btn" data-m24gc-share-mail href="#"<?php echo '' === $share_url ? ' hidden' : ''; ?>>Per E-Mail</a>
+				</div>
+				<div class="m24gc-share-actions">
+					<button type="button" class="m24gc-share-gen" data-m24gc-share-generate<?php echo '' === $share_url ? '' : ' hidden'; ?>>Garage-Link erzeugen</button>
+					<button type="button" class="m24gc-share-rotate" data-m24gc-share-rotate<?php echo '' === $share_url ? ' hidden' : ''; ?>>Link zurückziehen / neu erzeugen</button>
+					<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
+				</div>
+			</div>
+
 			<?php if ( empty( $items ) ) : ?>
 				<p class="m24gc-empty" data-m24gc-emptystate>Deine Garage ist noch leer. Lege Fahrzeuge oder Teile über „In meine Garage" hinein.</p>
 			<?php else : ?>
@@ -451,12 +556,15 @@ class M24_Garage_Cart {
 		return (string) ob_get_clean();
 	}
 
-	/** Eine Warenkorb-Zeile (auch von JS nach Mutationen wiederverwendbar über die data-Attribute). */
-	private static function render_row( array $it ) {
+	/**
+	 * Eine Warenkorb-Zeile. $readonly=true → geteilte Ansicht: Menge statisch, keine ±/Entfernen-Controls,
+	 * keine Mutations-data-Attribute. Identische Positions-Darstellung wie im Eigentümer-Warenkorb.
+	 */
+	private static function render_row( array $it, bool $readonly = false ) {
 		$pid  = (int) $it['post_id'];
 		$pt   = (string) $it['post_type'];
 		?>
-		<div class="m24gc-row" data-m24gc-row data-post-id="<?php echo esc_attr( $pid ); ?>" data-post-type="<?php echo esc_attr( $pt ); ?>">
+		<div class="m24gc-row<?php echo $readonly ? ' is-readonly' : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-post-id="' . esc_attr( $pid ) . '" data-post-type="' . esc_attr( $pt ) . '"'; ?>>
 			<a class="m24gc-thumb" href="<?php echo esc_url( $it['url'] ); ?>">
 				<?php if ( $it['thumb'] ) : ?>
 					<img src="<?php echo esc_url( $it['thumb'] ); ?>" alt="" loading="lazy">
@@ -471,14 +579,72 @@ class M24_Garage_Cart {
 				<?php endif; ?>
 				<span class="m24gc-unit"><?php echo esc_html( null !== $it['unit_fmt'] ? $it['unit_fmt'] : 'Preis auf Anfrage' ); ?></span>
 			</div>
-			<div class="m24gc-qty" role="group" aria-label="Menge">
-				<button type="button" class="m24gc-dec" aria-label="Menge verringern">−</button>
-				<span class="m24gc-qty-val" data-m24gc-qty><?php echo (int) $it['qty']; ?></span>
-				<button type="button" class="m24gc-inc" aria-label="Menge erhöhen">+</button>
-			</div>
-			<div class="m24gc-line" data-m24gc-line><?php echo esc_html( null !== $it['line_fmt'] ? $it['line_fmt'] : '—' ); ?></div>
-			<button type="button" class="m24gc-remove" aria-label="Position entfernen" data-m24gc-remove>&times;</button>
+			<?php if ( $readonly ) : ?>
+				<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $it['qty']; ?></span></div>
+				<div class="m24gc-line"><?php echo esc_html( null !== $it['line_fmt'] ? $it['line_fmt'] : '—' ); ?></div>
+			<?php else : ?>
+				<div class="m24gc-qty" role="group" aria-label="Menge">
+					<button type="button" class="m24gc-dec" aria-label="Menge verringern">−</button>
+					<span class="m24gc-qty-val" data-m24gc-qty><?php echo (int) $it['qty']; ?></span>
+					<button type="button" class="m24gc-inc" aria-label="Menge erhöhen">+</button>
+				</div>
+				<div class="m24gc-line" data-m24gc-line><?php echo esc_html( null !== $it['line_fmt'] ? $it['line_fmt'] : '—' ); ?></div>
+				<button type="button" class="m24gc-remove" aria-label="Position entfernen" data-m24gc-remove>&times;</button>
+			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/* ── Etappe 2: öffentliche Read-only-Ansicht + noindex ───────────────── */
+
+	/** noindex,nofollow auf der geteilten Garage-Ansicht. */
+	public static function maybe_noindex() {
+		if ( empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! is_page() || (int) get_queried_object_id() !== (int) get_option( self::PAGE_OPTION ) ) { return; }
+		echo "\n<meta name=\"robots\" content=\"noindex,nofollow\">\n";
+	}
+
+	/**
+	 * Read-only-Ansicht der AKTUELLEN Garage des Token-Eigentümers (live).
+	 * Keine PII (E-Mail/Name) — nur Inhalt + Preise, neutral als „Geteilte Garage".
+	 */
+	private static function render_shared( string $token ): string {
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
+		$acc = self::resolve_share_token( $token );
+		ob_start();
+
+		if ( $acc <= 0 ) {
+			?>
+			<div class="m24gc-page m24gc-shared">
+				<h2 class="m24gc-h">Geteilte Garage</h2>
+				<p class="m24gc-empty">Dieser Link ist nicht (mehr) gültig. Bitte den Eigentümer um einen aktuellen Link.</p>
+			</div>
+			<?php
+			return (string) ob_get_clean();
+		}
+
+		$items = self::items( $acc );
+		list( , $grand_fmt, $has_unpriced ) = self::grand_total( $items );
+		?>
+		<div class="m24gc-page m24gc-shared">
+			<h2 class="m24gc-h">Geteilte Garage</h2>
+			<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — aktueller Stand dieser Garage.</p>
+			<?php if ( empty( $items ) ) : ?>
+				<p class="m24gc-empty">Diese Garage ist aktuell leer.</p>
+			<?php else : ?>
+				<div class="m24gc-list">
+					<?php foreach ( $items as $it ) : self::render_row( $it, true ); endforeach; ?>
+				</div>
+				<div class="m24gc-summary">
+					<span class="m24gc-summary-label">Gesamtsumme</span>
+					<span class="m24gc-grand"><?php echo esc_html( $grand_fmt ); ?></span>
+				</div>
+				<?php if ( $has_unpriced ) : ?>
+					<p class="m24gc-note">Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
+				<?php endif; ?>
+			<?php endif; ?>
+		</div>
+		<?php
+		return (string) ob_get_clean();
 	}
 }
