@@ -192,4 +192,42 @@
 		}
 		// mailBtn ist ein echter <a href="mailto:…"> — Klick öffnet das Mailprogramm; href wird in applyUrl gesetzt.
 	}
+
+	/* ── Garage als Anfrage senden (reuse Sammelanfrage-Strecke, Etappe 4) ── */
+	var sendPanel = document.querySelector('[data-m24gc-send]');
+	if (sendPanel && cfg.submit) {
+		var sendBtn = sendPanel.querySelector('[data-m24gc-send-btn]');
+		var sendMsgEl = sendPanel.querySelector('[data-m24gc-send-msg]');
+		var sendStatus = sendPanel.querySelector('[data-m24gc-send-status]');
+		if (sendBtn) {
+			sendBtn.addEventListener('click', function () {
+				if (sendBtn.dataset.busy === '1' || sendBtn.dataset.done === '1') { return; }
+				sendBtn.dataset.busy = '1';
+				sendBtn.disabled = true;
+				if (sendStatus) { sendStatus.textContent = (cfg.i18n && cfg.i18n.sending) || 'Wird gesendet …'; }
+				fetch(cfg.submit, {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: headers(),
+					body: JSON.stringify({ message: sendMsgEl ? sendMsgEl.value : '' })
+				}).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+					.then(function (res) {
+						sendBtn.dataset.busy = '';
+						if (res.ok && res.data && res.data.ok) {
+							sendBtn.dataset.done = '1';
+							sendBtn.textContent = 'Anfrage gesendet ✓';
+							if (sendStatus) { sendStatus.textContent = (res.data.message) || (cfg.i18n && cfg.i18n.sent) || ''; }
+							if (sendMsgEl) { sendMsgEl.disabled = true; }
+						} else {
+							sendBtn.disabled = false;
+							if (sendStatus) { sendStatus.textContent = (res.data && res.data.message) || (cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'; }
+						}
+					}).catch(function () {
+						sendBtn.dataset.busy = '';
+						sendBtn.disabled = false;
+						if (sendStatus) { sendStatus.textContent = (cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'; }
+					});
+			});
+		}
+	}
 })();

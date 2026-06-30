@@ -197,6 +197,12 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_share' ),
 		) );
+		// Etappe 4: Garage als Anfrage an die bestehende Sammelanfrage-Strecke senden (nonce + Login).
+		register_rest_route( self::NS, '/garage/submit', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_submit' ),
+		) );
 	}
 
 	public static function handle_share( WP_REST_Request $req ) {
@@ -212,6 +218,103 @@ class M24_Garage_Cart {
 			$tok = self::share_token_get_or_create( $acc );
 		}
 		return rest_ensure_response( array( 'ok' => true, 'url' => self::share_url( $tok ), 'token' => $tok ) );
+	}
+
+	/* ── Etappe 4: Garage als Anfrage senden (reuse Sammelanfrage-Strecke) ── */
+
+	/** Kontaktdaten des eingeloggten Accounts vorbefüllen (WP-User + ggf. Händler-Datensatz). */
+	private static function account_contact( int $acc ): array {
+		$u = get_userdata( $acc );
+		$first = $u ? (string) get_user_meta( $acc, 'first_name', true ) : '';
+		$last  = $u ? (string) get_user_meta( $acc, 'last_name', true ) : '';
+		if ( '' === $first && '' === $last && $u ) {
+			$first = (string) $u->display_name; // Fallback: Anzeigename in Vorname
+		}
+		$contact = array(
+			'email'    => $u ? (string) $u->user_email : '',
+			'vorname'  => $first,
+			'nachname' => $last,
+			'firma'    => '',
+			'tel'      => '',
+			'land'     => 'DE',
+			'uid'      => '',
+			'biz'      => '0',
+		);
+		// Händler-Datensatz (B2B) hat Vorrang für Firma/Land/USt-ID/Geschäftskunde.
+		if ( class_exists( 'M24_B2B' ) ) {
+			$h = M24_B2B::get_haendler_by_user( $acc );
+			if ( $h ) {
+				$contact['firma'] = isset( $h->firma ) ? (string) $h->firma : '';
+				$contact['uid']   = isset( $h->uid ) ? (string) $h->uid : '';
+				$land             = isset( $h->land ) ? (string) $h->land : '';
+				if ( '' !== $land ) { $contact['land'] = $land; }
+				$contact['biz']   = '1';
+			}
+		}
+		return $contact;
+	}
+
+	/** Garage-Positionen → Item-Shape der bestehenden Push-Strecke (map_items: art/qty/price/src_*). */
+	private static function inquiry_items( array $items ): array {
+		$has_const = class_exists( 'M24_Inquiries' );
+		$out = array();
+		foreach ( $items as $it ) {
+			$price  = ( null !== $it['unit'] ) ? number_format( (float) $it['unit'], 2, '.', '' ) : ''; // leer/nicht-numerisch → Preis auf Anfrage
+			if ( 'm24_fahrzeug' === $it['post_type'] ) {
+				$pillar = $has_const ? M24_Inquiries::PILLAR_FAHRZEUG : 'fahrzeug';
+			} else {
+				$pillar = $has_const ? M24_Inquiries::PILLAR_KATALOG : 'katalog';
+			}
+			$out[] = array(
+				'art'        => (string) $it['title'],
+				'qty'        => (int) $it['qty'],
+				'price'      => $price,
+				'src_url'    => (string) $it['url'],
+				'src_pillar' => $pillar,
+				'src_pid'    => (string) $it['post_id'],
+				'src_art_nr' => (string) $it['artnr'],
+			);
+		}
+		return $out;
+	}
+
+	public static function handle_submit( WP_REST_Request $req ) {
+		self::maybe_ensure_table();
+		if ( ! class_exists( 'M24_Inquiries_Storage' ) ) {
+			return new WP_Error( 'm24gc_no_pipeline', 'Anfrage-Strecke nicht verfügbar.', array( 'status' => 500 ) );
+		}
+		$acc   = self::current_account_id();
+		$items = self::items( $acc );
+		if ( empty( $items ) ) {
+			return new WP_Error( 'm24gc_empty', 'Deine Garage ist leer.', array( 'status' => 422 ) );
+		}
+
+		$contact = self::account_contact( $acc );
+		if ( '' === $contact['email'] ) {
+			return new WP_Error( 'm24gc_no_email', 'Für dein Konto ist keine E-Mail hinterlegt.', array( 'status' => 422 ) );
+		}
+
+		$message = trim( (string) $req->get_param( 'message' ) );
+
+		$data = array_merge( $contact, array(
+			'notes'               => $message,
+			'inquiry_source'      => class_exists( 'M24_Inquiries' ) ? M24_Inquiries::SOURCE_CART : 'cart',
+			'inquiry_source_meta' => array( 'origin' => 'garage', 'account_id' => $acc ),
+			'items'               => self::inquiry_items( $items ),
+		) );
+
+		// Bestehende Strecke: legt die Anfrage-CPT an und plant den Desk-Push (unabhängig vom Mailweg).
+		$post_id = M24_Inquiries_Storage::insert_inquiry( $data );
+		if ( is_wp_error( $post_id ) ) {
+			return new WP_Error( 'm24gc_submit', $post_id->get_error_message(), array( 'status' => 422 ) );
+		}
+
+		// Garage bewusst NICHT leeren (Etappe-4-Vorgabe).
+		return rest_ensure_response( array(
+			'ok'         => true,
+			'inquiry_id' => (int) $post_id,
+			'message'    => 'Deine Garage wurde als Anfrage an MOTORSPORT24 gesendet. Wir melden uns zeitnah.',
+		) );
 	}
 
 	/** Nonce + Login. Ohne Account → 401 (Frontend fällt für Gäste auf die DOI-Merkliste zurück). */
@@ -456,6 +559,7 @@ class M24_Garage_Cart {
 		wp_localize_script( 'm24-garage', 'M24GarageCart', array(
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
+			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
@@ -467,6 +571,8 @@ class M24_Garage_Cart {
 				'rotated'     => 'Neuer Link erzeugt — der alte Link ist nicht mehr gültig.',
 				'mailSubject' => 'Meine MOTORSPORT24 Garage',
 				'mailBody'    => 'Hier ist meine Garage bei MOTORSPORT24:',
+				'sending'     => 'Anfrage wird gesendet …',
+				'sent'        => 'Deine Garage wurde als Anfrage gesendet. Vielen Dank!',
 			),
 		) );
 	}
@@ -550,6 +656,15 @@ class M24_Garage_Cart {
 				<?php if ( $has_unpriced ) : ?>
 					<p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
 				<?php endif; ?>
+				<div class="m24gc-send" data-m24gc-send>
+					<h3 class="m24gc-send-h">Garage als Anfrage senden</h3>
+					<p class="m24gc-send-sub">Wir übernehmen alle Positionen als Sammelanfrage an MOTORSPORT24. Deine Kontaktdaten sind hinterlegt — du musst nichts erneut eingeben.</p>
+					<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Optionale Nachricht (z. B. Wunschtermin oder Rückfrage)"></textarea>
+					<div class="m24gc-send-actions">
+						<button type="button" class="m24gc-send-btn" data-m24gc-send-btn>Garage als Anfrage senden</button>
+						<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
+					</div>
+				</div>
 				<div class="m24gc-pageactions">
 					<a class="m24gc-pdf-btn" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Garage als PDF herunterladen</a>
 				</div>

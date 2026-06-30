@@ -58,6 +58,18 @@
 .m24gc-share-rotate:hover{color:#9e2b2b}
 .m24gc-share-msg{font-size:12.5px;color:#1f74c4;min-height:1em}
 
+/* ── „Garage als Anfrage senden" (Etappe 4) ── */
+.m24gc-send{background:#fff;border:1px solid #e7ebf0;border-radius:14px;padding:16px 18px;margin-top:18px}
+.m24gc-send-h{font-size:16px;font-weight:800;margin:0 0 4px}
+.m24gc-send-sub{font-size:13px;color:#5a6474;margin:0 0 12px;line-height:1.5}
+.m24gc-send-msg{width:100%;box-sizing:border-box;border:1px solid #d8dee4;border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13.5px;color:#14161a;resize:vertical;min-height:48px}
+.m24gc-send-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+.m24gc-send-btn{height:46px;padding:0 22px;border:0;border-radius:11px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 14.5px/1 'Saira',Arial,sans-serif;cursor:pointer;transition:filter .15s}
+.m24gc-send-btn:hover{filter:brightness(1.06)}
+.m24gc-send-btn:disabled{opacity:.7;cursor:default}
+.m24gc-send-btn[data-done="1"]{background:#2e7d4f}
+.m24gc-send-status{font-size:13px;color:#0e447e;min-height:1em}
+
 /* ── Seiten-Aktionen (PDF-Download) ── */
 .m24gc-pageactions{display:flex;justify-content:flex-end;gap:12px;margin-top:16px}
 .m24gc-pdf-btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:11px;background:#9a6b25;color:#fff;font:700 14px/1 'Saira',Arial,sans-serif;text-decoration:none;transition:filter .15s}
