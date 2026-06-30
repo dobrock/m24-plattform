@@ -222,6 +222,11 @@ class M24_Catalog_Archive {
 		// Zentrale Preisquelle (gleiche wie Detailseite): liest _m24_preisoptionen
 		// (Default-Option) statt eigene Berechnung. Behebt Archive-Fehlanzeige bei
 		// Floats wie 1.470,59 (sanitize_price strippt Dezimalpunkt → ×1000).
+		// Gleiches Preis-Gate wie auf der Detailseite (catalog-template-detail.php): „auf Anfrage"
+		// gilt auch in allen Listen/Karten — sonst erscheint hier trotz Flag der Brutto-Preis.
+		if ( get_post_meta( $post_id, '_m24_preis_auf_anfrage', true ) ) {
+			return '<span class="m24-card__price m24-card__price--ask">Preis auf Anfrage</span>';
+		}
 		$p = M24_Catalog_Pricing::get( $post_id );
 		if ( ! ( $p['brutto'] > 0 ) ) {
 			return '<span class="m24-card__price m24-card__price--ask">Preis auf Anfrage</span>';
