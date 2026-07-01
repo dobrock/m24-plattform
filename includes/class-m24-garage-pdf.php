@@ -160,13 +160,16 @@ class M24_Garage_PDF {
 	 */
 	private static function frame_css(): string {
 		return self::font_face_css()
-			// Oben 110pt frei: Logo (top 28pt, ~30pt hoch) + Kopfzeile; Content startet ≥45pt unter Logo-Unterkante.
-			. '@page{size:A4;margin:110pt 46.28pt 70pt 46.28pt;}'
+			// Content-Zone reservieren: oben 120pt (Logo-Band + Luft), unten 90pt (4-Zeilen-Footer + Luft),
+			// seitlich 56pt. Fließtext läuft dadurch WEDER in die Header- NOCH in die Footer-Zone.
+			. '@page{size:A4;margin:120pt 56pt 90pt 56pt;}'
 			. 'body{margin:0;font-family:"Liberation Sans",Arial,sans-serif;color:#1a1d23;font-size:11px;}'
-			. '.m24-logo{position:fixed;right:46.28pt;top:28pt;width:130pt;height:29.2pt;}'
-			. '.m24-foot{position:fixed;left:46.28pt;right:46.28pt;bottom:28pt;}'
+			// Logo hoch im oberen Seitenrand (Header-Zone), rechte Kante x=549pt (595,28 − 46,28).
+			. '.m24-logo{position:fixed;right:46.28pt;top:22pt;width:130pt;height:29.2pt;}'
+			// Footer tief am unteren Seitenrand (Footer-Zone), kompakter Zeilenabstand.
+			. '.m24-foot{position:fixed;left:46.28pt;right:46.28pt;bottom:22pt;}'
 			. '.m24-foot table{width:100%;border-collapse:collapse;}'
-			. '.m24-foot td{width:120.75pt;font-size:6.5pt;line-height:1.5;color:#6b7280;vertical-align:top;padding:0;}';
+			. '.m24-foot td{width:120.75pt;font-size:6.5pt;line-height:1.0;color:#6b7280;vertical-align:top;padding:0;}';
 	}
 
 	/** Fixed Logo-Header (rechts oben) + fixed 4-Spalten-Footer — auf jeder Seite. */
@@ -311,8 +314,8 @@ class M24_Garage_PDF {
 			: '';
 
 		$css = self::frame_css()
-			// Kopf oben links auf Logo-Höhe (fixed), damit die Tabelle sauber darunter beginnt.
-			. '.g-head { position: fixed; left: 46.28pt; top: 28pt; }'
+			// Titelblock IM Content-Fluss (nicht fixed) — beginnt sauber unter der Header-Zone.
+			. '.g-head { margin: 0 0 14pt; }'
 			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
 			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
 			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner.
