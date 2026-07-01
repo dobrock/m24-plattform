@@ -1214,7 +1214,7 @@ class M24_Garage_Cart {
 			<?php if ( ! $readonly ) :
 				$mailto  = 'mailto:?subject=' . rawurlencode( $it['title'] . ' — MOTORSPORT24' ) . '&body=' . rawurlencode( $it['title'] . "\n" . $it['url'] );
 				$anfrage = add_query_arg( 'm24anfrage', '1', $it['url'] );
-				$pdf     = M24_Garage_PDF::vehicle_url( $pid );
+				$pdf     = M24_Garage_PDF::vehicle_expose_url( $pid ); // TEIL B: eigenständiges Fahrzeug-Exposé (Datenblatt)
 				$pref    = self::notify_for( $acc, $pid );
 				?>
 				<div class="m24gc-vcard-foot">
