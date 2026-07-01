@@ -41,7 +41,11 @@ class M24_Garage_Cart {
 		add_action( 'init', array( __CLASS__, 'register_shortcode' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_counter' ) );
-		add_action( 'wp_head', array( __CLASS__, 'maybe_noindex' ) );
+		// Share-Ansicht = Capability-URL → hart noindex,nofollow (Meta würde von Yoast überstimmt).
+		add_filter( 'wp_robots', array( __CLASS__, 'force_robots' ) );
+		add_filter( 'wpseo_robots', array( __CLASS__, 'yoast_robots_str' ), 99 );
+		add_filter( 'wpseo_robots_array', array( __CLASS__, 'yoast_robots_arr' ), 99 );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_robots_header' ), 0 );
 		// Social-Preview NUR auf der geteilten Read-only-Ansicht: Head puffern (vor Yoast prio 1),
 		// konkurrierende og:/twitter:-Tags entfernen, eigenen Satz anhängen (keine Dubletten).
 		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
@@ -719,11 +723,35 @@ class M24_Garage_Cart {
 
 	/* ── Etappe 2: öffentliche Read-only-Ansicht + noindex ───────────────── */
 
-	/** noindex,nofollow auf der geteilten Garage-Ansicht. */
-	public static function maybe_noindex() {
-		if ( empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
-		if ( ! is_page() || (int) get_queried_object_id() !== (int) get_option( self::PAGE_OPTION ) ) { return; }
-		echo "\n<meta name=\"robots\" content=\"noindex,nofollow\">\n";
+	/** Core-wp_robots: Share-View → noindex,nofollow (überschreibt index/follow). */
+	public static function force_robots( $robots ) {
+		if ( self::is_share_view() ) {
+			unset( $robots['index'], $robots['follow'] );
+			$robots['noindex']  = true;
+			$robots['nofollow'] = true;
+		}
+		return $robots;
+	}
+
+	/** Yoast (String-Filter, ältere Versionen): Share-View → noindex,nofollow. */
+	public static function yoast_robots_str( $robots ) {
+		return self::is_share_view() ? 'noindex,nofollow' : $robots;
+	}
+
+	/** Yoast (Array-Filter, neuere Versionen): Share-View → noindex,nofollow. */
+	public static function yoast_robots_arr( $robots ) {
+		if ( self::is_share_view() ) {
+			$robots['index']  = 'noindex';
+			$robots['follow'] = 'nofollow';
+		}
+		return $robots;
+	}
+
+	/** Gürtel & Hosenträger: HTTP-Header X-Robots-Tag auf der Share-View (vor jeder Ausgabe). */
+	public static function maybe_robots_header() {
+		if ( self::is_share_view() && ! headers_sent() ) {
+			header( 'X-Robots-Tag: noindex, nofollow', true );
+		}
 	}
 
 	/** Ist der aktuelle Request die öffentliche, token-basierte Share-Ansicht der Garage-Seite? */
