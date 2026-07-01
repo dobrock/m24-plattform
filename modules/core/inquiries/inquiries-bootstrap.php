@@ -71,7 +71,7 @@ class M24_Inquiries {
         //     require_once __DIR__ . '/inquiries-admin-monitor.php';
         // }
 
-        if ( class_exists( 'M24_Logger' ) ) {
+        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
             M24_Logger::info(
                 'inquiries_bootstrap',
                 'Inquiries-Modul geladen',

@@ -33,7 +33,7 @@ class M24_Inquiries_Sidebar {
         add_action( 'wp_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
         add_action( 'wp_footer',          [ __CLASS__, 'render_skeleton' ] );
 
-        if ( class_exists( 'M24_Logger' ) ) {
+        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
             M24_Logger::info( 'inquiries_sidebar', 'Sidebar-Modul geladen', [ 'version' => M24_PLATTFORM_VERSION ] );
         }
     }

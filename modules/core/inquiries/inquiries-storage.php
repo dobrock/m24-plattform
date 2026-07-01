@@ -35,7 +35,7 @@ class M24_Inquiries_Storage {
         add_action( 'manage_' . self::CPT_SLUG . '_posts_custom_column',  [ __CLASS__, 'admin_column_content' ], 10, 2 );
         add_filter( 'manage_edit-' . self::CPT_SLUG . '_sortable_columns', [ __CLASS__, 'admin_sortable_columns' ] );
 
-        if ( class_exists( 'M24_Logger' ) ) {
+        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
             M24_Logger::info( 'inquiries_storage', 'Storage-Modul geladen' );
         }
     }
