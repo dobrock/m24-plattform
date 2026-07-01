@@ -156,7 +156,7 @@ class M24_Garage_PDF {
 
 	/**
 	 * Gemeinsamer Rahmen-CSS für BEIDE Exposés (identisch). Fixed Header/Footer → wiederholen auf jeder
-	 * Seite; @page-Ränder halten oben ~90pt (Logo) und unten ~70pt (Footer) frei, Content überlappt nicht.
+	 * Seite; @page-Ränder halten oben 120pt (Logo-Band) und unten 90pt (4-Zeilen-Footer) frei → kein Overlap.
 	 */
 	private static function frame_css(): string {
 		return self::font_face_css()
@@ -182,6 +182,20 @@ class M24_Garage_PDF {
 			. '<td>VAT No.: DE 356992287<br>EORI: DE 243988567282961<br>HRB 244506 B, AG Charlottenburg</td>'
 			. '</tr></table></div>';
 		return $logo_html . $foot;
+	}
+
+	/**
+	 * EINE gemeinsame Dokument-Hülle für BEIDE Exposés — garantiert identischen <head>/@page (frame_css)
+	 * + Logo/Footer (frame_html). $content_css = NUR content-spezifisches CSS (KEIN zweites @page),
+	 * $body = reiner Content (ohne Logo/Footer). So kann das Fahrzeug-Exposé nicht mehr divergieren.
+	 */
+	private static function document( string $content_css, string $body ): string {
+		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>'
+			. self::frame_css() . $content_css
+			. '</style></head><body>'
+			. self::frame_html( self::logo_uri() )
+			. $body
+			. '</body></html>';
 	}
 
 	/** Beschreibbares Font-Cache-Verzeichnis (vendor/ ist oft read-only). '' wenn nirgends beschreibbar. */
@@ -289,7 +303,6 @@ class M24_Garage_PDF {
 	/* ── HTML (CI: Messing #9a6b25, Blau #0e447e) ────────────────────────── */
 
 	private static function html( array $items, string $grand_fmt, bool $has_unpriced ): string {
-		$logo = self::logo_uri();
 		$date = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y' ) : gmdate( 'd.m.Y' );
 
 		$rows = '';
@@ -313,9 +326,9 @@ class M24_Garage_PDF {
 			? '<p class="note">Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Gesamtsumme enthalten.</p>'
 			: '';
 
-		$css = self::frame_css()
+		$css = // NUR content-spezifisches CSS — @page/Frame kommt aus document()/frame_css().
 			// Titelblock IM Content-Fluss (nicht fixed) — beginnt sauber unter der Header-Zone.
-			. '.g-head { margin: 0 0 14pt; }'
+			'.g-head { margin: 0 0 14pt; }'
 			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
 			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
 			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner.
@@ -337,15 +350,13 @@ class M24_Garage_PDF {
 			. 'table.sum .sum-val { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
-		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>' . $css . '</style></head><body>'
-			. self::frame_html( $logo )
-			. '<div class="g-head"><div class="h-title">Meine Garage</div><div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
+		$body = '<div class="g-head"><div class="h-title">Meine Garage</div><div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
 			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
 			. '<table class="sum"><tr><td class="sum-spacer"></td><td class="sum-lbl">Gesamtsumme</td><td class="sum-val">' . esc_html( $grand_fmt ) . '</td></tr></table>'
-			. $note
-			. '</body></html>';
+			. $note;
+		return self::document( $css, $body );
 	}
 
 	/* ── TEIL B: Fahrzeug-Exposé (gleicher Rahmen, Fahrzeug-Datenblatt) ──────────────────── */
@@ -375,7 +386,6 @@ class M24_Garage_PDF {
 
 	/** HTML des Fahrzeug-Exposés — gleicher Rahmen + Tabellenstil wie das Garage-Exposé. */
 	private static function vehicle_html( int $pid ): string {
-		$logo  = self::logo_uri();
 		$img   = self::vehicle_image_uri( $pid );
 		$title = get_the_title( $pid );
 		$marke = trim( (string) get_post_meta( $pid, '_m24fz_marke', true ) . ' ' . (string) get_post_meta( $pid, '_m24fz_modell', true ) );
@@ -418,10 +428,11 @@ class M24_Garage_PDF {
 
 		$img_html = '' !== $img ? '<img class="hero" src="' . esc_attr( $img ) . '">' : '';
 
-		$css = self::frame_css()
-			. '.v-title { font-size: 20px; font-weight: bold; margin: 0 0 2px; }'
+		$css = // NUR content-spezifisches CSS — @page/Frame kommt aus document()/frame_css().
+			'.v-title { font-size: 20px; font-weight: bold; margin: 0 0 2px; }'
 			. '.v-sub { color: #5a6474; font-size: 12px; margin-bottom: 14px; }'
-			. '.hero { width: 100%; height: auto; margin: 0 0 16px; }'
+			// Hero begrenzt, damit es NIE in die Footer-Zone läuft (max-height statt height:auto ohne Grenze).
+			. '.hero { display: block; max-width: 100%; max-height: 230pt; width: auto; height: auto; margin: 0 0 16px; }'
 			. 'table.specs { width: 100%; border-collapse: collapse; margin-bottom: 8px; }'
 			. 'table.specs td { padding: 7px 6px; border-bottom: 1px solid #eef0f2; vertical-align: top; font-size: 11px; }'
 			. 'table.specs td.k { color: #5a6474; width: 150px; }'
@@ -432,14 +443,12 @@ class M24_Garage_PDF {
 			. '.sec-h { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5a6474; margin: 16px 0 6px; }'
 			. '.besch { font-size: 11px; line-height: 1.55; color: #1a1d23; }';
 
-		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>' . $css . '</style></head><body>'
-			. self::frame_html( $logo )
-			. '<div class="v-title">' . esc_html( $title ) . '</div>'
+		$body = '<div class="v-title">' . esc_html( $title ) . '</div>'
 			. ( '' !== $marke ? '<div class="v-sub">' . esc_html( $marke ) . '</div>' : '' )
 			. $img_html
 			. ( '' !== $rows ? '<table class="specs">' . $rows . '</table>' : '' )
 			. '<div class="price"><span class="lbl">Preis</span><span class="val">' . esc_html( $preis_fmt ) . '</span></div>'
-			. $besch_html
-			. '</body></html>';
+			. $besch_html;
+		return self::document( $css, $body );
 	}
 }
