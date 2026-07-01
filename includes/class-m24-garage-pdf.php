@@ -334,8 +334,10 @@ class M24_Garage_PDF {
 				$unit  = ( null !== $it['unit_fmt'] ) ? esc_html( $it['unit_fmt'] ) : '<span class="ask">Preis auf Anfrage</span>';
 				$line  = ( null !== $it['line_fmt'] ) ? esc_html( $it['line_fmt'] ) : '—';
 				$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
+				$t     = esc_html( $it['title'] );
+				$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
 				$rows .= '<tr>'
-					. '<td class="c-pos"><div class="tit">' . esc_html( $it['title'] ) . '</div>' . $artnr . '</td>'
+					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . '</td>'
 					. '<td class="r c-unit">' . $unit . '</td>'
 					. '<td class="r c-qty">' . (int) $it['qty'] . '</td>'
 					. '<td class="r c-line">' . $line . '</td>'
@@ -351,7 +353,11 @@ class M24_Garage_PDF {
 			// Titelblock IM Content-Fluss (nicht fixed) — beginnt sauber unter der Header-Zone.
 			'.g-head { margin: 0 0 14pt; }'
 			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
+			. '.g-head .h-title a { color: inherit; text-decoration: none; }'
+			. '.g-head .h-garagelink { font-size: 9.5pt; font-style: italic; margin-top: 2px; }'
+			. '.g-head .h-garagelink a { color: #1f74c4; text-decoration: none; }'
 			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
+			. '.tit a { color: inherit; text-decoration: none; }'
 			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner.
 			. 'table.items { width: 100%; border-collapse: collapse; }'
 			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 7pt 8pt; border-bottom: 1px solid #e5e7eb; }'
@@ -371,7 +377,11 @@ class M24_Garage_PDF {
 			. 'table.sum .sum-val { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
-		$body = '<div class="g-head"><div class="h-title">Meine Garage</div><div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
+		$garage_url = apply_filters( 'm24_teile_garage_url', class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
+		$body = '<div class="g-head">'
+			. '<div class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></div>'
+			. '<div class="h-garagelink"><a href="' . esc_url( $garage_url ) . '">Zur Teile-Garage</a></div>'
+			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
 			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
