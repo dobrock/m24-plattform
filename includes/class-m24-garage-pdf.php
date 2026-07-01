@@ -367,7 +367,7 @@ class M24_Garage_PDF {
 				$rows .= '<tr>'
 					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
 					. '<td class="r c-unit">' . $unit_out . '</td>'
-					. '<td class="r c-qty">' . (int) $it['qty'] . '</td>'
+					. '<td class="c-qty">' . (int) $it['qty'] . '</td>'
 					. '<td class="r c-line">' . $line_out . '</td>'
 					. '</tr>';
 			}
@@ -394,6 +394,7 @@ class M24_Garage_PDF {
 			. '.c-unit-col { width: 74pt; } .c-qty-col { width: 38pt; } .c-line-col { width: 78pt; }'
 			. '.c-pos { padding-right: 10pt; }'
 			. 'td.c-unit, td.c-qty, td.c-line { padding-left: 4pt; padding-right: 4pt; }'
+			. '.c-qty-col, td.c-qty { text-align: center; }' // Menge zentriert (Einzelpreis/Summe bleiben rechts)
 			. '.tit { font-weight: bold; font-size: 9.5pt; color: #1a1d23; }'
 			. '.art { color: #9aa3b0; font-size: 7.5pt; margin-top: 2px; }'
 			. '.c-unit, .c-line { white-space: nowrap; } .c-line { font-weight: bold; }'
@@ -417,7 +418,7 @@ class M24_Garage_PDF {
 			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div>'
 			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
-			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe (netto)</th>'
+			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="c-qty-col">Menge</th><th class="r c-line-col">Summe (netto)</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
 			. self::sum_block( $net19_sum, $diff_sum, $fmt )
 			. $note;
@@ -548,10 +549,19 @@ class M24_Garage_PDF {
 
 		$mosaic = self::vehicle_mosaic( $pid );
 
+		// Anfrage-CTA: verfügbar → „Jetzt anfragen" #anfrage; reserviert/verkauft → Interessentenliste.
+		$sold      = class_exists( 'M24FZ_CPT' ) && in_array( M24FZ_CPT::status( $pid ), array( 'reserviert', 'verkauft' ), true );
+		$cta_label = $sold ? 'Auf die Interessentenliste' : 'Jetzt anfragen';
+		$cta_href  = $link . ( $sold ? '#interessent' : '#anfrage' );
+
 		$css = // NUR content-spezifisches CSS — @page/Frame kommt aus document()/frame_css().
-			'.v-title { font-size: 20px; font-weight: bold; margin: 0 0 2px; }'
+			'.v-head { width: 100%; border-collapse: collapse; margin: 0 0 14px; }'
+			. '.v-head td { vertical-align: top; padding: 0; }'
+			. '.v-head .v-cta { text-align: right; vertical-align: middle; }'
+			. '.v-btn { display: inline-block; color: #fff; font-weight: bold; font-size: 11px; text-decoration: none; padding: 8px 16px; border-radius: 8px; background-color: #1a5fa8; background-image: linear-gradient(135deg,#1f74c4,#0e447e); }'
+			. '.v-title { font-size: 20px; font-weight: bold; margin: 0 0 2px; }'
 			. '.v-title a { color: inherit; text-decoration: none; }'
-			. '.v-sub { color: #5a6474; font-size: 12px; margin-bottom: 14px; }'
+			. '.v-sub { color: #5a6474; font-size: 12px; }'
 			// Bild-Mosaik (links groß, rechts 2 gestapelt) — data-URI-Kacheln, background-size:cover.
 			. '.mos { width: 100%; margin: 0 0 16px; border-collapse: collapse; }'
 			. '.mos td { padding: 0; vertical-align: top; } .mos .gap { width: 6pt; }'
@@ -570,8 +580,11 @@ class M24_Garage_PDF {
 			. '.sec-h { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5a6474; margin: 16px 0 6px; }'
 			. '.besch { font-size: 11px; line-height: 1.55; color: #1a1d23; }';
 
-		$body = '<div class="v-title"><a href="' . esc_url( $link ) . '">' . esc_html( $title ) . '</a></div>'
-			. ( '' !== $marke ? '<div class="v-sub">' . esc_html( $marke ) . '</div>' : '' )
+		$body = '<table class="v-head"><tr>'
+			. '<td class="v-l"><div class="v-title"><a href="' . esc_url( $link ) . '">' . esc_html( $title ) . '</a></div>'
+			. ( '' !== $marke ? '<div class="v-sub">' . esc_html( $marke ) . '</div>' : '' ) . '</td>'
+			. '<td class="v-cta"><a class="v-btn" href="' . esc_url( $cta_href ) . '">' . esc_html( $cta_label ) . '</a></td>'
+			. '</tr></table>'
 			. $mosaic
 			. ( '' !== $rows ? '<table class="specs">' . $rows . '</table>' : '' )
 			. '<div class="price"><span class="lbl">Preis</span><span class="val">' . esc_html( $preis_fmt ) . '</span></div>'

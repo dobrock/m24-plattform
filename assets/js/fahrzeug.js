@@ -197,6 +197,10 @@
 			if (ilModal && !ilModal.hidden)     { modalClose(ilModal); }
 			if (parkModal && !parkModal.hidden) { modalClose(parkModal); }
 		});
+
+		// Deep-Link aus PDF-Exposé: Hash öffnet das passende Modal beim Laden.
+		if (anfModal && location.hash === '#anfrage')     { modalOpen(anfModal); }
+		if (ilModal  && location.hash === '#interessent') { modalOpen(ilModal); }
 	}
 
 	// (Kundentyp-Toggle im Anfrage-Modal kommt aus dem gemeinsamen Feld-Set / m24-inquiry-fields.js.)
