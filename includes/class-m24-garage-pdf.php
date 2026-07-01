@@ -69,7 +69,7 @@ class M24_Garage_PDF {
 			catch ( \Throwable $t ) { wp_die( 'PDF-Bibliothek nicht verfügbar.', '', array( 'response' => 500 ) ); }
 			while ( ob_get_level() > 0 ) { ob_end_clean(); }
 			nocache_headers();
-			$dompdf->stream( 'MOTORSPORT24-Expose-' . $pid . '.pdf', array( 'Attachment' => true ) );
+			$dompdf->stream( sanitize_file_name( get_the_title( $pid ) . '-Expose_MOTORSPORT24.pdf' ), array( 'Attachment' => true ) );
 			exit;
 		}
 
@@ -391,7 +391,7 @@ class M24_Garage_PDF {
 			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 6pt 6pt; border-bottom: 1px solid #e5e7eb; }'
 			. 'table.items td { padding: 7pt 6pt; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 9pt; }'
 			. 'table.items th.r, table.items td.r { text-align: right; }'
-			. '.c-unit-col { width: 74pt; } .c-qty-col { width: 38pt; } .c-line-col { width: 78pt; }'
+			. '.c-unit-col { width: 80pt; } .c-qty-col { width: 44pt; } .c-line-col { width: 80pt; }'
 			. '.c-pos { padding-right: 10pt; }'
 			. 'td.c-unit, td.c-qty, td.c-line { padding-left: 4pt; padding-right: 4pt; }'
 			. '.c-qty-col, td.c-qty { text-align: center; }' // Menge zentriert (Einzelpreis/Summe bleiben rechts)
