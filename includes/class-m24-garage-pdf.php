@@ -83,8 +83,10 @@ class M24_Garage_PDF {
 		}
 		list( $grand_num, $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
 		$net_fmt = number_format( (float) $grand_num / 1.19, 2, ',', '.' ) . ' €';
+		$tok       = M24_Garage_Cart::share_token_get_or_create( $acc );
+		$share_url = M24_Garage_Cart::page_url() . '?m24garage_share=' . $tok;
 
-		try { $dompdf = self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt ) ); }
+		try { $dompdf = self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt, $share_url ) ); }
 		catch ( \Throwable $t ) { wp_die( 'PDF-Bibliothek nicht verfügbar.', '', array( 'response' => 500 ) ); }
 
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
@@ -107,7 +109,9 @@ class M24_Garage_PDF {
 		}
 		list( $grand_num, $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
 		$net_fmt = number_format( (float) $grand_num / 1.19, 2, ',', '.' ) . ' €';
-		try { return (string) self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt ) )->output(); }
+		$tok       = M24_Garage_Cart::share_token_get_or_create( $acc );
+		$share_url = M24_Garage_Cart::page_url() . '?m24garage_share=' . $tok;
+		try { return (string) self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt, $share_url ) )->output(); }
 		catch ( \Throwable $t ) { return ''; }
 	}
 
@@ -117,8 +121,9 @@ class M24_Garage_PDF {
 			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 2, 'title' => 'Bremsscheibe vorn (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-1001', 'unit' => 149.90, 'unit_fmt' => '149,90 €', 'line_total' => 299.80, 'line_fmt' => '299,80 €' ),
 			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 1, 'title' => 'Sportfahrwerk-Kit (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-2002', 'unit' => 1290.00, 'unit_fmt' => '1.290,00 €', 'line_total' => 1290.00, 'line_fmt' => '1.290,00 €' ),
 		);
-		$net_fmt = number_format( 1589.80 / 1.19, 2, ',', '.' ) . ' €';
-		try { return (string) self::dompdf_render( self::html( $items, '1.589,80 €', false, $net_fmt ) )->output(); }
+		$net_fmt   = number_format( 1589.80 / 1.19, 2, ',', '.' ) . ' €';
+		$share_url = class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ); // Dummy, kein Token
+		try { return (string) self::dompdf_render( self::html( $items, '1.589,80 €', false, $net_fmt, $share_url ) )->output(); }
 		catch ( \Throwable $t ) { return ''; }
 	}
 
@@ -326,7 +331,7 @@ class M24_Garage_PDF {
 
 	/* ── HTML (CI: Messing #9a6b25, Blau #0e447e) ────────────────────────── */
 
-	private static function html( array $items, string $grand_fmt, bool $has_unpriced, string $net_fmt = '' ): string {
+	private static function html( array $items, string $grand_fmt, bool $has_unpriced, string $net_fmt = '', string $share_url = '' ): string {
 		$date = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y' ) : gmdate( 'd.m.Y' );
 
 		// Netto-Layout: Steuerart je Zeile ableiten, Preise NETTO ausweisen, Totals selbst summieren.
@@ -378,20 +383,22 @@ class M24_Garage_PDF {
 			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
 			. '.g-head .h-title a { color: inherit; text-decoration: none; }'
 			. '.g-head .h-garagelink { font-size: 9.5pt; font-style: italic; margin-top: 2px; }'
-			. '.g-head .h-garagelink a { color: #1f74c4; text-decoration: none; }'
+			. '.g-head .h-garagelink a { color: #9aa3b0; text-decoration: none; }' // hellgrau statt blau
 			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
 			. '.tit a { color: inherit; text-decoration: none; }'
-			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner.
+			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner (1 Stufe kompakter).
 			. 'table.items { width: 100%; border-collapse: collapse; }'
-			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 7pt 8pt; border-bottom: 1px solid #e5e7eb; }'
-			. 'table.items td { padding: 8pt; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 10pt; }'
+			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 6pt 6pt; border-bottom: 1px solid #e5e7eb; }'
+			. 'table.items td { padding: 7pt 6pt; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 9pt; }'
 			. 'table.items th.r, table.items td.r { text-align: right; }'
-			. '.c-unit-col { width: 92pt; } .c-qty-col { width: 52pt; } .c-line-col { width: 92pt; }'
-			. '.tit { font-weight: bold; font-size: 10.5pt; color: #1a1d23; }'
-			. '.art { color: #9aa3b0; font-size: 8pt; margin-top: 2px; }'
+			. '.c-unit-col { width: 74pt; } .c-qty-col { width: 38pt; } .c-line-col { width: 78pt; }'
+			. '.c-pos { padding-right: 10pt; }'
+			. 'td.c-unit, td.c-qty, td.c-line { padding-left: 4pt; padding-right: 4pt; }'
+			. '.tit { font-weight: bold; font-size: 9.5pt; color: #1a1d23; }'
+			. '.art { color: #9aa3b0; font-size: 7.5pt; margin-top: 2px; }'
 			. '.c-unit, .c-line { white-space: nowrap; } .c-line { font-weight: bold; }'
 			. '.ask { color: #9a6b25; }'
-			. '.tax-diff { color: #9a6b25; font-size: 8pt; margin-top: 3px; }' // Messing-Markierung §25a
+			. '.tax-diff { color: #9aa3b0; font-size: 8pt; margin-top: 3px; }' // §25a-Markierung hellgrau
 			. '.empty { text-align: center; color: #6b7280; padding: 22pt 0; }'
 			// Totals = rechtsbündiger grauer Block (#f3f4f6). Netto/USt/§25a klein grau, Gesamt fett.
 			. 'table.sum { width: 100%; border-collapse: collapse; margin-top: 12pt; }'
@@ -403,10 +410,11 @@ class M24_Garage_PDF {
 			. 'table.sum .sum-total { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; border-top: 1px solid #d1d5db; padding: 6pt 8pt 8pt; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
-		$garage_url = apply_filters( 'm24_teile_garage_url', class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
+		// „Zur Teile-Garage" = generierter Share-Direktlink (Fallback: Garage-Seite ohne Token).
+		$link_url = '' !== $share_url ? $share_url : ( class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
 		$body = '<div class="g-head">'
 			. '<div class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></div>'
-			. '<div class="h-garagelink"><a href="' . esc_url( $garage_url ) . '">Zur Teile-Garage</a></div>'
+			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div>'
 			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
 			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe (netto)</th>'
@@ -442,28 +450,54 @@ class M24_Garage_PDF {
 		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&expose=vehicle&pid=' . $pid ), self::NONCE );
 	}
 
-	/** Fahrzeug-Hauptbild als data:-URI (Featured → sonst erstes Außen-Galeriebild). */
-	private static function vehicle_image_uri( int $pid ): string {
-		$tid = (int) get_post_thumbnail_id( $pid );
-		if ( ! $tid ) {
-			$gal = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $pid, '_m24fz_gal_aussen', true ) ) ) );
-			$tid = ! empty( $gal ) ? (int) $gal[0] : 0;
-		}
-		if ( ! $tid ) { return ''; }
+	/** Ein Attachment als data:-URI (large → Original). '' wenn nicht lesbar. */
+	private static function attachment_data_uri( int $tid ): string {
+		if ( $tid <= 0 ) { return ''; }
 		$file  = '';
 		$inter = image_get_intermediate_size( $tid, 'large' );
-		if ( $inter && ! empty( $inter['path'] ) ) {
-			$up   = wp_get_upload_dir();
-			$file = trailingslashit( $up['basedir'] ) . $inter['path'];
-		}
+		if ( $inter && ! empty( $inter['path'] ) ) { $up = wp_get_upload_dir(); $file = trailingslashit( $up['basedir'] ) . $inter['path']; }
 		if ( '' === $file || ! is_readable( $file ) ) { $file = (string) get_attached_file( $tid ); }
 		return self::file_data_uri( $file, 2 * 1024 * 1024 );
 	}
 
+	/** Erste bis zu 3 Außen-Galeriebilder als data:-URIs (Fallback Featured), wie die Fahrzeugseite. */
+	private static function vehicle_gallery_uris( int $pid ): array {
+		$ids = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $pid, '_m24fz_gal_aussen', true ) ) ) );
+		if ( empty( $ids ) ) { $f = (int) get_post_thumbnail_id( $pid ); if ( $f ) { $ids[] = $f; } }
+		$ids = array_slice( $ids, 0, 3 );
+		$u   = array();
+		foreach ( $ids as $id ) { $d = self::attachment_data_uri( $id ); if ( '' !== $d ) { $u[] = $d; } }
+		return $u;
+	}
+
+	/** Bild-Mosaik (links groß, rechts 2 gestapelt) wie auf der Fahrzeugseite. '' bei 0 Bildern. */
+	private static function vehicle_mosaic( int $pid ): string {
+		$u = self::vehicle_gallery_uris( $pid );
+		$n = count( $u );
+		if ( 0 === $n ) { return ''; }
+		$bg = function ( $src ) { return 'background-image:url(' . $src . ')'; };
+		if ( $n >= 3 ) {
+			return '<table class="mos"><tr>'
+				. '<td style="width:300pt"><div class="tile big" style="' . $bg( $u[0] ) . '"></div></td>'
+				. '<td class="gap"></td>'
+				. '<td class="rcol"><div class="tile" style="' . $bg( $u[1] ) . '"></div>'
+				. '<div class="tile t2" style="' . $bg( $u[2] ) . '"></div></td>'
+				. '</tr></table>';
+		}
+		if ( 2 === $n ) {
+			return '<table class="mos"><tr>'
+				. '<td style="width:300pt"><div class="tile big" style="' . $bg( $u[0] ) . '"></div></td>'
+				. '<td class="gap"></td>'
+				. '<td><div class="tile duo-r" style="' . $bg( $u[1] ) . '"></div></td>'
+				. '</tr></table>';
+		}
+		return '<div class="tile solo" style="' . $bg( $u[0] ) . '"></div>';
+	}
+
 	/** HTML des Fahrzeug-Exposés — gleicher Rahmen + Tabellenstil wie das Garage-Exposé. */
 	private static function vehicle_html( int $pid ): string {
-		$img   = self::vehicle_image_uri( $pid );
 		$title = get_the_title( $pid );
+		$link  = get_permalink( $pid );
 		$marke = trim( (string) get_post_meta( $pid, '_m24fz_marke', true ) . ' ' . (string) get_post_meta( $pid, '_m24fz_modell', true ) );
 
 		$m = function ( $key ) use ( $pid ) { return trim( (string) get_post_meta( $pid, '_m24fz_' . $key, true ) ); };
@@ -512,13 +546,19 @@ class M24_Garage_PDF {
 		$besch = (string) get_post_meta( $pid, '_m24fz_beschreibung', true );
 		$besch_html = '' !== trim( $besch ) ? '<div class="sec-h">Beschreibung</div><div class="besch">' . nl2br( esc_html( wp_strip_all_tags( $besch ) ) ) . '</div>' : '';
 
-		$img_html = '' !== $img ? '<img class="hero" src="' . esc_attr( $img ) . '">' : '';
+		$mosaic = self::vehicle_mosaic( $pid );
 
 		$css = // NUR content-spezifisches CSS — @page/Frame kommt aus document()/frame_css().
 			'.v-title { font-size: 20px; font-weight: bold; margin: 0 0 2px; }'
+			. '.v-title a { color: inherit; text-decoration: none; }'
 			. '.v-sub { color: #5a6474; font-size: 12px; margin-bottom: 14px; }'
-			// Hero begrenzt, damit es NIE in die Footer-Zone läuft (max-height statt height:auto ohne Grenze).
-			. '.hero { display: block; max-width: 100%; max-height: 230pt; width: auto; height: auto; margin: 0 0 16px; }'
+			// Bild-Mosaik (links groß, rechts 2 gestapelt) — data-URI-Kacheln, background-size:cover.
+			. '.mos { width: 100%; margin: 0 0 16px; border-collapse: collapse; }'
+			. '.mos td { padding: 0; vertical-align: top; } .mos .gap { width: 6pt; }'
+			. '.tile { background-repeat: no-repeat; background-position: center; background-size: cover; }'
+			. '.mos .big { width: 300pt; height: 200pt; }'
+			. '.mos .rcol .tile { height: 97pt; } .mos .rcol .t2 { margin-top: 6pt; }'
+			. '.solo { width: 100%; height: 230pt; } .duo-r { height: 200pt; }'
 			. 'table.specs { width: 100%; border-collapse: collapse; margin-bottom: 8px; }'
 			. 'table.specs td { padding: 7px 6px; border-bottom: 1px solid #eef0f2; vertical-align: top; font-size: 11px; }'
 			. 'table.specs td.k { color: #5a6474; width: 150px; }'
@@ -526,13 +566,13 @@ class M24_Garage_PDF {
 			. '.price { margin: 14px 0; padding-top: 10px; border-top: 2px solid #14161a; text-align: right; }'
 			. '.price .lbl { color: #5a6474; font-size: 11px; }'
 			. '.price .val { font-size: 17px; font-weight: bold; margin-left: 14px; }'
-			. '.price-tax { text-align: right; color: #5a6474; font-size: 9.5px; margin-top: 3px; }'
+			. '.price-tax { text-align: right; color: #9aa3b0; font-size: 9.5px; margin-top: 3px; }'
 			. '.sec-h { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5a6474; margin: 16px 0 6px; }'
 			. '.besch { font-size: 11px; line-height: 1.55; color: #1a1d23; }';
 
-		$body = '<div class="v-title">' . esc_html( $title ) . '</div>'
+		$body = '<div class="v-title"><a href="' . esc_url( $link ) . '">' . esc_html( $title ) . '</a></div>'
 			. ( '' !== $marke ? '<div class="v-sub">' . esc_html( $marke ) . '</div>' : '' )
-			. $img_html
+			. $mosaic
 			. ( '' !== $rows ? '<table class="specs">' . $rows . '</table>' : '' )
 			. '<div class="price"><span class="lbl">Preis</span><span class="val">' . esc_html( $preis_fmt ) . '</span></div>'
 			. ( '' !== $tax_note ? '<div class="price-tax">' . esc_html( $tax_note ) . '</div>' : '' )
