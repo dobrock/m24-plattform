@@ -132,12 +132,6 @@ class M24_Garage_PDF {
 		return 'data:' . $mime . ';base64,' . base64_encode( $data );
 	}
 
-	private static function logo_uri(): string {
-		// Farb-Logo (motorsport24-logo.jpg, 600×135) bevorzugt; Fallback auf bestehendes PNG.
-		$jpg = self::file_data_uri( M24_PLATTFORM_DIR . 'assets/img/motorsport24-logo.jpg', 800 * 1024 );
-		return '' !== $jpg ? $jpg : self::file_data_uri( M24_PLATTFORM_DIR . 'assets/img/m24-logo.png', 400 * 1024 );
-	}
-
 	/* ── Gemeinsames Briefpapier (Logo-Header + 4-Spalten-Footer, Liberation Sans) ──────── */
 
 	/**
@@ -159,41 +153,24 @@ class M24_Garage_PDF {
 	 * Seite; @page-Ränder halten oben 120pt (Logo-Band) und unten 90pt (4-Zeilen-Footer) frei → kein Overlap.
 	 */
 	private static function frame_css(): string {
+		// Logo + 4-Spalten-Footer werden NICHT per CSS (position:fixed unzuverlässig), sondern per Canvas
+		// in absoluten Seitenkoordinaten gezeichnet — siehe draw_frame(). Hier nur die Content-Zone.
 		return self::font_face_css()
 			// Content-Zone reservieren: oben 120pt (Logo-Band + Luft), unten 90pt (4-Zeilen-Footer + Luft),
 			// seitlich 56pt. Fließtext läuft dadurch WEDER in die Header- NOCH in die Footer-Zone.
 			. '@page{size:A4;margin:120pt 56pt 90pt 56pt;}'
-			. 'body{margin:0;font-family:"Liberation Sans",Arial,sans-serif;color:#1a1d23;font-size:11px;}'
-			// Logo hoch im oberen Seitenrand (Header-Zone), rechte Kante x=549pt (595,28 − 46,28).
-			. '.m24-logo{position:fixed;right:46.28pt;top:22pt;width:130pt;height:29.2pt;}'
-			// Footer tief am unteren Seitenrand (Footer-Zone), kompakter Zeilenabstand.
-			. '.m24-foot{position:fixed;left:46.28pt;right:46.28pt;bottom:22pt;}'
-			. '.m24-foot table{width:100%;border-collapse:collapse;}'
-			. '.m24-foot td{width:120.75pt;font-size:6.5pt;line-height:1.0;color:#6b7280;vertical-align:top;padding:0;}';
-	}
-
-	/** Fixed Logo-Header (rechts oben) + fixed 4-Spalten-Footer — auf jeder Seite. */
-	private static function frame_html( string $logo ): string {
-		$logo_html = '' !== $logo ? '<img class="m24-logo" src="' . esc_attr( $logo ) . '">' : '';
-		$foot = '<div class="m24-foot"><table><tr>'
-			. '<td>MOTORSPORT24 GmbH<br>Scharfe Lanke 109-131<br>D-13595 Berlin, Germany</td>'
-			. '<td>Tel: +49 (0)30 692014090<br>E-Mail: info@motorsport24.de<br>www.motorsport24.de</td>'
-			. '<td>Bank: Commerzbank AG<br>IBAN: DE81 1204 0000 0133 3905 00<br>BIC: COBADEFFXXX</td>'
-			. '<td>VAT No.: DE 356992287<br>EORI: DE 243988567282961<br>HRB 244506 B, AG Charlottenburg</td>'
-			. '</tr></table></div>';
-		return $logo_html . $foot;
+			. 'body{margin:0;font-family:"Liberation Sans",Arial,sans-serif;color:#1a1d23;font-size:11px;}';
 	}
 
 	/**
-	 * EINE gemeinsame Dokument-Hülle für BEIDE Exposés — garantiert identischen <head>/@page (frame_css)
-	 * + Logo/Footer (frame_html). $content_css = NUR content-spezifisches CSS (KEIN zweites @page),
-	 * $body = reiner Content (ohne Logo/Footer). So kann das Fahrzeug-Exposé nicht mehr divergieren.
+	 * EINE gemeinsame Dokument-Hülle für BEIDE Exposés — garantiert identischen <head>/@page (frame_css).
+	 * $content_css = NUR content-spezifisches CSS (KEIN zweites @page), $body = reiner Content.
+	 * Logo + Footer kommen NICHT aus dem HTML, sondern per Canvas (draw_frame) in Seitenkoordinaten.
 	 */
 	private static function document( string $content_css, string $body ): string {
 		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>'
 			. self::frame_css() . $content_css
 			. '</style></head><body>'
-			. self::frame_html( self::logo_uri() )
 			. $body
 			. '</body></html>';
 	}
@@ -270,6 +247,49 @@ class M24_Garage_PDF {
 		}
 	}
 
+	/**
+	 * Logo + 4-Spalten-Footer per Dompdf-Canvas in ABSOLUTEN Seitenkoordinaten zeichnen (nach dem Render).
+	 * Grund: position:fixed wird in dieser Dompdf-Version relativ zur @page-Content-Box positioniert, nicht
+	 * zur physischen Seite → CSS-Fixed-Header/Footer landeten IM Content. page_script/page_text umgeht das
+	 * und wiederholt Logo+Footer auf JEDER Seite in den Randbändern.
+	 */
+	private static function draw_frame( $dompdf ): void {
+		$canvas = $dompdf->getCanvas();
+		$fm     = $dompdf->getFontMetrics();
+		if ( ! $canvas ) { return; }
+		$W = $canvas->get_width(); // A4 = 595.28pt
+
+		// Logo oben rechts im oberen Randband (rechte Kante x=549pt, 130×29,2pt, y=28).
+		$logo = M24_PLATTFORM_DIR . 'assets/img/motorsport24-logo.jpg';
+		if ( ! is_readable( $logo ) ) { $logo = M24_PLATTFORM_DIR . 'assets/img/m24-logo.png'; }
+		if ( is_readable( $logo ) ) {
+			$lw = 130.0; $lh = 29.2; $lx = $W - 46.28 - $lw; $ly = 28.0;
+			$canvas->page_script( function ( $pageNumber, $pageCount, $canvas, $fontMetrics ) use ( $logo, $lx, $ly, $lw, $lh ) {
+				$canvas->image( $logo, $lx, $ly, $lw, $lh );
+			} );
+		}
+
+		// 4-Spalten-Footer im unteren Randband (y=795, 6.5pt, grau, Zeilenhöhe 8).
+		$font = $fm ? $fm->getFont( 'Liberation Sans', 'normal' ) : null;
+		if ( ! $font && $fm ) { $font = $fm->getFont( 'Helvetica', 'normal' ); }
+		if ( $font ) {
+			$grey = array( 0.42, 0.45, 0.49 ); // ~#6b7280
+			$cols = array( 46.28, 46.28 + 120.75, 46.28 + 2 * 120.75, 46.28 + 3 * 120.75 );
+			$foot = array(
+				array( 'MOTORSPORT24 GmbH', 'Scharfe Lanke 109-131', 'D-13595 Berlin, Germany' ),
+				array( 'Tel: +49 (0)30 692014090', 'E-Mail: info@motorsport24.de', 'www.motorsport24.de' ),
+				array( 'Bank: Commerzbank AG', 'IBAN: DE81 1204 0000 0133 3905 00', 'BIC: COBADEFFXXX' ),
+				array( 'VAT No.: DE 356992287', 'EORI: DE 243988567282961', 'HRB 244506 B, AG Charlottenburg' ),
+			);
+			$fy = 795.0; $size = 6.5; $lh2 = 8.0;
+			foreach ( $cols as $ci => $x ) {
+				foreach ( $foot[ $ci ] as $li => $line ) {
+					$canvas->page_text( $x, $fy + $li * $lh2, $line, $font, $size, $grey );
+				}
+			}
+		}
+	}
+
 	/** HTML → gerendertes Dompdf-Objekt (gemeinsamer Pfad). Wirft, wenn die Lib fehlt. */
 	private static function dompdf_render( string $html ) {
 		$autoload = M24_PLATTFORM_DIR . 'vendor/autoload.php';
@@ -281,6 +301,7 @@ class M24_Garage_PDF {
 		$dompdf->loadHtml( $html, 'UTF-8' );
 		$dompdf->setPaper( 'A4', 'portrait' );
 		$dompdf->render();
+		self::draw_frame( $dompdf ); // Logo + Footer in absoluten Seitenkoordinaten (jede Seite)
 		return $dompdf;
 	}
 
