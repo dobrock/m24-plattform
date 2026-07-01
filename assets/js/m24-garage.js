@@ -20,6 +20,48 @@
 		}).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
 	}
 
+	/* ── Gesamt/Netto live (alle [data-m24gc-grand]/[data-m24gc-net]); Netto = Brutto/1,19) ── */
+	function parseMoney(str) { // "1.234,56 €" → 1234.56
+		var m = String(str).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+		var n = parseFloat(m);
+		return isNaN(n) ? null : n;
+	}
+	function fmtMoney(n) { // 1234.56 → "1.234,56 €" (identisch zu M24_Catalog_Pricing::format)
+		return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+	}
+	function setGrand(fmt) {
+		if (!fmt) { return; }
+		document.querySelectorAll('[data-m24gc-grand]').forEach(function (el) { el.textContent = fmt; });
+		var b = parseMoney(fmt);
+		if (b !== null) {
+			var net = fmtMoney(b / 1.19);
+			document.querySelectorAll('[data-m24gc-net]').forEach(function (el) { el.textContent = net; });
+		}
+	}
+
+	/* ── Tab-Umschaltung (client-seitig, kein Reload) ── */
+	(function () {
+		var tabsWrap = document.querySelector('[data-m24gc-tabs]');
+		if (!tabsWrap) { return; }
+		var tabs = tabsWrap.querySelectorAll('[data-m24gc-tab]');
+		var panels = document.querySelectorAll('[data-m24gc-panel]');
+		tabsWrap.addEventListener('click', function (e) {
+			var btn = e.target.closest('[data-m24gc-tab]');
+			if (!btn) { return; }
+			var key = btn.getAttribute('data-m24gc-tab');
+			tabs.forEach(function (t) {
+				var on = t === btn;
+				t.classList.toggle('is-active', on);
+				if (on) { t.setAttribute('aria-selected', 'true'); } else { t.removeAttribute('aria-selected'); }
+			});
+			panels.forEach(function (p) {
+				var on = p.getAttribute('data-m24gc-panel') === key;
+				p.classList.toggle('is-active', on);
+				p.hidden = !on;
+			});
+		});
+	})();
+
 	/* ── Zähler (Schwebe-FAB + jeder Header-Slot mit [data-m24-garage-count]) ── */
 	function updateCount(count) {
 		if (typeof count !== 'number') { return; }
@@ -116,8 +158,7 @@
 					var lineEl = row.querySelector('[data-m24gc-line]');
 					if (lineEl) { lineEl.textContent = d.line_fmt || '—'; }
 				}
-				var grand = document.querySelector('[data-m24gc-grand]');
-				if (grand && d.grand_fmt) { grand.textContent = d.grand_fmt; }
+				setGrand(d.grand_fmt);
 			}).catch(function () {
 				row.dataset.busy = '';
 				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');

@@ -53,6 +53,7 @@ class M24_Garage_Cart {
 		// robots-Meta gibt tagDiv DIREKT im Header-Template aus (vor wp_head) → nur ein Vollseiten-Puffer
 		// erreicht sie. Auf template_redirect (vor Theme-Header) starten, Callback ersetzt sie global.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_start_page_buffer' ), 0 );
+		add_action( 'wp_head', array( __CLASS__, 'hide_theme_title' ), 99 );
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -630,59 +631,118 @@ class M24_Garage_Cart {
 		}
 
 		$items = self::items( $acc );
-		list( , $grand_fmt, $has_unpriced ) = self::grand_total( $items );
-		?>
-		<?php
+		list( $grand_num, $grand_fmt, $has_unpriced ) = self::grand_total( $items );
+		$net_fmt = self::fmt( $grand_num / 1.19 );
+		$count   = count( $items );
+		$unpriced = 0;
+		foreach ( $items as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
+
 		$share_tok = self::share_token_existing( $acc );
 		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
+
+		$u        = wp_get_current_user();
+		$email    = $u ? (string) $u->user_email : '';
+		$initials = self::initials( $u && '' !== trim( (string) $u->display_name ) ? (string) $u->display_name : $email );
+		$logout   = wp_logout_url( self::page_url() );
 		?>
-		<div class="m24gc-page" data-m24gc-page>
-			<h2 class="m24gc-h">Meine Garage</h2>
+		<div class="m24gc-page m24gc-dash" data-m24gc-page>
+			<header class="m24gc-dash-head">
+				<h1 class="m24gc-dash-title">Meine Garage</h1>
+				<div class="m24gc-userline">
+					<span class="m24gc-avatar" aria-hidden="true"><?php echo esc_html( $initials ); ?></span>
+					<span class="m24gc-user-email"><?php echo esc_html( $email ); ?></span>
+					<a class="m24gc-logout" href="<?php echo esc_url( $logout ); ?>">abmelden</a>
+				</div>
+			</header>
 
-			<div class="m24gc-share" data-m24gc-share>
-				<h3 class="m24gc-share-h">Garage-Link versenden</h3>
-				<p class="m24gc-share-sub">Teile den aktuellen Inhalt deiner Garage. Empfänger sehen ihn ohne Login, schreibgeschützt inkl. Preise.</p>
-				<div class="m24gc-share-row">
-					<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
-					<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
-					<a class="m24gc-share-btn" data-m24gc-share-mail href="#"<?php echo '' === $share_url ? ' hidden' : ''; ?>>Per E-Mail</a>
-				</div>
-				<div class="m24gc-share-actions">
-					<button type="button" class="m24gc-share-gen" data-m24gc-share-generate<?php echo '' === $share_url ? '' : ' hidden'; ?>>Garage-Link erzeugen</button>
-					<button type="button" class="m24gc-share-rotate" data-m24gc-share-rotate<?php echo '' === $share_url ? ' hidden' : ''; ?>>Link zurückziehen / neu erzeugen</button>
-					<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
-				</div>
-			</div>
+			<nav class="m24gc-tabs" role="tablist" data-m24gc-tabs>
+				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="vehicles">Geparkte Fahrzeuge</button>
+				<button type="button" class="m24gc-tab is-active" role="tab" aria-selected="true" data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24-garage-count><?php echo (int) $count; ?></span></button>
+				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="notify">Benachrichtigungen</button>
+			</nav>
 
-			<?php if ( empty( $items ) ) : ?>
-				<p class="m24gc-empty" data-m24gc-emptystate>Deine Garage ist noch leer. Lege Fahrzeuge oder Teile über „In meine Garage" hinein.</p>
-			<?php else : ?>
-				<div class="m24gc-list" data-m24gc-list>
-					<?php foreach ( $items as $it ) : self::render_row( $it ); endforeach; ?>
+			<!-- TAB: Geparkte Fahrzeuge — Etappe 1 Platzhalter -->
+			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="vehicles" hidden>
+				<div class="m24gc-emptybox">
+					<div class="m24gc-emptybox-t">Deine geparkten Fahrzeuge erscheinen hier</div>
+					<p class="m24gc-emptybox-s">Sobald du ein Fahrzeug in deine Garage legst, findest du es in diesem Tab.</p>
 				</div>
-				<div class="m24gc-summary">
-					<span class="m24gc-summary-label">Gesamtsumme</span>
-					<span class="m24gc-grand" data-m24gc-grand><?php echo esc_html( $grand_fmt ); ?></span>
-				</div>
-				<?php if ( $has_unpriced ) : ?>
-					<p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
-				<?php endif; ?>
-				<div class="m24gc-send" data-m24gc-send>
-					<h3 class="m24gc-send-h">Garage als Anfrage senden</h3>
-					<p class="m24gc-send-sub">Wir übernehmen alle Positionen als Sammelanfrage an MOTORSPORT24. Deine Kontaktdaten sind hinterlegt — du musst nichts erneut eingeben.</p>
-					<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Optionale Nachricht (z. B. Wunschtermin oder Rückfrage)"></textarea>
-					<div class="m24gc-send-actions">
-						<button type="button" class="m24gc-send-btn" data-m24gc-send-btn>Garage als Anfrage senden</button>
-						<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
+			</section>
+
+			<!-- TAB: Teile-Merkzettel — bestehender Cart (umgezogen) -->
+			<section class="m24gc-panel is-active" role="tabpanel" data-m24gc-panel="parts">
+				<?php if ( empty( $items ) ) : ?>
+					<div class="m24gc-emptybox" data-m24gc-emptystate>
+						<div class="m24gc-emptybox-t">Dein Teile-Merkzettel ist leer</div>
+						<p class="m24gc-emptybox-s">Lege Teile über „In meine Garage" auf jeder Teile-Seite hinein.</p>
 					</div>
+				<?php else : ?>
+					<div class="m24gc-grid">
+						<div class="m24gc-col-main">
+							<div class="m24gc-list" data-m24gc-list>
+								<?php foreach ( $items as $it ) : self::render_row( $it ); endforeach; ?>
+							</div>
+							<div class="m24gc-listfoot">
+								<span class="m24gc-listfoot-l"><?php echo (int) $count; ?> Position<?php echo 1 === $count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
+								<span class="m24gc-listfoot-r">
+									<span class="m24gc-brutto" data-m24gc-grand><?php echo esc_html( $grand_fmt ); ?></span>
+									<span class="m24gc-net"><span data-m24gc-net><?php echo esc_html( $net_fmt ); ?></span> netto</span>
+								</span>
+							</div>
+						</div>
+						<aside class="m24gc-col-side">
+							<div class="m24gc-card m24gc-sumcard" data-m24gc-send>
+								<h3 class="m24gc-card-h">Gesamt · inkl. 19 % USt</h3>
+								<div class="m24gc-brutto-big" data-m24gc-grand><?php echo esc_html( $grand_fmt ); ?></div>
+								<div class="m24gc-net"><span data-m24gc-net><?php echo esc_html( $net_fmt ); ?></span> netto</div>
+								<?php if ( $has_unpriced ) : ?><p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p><?php endif; ?>
+								<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Nachricht (optional)"></textarea>
+								<button type="button" class="m24gc-send-btn m24gc-btn-blue" data-m24gc-send-btn>Als Anfrage senden</button>
+								<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
+								<p class="m24gc-hint">Deine Kontaktdaten sind hinterlegt.</p>
+							</div>
+							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
+								<h3 class="m24gc-card-h">Teilen &amp; sichern</h3>
+								<div class="m24gc-share-row">
+									<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
+									<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
+								</div>
+								<div class="m24gc-share-actions">
+									<a class="m24gc-share-link" data-m24gc-share-mail href="#"<?php echo '' === $share_url ? ' hidden' : ''; ?>>Teilen per E-Mail</a>
+									<button type="button" class="m24gc-share-gen" data-m24gc-share-generate<?php echo '' === $share_url ? '' : ' hidden'; ?>>Garage-Link erzeugen</button>
+									<button type="button" class="m24gc-share-rotate" data-m24gc-share-rotate<?php echo '' === $share_url ? ' hidden' : ''; ?>>Link zurückziehen / neu erzeugen</button>
+									<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
+								</div>
+								<a class="m24gc-pdf-btn m24gc-btn-brass" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Als PDF herunterladen</a>
+							</div>
+						</aside>
+					</div>
+				<?php endif; ?>
+			</section>
+
+			<!-- TAB: Benachrichtigungen — Etappe 3 Platzhalter -->
+			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="notify" hidden>
+				<div class="m24gc-emptybox">
+					<div class="m24gc-emptybox-t">Noch keine Benachrichtigungen</div>
+					<p class="m24gc-emptybox-s">Hier kannst du künftig Preis- und Verfügbarkeits-Alarme für deine Garage verwalten.</p>
 				</div>
-				<div class="m24gc-pageactions">
-					<a class="m24gc-pdf-btn" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Garage als PDF herunterladen</a>
-				</div>
-			<?php endif; ?>
+			</section>
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/** Initialen (max. 2) aus Anzeigename oder E-Mail für den Avatar. */
+	private static function initials( string $base ): string {
+		$base = trim( $base );
+		$ini  = '';
+		foreach ( preg_split( '/[\s@._\-]+/', $base ) as $w ) {
+			if ( '' === $w ) { continue; }
+			$ini .= mb_substr( $w, 0, 1 );
+			if ( mb_strlen( $ini ) >= 2 ) { break; }
+		}
+		if ( '' === $ini ) { $ini = mb_substr( $base, 0, 2 ); }
+		return mb_strtoupper( $ini );
 	}
 
 	/**
@@ -755,6 +815,25 @@ class M24_Garage_Cart {
 		if ( self::is_share_view() && ! headers_sent() ) {
 			header( 'X-Robots-Tag: noindex, nofollow', true );
 		}
+	}
+
+	/**
+	 * Doppelten Titel vermeiden: Dashboard rendert „Meine Garage" selbst → Theme-Seitentitel auf der
+	 * Eigentümer-Garage-Seite ausblenden. NICHT auf der Share-View (die bleibt unangetastet). Scoped
+	 * auf body.page-id-{ID}; Selektorliste filterbar (analog Confirm-Seite).
+	 */
+	public static function hide_theme_title() {
+		if ( is_admin() ) { return; }
+		$pid = (int) get_option( self::PAGE_OPTION );
+		if ( ! $pid || ! is_page( $pid ) ) { return; }
+		if ( ! empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification — Share-View unberührt
+		if ( self::current_account_id() <= 0 ) { return; } // Gast-Hinweis behält Theme-Titel
+		$selectors = apply_filters( 'm24_garage_hide_title_selectors', array(
+			'.td-page-header', '.td-page-title', '.entry-title', '.tdb-title-text', '.tdb_title',
+		) );
+		$scoped = array();
+		foreach ( (array) $selectors as $sel ) { $scoped[] = 'body.page-id-' . $pid . ' ' . $sel; }
+		echo '<style id="m24gc-hide-title">' . implode( ',', $scoped ) . '{display:none!important}</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	/** Ist der aktuelle Request die öffentliche, token-basierte Share-Ansicht der Garage-Seite? */
