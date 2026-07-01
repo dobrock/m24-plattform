@@ -42,6 +42,10 @@ class M24_Garage_Cart {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_counter' ) );
 		add_action( 'wp_head', array( __CLASS__, 'maybe_noindex' ) );
+		// Social-Preview NUR auf der geteilten Read-only-Ansicht: Head puffern (vor Yoast prio 1),
+		// konkurrierende og:/twitter:-Tags entfernen, eigenen Satz anhängen (keine Dubletten).
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 9 );
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -720,6 +724,76 @@ class M24_Garage_Cart {
 		if ( empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
 		if ( ! is_page() || (int) get_queried_object_id() !== (int) get_option( self::PAGE_OPTION ) ) { return; }
 		echo "\n<meta name=\"robots\" content=\"noindex,nofollow\">\n";
+	}
+
+	/** Ist der aktuelle Request die öffentliche, token-basierte Share-Ansicht der Garage-Seite? */
+	private static function is_share_view(): bool {
+		if ( empty( $_GET[ self::SHARE_QUERY ] ) ) { return false; } // phpcs:ignore WordPress.Security.NonceVerification
+		return is_page() && (int) get_queried_object_id() === (int) get_option( self::PAGE_OPTION );
+	}
+
+	private static $og_buf = false;
+
+	/** Head ab Prio 0 puffern (vor Yoast prio 1) — nur auf der Share-Ansicht. */
+	public static function og_buffer_start() {
+		if ( self::is_share_view() ) {
+			self::$og_buf = true;
+			ob_start();
+		}
+	}
+
+	/** Konkurrierende og:/twitter:-Meta aus dem Puffer entfernen, eigenen Satz anhängen. */
+	public static function og_buffer_end() {
+		if ( ! self::$og_buf ) { return; }
+		self::$og_buf = false;
+		$head = (string) ob_get_clean();
+		// Fremd-OG/Twitter (Yoast/tagDiv) für diese URL entfernen → keine Dubletten.
+		$head = preg_replace(
+			'#[ \t]*<meta[^>]+(?:property=[\'"]og:[^\'"]*[\'"]|name=[\'"]twitter:[^\'"]*[\'"])[^>]*>\s*#i',
+			'',
+			$head
+		);
+		echo $head; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — WP-Core-Head, unverändert durchgereicht
+		echo self::share_og_tags(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — intern escaped
+	}
+
+	/**
+	 * OG-/Twitter-Block für die geteilte Garage. Bild als Filter/Konstante (leicht austauschbar).
+	 * WhatsApp bevorzugt < ~300 KB & Landscape → Photon-Resize auf 1200×630 (statt 2048er-Original).
+	 * Kein Token-Leak über die kanonische Share-URL hinaus, keine PII.
+	 */
+	private static function share_og_tags(): string {
+		$token = sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		$url   = self::share_url( $token );
+		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal, in meine MOTORSPORT24-Garage' );
+		$desc  = apply_filters( 'm24_garage_share_og_desc', 'Fahrzeuge & Teile, die ich bei MOTORSPORT24 zusammengestellt habe.' );
+		// Feste Startvorschau (Kotflügel-WebP); Photon-Resize auf WhatsApp-taugliche 1200×630. Filterbar.
+		$src   = 'https://i0.wp.com/www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
+		$img   = apply_filters( 'm24_garage_share_og_image', $src . '?resize=1200%2C630&ssl=1' );
+		$w     = (int) apply_filters( 'm24_garage_share_og_w', 1200 );
+		$h     = (int) apply_filters( 'm24_garage_share_og_h', 630 );
+
+		$out  = "\n";
+		$prop = function ( $key, $val ) {
+			return '<meta property="' . esc_attr( $key ) . '" content="' . esc_attr( $val ) . '">' . "\n";
+		};
+		$name = function ( $key, $val ) {
+			return '<meta name="' . esc_attr( $key ) . '" content="' . esc_attr( $val ) . '">' . "\n";
+		};
+		$out .= $prop( 'og:type', 'website' );
+		$out .= $prop( 'og:site_name', 'MOTORSPORT24' );
+		$out .= $prop( 'og:title', $title );
+		$out .= $prop( 'og:description', $desc );
+		$out .= $prop( 'og:url', esc_url_raw( $url ) );
+		$out .= $prop( 'og:image', esc_url_raw( $img ) );
+		$out .= $prop( 'og:image:secure_url', esc_url_raw( $img ) );
+		if ( $w > 0 ) { $out .= $prop( 'og:image:width', (string) $w ); }
+		if ( $h > 0 ) { $out .= $prop( 'og:image:height', (string) $h ); }
+		$out .= $name( 'twitter:card', 'summary_large_image' );
+		$out .= $name( 'twitter:title', $title );
+		$out .= $name( 'twitter:description', $desc );
+		$out .= $name( 'twitter:image', esc_url_raw( $img ) );
+		return $out;
 	}
 
 	/**
