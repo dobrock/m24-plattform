@@ -162,9 +162,9 @@ class M24_Garage_PDF {
 			@page { margin: 28px 34px 70px 34px; }
 			* { font-family: "DejaVu Sans", sans-serif; }
 			body { margin: 0; color: #14161a; font-size: 11px; }
-			.head { border-bottom: 3px solid #9a6b25; padding-bottom: 12px; margin-bottom: 16px; }
-			.head .logo { height: 30px; }
-			.head .logo-txt { font-size: 20px; font-weight: bold; color: #0e447e; }
+			.head { border-bottom: 3px solid #9a6b25; padding-bottom: 12px; margin-bottom: 16px; overflow: hidden; }
+			.head .logo { height: 30px; float: right; }
+			.head .logo-txt { font-size: 20px; font-weight: bold; color: #0e447e; float: right; }
 			.head .meta { color: #0e447e; }
 			.h-title { font-size: 19px; font-weight: bold; margin: 10px 0 2px; }
 			.h-date { color: #5a6474; font-size: 11px; }
@@ -185,7 +185,7 @@ class M24_Garage_PDF {
 			.sum .lbl { color: #5a6474; font-size: 11px; }
 			.sum .val { font-size: 17px; font-weight: bold; margin-left: 14px; }
 			.note { color: #8a929c; font-size: 9.5px; text-align: right; margin: 6px 0 0; }
-			.foot { position: fixed; bottom: -52px; left: 0; right: 0; border-top: 1px solid #c9ced4; padding-top: 8px; color: #8a929c; font-size: 9px; line-height: 1.5; }
+			.foot { position: fixed; bottom: -52px; left: 0; right: 0; border-top: 1px solid #c9ced4; padding-top: 8px; color: #8a929c; font-size: 9px; line-height: 1.6; text-align: center; }
 		';
 
 		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>' . $css . '</style></head><body>'
@@ -198,7 +198,10 @@ class M24_Garage_PDF {
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
 			. '<div class="sum"><span class="lbl">Gesamtsumme</span><span class="val">' . esc_html( $grand_fmt ) . '</span></div>'
 			. $note
-			. '<div class="foot">MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · 13595 Berlin</div>'
+			. '<div class="foot">'
+			. '<div>MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin, Germany</div>'
+			. '<div>Internet: www.motorsport24.de · E-Mail: info@motorsport24.de</div>'
+			. '</div>'
 			. '</body></html>';
 	}
 }
