@@ -222,3 +222,13 @@
 .m24gc-shared .m24gc-section-h{font-size:15px;font-weight:700;color:#5a6474;margin:0 0 12px}
 .m24gc-shared-hint{color:#8a929c;font-size:13.5px;margin:6px 0 0}
 .m24gc-shared .m24gc-pageactions{display:flex;justify-content:flex-end}
+
+/* ── Teile-Merkzettel Drag & Drop (Handle + Zustände) ── */
+.m24gc-row.has-drag{grid-template-columns:22px 84px 1fr auto auto 28px}
+.m24gc-drag{display:flex;align-items:center;justify-content:center;color:#c2cad3;font-size:13px;letter-spacing:-3px;cursor:grab;user-select:none;touch-action:none;line-height:1}
+.m24gc-drag:active{cursor:grabbing}
+.m24gc-row.m24gc-dragging{opacity:.75;box-shadow:0 6px 18px rgba(10,12,16,.18);background:#fff}
+@media(max-width:620px){
+	.m24gc-row.has-drag{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb info remove" "thumb qty line"}
+	.m24gc-drag{display:none}
+}

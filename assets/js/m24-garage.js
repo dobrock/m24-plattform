@@ -308,6 +308,52 @@
 		}
 	}
 
+	/* ── Teile-Merkzettel per Drag & Drop sortieren (pointer: Maus + Touch, ohne Fremd-Lib) ── */
+	if (page && cfg.reorder) {
+		var list = page.querySelector('[data-m24gc-panel="parts"] [data-m24gc-list]') || page.querySelector('[data-m24gc-list]');
+		if (list && list.querySelector('[data-m24gc-row][data-row-id]')) {
+			var dragEl = null;
+			var rowsOf = function () { return Array.prototype.slice.call(list.querySelectorAll('[data-m24gc-row]')); };
+			var onMove = function (e) {
+				if (!dragEl) { return; }
+				var y = e.clientY;
+				var after = null;
+				rowsOf().forEach(function (r) {
+					if (r === dragEl) { return; }
+					var b = r.getBoundingClientRect();
+					if (y > b.top + b.height / 2) { after = r; }
+				});
+				if (after) {
+					if (after.nextSibling !== dragEl) { list.insertBefore(dragEl, after.nextSibling); }
+				} else {
+					var first = list.querySelector('[data-m24gc-row]');
+					if (first !== dragEl) { list.insertBefore(dragEl, first); }
+				}
+			};
+			var onUp = function () {
+				document.removeEventListener('pointermove', onMove);
+				if (!dragEl) { return; }
+				dragEl.classList.remove('m24gc-dragging');
+				dragEl = null;
+				var order = rowsOf().map(function (r) { return parseInt(r.getAttribute('data-row-id') || '0', 10); }).filter(Boolean);
+				fetch(cfg.reorder, {
+					method: 'POST', credentials: 'same-origin', headers: headers(),
+					body: JSON.stringify({ order: order })
+				}).catch(function () {});
+			};
+			list.addEventListener('pointerdown', function (e) {
+				var h = e.target.closest ? e.target.closest('[data-m24gc-drag]') : null;
+				if (!h) { return; }
+				dragEl = h.closest('[data-m24gc-row]');
+				if (!dragEl) { return; }
+				e.preventDefault();
+				dragEl.classList.add('m24gc-dragging');
+				document.addEventListener('pointermove', onMove);
+				document.addEventListener('pointerup', onUp, { once: true });
+			});
+		}
+	}
+
 	/* ── Garage als Anfrage senden (reuse Sammelanfrage-Strecke, Etappe 4) ── */
 	var sendPanel = document.querySelector('[data-m24gc-send]');
 	if (sendPanel && cfg.submit) {

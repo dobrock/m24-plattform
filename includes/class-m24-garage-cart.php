@@ -298,6 +298,31 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_notify_master' ),
 		) );
+		// Teile-Merkzettel per Drag & Drop sortieren (Reihenfolge persistent, account-gebunden).
+		register_rest_route( self::NS, '/garage/reorder', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_reorder' ),
+		) );
+	}
+
+	/** {order:[row_id,...]} → sort_order = Index. Nur eigene Zeilen (account-gebunden). */
+	public static function handle_reorder( WP_REST_Request $req ) {
+		global $wpdb;
+		$acc   = self::current_account_id();
+		$order = $req->get_param( 'order' );
+		if ( ! is_array( $order ) ) {
+			return new WP_Error( 'm24gc_bad', 'Ungültige Reihenfolge.', array( 'status' => 400 ) );
+		}
+		$t = self::table();
+		$i = 0;
+		foreach ( $order as $rid ) {
+			$rid = (int) $rid;
+			if ( $rid <= 0 ) { continue; }
+			$wpdb->update( $t, array( 'sort_order' => $i ), array( 'id' => $rid, 'account_id' => $acc ) );
+			$i++;
+		}
+		return rest_ensure_response( array( 'ok' => true, 'count' => $i ) );
 	}
 
 	/** Master-Schalter: '0' = Account bekommt KEINE Garage-Alerts (überschreibt alle per-Fahrzeug-Prefs). */
@@ -622,8 +647,9 @@ class M24_Garage_Cart {
 		if ( $acc <= 0 ) { return array(); }
 		global $wpdb;
 		$t    = self::table();
+		// Sortierung: manuelle Reihenfolge (sort_order, Migration 009) zuerst, id als stabiler Tiebreaker.
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT post_type, post_id, qty FROM $t WHERE account_id = %d ORDER BY added_at DESC, id DESC",
+			"SELECT id, post_type, post_id, qty, sort_order FROM $t WHERE account_id = %d ORDER BY sort_order ASC, id ASC",
 			$acc
 		), ARRAY_A );
 
@@ -637,6 +663,8 @@ class M24_Garage_Cart {
 			$line  = ( null !== $unit ) ? $unit * $qty : null;
 			$thumb = get_the_post_thumbnail_url( $pid, 'medium' );
 			$out[] = array(
+				'row_id'        => (int) $r['id'],
+				'sort_order'    => (int) $r['sort_order'],
 				'post_id'       => $pid,
 				'post_type'     => $pt,
 				'qty'           => $qty,
@@ -709,6 +737,7 @@ class M24_Garage_Cart {
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),
 			'notify'   => esc_url_raw( rest_url( self::NS . '/garage/notify' ) ),
 			'notifyMaster' => esc_url_raw( rest_url( self::NS . '/garage/notify-master' ) ),
+			'reorder'  => esc_url_raw( rest_url( self::NS . '/garage/reorder' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
@@ -943,7 +972,8 @@ class M24_Garage_Cart {
 		$pid  = (int) $it['post_id'];
 		$pt   = (string) $it['post_type'];
 		?>
-		<div class="m24gc-row<?php echo $readonly ? ' is-readonly' : ''; ?>" data-line="<?php echo null !== $it['line_total'] ? esc_attr( number_format( (float) $it['line_total'], 2, '.', '' ) ) : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-post-id="' . esc_attr( $pid ) . '" data-post-type="' . esc_attr( $pt ) . '"'; ?>>
+		<div class="m24gc-row<?php echo $readonly ? ' is-readonly' : ' has-drag'; ?>" data-line="<?php echo null !== $it['line_total'] ? esc_attr( number_format( (float) $it['line_total'], 2, '.', '' ) ) : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-row-id="' . esc_attr( (int) ( $it['row_id'] ?? 0 ) ) . '" data-post-id="' . esc_attr( $pid ) . '" data-post-type="' . esc_attr( $pt ) . '"'; ?>>
+			<?php if ( ! $readonly ) : ?><span class="m24gc-drag" data-m24gc-drag aria-label="Zum Sortieren ziehen" title="Ziehen zum Sortieren">⋮⋮</span><?php endif; ?>
 			<a class="m24gc-thumb" href="<?php echo esc_url( $it['url'] ); ?>">
 				<?php if ( $it['thumb'] ) : ?>
 					<img src="<?php echo esc_url( $it['thumb'] ); ?>" alt="" loading="lazy">
