@@ -426,6 +426,7 @@ class M24_Garage_Cart {
 		$host      = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
 		if ( '' === $host ) { $host = 'motorsport24.de'; }
 		$from_mail = apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
+		// 1:1-Transaktionsmail → BEWUSST KEIN List-Unsubscribe (kein „Mailing-Liste"-Banner). Nur Marketing/DOI.
 		$headers   = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: MOTORSPORT24 <' . $from_mail . '>',

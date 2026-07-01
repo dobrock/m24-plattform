@@ -20,36 +20,58 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /* ==========================================================================
- * Kanonische Basis-Vorlage (EINE Quelle für alle Transaktionsmails)
- * Blauer 135°-Verlauf-Header + weißes Logo, 600px, schmale 28px-Ränder.
+ * ★ DIE EINE kanonische Mail-Shell für ALLE transaktionalen M24-Mails. ★
+ * Referenz = IL-/Off-Market-DOI-Design. JEDE Mail rendert ihren Body INNERHALB
+ * dieser Shell; Header + Footer + Container sind überall IDENTISCH. Keine zweite Shell.
+ * (Design-Spec siehe docs/MAIL-SHELL.md.)
+ *
+ * Struktur/Tokens:
+ *   Header : weißes Logo RECHTSBÜNDIG auf blauem 135°-Verlauf (#1f74c4 → #0e447e)
+ *   Body   : Saira, 600px, weiße Karte, 28px-Ränder, H1 + $inner
+ *   Footer : Trennlinie + „Classic & Race Cars and Parts Sales since 2006"
+ *            + „Unsere Postanschrift lautet:" + volle Adresse
+ *            + Impressum · Datenschutz · www.motorsport24.de + „Sprache ändern: DE | EN"
+ *
+ * $opts: 'lang' (de|en für den Sprach-Switch), 'footer_extra' (HTML über dem Footer-Block,
+ *        z. B. §7-Opt-out-Link der Alert-Mails).
  * ====================================================================== */
 
 if ( ! function_exists( 'm24_mail_shell' ) ) {
-	/**
-	 * Gemeinsames Mail-Gerüst. $inner = fertiges HTML für den Body-Bereich.
-	 * $opts: 'footer_extra' (HTML unter der Adresszeile, z. B. Sprach-/Opt-out-Link).
-	 * E-Mail-tauglich: Tabellen, Inline-Styles, absolute Logo-URL.
-	 */
 	function m24_mail_shell( $headline, $inner, array $opts = array() ) {
-		// WEISSE Logo-Variante (auf dem blauen Header lesbar) — dieselbe wie IL-/B2B-Mails, via Filter.
-		$logo = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
-		$ff   = "Saira, Arial, Helvetica, sans-serif";
+		$logo       = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
+		$font_url   = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
+		$stack      = "font-family:'Saira', Arial, Helvetica, sans-serif;";
+		$lang       = isset( $opts['lang'] ) ? (string) $opts['lang'] : '';
 		$foot_extra = isset( $opts['footer_extra'] ) ? (string) $opts['footer_extra'] : '';
-		$head_html  = ( '' !== (string) $headline )
-			? '<tr><td style="padding:28px 28px 8px;font-family:' . $ff . ';"><h1 style="margin:0;font-size:22px;font-weight:800;color:#14161a;font-family:' . $ff . ';">' . esc_html( $headline ) . '</h1></td></tr>'
-			: '';
-		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no"></head>'
-			. '<body style="margin:0;padding:0;background:#f2f4f7;-webkit-text-size-adjust:100%;font-family:' . $ff . ';">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f7;"><tr><td align="center" style="padding:24px 12px;">'
-			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
-			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:22px 28px;">'
-			. '<img src="' . $logo . '" alt="MOTORSPORT24" height="30" style="height:30px;width:auto;display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;"></td></tr>'
-			. $head_html
-			. '<tr><td style="padding:8px 28px 26px;font-family:' . $ff . ';font-size:15px;line-height:1.55;color:#14161a;">' . $inner . '</td></tr>'
-			. '<tr><td style="padding:16px 28px;background:#f7f8fa;border-top:1px solid #e6e9ee;font-family:' . $ff . ';font-size:12px;line-height:1.6;color:#9aa3b0;">'
-			. 'MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin, Germany'
-			. '<div style="margin-top:4px;">Internet: <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;">www.motorsport24.de</a> · E-Mail: <a href="mailto:info@motorsport24.de" style="color:#1f74c4;text-decoration:none;">info@motorsport24.de</a></div>'
-			. ( '' !== $foot_extra ? '<div style="margin-top:8px;">' . $foot_extra . '</div>' : '' )
+		$lang_foot  = class_exists( 'M24_I18n' ) ? M24_I18n::mail_lang_footer( $lang ) : '';
+
+		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no">'
+			. '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
+			. 'body,table,td,h1,div,a,p{' . $stack . '}'
+			. 'a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-weight:inherit!important;}</style></head>'
+			. '<body style="margin:0;padding:0;background:#f2f4f7;-webkit-text-size-adjust:100%;' . $stack . '">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f7;padding:0;"><tr><td align="center" style="padding:24px 16px;">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
+			// Header: weißes Logo rechtsbündig auf Verlauf
+			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
+			. '<img src="' . $logo . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;vertical-align:middle;-ms-interpolation-mode:bicubic;"></td></tr>'
+			// Body
+			. '<tr><td style="padding:8px 28px 24px;' . $stack . 'color:#10243a;">'
+			. ( '' !== (string) $headline ? '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>' : '' )
+			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
+			. '</td></tr>'
+			// Footer (identisch zur IL-Referenz)
+			. '<tr><td style="padding:18px 28px;border-top:1px solid #e6e9ee;text-align:center;' . $stack . 'font-size:11px;line-height:1.6;color:#9aa3b0;">'
+			. ( '' !== $foot_extra ? '<div style="margin-bottom:12px;">' . $foot_extra . '</div>' : '' )
+			. '<div style="color:#7e8794;font-size:11.5px;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
+			. '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
+			. '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
+			. '<div style="margin-top:10px;">'
+			. '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
+			. '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
+			. '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
+			. '</div>'
+			. $lang_foot
 			. '</td></tr>'
 			. '</table></td></tr></table></body></html>';
 	}

@@ -144,10 +144,13 @@ class M24_Garage_Alerts {
 	/** @return bool wp_mail-Ergebnis (Brevo-Sender via m24fz_mail_from_email wie B2B/IL/Garage). */
 	private static function send( string $email, int $pid, string $type, array $data ): bool {
 		list( $subject, $html ) = self::build_mail( $pid, $type, $data );
+		// Opt-in-Benachrichtigung → List-Unsubscribe (Verwaltungslink + mailto). §7-konform.
+		$manage = class_exists( 'M24_Garage_Cart' ) ? add_query_arg( 'm24tab', 'notify', M24_Garage_Cart::page_url() ) : home_url( '/' );
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
 			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+			'List-Unsubscribe: <' . esc_url_raw( $manage ) . '>, <mailto:info@motorsport24.de?subject=Abmelden>',
 		);
 		$err = '';
 		$catch = function ( $e ) use ( &$err ) { if ( is_wp_error( $e ) ) { $err = $e->get_error_message(); } };

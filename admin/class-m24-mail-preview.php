@@ -3,7 +3,7 @@
  * M24 Plattform — Admin-Tool „Mail- & PDF-Vorschau / Test-Versand".
  *
  * Enumeriert ALLE transaktionalen Mails + PDFs des Plugins, zeigt je Eintrag das genutzte Template
- * (m24_mail_shell / Verlauf-Basis / Dompdf), und verschickt sie mit realistischen Dummy-Daten über
+ * (kanonische Shell / Dompdf), und verschickt sie mit realistischen Dummy-Daten über
  * das ECHTE Template + den bestehenden Versandweg (wp_mail → Brevo). Rein Admin-gated, nonce-geschützt.
  */
 if ( ! defined( 'ABSPATH' ) ) {
@@ -42,31 +42,31 @@ class M24_Mail_Preview {
 
 		$reg['garage_mail'] = array(
 			'label'    => 'Garage-Mail (Teile-Auswahl an Kunden)',
-			'template' => 'm24_mail_shell',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail + PDF',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Garage_Cart' ) && M24_Garage_Cart::preview_send_mail( $to ); },
 		);
 		$reg['alert_price'] = array(
 			'label'    => 'Fahrzeug-Alert: Preisänderung',
-			'template' => 'm24_mail_shell (+ Bild-Mosaik)',
+			'template' => 'Kanonische Shell (IL-Design) + Bild-Mosaik',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Garage_Alerts' ) && M24_Garage_Alerts::preview_send( $to, 'price' ); },
 		);
 		$reg['alert_sold'] = array(
 			'label'    => 'Fahrzeug-Alert: Verkauft / reserviert',
-			'template' => 'm24_mail_shell (+ Bild-Mosaik)',
+			'template' => 'Kanonische Shell (IL-Design) + Bild-Mosaik',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Garage_Alerts' ) && M24_Garage_Alerts::preview_send( $to, 'sold' ); },
 		);
 		$reg['neue_anfrage'] = array(
 			'label'    => 'Neue Anfrage (Betreiber-Benachrichtigung)',
-			'template' => 'Verlauf-Basis (Fallback-Builder)',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Inquiries_Mail_Fallback' ) && M24_Inquiries_Mail_Fallback::preview_notification( $to ); },
 		);
 		$reg['haendler_doi'] = array(
 			'label'    => 'Händler-Registrierung (DOI-Bestätigung)',
-			'template' => 'Verlauf-Basis (B2B-CI-Shell)',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) {
 				if ( ! class_exists( 'M24_B2B_Auth' ) ) { return false; }
@@ -76,19 +76,19 @@ class M24_Mail_Preview {
 		);
 		$reg['il_doi'] = array(
 			'label'    => 'Interessentenliste (DOI-Bestätigung)',
-			'template' => 'Verlauf-Basis (IL-Shell)',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Brevo_IL' ) && M24_Brevo_IL::preview_doi_mail( $to, '' ); },
 		);
 		$reg['offmarket_doi'] = array(
 			'label'    => 'Off-Market-Anmeldung (DOI-Bestätigung)',
-			'template' => 'Verlauf-Basis (IL-Shell)',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Brevo_IL' ) && M24_Brevo_IL::preview_doi_mail( $to, 'offmarket' ); },
 		);
 		$reg['parked_doi'] = array(
 			'label'    => 'Fahrzeug parken (DOI-Bestätigung)',
-			'template' => 'Verlauf-Basis (IL-Shell)',
+			'template' => 'Kanonische Shell (IL-Design)',
 			'kind'     => 'Mail',
 			'cb'       => function ( $to ) { return class_exists( 'M24_Brevo_IL' ) && M24_Brevo_IL::preview_doi_mail( $to, 'parked' ); },
 		);

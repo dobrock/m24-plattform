@@ -508,6 +508,8 @@ class M24_Brevo_IL {
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
 			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+			// Marketing-/DOI-Mail → List-Unsubscribe (Gmail „Mailing-Liste"-Banner ist hier korrekt).
+			'List-Unsubscribe: <mailto:info@motorsport24.de?subject=Abmelden>',
 		);
 
 		wp_mail( $email, $subject, $body, $headers );
@@ -634,6 +636,8 @@ class M24_Brevo_IL {
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
 			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+			// Marketing-/DOI-Reminder → List-Unsubscribe.
+			'List-Unsubscribe: <mailto:info@motorsport24.de?subject=Abmelden>',
 		);
 
 		wp_mail( $email, $subject, $body, $headers );
@@ -749,39 +753,14 @@ class M24_Brevo_IL {
 	}
 
 	/**
-	 * Schmales CI-konformes HTML-Mail-Gerüst (Verlaufs-Header-Band, MOTORSPORT24-Logo).
-	 * CI-Font Saira self-hosted (kein Google, DSGVO-sauber): Apple Mail rendert Saira via
-	 * @font-face, Gmail/Outlook fallen sauber auf Arial zurück (Fallback im Font-Stack).
+	 * DIE kanonische Mail-Shell (siehe m24_mail_shell / docs/MAIL-SHELL.md). Diese Referenz-Optik
+	 * ist jetzt zentral in m24_mail_shell() abgelegt; hier nur noch delegieren (kein zweites Layout).
 	 */
 	private static function mail_html( $headline, $inner, $lang = '' ) {
-		$font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
-		$stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
-		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
-			. '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
-			. 'body,table,td,h1,div,a,p{' . $stack . '}'
-			. 'a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-weight:inherit!important;}</style></head>'
-			. '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:0;"><tr><td align="center" style="padding:24px 16px;">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
-			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 28px;text-align:right;">'
-			. '<img src="' . esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) ) . '" alt="MOTORSPORT24" height="30" style="display:inline-block;height:30px;width:auto;border:0;outline:none;vertical-align:middle;">'
-			. '</td></tr>'
-			. '<tr><td style="padding:8px 28px 24px;' . $stack . 'color:#10243a;">'
-			. '<h1 style="margin:8px 0 16px;font-size:21px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>'
-			. '<div style="font-size:15px;line-height:1.55;color:#3a414c;' . $stack . '">' . $inner . '</div>'
-			. '</td></tr>'
-			. '<tr><td style="padding:18px 28px;border-top:1px solid #e6e9ee;text-align:center;' . $stack . 'font-size:11px;line-height:1.6;color:#9aa3b0;">'
-			. '<div style="color:#7e8794;font-size:11.5px;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
-			. '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
-			. '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
-			. '<div style="margin-top:10px;">'
-			. '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
-			. '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
-			. '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
-			. '</div>'
-			. ( class_exists( 'M24_I18n' ) ? M24_I18n::mail_lang_footer( (string) $lang ) : '' )
-			. '</td></tr>'
-			. '</table></td></tr></table></body></html>';
+		if ( function_exists( 'm24_mail_shell' ) ) {
+			return m24_mail_shell( $headline, $inner, array( 'lang' => (string) $lang ) );
+		}
+		return '<h1>' . esc_html( $headline ) . '</h1>' . $inner; // Fallback (Template nicht geladen)
 	}
 
 	/** Absender-Header: From-Name MOTORSPORT24, Domain-Adresse noreply@<domain> (SPF/DKIM, Logik wie 0.11.20). */

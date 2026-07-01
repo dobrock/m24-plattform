@@ -387,47 +387,25 @@ class M24_Inquiries_Mail_Fallback {
     }
 
     private static function build_html_body( $data, $reason ) {
-        // Produktanfrage: neues „Variante A"-Template (sonst der bestehende Diagnose-/Fallback-Builder).
+        // Produktanfrage: „Variante A"-Template (kundenfrontend, separater Zweck — bleibt).
         if ( self::REASON_PRODUCT === $reason && function_exists( 'm24_render_inquiry_email' ) ) {
             return self::render_product_email( $data );
         }
         $name = trim( $data['vorname'] . ' ' . $data['nachname'] );
 
-        // Front-End-Benachrichtigung (notify/produkt/merkzettel) vs. echter Fallback.
+        // Front-End-Benachrichtigung (notify/merkzettel) vs. echter Push-Fallback.
         $is_note = self::is_notification( $reason );
-        // Header-Farbe je nach Schweregrad.
-        $is_severe = ( strpos( $reason, 'http_4' ) === 0 )
-                  || $reason === 'mapping_failed'
-                  || $reason === 'max_retries_exhausted';
-        $header_bg = $is_note ? '#0e447e' : ( $is_severe ? '#c0392b' : '#7f8c8d' );
 
+        // Inner-Body (ohne Chrome) — wird von der EINEN kanonischen Shell (m24_mail_shell) umschlossen.
         ob_start();
         ?>
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<title><?php echo esc_html( self::build_subject( $data, $reason ) ); ?></title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#222;font-size:14px;line-height:1.5;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;padding:24px 0;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #ddd;border-radius:4px;max-width:600px;">
-
-<!-- Header: kanonische Basis-Vorlage (blauer 135°-Verlauf + weißes Logo) -->
-<tr>
-<td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#ffffff;padding:18px 24px;border-radius:4px 4px 0 0;">
-<img src="<?php echo esc_url( plugins_url( 'assets/img/m24-logo.png', M24_PLATTFORM_FILE ) ); ?>" alt="MOTORSPORT24" height="26" style="height:26px;width:auto;display:block;border:0;margin:0 0 10px;">
-<div style="font-size:20px;font-weight:600;color:#ffffff;"><?php echo $is_note ? 'Neue Anfrage von' : 'Sammelanfrage von'; ?> <?php echo esc_html( $name !== '' ? $name : '(unbekannt)' ); ?></div>
+<div style="font-size:18px;font-weight:700;color:#10243a;margin:0 0 4px;"><?php echo $is_note ? 'Neue Anfrage von' : 'Sammelanfrage von'; ?> <?php echo esc_html( $name !== '' ? $name : '(unbekannt)' ); ?></div>
 <?php if ( ! $is_note ) : ?>
-<div style="font-size:12px;margin-top:6px;color:#ffffff;opacity:0.95;">Grund: <code style="background:rgba(0,0,0,0.2);padding:1px 6px;border-radius:3px;color:#fff;"><?php echo esc_html( $reason ); ?></code></div>
+<div style="font-size:12px;margin:0 0 12px;color:#7e8794;">Grund: <code style="background:#f2f4f7;padding:1px 6px;border-radius:3px;color:#3a414c;"><?php echo esc_html( $reason ); ?></code></div>
 <?php endif; ?>
-</td>
-</tr>
 
 <!-- Erklaerung -->
-<tr>
-<td style="padding:18px 24px;background:<?php echo $is_note ? '#eef4fb' : '#fdf6e3'; ?>;border-bottom:1px solid #eee;font-size:13px;color:<?php echo $is_note ? '#1b3a5a' : '#5a4a1a'; ?>;">
+<div style="padding:14px 16px;margin:8px 0 18px;background:<?php echo $is_note ? '#eef4fb' : '#fdf6e3'; ?>;border-radius:6px;font-size:13px;color:<?php echo $is_note ? '#1b3a5a' : '#5a4a1a'; ?>;">
 <?php if ( $is_note ) : ?>
 <?php echo esc_html( self::intro_for( $reason ) ); ?>
 <?php else : ?>
@@ -435,12 +413,10 @@ Diese Anfrage konnte <strong>nicht automatisch ans M24-Desk uebergeben</strong> 
 Die Daten werden hier per Mail bereitgestellt, damit ihr sie manuell bearbeiten koennt.
 <?php endif; ?>
 Antworten an diese Mail gehen direkt an die anfragende Person<?php echo $data['email'] !== '' ? ' (<a href="mailto:' . esc_attr( $data['email'] ) . '" style="color:' . ( $is_note ? '#1b3a5a' : '#5a4a1a' ) . ';">' . esc_html( $data['email'] ) . '</a>)' : ''; ?>.
-</td>
-</tr>
+</div>
 
 <!-- Kontaktdaten -->
-<tr>
-<td style="padding:18px 24px;border-bottom:1px solid #eee;">
+<div style="border-top:1px solid #eee;padding-top:14px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Kontakt</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
 <?php
@@ -473,12 +449,10 @@ foreach ( $contact_rows as $label => $value ) :
 </tr>
 <?php endforeach; ?>
 </table>
-</td>
-</tr>
+</div>
 
 <!-- Items -->
-<tr>
-<td style="padding:18px 24px;border-bottom:1px solid #eee;">
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Positionen (<?php echo count( $data['items'] ); ?>)</div>
 <?php if ( empty( $data['items'] ) ) : ?>
 <div style="color:#c0392b;font-size:13px;font-style:italic;">Keine Positionen im Postmeta gefunden.</div>
@@ -528,13 +502,11 @@ echo implode( ' &middot; ', $pairs );
 </tbody>
 </table>
 <?php endif; ?>
-</td>
-</tr>
+</div>
 
 <!-- Source -->
 <?php if ( $data['source'] !== '' || ! empty( $data['source_meta'] ) ) : ?>
-<tr>
-<td style="padding:18px 24px;border-bottom:1px solid #eee;">
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Quelle</div>
 <?php if ( $data['source'] !== '' ) : ?>
 <div style="font-size:13px;margin-bottom:6px;"><strong><?php echo esc_html( $data['source'] ); ?></strong></div>
@@ -542,24 +514,20 @@ echo implode( ' &middot; ', $pairs );
 <?php if ( ! empty( $data['source_meta'] ) ) : ?>
 <pre style="font-size:11px;background:#f7f7f7;padding:8px;border-radius:3px;overflow:auto;color:#333;margin:0;font-family:'SF Mono',Menlo,Consolas,monospace;"><?php echo esc_html( wp_json_encode( $data['source_meta'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
 <?php endif; ?>
-</td>
-</tr>
+</div>
 <?php endif; ?>
 
 <!-- Notizen -->
 <?php if ( $data['notes'] !== '' ) : ?>
-<tr>
-<td style="padding:18px 24px;border-bottom:1px solid #eee;">
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Anmerkungen</div>
 <div style="font-size:13px;white-space:pre-wrap;color:#222;"><?php echo esc_html( $data['notes'] ); ?></div>
-</td>
-</tr>
+</div>
 <?php endif; ?>
 
 <?php if ( ! $is_note ) : ?>
 <!-- Push-Diagnostik -->
-<tr>
-<td style="padding:18px 24px;border-bottom:1px solid #eee;background:#fafafa;">
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;background:#fafafa;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Push-Diagnostik</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:12px;color:#555;">
 <tr><td style="padding:2px 0;width:160px;color:#888;">Versuche</td><td style="padding:2px 0;"><?php echo (int) $data['push_attempts']; ?></td></tr>
@@ -571,28 +539,21 @@ echo implode( ' &middot; ', $pairs );
 <tr><td style="padding:2px 0;color:#888;vertical-align:top;">Idempotency-Key</td><td style="padding:2px 0;"><code style="font-size:11px;background:#fff;padding:1px 4px;border:1px solid #ddd;border-radius:2px;"><?php echo esc_html( $data['idempotency_key'] ); ?></code></td></tr>
 <?php endif; ?>
 </table>
-</td>
-</tr>
+</div>
 <?php endif; ?>
 
-<!-- Footer -->
-<tr>
-<td style="padding:18px 24px;font-size:12px;color:#888;border-radius:0 0 4px 4px;">
+<!-- Interner Meta-Footer (Bearbeitungslink / IDs) -->
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;font-size:12px;color:#888;">
 <?php if ( $data['edit_link'] ) : ?>
 <a href="<?php echo esc_url( $data['edit_link'] ); ?>" style="color:#0073aa;text-decoration:none;">Anfrage in WP-Admin oeffnen &rarr;</a>
 <br><br>
 <?php endif; ?>
 Anfrage-ID: <code><?php echo esc_html( (string) $data['post_id'] ); ?></code> &middot; eingegangen <?php echo esc_html( $data['post_date'] ); ?>
-</td>
-</tr>
-
-</table>
-</td></tr>
-</table>
-</body>
-</html>
+</div>
         <?php
-        return ob_get_clean();
+        $inner    = ob_get_clean();
+        $headline = $is_note ? 'Neue Anfrage' : 'Sammelanfrage (Fallback)';
+        return function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner ) : $inner;
     }
 
     // ────────────────────────────────────────────────────────────────────
