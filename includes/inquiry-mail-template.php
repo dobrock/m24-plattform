@@ -20,6 +20,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /* ==========================================================================
+ * Kanonische Basis-Vorlage (EINE Quelle für alle Transaktionsmails)
+ * Blauer 135°-Verlauf-Header + weißes Logo, 600px, schmale 28px-Ränder.
+ * ====================================================================== */
+
+if ( ! function_exists( 'm24_mail_shell' ) ) {
+	/**
+	 * Gemeinsames Mail-Gerüst. $inner = fertiges HTML für den Body-Bereich.
+	 * $opts: 'footer_extra' (HTML unter der Adresszeile, z. B. Sprach-/Opt-out-Link).
+	 * E-Mail-tauglich: Tabellen, Inline-Styles, absolute Logo-URL.
+	 */
+	function m24_mail_shell( $headline, $inner, array $opts = array() ) {
+		$logo = esc_url( plugins_url( 'assets/img/m24-logo.png', M24_PLATTFORM_FILE ) );
+		$ff   = "Saira, Arial, Helvetica, sans-serif";
+		$foot_extra = isset( $opts['footer_extra'] ) ? (string) $opts['footer_extra'] : '';
+		$head_html  = ( '' !== (string) $headline )
+			? '<tr><td style="padding:28px 28px 8px;font-family:' . $ff . ';"><h1 style="margin:0;font-size:22px;font-weight:800;color:#14161a;font-family:' . $ff . ';">' . esc_html( $headline ) . '</h1></td></tr>'
+			: '';
+		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no"></head>'
+			. '<body style="margin:0;padding:0;background:#f2f4f7;-webkit-text-size-adjust:100%;font-family:' . $ff . ';">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f7;"><tr><td align="center" style="padding:24px 12px;">'
+			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">'
+			. '<tr><td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:22px 28px;">'
+			. '<img src="' . $logo . '" alt="MOTORSPORT24" height="30" style="height:30px;width:auto;display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;"></td></tr>'
+			. $head_html
+			. '<tr><td style="padding:8px 28px 26px;font-family:' . $ff . ';font-size:15px;line-height:1.55;color:#14161a;">' . $inner . '</td></tr>'
+			. '<tr><td style="padding:16px 28px;background:#f7f8fa;border-top:1px solid #e6e9ee;font-family:' . $ff . ';font-size:12px;line-height:1.6;color:#9aa3b0;">'
+			. 'MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin, Germany'
+			. '<div style="margin-top:4px;">Internet: <a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;">www.motorsport24.de</a> · E-Mail: <a href="mailto:info@motorsport24.de" style="color:#1f74c4;text-decoration:none;">info@motorsport24.de</a></div>'
+			. ( '' !== $foot_extra ? '<div style="margin-top:8px;">' . $foot_extra . '</div>' : '' )
+			. '</td></tr>'
+			. '</table></td></tr></table></body></html>';
+	}
+}
+
+/* ==========================================================================
  * Helfer
  * ====================================================================== */
 

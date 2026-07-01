@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.169
+ * Version:           0.11.170
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -115,6 +115,15 @@ function m24_teile_index_enabled() {
     if ( defined( 'M24_TEILE_INDEX' ) ) { return (bool) M24_TEILE_INDEX; }
     return (bool) (int) get_option( 'm24_teile_index', 0 );
 }
+
+/**
+ * Globaler Absendername „MOTORSPORT24" statt WP-Default „WordPress". Greift NUR, wenn eine Mail
+ * KEINEN eigenen From-Header setzt (Produkt-/Fahrzeug-Anfragen mit Kundenname bleiben unberührt,
+ * da sie ein explizites From: mitgeben). Reply-To bleibt wie gehabt.
+ */
+add_filter( 'wp_mail_from_name', function ( $name ) {
+    return ( '' === (string) $name || 'WordPress' === $name ) ? 'MOTORSPORT24' : $name;
+}, 9 );
 
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-database.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-logger.php';

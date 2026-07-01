@@ -395,13 +395,13 @@ class M24_Inquiries_Mail_Fallback {
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #ddd;border-radius:4px;max-width:600px;">
 
-<!-- Header -->
+<!-- Header: kanonische Basis-Vorlage (blauer 135°-Verlauf + weißes Logo) -->
 <tr>
-<td style="background:<?php echo esc_attr( $header_bg ); ?>;color:#ffffff;padding:18px 24px;border-radius:4px 4px 0 0;">
-<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:0.85;">M24 Plattform — <?php echo $is_note ? 'Neue Anfrage' : 'Mail-Fallback'; ?></div>
-<div style="font-size:20px;font-weight:600;margin-top:4px;"><?php echo $is_note ? 'Neue Anfrage von' : 'Sammelanfrage von'; ?> <?php echo esc_html( $name !== '' ? $name : '(unbekannt)' ); ?></div>
+<td style="background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#ffffff;padding:18px 24px;border-radius:4px 4px 0 0;">
+<img src="<?php echo esc_url( plugins_url( 'assets/img/m24-logo.png', M24_PLATTFORM_FILE ) ); ?>" alt="MOTORSPORT24" height="26" style="height:26px;width:auto;display:block;border:0;margin:0 0 10px;">
+<div style="font-size:20px;font-weight:600;color:#ffffff;"><?php echo $is_note ? 'Neue Anfrage von' : 'Sammelanfrage von'; ?> <?php echo esc_html( $name !== '' ? $name : '(unbekannt)' ); ?></div>
 <?php if ( ! $is_note ) : ?>
-<div style="font-size:12px;margin-top:6px;opacity:0.95;">Grund: <code style="background:rgba(0,0,0,0.2);padding:1px 6px;border-radius:3px;color:#fff;"><?php echo esc_html( $reason ); ?></code></div>
+<div style="font-size:12px;margin-top:6px;color:#ffffff;opacity:0.95;">Grund: <code style="background:rgba(0,0,0,0.2);padding:1px 6px;border-radius:3px;color:#fff;"><?php echo esc_html( $reason ); ?></code></div>
 <?php endif; ?>
 </td>
 </tr>

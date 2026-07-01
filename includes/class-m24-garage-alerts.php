@@ -129,9 +129,15 @@ class M24_Garage_Alerts {
 			$head    = 'Statusänderung';
 			$body    = '<p style="margin:0 0 14px;"><strong>' . esc_html( $title ) . '</strong> ist jetzt <strong>' . esc_html( $label ) . '</strong>.</p>';
 		}
+		// Über dem Button: Mosaik der ersten 3 Galeriebilder (links groß, rechts 2 gestapelt).
+		$body .= self::mosaic( $pid );
 		$body .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zum Fahrzeug</a></p>';
 
-		$html    = self::mail_html( $head, $body, $manage );
+		// Kanonische Basis-Vorlage (blauer Header + weißes Logo); Opt-out-Link im Footer (§7 UWG).
+		$manage_link = '<a href="' . esc_url( $manage ) . '" style="color:#1f74c4;text-decoration:underline;">Benachrichtigungen verwalten</a>';
+		$html = function_exists( 'm24_mail_shell' )
+			? m24_mail_shell( $head, $body, array( 'footer_extra' => $manage_link ) )
+			: '<h1>' . esc_html( $head ) . '</h1>' . $body; // Fallback (Template nicht geladen)
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
@@ -158,19 +164,37 @@ class M24_Garage_Alerts {
 		return 'MOTORSPORT24 <' . $email . '>';
 	}
 
-	/** CI-Mail-Gerüst (Gradient-Header, Saira, 600px) + §7-Opt-out-Link. */
-	private static function mail_html( string $head, string $inner, string $manage ): string {
-		$logo = esc_url( plugins_url( 'assets/img/m24-logo.png', M24_PLATTFORM_FILE ) );
-		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
-			. '<body style="margin:0;padding:0;background:#f2f4f7;font-family:Saira,Arial,Helvetica,sans-serif;">'
-			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;padding:24px 0;"><tr><td align="center">'
-			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:94%;background:#fff;border-radius:8px;overflow:hidden;">'
-			. '<tr><td style="background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:22px 28px;"><img src="' . $logo . '" alt="MOTORSPORT24" height="30" style="height:30px;display:block;border:0;"></td></tr>'
-			. '<tr><td style="padding:28px 28px 8px;"><h1 style="margin:0;font-size:22px;font-weight:800;color:#14161a;">' . esc_html( $head ) . '</h1></td></tr>'
-			. '<tr><td style="padding:6px 28px 26px;color:#14161a;font-size:15px;line-height:1.55;">' . $inner . '</td></tr>'
-			. '<tr><td style="padding:16px 28px;background:#f7f8fa;color:#9aa3b0;font-size:12px;line-height:1.6;">MOTORSPORT24 GmbH'
-			. '<div style="margin-top:8px;"><a href="' . esc_url( $manage ) . '" style="color:#1f74c4;text-decoration:underline;">Benachrichtigungen verwalten</a></div>'
-			. '</td></tr></table></td></tr></table></body></html>';
+	/**
+	 * Bild-Mosaik der ersten 3 Galeriebilder (links groß, rechts 2 gestapelt) — E-Mail-tauglich
+	 * (Tabellen, feste Breiten, absolute URLs). <3 Bilder → nur vorhandene; 0 → '' (kein Mosaik).
+	 */
+	private static function mosaic( int $pid ): string {
+		$ids = array_values( array_filter( array_map( 'intval', (array) get_post_meta( $pid, '_m24fz_gal_aussen', true ) ) ) );
+		if ( empty( $ids ) ) {
+			$t = (int) get_post_thumbnail_id( $pid );
+			if ( $t ) { $ids[] = $t; }
+		}
+		$ids = array_slice( $ids, 0, 3 );
+		$u   = array();
+		foreach ( $ids as $aid ) {
+			$url = wp_get_attachment_image_url( $aid, 'large' );
+			if ( $url ) { $u[] = $url; }
+		}
+		$n = count( $u );
+		if ( 0 === $n ) { return ''; }
+		$img = function ( $src, $w, $h ) {
+			return '<img src="' . esc_url( $src ) . '" width="' . (int) $w . '" height="' . (int) $h . '" alt="" style="display:block;width:' . (int) $w . 'px;height:' . (int) $h . 'px;object-fit:cover;border-radius:6px;border:0;">';
+		};
+		if ( 1 === $n ) {
+			return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr><td>' . $img( $u[0], 544, 300 ) . '</td></tr></table>';
+		}
+		$big   = $img( $u[0], 330, 246 );
+		$right = ( $n >= 3 )
+			? $img( $u[1], 198, 119 ) . '<div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>' . $img( $u[2], 198, 119 )
+			: $img( $u[1], 198, 246 );
+		return '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr>'
+			. '<td style="padding-right:8px;vertical-align:top;">' . $big . '</td>'
+			. '<td style="vertical-align:top;">' . $right . '</td></tr></table>';
 	}
 
 	/** Sync-Log (Kontext „alerts"): Schritt + IDs + Änderungstyp, keine PII/Klartext-Mail. */
