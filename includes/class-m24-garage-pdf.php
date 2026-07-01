@@ -140,13 +140,18 @@ class M24_Garage_PDF {
 
 	/* ── Gemeinsames Briefpapier (Logo-Header + 4-Spalten-Footer, Liberation Sans) ──────── */
 
-	/** @font-face für Liberation Sans (Arial-metrisch). Leer, wenn die TTFs (noch) fehlen → Arial-Fallback. */
+	/**
+	 * @font-face für Liberation Sans (Arial-metrisch) als Zusatz zu registerFont(): src = ABSOLUTER
+	 * file://-Pfad, unter chroot auflösbar (isRemoteEnabled bleibt false). Leer, wenn TTFs fehlen → Arial.
+	 */
 	private static function font_face_css(): string {
 		$reg  = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Regular.ttf';
 		$bold = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Bold.ttf';
 		if ( ! is_readable( $reg ) || ! is_readable( $bold ) ) { return ''; }
-		return '@font-face{font-family:"Liberation Sans";font-weight:normal;font-style:normal;src:url("' . $reg . '") format("truetype");}'
-			. '@font-face{font-family:"Liberation Sans";font-weight:bold;font-style:normal;src:url("' . $bold . '") format("truetype");}';
+		$reg_url  = 'file://' . $reg;
+		$bold_url = 'file://' . $bold;
+		return '@font-face{font-family:"Liberation Sans";font-weight:normal;font-style:normal;src:url("' . $reg_url . '") format("truetype");}'
+			. '@font-face{font-family:"Liberation Sans";font-weight:bold;font-style:normal;src:url("' . $bold_url . '") format("truetype");}';
 	}
 
 	/**
@@ -175,17 +180,76 @@ class M24_Garage_PDF {
 		return $logo_html . $foot;
 	}
 
-	/** Dompdf-Options: Liberation Sans als Default + beschreibbares Font-Cache-Verzeichnis (vendor/ oft read-only). */
+	/** Beschreibbares Font-Cache-Verzeichnis (vendor/ ist oft read-only). '' wenn nirgends beschreibbar. */
+	private static function font_cache_dir(): string {
+		$up   = wp_get_upload_dir();
+		$dir  = trailingslashit( $up['basedir'] ) . 'm24-dompdf-fonts';
+		if ( ! is_dir( $dir ) ) { wp_mkdir_p( $dir ); } // VOR dem Render anlegen, wenn er fehlt
+		if ( is_dir( $dir ) && wp_is_writable( $dir ) ) { return $dir; }
+		// Fallback: System-Temp.
+		$tmp = trailingslashit( get_temp_dir() ) . 'm24-dompdf-fonts';
+		if ( ! is_dir( $tmp ) ) { wp_mkdir_p( $tmp ); }
+		if ( is_dir( $tmp ) && wp_is_writable( $tmp ) ) { return $tmp; }
+		self::log_font_warning( 'Kein beschreibbares Font-Cache-Verzeichnis', $dir );
+		return '';
+	}
+
+	/** Dompdf-Options: Liberation Sans als Default + beschreibbarer Font-Cache + chroot inkl. Plugin-Assets. */
 	private static function dompdf_options() {
 		$o = new \Dompdf\Options();
-		$o->set( 'isRemoteEnabled', false );      // nur lokale data:-URIs + lokale @font-face-TTF
+		$o->set( 'isRemoteEnabled', false );      // nur lokale data:-URIs + lokale TTF
 		$o->set( 'isHtml5ParserEnabled', true );
 		$o->set( 'defaultFont', 'Liberation Sans' );
 		$o->set( 'isFontSubsettingEnabled', true );
-		$up   = wp_get_upload_dir();
-		$fdir = trailingslashit( $up['basedir'] ) . 'm24-dompdf-fonts';
-		if ( wp_mkdir_p( $fdir ) ) { $o->set( 'fontDir', $fdir ); $o->set( 'fontCache', $fdir ); }
+
+		$cache = self::font_cache_dir();
+		if ( '' !== $cache ) {
+			$o->set( 'fontDir', $cache );
+			$o->set( 'fontCache', $cache );
+		}
+		// chroot MUSS den Plugin-assets-Ordner enthalten, sonst verweigert Dompdf den TTF-Zugriff
+		// (@font-face-src = absoluter lokaler Pfad; isRemoteEnabled bleibt false).
+		$up      = wp_get_upload_dir();
+		$chroot  = array_values( array_unique( array_filter( array(
+			rtrim( M24_PLATTFORM_DIR, '/\\' ),
+			(string) $up['basedir'],
+			$cache,
+		) ) ) );
+		$o->set( 'chroot', $chroot );
 		return $o;
+	}
+
+	/** Liberation-TTFs explizit registrieren (robuster als nur @font-face) + WARNING loggen, wenn's scheitert. */
+	private static function register_fonts( $dompdf ): void {
+		$fonts = array(
+			'normal' => M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Regular.ttf',
+			'bold'   => M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Bold.ttf',
+		);
+		$fm = method_exists( $dompdf, 'getFontMetrics' ) ? $dompdf->getFontMetrics() : null;
+		if ( ! $fm || ! method_exists( $fm, 'registerFont' ) ) {
+			self::log_font_warning( 'FontMetrics::registerFont nicht verfügbar', 'dompdf' );
+			return;
+		}
+		foreach ( $fonts as $weight => $path ) {
+			if ( ! is_readable( $path ) ) { self::log_font_warning( 'TTF nicht lesbar', $path ); continue; }
+			$ok = false;
+			try {
+				$ok = (bool) $fm->registerFont(
+					array( 'family' => 'Liberation Sans', 'weight' => $weight, 'style' => 'normal' ),
+					$path
+				);
+			} catch ( \Throwable $t ) {
+				self::log_font_warning( 'registerFont-Ausnahme (' . $weight . '): ' . $t->getMessage(), $path );
+				continue;
+			}
+			if ( ! $ok ) { self::log_font_warning( 'registerFont fehlgeschlagen (' . $weight . ')', $path ); }
+		}
+	}
+
+	private static function log_font_warning( string $msg, string $path ): void {
+		if ( class_exists( 'M24_Logger' ) ) {
+			M24_Logger::warning( 'pdf_font', $msg, array( 'file' => basename( $path ) ) );
+		}
 	}
 
 	/** HTML → gerendertes Dompdf-Objekt (gemeinsamer Pfad). Wirft, wenn die Lib fehlt. */
@@ -195,6 +259,7 @@ class M24_Garage_PDF {
 		require_once $autoload;
 		if ( ! class_exists( '\\Dompdf\\Dompdf' ) ) { throw new \RuntimeException( 'PDF-Bibliothek fehlt.' ); }
 		$dompdf = new \Dompdf\Dompdf( self::dompdf_options() );
+		self::register_fonts( $dompdf ); // VOR loadHtml/render → Liberation Sans steht im Font-Cache
 		$dompdf->loadHtml( $html, 'UTF-8' );
 		$dompdf->setPaper( 'A4', 'portrait' );
 		$dompdf->render();
