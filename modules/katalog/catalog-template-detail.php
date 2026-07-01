@@ -508,6 +508,9 @@ class M24_Catalog_Template_Detail {
 						<?php if ( $bmwnr ) : ?><div class="srow"><span class="k">BMW-Teilenummer</span><span class="v"><?php echo esc_html( $bmwnr ); ?></span></div><?php endif; ?>
 						<?php if ( $stand ) : ?><div class="srow"><span class="k">Stand</span><span class="v"><?php echo esc_html( $stand ); ?></span></div><?php endif; ?>
 						<?php if ( $hinweis ) : ?><div class="srow"><span class="k">Hinweis</span><span class="v" style="font-family:inherit"><?php echo esc_html( $hinweis ); ?></span></div><?php endif; ?>
+						<?php if ( get_post_meta( $id, '_m24_show_nachbau_hinweis', true ) ) : // Markenrecht: Nachbau-Label, leere Label-Spalte ?>
+							<div class="srow"><span class="k"></span><span class="v" style="font-family:inherit"><?php esc_html_e( 'Nachbau / kein BMW-Originalteil', 'm24-plattform' ); ?></span></div>
+						<?php endif; ?>
 					</div>
 
 						<div class="m24-actions-group">

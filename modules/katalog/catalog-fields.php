@@ -63,6 +63,7 @@ class M24_Catalog_Fields {
 		$original_teil = '1' === get_post_meta( $post->ID, '_m24_original_teil', true );
 		$leichtbau    = (bool) (int) get_post_meta( $post->ID, '_m24_leichtbau', true );
 		$rennsport_hinweis = (bool) (int) get_post_meta( $post->ID, '_m24_rennsport_hinweis', true );
+		$show_nachbau  = (bool) (int) get_post_meta( $post->ID, '_m24_show_nachbau_hinweis', true );
 		// N2/T8: URL-Slug.
 		//  - Input-Feld immer LEER (value=""): leer lassen = Auto-Slug aus Titel.
 		//    Vorbefuellung wuerde jeden Save als manuell werten → Auto-Update bei Rename
@@ -168,6 +169,12 @@ class M24_Catalog_Fields {
 			<label style="font-weight:400;cursor:pointer">
 				<input type="checkbox" name="m24_original_teil" value="1" <?php checked( $original_teil, true ); ?>>
 				<span>Badge „Original BMW-Teil" im Detail-Header anzeigen — <strong style="color:#c8102e">nur bei echten Original-BMW-Teilen</strong> (Markenrecht). NICHT bei Nachbau/Zubehör/Nicht-BMW.</span>
+			</label>
+
+			<label>Nachbau-Hinweis</label>
+			<label style="font-weight:400;cursor:pointer">
+				<input type="checkbox" name="m24_show_nachbau_hinweis" value="1" <?php checked( $show_nachbau, true ); ?>>
+				<span>„Nachbau / kein BMW-Originalteil"-Hinweis in der Preisbox anzeigen — nur bei Nachbau/Replika-Teilen (Markenrecht, gegen Herkunftstäuschung). Unabhängig vom Original-BMW-Badge.</span>
 			</label>
 
 			<label>Leichtbauteil</label>
@@ -380,6 +387,7 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_original_teil', isset( $_POST['m24_original_teil'] ) ? '1' : '0' );
 		update_post_meta( $post_id, '_m24_leichtbau',         isset( $_POST['m24_leichtbau'] )         ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_rennsport_hinweis', isset( $_POST['m24_rennsport_hinweis'] ) ? 1 : 0 );
+		update_post_meta( $post_id, '_m24_show_nachbau_hinweis', isset( $_POST['m24_show_nachbau_hinweis'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_preis_auf_anfrage', isset( $_POST['m24_preis_auf_anfrage'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_beschreibung_de', wp_kses_post( wp_unslash( isset( $_POST['m24_beschreibung_de'] ) ? $_POST['m24_beschreibung_de'] : '' ) ) );
 
