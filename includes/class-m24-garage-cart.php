@@ -49,8 +49,10 @@ class M24_Garage_Cart {
 		// Social-Preview NUR auf der geteilten Read-only-Ansicht: Head puffern (vor Yoast prio 1),
 		// konkurrierende og:/twitter:-Tags entfernen, eigenen Satz anhängen (keine Dubletten).
 		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
-		// Spät schließen (999), damit auch nach Prio 9 emittierte robots-Meta (z. B. tagDiv) im Puffer landet.
-		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 999 );
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 9 );
+		// robots-Meta gibt tagDiv DIREKT im Header-Template aus (vor wp_head) → nur ein Vollseiten-Puffer
+		// erreicht sie. Auf template_redirect (vor Theme-Header) starten, Callback ersetzt sie global.
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_start_page_buffer' ), 0 );
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -782,15 +784,33 @@ class M24_Garage_Cart {
 			'',
 			$head
 		);
-		// ALLE robots-Meta entfernen (egal welcher Emitter: Yoast/Core/tagDiv) → gleich EINE korrekte setzen.
-		$head = preg_replace(
-			'#[ \t]*<meta[^>]+name=[\'"]robots[\'"][^>]*>\s*#i',
-			'',
-			$head
-		);
 		echo $head; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — WP-Core-Head, unverändert durchgereicht
-		echo '<meta name="robots" content="noindex, nofollow">' . "\n"; // konsistent mit X-Robots-Header (Capability-URL)
 		echo self::share_og_tags(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — intern escaped
+	}
+
+	/**
+	 * Vollseiten-Puffer NUR auf der Share-View (template_redirect läuft vor dem Theme-Header).
+	 * Der Callback fasst das GESAMTE HTML → erreicht auch die vom Theme direkt gesetzte robots-Meta,
+	 * die außerhalb von wp_head liegt.
+	 */
+	public static function maybe_start_page_buffer() {
+		if ( self::is_share_view() ) {
+			ob_start( array( __CLASS__, 'filter_page_robots' ) );
+		}
+	}
+
+	/** Alle robots-Meta im Dokument entfernen, GENAU EINE noindex,nofollow direkt nach <head> setzen. */
+	public static function filter_page_robots( $html ) {
+		$html = (string) $html;
+		if ( '' === $html ) { return $html; }
+		$html = preg_replace( '#[ \t]*<meta[^>]+name=([\'"])robots\1[^>]*>\s*#i', '', $html );
+		$one  = '<meta name="robots" content="noindex, nofollow">' . "\n";
+		if ( preg_match( '#<head[^>]*>#i', $html ) ) {
+			$html = preg_replace( '#(<head[^>]*>)#i', '$1' . "\n" . $one, $html, 1 );
+		} else {
+			$html = $one . $html;
+		}
+		return $html;
 	}
 
 	/**
