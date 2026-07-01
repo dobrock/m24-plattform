@@ -232,3 +232,20 @@
 	.m24gc-row.has-drag{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb info remove" "thumb qty line"}
 	.m24gc-drag{display:none}
 }
+
+/* ── „Per E-Mail an Kunden senden" (Owner Share-Box) ── */
+.m24gc-sendmail{margin:14px 0 0;padding-top:14px;border-top:1px solid #eef0f2}
+.m24gc-sendmail-h{margin:0 0 10px;font-size:14px;font-weight:700;color:#14161a}
+.m24gc-field{display:block;margin:0 0 10px}
+.m24gc-field-lbl{display:block;font-size:12.5px;font-weight:600;color:#5a6474;margin:0 0 5px}
+.m24gc-field-input{width:100%;box-sizing:border-box;height:56px;padding:0 14px;border:1px solid #d3d8de;border-radius:6px;font-size:16px;color:#14161a;background:#fff}
+.m24gc-field-input:focus{outline:none;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.15)}
+.m24gc-field-textarea{height:auto;min-height:76px;padding:10px 14px;line-height:1.45;resize:vertical}
+.m24gc-check{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:14px;color:#14161a;cursor:pointer}
+.m24gc-check input{width:17px;height:17px}
+.m24gc-sendmail-btn.is-loading,.m24gc-btn-brass.is-loading{opacity:.7;cursor:progress}
+.m24gc-btn-brass.is-loading::after{content:"";display:inline-block;width:13px;height:13px;margin-left:8px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;vertical-align:-2px;animation:m24gc-spin .7s linear infinite}
+@keyframes m24gc-spin{to{transform:rotate(360deg)}}
+.m24gc-sendmail-status{display:block;margin-top:8px;font-size:13px;min-height:1em}
+.m24gc-sendmail-status.is-ok{color:#1a7f37}
+.m24gc-sendmail-status.is-error{color:#c8102e}

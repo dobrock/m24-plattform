@@ -304,6 +304,112 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_reorder' ),
 		) );
+		// Garage server-seitig per E-Mail an einen Kunden senden (+ optional Exposé-PDF-Anhang).
+		register_rest_route( self::NS, '/garage/send', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_send' ),
+		) );
+	}
+
+	/** Empfänger-Adresse für den Sync-Log redigieren (kein Klartext-PII). */
+	private static function redact_email( string $email ): string {
+		$at = strpos( $email, '@' );
+		if ( false === $at ) { return '***'; }
+		$local = substr( $email, 0, $at );
+		$dom   = substr( $email, $at );
+		$keep  = mb_substr( $local, 0, 2 );
+		return $keep . str_repeat( '*', max( 1, mb_strlen( $local ) - 2 ) ) . $dom;
+	}
+
+	/** POST /garage/send {to,message,attach_pdf} → frischer Snapshot + Mail (m24_mail_shell) + PDF-Anhang. */
+	public static function handle_send( WP_REST_Request $req ) {
+		$acc = self::current_account_id();
+		$to  = sanitize_email( (string) $req->get_param( 'to' ) );
+		if ( ! is_email( $to ) ) {
+			return new WP_Error( 'm24gc_bad_email', 'Bitte eine gültige E-Mail-Adresse angeben.', array( 'status' => 400 ) );
+		}
+		$items = self::items( $acc );
+		if ( empty( $items ) ) {
+			return new WP_Error( 'm24gc_empty', 'Deine Garage ist leer.', array( 'status' => 422 ) );
+		}
+		$message = trim( (string) $req->get_param( 'message' ) );
+		$attach  = filter_var( $req->get_param( 'attach_pdf' ), FILTER_VALIDATE_BOOLEAN );
+
+		// A) Frischen Snapshot am neuen Token (wie share-rotate) → gemailter Link = Abbild zum Sendezeitpunkt.
+		$token     = self::share_token_rotate( $acc );
+		self::write_snapshot( $acc, $token );
+		$share_url = self::share_url( $token );
+
+		// B) Exposé-PDF optional in eine Temp-Datei (sauberer Anhangsname, kollisionsfrei).
+		$attachments = array();
+		$tmp_dir     = '';
+		if ( $attach && class_exists( 'M24_Garage_PDF' ) ) {
+			$pdf = M24_Garage_PDF::render_pdf_string( $acc );
+			if ( '' !== $pdf ) {
+				$tmp_dir = trailingslashit( get_temp_dir() ) . 'm24gc-' . wp_generate_password( 10, false, false ) . '/';
+				if ( wp_mkdir_p( $tmp_dir ) ) {
+					$file = $tmp_dir . 'MOTORSPORT24-Teileauswahl.pdf';
+					if ( false !== file_put_contents( $file, $pdf ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+						$attachments[] = $file;
+					}
+				}
+			}
+		}
+
+		// C) Mail über die kanonische Basis-Vorlage (blauer Header + weißes Logo).
+		$subject   = 'Ihre Teile-Auswahl – MOTORSPORT24';
+		$btn       = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zur Teile-Übersicht</a></p>';
+		$inner     = '<p style="margin:0 0 14px;">Guten Tag,</p>'
+			. '<p style="margin:0 0 14px;">anbei Ihre persönliche Teile-Auswahl von MOTORSPORT24.</p>';
+		if ( '' !== $message ) {
+			$inner .= '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . nl2br( esc_html( $message ) ) . '</p>';
+		}
+		$inner .= $btn;
+		if ( ! empty( $attachments ) ) {
+			$inner .= '<p style="margin:0;color:#5a6474;font-size:13px;">Das vollständige Exposé finden Sie im PDF-Anhang dieser E-Mail.</p>';
+		}
+		$html = function_exists( 'm24_mail_shell' )
+			? m24_mail_shell( 'Ihre Teile-Auswahl', $inner )
+			: '<h1>Ihre Teile-Auswahl</h1>' . $inner;
+
+		$host      = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+		if ( '' === $host ) { $host = 'motorsport24.de'; }
+		$from_mail = apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
+		$headers   = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: MOTORSPORT24 <' . $from_mail . '>',
+			'Reply-To: MOTORSPORT24 <info@motorsport24.de>',
+		);
+
+		$err   = '';
+		$catch = function ( $e ) use ( &$err ) { if ( is_wp_error( $e ) ) { $err = $e->get_error_message(); } };
+		add_action( 'wp_mail_failed', $catch );
+		$ok = false;
+		try { $ok = (bool) wp_mail( $to, $subject, $html, $headers, $attachments ); }
+		catch ( \Throwable $t ) { $err = 'exception: ' . $t->getMessage(); }
+		remove_action( 'wp_mail_failed', $catch );
+
+		// Temp-Datei + -Verzeichnis aufräumen.
+		foreach ( $attachments as $f ) { if ( is_file( $f ) ) { @unlink( $f ); } } // phpcs:ignore
+		if ( '' !== $tmp_dir && is_dir( $tmp_dir ) ) { @rmdir( $tmp_dir ); } // phpcs:ignore
+
+		$sent = $ok && '' === $err;
+		if ( class_exists( 'M24_Logger' ) ) {
+			$payload = array(
+				'to'            => self::redact_email( $to ),
+				'attach_pdf'    => ! empty( $attachments ),
+				'token_present' => ( '' !== $token ),
+				'result'        => $sent ? 'sent' : 'failed',
+			);
+			if ( $sent ) { M24_Logger::info( 'garage_mail', 'Garage per E-Mail gesendet', $payload ); }
+			else { M24_Logger::error( 'garage_mail', 'Garage-Mail fehlgeschlagen', array_merge( $payload, array( 'error' => $err ) ) ); }
+		}
+
+		if ( ! $sent ) {
+			return new WP_Error( 'm24gc_send_failed', 'Die E-Mail konnte nicht gesendet werden. Bitte später erneut versuchen.', array( 'status' => 500 ) );
+		}
+		return rest_ensure_response( array( 'ok' => true, 'sent' => true ) );
 	}
 
 	/** {order:[row_id,...]} → sort_order = Index. Nur eigene Zeilen (account-gebunden). */
@@ -738,6 +844,7 @@ class M24_Garage_Cart {
 			'notify'   => esc_url_raw( rest_url( self::NS . '/garage/notify' ) ),
 			'notifyMaster' => esc_url_raw( rest_url( self::NS . '/garage/notify-master' ) ),
 			'reorder'  => esc_url_raw( rest_url( self::NS . '/garage/reorder' ) ),
+			'sendMail' => esc_url_raw( rest_url( self::NS . '/garage/send' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
@@ -890,11 +997,30 @@ class M24_Garage_Cart {
 									<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
 								</div>
 								<div class="m24gc-share-actions">
-									<a class="m24gc-share-link" data-m24gc-share-mail href="#"<?php echo '' === $share_url ? ' hidden' : ''; ?>>Teilen per E-Mail</a>
 									<button type="button" class="m24gc-share-gen" data-m24gc-share-generate<?php echo '' === $share_url ? '' : ' hidden'; ?>>Garage-Link erzeugen</button>
 									<button type="button" class="m24gc-share-rotate" data-m24gc-share-rotate<?php echo '' === $share_url ? ' hidden' : ''; ?>>Link zurückziehen / neu erzeugen</button>
 									<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
 								</div>
+
+								<!-- Server-seitiger Versand an Kunden (ersetzt den mailto:-Link) -->
+								<div class="m24gc-sendmail" data-m24gc-sendmail>
+									<h4 class="m24gc-sendmail-h">Per E-Mail an Kunden senden</h4>
+									<label class="m24gc-field">
+										<span class="m24gc-field-lbl">E-Mail-Adresse des Kunden</span>
+										<input type="email" class="m24gc-field-input" data-m24gc-sendmail-to required placeholder="kunde@example.com" autocomplete="off">
+									</label>
+									<label class="m24gc-field">
+										<span class="m24gc-field-lbl">Nachricht (optional)</span>
+										<textarea class="m24gc-field-input m24gc-field-textarea" data-m24gc-sendmail-msg rows="3" placeholder="Persönliche Nachricht an den Kunden"></textarea>
+									</label>
+									<label class="m24gc-check">
+										<input type="checkbox" data-m24gc-sendmail-pdf checked>
+										<span>Exposé-PDF anhängen</span>
+									</label>
+									<button type="button" class="m24gc-pdf-btn m24gc-btn-brass" data-m24gc-sendmail-btn>An Kunden senden</button>
+									<span class="m24gc-sendmail-status" data-m24gc-sendmail-status role="status"></span>
+								</div>
+
 								<a class="m24gc-pdf-btn m24gc-btn-brass" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Als PDF herunterladen</a>
 							</div>
 						</aside>

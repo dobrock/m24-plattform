@@ -197,30 +197,20 @@
 	if (sharePanel && cfg.share) {
 		var inEl = sharePanel.querySelector('[data-m24gc-share-input]');
 		var copyBtn = sharePanel.querySelector('[data-m24gc-share-copy]');
-		var mailBtn = sharePanel.querySelector('[data-m24gc-share-mail]');
 		var genBtn = sharePanel.querySelector('[data-m24gc-share-generate]');
 		var rotBtn = sharePanel.querySelector('[data-m24gc-share-rotate]');
 		var msgEl = sharePanel.querySelector('[data-m24gc-share-msg]');
 
 		function shareMsg(t) { if (msgEl) { msgEl.textContent = t || ''; } }
 
-		function buildMailto(url) {
-			var i18n = cfg.i18n || {};
-			var subj = encodeURIComponent(i18n.mailSubject || 'Garage');
-			var body = encodeURIComponent((i18n.mailBody || '') + '\n\n' + url);
-			return 'mailto:?subject=' + subj + '&body=' + body;
-		}
-
 		function applyUrl(url) {
 			if (inEl) { inEl.value = url || ''; }
 			var has = !!url;
 			if (copyBtn) { copyBtn.hidden = !has; }
-			if (mailBtn) { mailBtn.hidden = !has; if (has) { mailBtn.setAttribute('href', buildMailto(url)); } }
 			if (genBtn) { genBtn.hidden = has; }
 			if (rotBtn) { rotBtn.hidden = !has; }
 		}
 
-		// mailto-href initial setzen, falls schon ein Link da ist.
 		if (inEl && inEl.value) { applyUrl(inEl.value); }
 
 		function shareReq(action, after) {
@@ -257,7 +247,60 @@
 				}
 			});
 		}
-		// mailBtn ist ein echter <a href="mailto:…"> — Klick öffnet das Mailprogramm; href wird in applyUrl gesetzt.
+		// Server-seitiger Versand „An Kunden senden" (+ optional Exposé-PDF-Anhang).
+		var sm = sharePanel.querySelector('[data-m24gc-sendmail]');
+		if (sm && cfg.sendMail) {
+			var smTo = sm.querySelector('[data-m24gc-sendmail-to]');
+			var smMsg = sm.querySelector('[data-m24gc-sendmail-msg]');
+			var smPdf = sm.querySelector('[data-m24gc-sendmail-pdf]');
+			var smBtn = sm.querySelector('[data-m24gc-sendmail-btn]');
+			var smStatus = sm.querySelector('[data-m24gc-sendmail-status]');
+			var reEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+			function smSet(t, tone) {
+				if (!smStatus) { return; }
+				smStatus.textContent = t || '';
+				smStatus.className = 'm24gc-sendmail-status' + (tone ? ' is-' + tone : '');
+			}
+			function redact(email) {
+				var at = email.indexOf('@');
+				if (at < 0) { return '***'; }
+				return email.slice(0, Math.min(2, at)) + '***' + email.slice(at);
+			}
+
+			if (smBtn) {
+				smBtn.addEventListener('click', function () {
+					var to = (smTo && smTo.value || '').trim();
+					if (!reEmail.test(to)) { smSet('Bitte eine gültige E-Mail-Adresse eingeben.', 'error'); if (smTo) { smTo.focus(); } return; }
+					var payload = {
+						to: to,
+						message: (smMsg && smMsg.value || '').trim(),
+						attach_pdf: smPdf ? !!smPdf.checked : true
+					};
+					smBtn.disabled = true;
+					smBtn.classList.add('is-loading');
+					smSet('Wird gesendet …', '');
+					fetch(cfg.sendMail, {
+						method: 'POST', credentials: 'same-origin', headers: headers(),
+						body: JSON.stringify(payload)
+					}).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+					.then(function (res) {
+						smBtn.disabled = false;
+						smBtn.classList.remove('is-loading');
+						if (res.ok && res.d && res.d.sent) {
+							smSet('Gesendet an ' + redact(to), 'ok');
+							if (smMsg) { smMsg.value = ''; }
+						} else {
+							smSet((res.d && res.d.message) || 'Senden fehlgeschlagen.', 'error');
+						}
+					}).catch(function () {
+						smBtn.disabled = false;
+						smBtn.classList.remove('is-loading');
+						smSet('Senden fehlgeschlagen.', 'error');
+					});
+				});
+			}
+		}
 	}
 
 	/* ── Benachrichtigen-Pills je Fahrzeug (Etappe 2: nur Präferenz speichern) ── */

@@ -93,6 +93,37 @@ class M24_Garage_PDF {
 		exit;
 	}
 
+	/**
+	 * PDF-Bytes für einen Account (optional auf ein Fahrzeug gescoped) — für den Mail-Anhang.
+	 * Dieselbe Dompdf-Maschinerie + dasselbe HTML wie handle(); '' bei Fehler/fehlender Lib.
+	 */
+	public static function render_pdf_string( int $acc, int $pid = 0 ): string {
+		if ( $acc <= 0 ) { return ''; }
+		$items = M24_Garage_Cart::items( $acc );
+		if ( $pid > 0 ) {
+			$items = array_values( array_filter( $items, static function ( $it ) use ( $pid ) {
+				return (int) $it['post_id'] === $pid;
+			} ) );
+		}
+		list( , $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
+
+		$autoload = M24_PLATTFORM_DIR . 'vendor/autoload.php';
+		if ( ! is_readable( $autoload ) ) { return ''; }
+		require_once $autoload;
+		if ( ! class_exists( '\\Dompdf\\Dompdf' ) ) { return ''; }
+
+		$options = new \Dompdf\Options();
+		$options->set( 'isRemoteEnabled', false );
+		$options->set( 'defaultFont', 'DejaVu Sans' );
+		$options->set( 'isHtml5ParserEnabled', true );
+
+		$dompdf = new \Dompdf\Dompdf( $options );
+		$dompdf->loadHtml( self::html( $items, $grand_fmt, $has_unpriced ), 'UTF-8' );
+		$dompdf->setPaper( 'A4', 'portrait' );
+		$dompdf->render();
+		return (string) $dompdf->output();
+	}
+
 	/* ── Lokale Assets als data:-URI (offline, kein Remote nötig) ─────────── */
 
 	private static function file_data_uri( string $file, int $max_bytes = 0 ): string {
