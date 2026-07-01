@@ -162,3 +162,35 @@
 	.m24gc-tabs{gap:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 	.m24gc-tab{white-space:nowrap}
 }
+
+/* ── Etappe 2: Geparkte Fahrzeuge (volle Breite, eine Karte je Fahrzeug) ── */
+.m24gc-vlist{display:flex;flex-direction:column;gap:14px}
+.m24gc-vcard{background:#fff;border:1px solid #eef0f2;border-radius:6px;box-shadow:0 1px 3px rgba(20,22,26,.05);padding:16px 18px}
+.m24gc-vcard-head{display:grid;grid-template-columns:96px 1fr auto 28px;align-items:center;gap:16px}
+.m24gc-vcard .m24gc-thumb{width:96px;height:72px;border-radius:5px}
+.m24gc-vinfo{min-width:0;display:flex;flex-direction:column;gap:6px}
+.m24gc-vinfo .m24gc-title{font-size:16px;font-weight:700}
+.m24gc-vstatus{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#5a6474}
+.m24gc-vdot{width:9px;height:9px;border-radius:50%;background:#a8acb3;flex:0 0 auto}
+.m24gc-vstatus--ok .m24gc-vdot{background:#2e9e5b}
+.m24gc-vstatus--warn .m24gc-vdot{background:#e0a325}
+.m24gc-vstatus--sold .m24gc-vdot{background:#9e2b2b}
+.m24gc-vprice{font-size:18px;font-weight:800;color:#14161a;white-space:nowrap;text-align:right}
+.m24gc-vcard-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid #eef0f2}
+.m24gc-vactions{display:flex;flex-wrap:wrap;gap:18px}
+.m24gc-vact{color:#1f74c4;font-size:13.5px;font-weight:700;text-decoration:none}
+.m24gc-vact:hover{text-decoration:underline;color:#0e447e}
+.m24gc-vpills{display:flex;gap:8px;flex-wrap:wrap}
+.m24gc-pill{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border:1px solid #d7e3f0;border-radius:6px;background:#f4f8fc;color:#5a6474;font-family:'Saira',Arial,sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+.m24gc-pill:hover{border-color:#1f74c4}
+.m24gc-pill-dot{width:8px;height:8px;border-radius:50%;background:#c2cad3;flex:0 0 auto;transition:background .12s}
+.m24gc-pill.is-on{background:#e7f0fb;border-color:#1f74c4;color:#0e447e}
+.m24gc-pill.is-on .m24gc-pill-dot{background:#1f74c4}
+@media(max-width:860px){
+	.m24gc-vcard-head{grid-template-columns:72px 1fr 28px;grid-template-areas:"thumb info remove" "thumb price price";row-gap:8px}
+	.m24gc-vcard .m24gc-thumb{grid-area:thumb;width:72px;height:56px}
+	.m24gc-vinfo{grid-area:info}
+	.m24gc-vprice{grid-area:price;text-align:left}
+	.m24gc-vcard-head .m24gc-remove{grid-area:remove}
+	.m24gc-vcard-foot{flex-direction:column;align-items:flex-start}
+}

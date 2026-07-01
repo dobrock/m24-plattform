@@ -29,6 +29,11 @@ class M24_Garage_PDF {
 		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION ), self::NONCE );
 	}
 
+	/** Einzel-Fahrzeug-Exposé (scoped auf eine post_id) — gleiche Dompdf-Maschinerie, nonce-gated. */
+	public static function vehicle_url( int $pid ): string {
+		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&pid=' . $pid ), self::NONCE );
+	}
+
 	/** Download-URL für die geteilte Read-only-Ansicht (token-gated, ohne Login). */
 	public static function share_url( string $token ): string {
 		return add_query_arg(
@@ -52,8 +57,15 @@ class M24_Garage_PDF {
 			$acc = M24_Garage_Cart::current_account_id();
 		}
 
-		// 2) Inhalt aus der gemeinsamen Logik.
+		// 2) Inhalt aus der gemeinsamen Logik. Optional auf ein Fahrzeug scopen (Einzel-Exposé).
 		$items = M24_Garage_Cart::items( $acc );
+		$pid   = isset( $_GET['pid'] ) ? (int) $_GET['pid'] : 0;
+		if ( $pid > 0 ) {
+			$items = array_values( array_filter( $items, static function ( $it ) use ( $pid ) {
+				return (int) $it['post_id'] === $pid;
+			} ) );
+			if ( empty( $items ) ) { wp_die( esc_html__( 'Fahrzeug nicht in deiner Garage.', 'm24-plattform' ), '', array( 'response' => 404 ) ); }
+		}
 		list( , $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
 
 		// 3) HTML → PDF.

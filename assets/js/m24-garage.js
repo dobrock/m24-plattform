@@ -29,14 +29,30 @@
 	function fmtMoney(n) { // 1234.56 → "1.234,56 €" (identisch zu M24_Catalog_Pricing::format)
 		return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 	}
-	function setGrand(fmt) {
-		if (!fmt) { return; }
-		document.querySelectorAll('[data-m24gc-grand]').forEach(function (el) { el.textContent = fmt; });
-		var b = parseMoney(fmt);
-		if (b !== null) {
-			var net = fmtMoney(b / 1.19);
-			document.querySelectorAll('[data-m24gc-net]').forEach(function (el) { el.textContent = net; });
+	// Teile-Tab-Summe NUR aus Teile-Zeilen (data-line) client-seitig — Fahrzeuge (§25a) fließen NICHT ein.
+	function recalcTotals() {
+		var panel = document.querySelector('[data-m24gc-panel="parts"]');
+		if (panel) {
+			var sum = 0;
+			panel.querySelectorAll('[data-m24gc-row]').forEach(function (r) {
+				var v = r.getAttribute('data-line');
+				if (v) { var n = parseFloat(v); if (!isNaN(n)) { sum += n; } }
+			});
+			var g = fmtMoney(sum), net = fmtMoney(sum / 1.19);
+			panel.querySelectorAll('[data-m24gc-grand]').forEach(function (el) { el.textContent = g; });
+			panel.querySelectorAll('[data-m24gc-net]').forEach(function (el) { el.textContent = net; });
 		}
+		updateBadges();
+	}
+	// Tab-Badges = Zeilenzahl je Panel (Teile / Fahrzeuge); 0 → verstecken.
+	function updateBadges() {
+		['parts', 'vehicles'].forEach(function (key) {
+			var p = document.querySelector('[data-m24gc-panel="' + key + '"]');
+			var n = p ? p.querySelectorAll('[data-m24gc-row]').length : 0;
+			document.querySelectorAll('[data-m24gc-badge="' + key + '"]').forEach(function (b) {
+				b.textContent = String(n); b.hidden = n <= 0;
+			});
+		});
 	}
 
 	/* ── Tab-Umschaltung (client-seitig, kein Reload) ── */
@@ -157,8 +173,11 @@
 					if (qtyEl) { qtyEl.textContent = String(d.qty); }
 					var lineEl = row.querySelector('[data-m24gc-line]');
 					if (lineEl) { lineEl.textContent = d.line_fmt || '—'; }
+					// Numerischen Zeilenwert für die Teile-Summe nachführen.
+					var num = d.line_fmt ? parseMoney(d.line_fmt) : null;
+					row.setAttribute('data-line', (num !== null) ? String(num) : '');
 				}
-				setGrand(d.grand_fmt);
+				recalcTotals();
 			}).catch(function () {
 				row.dataset.busy = '';
 				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
@@ -232,6 +251,36 @@
 			});
 		}
 		// mailBtn ist ein echter <a href="mailto:…"> — Klick öffnet das Mailprogramm; href wird in applyUrl gesetzt.
+	}
+
+	/* ── Benachrichtigen-Pills je Fahrzeug (Etappe 2: nur Präferenz speichern) ── */
+	if (page && cfg.notify) {
+		page.addEventListener('click', function (e) {
+			var pill = e.target.closest ? e.target.closest('[data-m24gc-pref]') : null;
+			if (!pill) { return; }
+			var box = pill.closest('[data-m24gc-notify]');
+			if (!box || pill.dataset.busy === '1') { return; }
+			var pid = parseInt(box.getAttribute('data-post-id') || '0', 10);
+			var key = pill.getAttribute('data-m24gc-pref');
+			var on = !pill.classList.contains('is-on');
+			pill.dataset.busy = '1';
+			fetch(cfg.notify, {
+				method: 'POST', credentials: 'same-origin', headers: headers(),
+				body: JSON.stringify({ post_id: pid, key: key, on: on })
+			}).then(function (r) { return r.json(); }).then(function (d) {
+				pill.dataset.busy = '';
+				if (d && d.ok) {
+					var val = !!d[key];
+					pill.classList.toggle('is-on', val);
+					pill.setAttribute('aria-pressed', val ? 'true' : 'false');
+				} else {
+					toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
+				}
+			}).catch(function () {
+				pill.dataset.busy = '';
+				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
+			});
+		});
 	}
 
 	/* ── Garage als Anfrage senden (reuse Sammelanfrage-Strecke, Etappe 4) ── */

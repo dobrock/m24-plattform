@@ -227,6 +227,9 @@
 	wireModalForm(anfModal, '.m24fz-anfrage-form', cfg.anfrage);
 	wireModalForm(ilModal, '.m24fz-il-form', cfg.interessent);
 
+	// Deep-Link aus „Meine Garage" (Fahrzeug-Karte → „Anfrage senden"): ?m24anfrage=1 öffnet das Modal.
+	if (anfModal && /[?&]m24anfrage=1\b/.test(location.search)) { modalOpen(anfModal); }
+
 	// „Fahrzeug parken"-Modal — gleiche REST-Logik + Button-Feedback (Hero-Pill + Preisbox) nach Erfolg.
 	if (parkModal && cfg.parken) {
 		var pForm = parkModal.querySelector('.m24fz-park-form');

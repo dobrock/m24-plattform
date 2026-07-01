@@ -215,6 +215,49 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_submit' ),
 		) );
+		// Etappe 2: Benachrichtigungs-Präferenz je Fahrzeug speichern (Senden folgt Etappe 3).
+		register_rest_route( self::NS, '/garage/notify', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_notify' ),
+		) );
+	}
+
+	/* ── Etappe 2: Benachrichtigungs-Präferenz je Fahrzeug (account-gebunden, usermeta) ── */
+
+	const NOTIFY_META = '_m24_garage_notify'; // usermeta: array( post_id => array('price'=>bool,'sold'=>bool) )
+
+	/** Prefs-Map des Accounts (immer Array). */
+	public static function notify_all( int $acc ): array {
+		$m = get_user_meta( $acc, self::NOTIFY_META, true );
+		return is_array( $m ) ? $m : array();
+	}
+
+	/** Prefs für EIN Fahrzeug (Defaults false). */
+	public static function notify_for( int $acc, int $pid ): array {
+		$all = self::notify_all( $acc );
+		$p   = isset( $all[ $pid ] ) && is_array( $all[ $pid ] ) ? $all[ $pid ] : array();
+		return array( 'price' => ! empty( $p['price'] ), 'sold' => ! empty( $p['sold'] ) );
+	}
+
+	public static function handle_notify( WP_REST_Request $req ) {
+		$acc = self::current_account_id();
+		$pid = (int) $req->get_param( 'post_id' );
+		$key = (string) $req->get_param( 'key' );
+		$on  = filter_var( $req->get_param( 'on' ), FILTER_VALIDATE_BOOLEAN );
+		if ( ! $pid || 'm24_fahrzeug' !== get_post_type( $pid ) ) {
+			return new WP_Error( 'm24gc_bad', 'Fahrzeug unbekannt.', array( 'status' => 400 ) );
+		}
+		if ( ! in_array( $key, array( 'price', 'sold' ), true ) ) {
+			return new WP_Error( 'm24gc_bad', 'Unbekannte Präferenz.', array( 'status' => 400 ) );
+		}
+		$all = self::notify_all( $acc );
+		if ( ! isset( $all[ $pid ] ) || ! is_array( $all[ $pid ] ) ) { $all[ $pid ] = array( 'price' => false, 'sold' => false ); }
+		$all[ $pid ][ $key ] = $on;
+		// Leere Einträge (beide false) wieder entfernen — schlank halten.
+		if ( empty( $all[ $pid ]['price'] ) && empty( $all[ $pid ]['sold'] ) ) { unset( $all[ $pid ] ); }
+		update_user_meta( $acc, self::NOTIFY_META, $all );
+		return rest_ensure_response( array( 'ok' => true ) + self::notify_for( $acc, $pid ) );
 	}
 
 	public static function handle_share( WP_REST_Request $req ) {
@@ -572,6 +615,7 @@ class M24_Garage_Cart {
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),
+			'notify'   => esc_url_raw( rest_url( self::NS . '/garage/notify' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
@@ -631,11 +675,15 @@ class M24_Garage_Cart {
 		}
 
 		$items = self::items( $acc );
-		list( $grand_num, $grand_fmt, $has_unpriced ) = self::grand_total( $items );
-		$net_fmt = self::fmt( $grand_num / 1.19 );
-		$count   = count( $items );
-		$unpriced = 0;
-		foreach ( $items as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
+		// Nach Typ aufteilen: Teile → Teile-Merkzettel, Fahrzeuge → Geparkte Fahrzeuge.
+		$parts    = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
+		$vehicles = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' === $it['post_type']; } ) );
+		list( $grand_num, $grand_fmt, $has_unpriced ) = self::grand_total( $parts ); // Teile-Tab-Summe = NUR Teile
+		$net_fmt   = self::fmt( $grand_num / 1.19 );
+		$count     = count( $parts );
+		$veh_count = count( $vehicles );
+		$unpriced  = 0;
+		foreach ( $parts as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
 
 		$share_tok = self::share_token_existing( $acc );
 		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
@@ -656,22 +704,28 @@ class M24_Garage_Cart {
 			</header>
 
 			<nav class="m24gc-tabs" role="tablist" data-m24gc-tabs>
-				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="vehicles">Geparkte Fahrzeuge</button>
-				<button type="button" class="m24gc-tab is-active" role="tab" aria-selected="true" data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24-garage-count><?php echo (int) $count; ?></span></button>
+				<button type="button" class="m24gc-tab is-active" role="tab" aria-selected="true" data-m24gc-tab="vehicles">Geparkte Fahrzeuge <span class="m24gc-tab-badge" data-m24gc-badge="vehicles"<?php echo 0 === $veh_count ? ' hidden' : ''; ?>><?php echo (int) $veh_count; ?></span></button>
+				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24gc-badge="parts"<?php echo 0 === $count ? ' hidden' : ''; ?>><?php echo (int) $count; ?></span></button>
 				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="notify">Benachrichtigungen</button>
 			</nav>
 
-			<!-- TAB: Geparkte Fahrzeuge — Etappe 1 Platzhalter -->
-			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="vehicles" hidden>
-				<div class="m24gc-emptybox">
-					<div class="m24gc-emptybox-t">Deine geparkten Fahrzeuge erscheinen hier</div>
-					<p class="m24gc-emptybox-s">Sobald du ein Fahrzeug in deine Garage legst, findest du es in diesem Tab.</p>
-				</div>
+			<!-- TAB: Geparkte Fahrzeuge — volle Breite, eine Karte je Fahrzeug -->
+			<section class="m24gc-panel is-active" role="tabpanel" data-m24gc-panel="vehicles">
+				<?php if ( empty( $vehicles ) ) : ?>
+					<div class="m24gc-emptybox">
+						<div class="m24gc-emptybox-t">Deine geparkten Fahrzeuge erscheinen hier</div>
+						<p class="m24gc-emptybox-s">Sobald du ein Fahrzeug über „In meine Garage" hinzufügst, findest du es in diesem Tab.</p>
+					</div>
+				<?php else : ?>
+					<div class="m24gc-vlist" data-m24gc-list>
+						<?php foreach ( $vehicles as $it ) : self::render_vehicle_card( $it, $acc ); endforeach; ?>
+					</div>
+				<?php endif; ?>
 			</section>
 
 			<!-- TAB: Teile-Merkzettel — bestehender Cart (umgezogen) -->
-			<section class="m24gc-panel is-active" role="tabpanel" data-m24gc-panel="parts">
-				<?php if ( empty( $items ) ) : ?>
+			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="parts" hidden>
+				<?php if ( empty( $parts ) ) : ?>
 					<div class="m24gc-emptybox" data-m24gc-emptystate>
 						<div class="m24gc-emptybox-t">Dein Teile-Merkzettel ist leer</div>
 						<p class="m24gc-emptybox-s">Lege Teile über „In meine Garage" auf jeder Teile-Seite hinein.</p>
@@ -680,7 +734,7 @@ class M24_Garage_Cart {
 					<div class="m24gc-grid">
 						<div class="m24gc-col-main">
 							<div class="m24gc-list" data-m24gc-list>
-								<?php foreach ( $items as $it ) : self::render_row( $it ); endforeach; ?>
+								<?php foreach ( $parts as $it ) : self::render_row( $it ); endforeach; ?>
 							</div>
 							<div class="m24gc-listfoot">
 								<span class="m24gc-listfoot-l"><?php echo (int) $count; ?> Position<?php echo 1 === $count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
@@ -753,7 +807,7 @@ class M24_Garage_Cart {
 		$pid  = (int) $it['post_id'];
 		$pt   = (string) $it['post_type'];
 		?>
-		<div class="m24gc-row<?php echo $readonly ? ' is-readonly' : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-post-id="' . esc_attr( $pid ) . '" data-post-type="' . esc_attr( $pt ) . '"'; ?>>
+		<div class="m24gc-row<?php echo $readonly ? ' is-readonly' : ''; ?>" data-line="<?php echo null !== $it['line_total'] ? esc_attr( number_format( (float) $it['line_total'], 2, '.', '' ) ) : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-post-id="' . esc_attr( $pid ) . '" data-post-type="' . esc_attr( $pt ) . '"'; ?>>
 			<a class="m24gc-thumb" href="<?php echo esc_url( $it['url'] ); ?>">
 				<?php if ( $it['thumb'] ) : ?>
 					<img src="<?php echo esc_url( $it['thumb'] ); ?>" alt="" loading="lazy">
@@ -780,6 +834,56 @@ class M24_Garage_Cart {
 				<div class="m24gc-line" data-m24gc-line><?php echo esc_html( null !== $it['line_fmt'] ? $it['line_fmt'] : '—' ); ?></div>
 				<button type="button" class="m24gc-remove" aria-label="Position entfernen" data-m24gc-remove>&times;</button>
 			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Fahrzeug-Karte (volle Breite) für den „Geparkte Fahrzeuge"-Tab.
+	 * Kopf: Thumb + Titel + Status (Farbpunkt) + Preis (§25a: NUR Brutto) + Entfernen (Cart-Remove).
+	 * Fußzeile: 3 Textaktionen (Teilen/Exposé-PDF/Anfrage) + 2 Benachrichtigen-Pills (Präferenz-Toggle).
+	 */
+	private static function render_vehicle_card( array $it, int $acc ) {
+		$pid = (int) $it['post_id'];
+		$st  = class_exists( 'M24FZ_CPT' ) ? (string) M24FZ_CPT::status( $pid ) : '';
+		$map = array(
+			'gelistet'    => array( 'Gelistet', 'ok' ),
+			'reserviert'  => array( 'Reserviert', 'warn' ),
+			'verkauft'    => array( 'Verkauft', 'sold' ),
+			'deaktiviert' => array( 'Nicht verfügbar', 'sold' ),
+			'entwurf'     => array( 'In Vorbereitung', 'warn' ),
+		);
+		list( $st_label, $st_tone ) = $map[ $st ] ?? array( 'Gelistet', 'ok' );
+		$price = ( null !== $it['unit_fmt'] ) ? $it['unit_fmt'] : 'Preis auf Anfrage';
+		$pref  = self::notify_for( $acc, $pid );
+		$mailto = 'mailto:?subject=' . rawurlencode( $it['title'] . ' — MOTORSPORT24' )
+			. '&body=' . rawurlencode( $it['title'] . "\n" . $it['url'] );
+		$anfrage = add_query_arg( 'm24anfrage', '1', $it['url'] );
+		$pdf     = M24_Garage_PDF::vehicle_url( $pid );
+		?>
+		<div class="m24gc-vcard" data-m24gc-row data-post-id="<?php echo esc_attr( $pid ); ?>" data-post-type="m24_fahrzeug" data-line="">
+			<div class="m24gc-vcard-head">
+				<a class="m24gc-thumb" href="<?php echo esc_url( $it['url'] ); ?>">
+					<?php if ( $it['thumb'] ) : ?><img src="<?php echo esc_url( $it['thumb'] ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
+				</a>
+				<div class="m24gc-vinfo">
+					<a class="m24gc-title" href="<?php echo esc_url( $it['url'] ); ?>"><?php echo esc_html( $it['title'] ); ?></a>
+					<span class="m24gc-vstatus m24gc-vstatus--<?php echo esc_attr( $st_tone ); ?>"><span class="m24gc-vdot" aria-hidden="true"></span><?php echo esc_html( $st_label ); ?></span>
+				</div>
+				<div class="m24gc-vprice"><?php echo esc_html( $price ); ?></div>
+				<button type="button" class="m24gc-remove" aria-label="Fahrzeug entfernen" data-m24gc-remove>&times;</button>
+			</div>
+			<div class="m24gc-vcard-foot">
+				<div class="m24gc-vactions">
+					<a class="m24gc-vact" href="<?php echo esc_url( $mailto ); ?>">Teilen per E-Mail</a>
+					<a class="m24gc-vact" href="<?php echo esc_url( $pdf ); ?>">Exposé als PDF</a>
+					<a class="m24gc-vact" href="<?php echo esc_url( $anfrage ); ?>">Anfrage senden</a>
+				</div>
+				<div class="m24gc-vpills" data-m24gc-notify data-post-id="<?php echo esc_attr( $pid ); ?>">
+					<button type="button" class="m24gc-pill<?php echo $pref['price'] ? ' is-on' : ''; ?>" data-m24gc-pref="price" aria-pressed="<?php echo $pref['price'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Preisänderung</button>
+					<button type="button" class="m24gc-pill<?php echo $pref['sold'] ? ' is-on' : ''; ?>" data-m24gc-pref="sold" aria-pressed="<?php echo $pref['sold'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Verkauft / reserviert</button>
+				</div>
+			</div>
 		</div>
 		<?php
 	}
