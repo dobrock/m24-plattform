@@ -110,8 +110,8 @@ class M24_Garage_Alerts {
 		self::log( 'dispatch:summary', $pid, 0, $type, array( 'sent' => $sent, 'would' => $would, 'skip' => $skip, 'flag' => self::enabled() ? 'on' : 'off' ) );
 	}
 
-	/** @return bool wp_mail-Ergebnis (Brevo-Sender via m24fz_mail_from_email wie B2B/IL/Garage). */
-	private static function send( string $email, int $pid, string $type, array $data ): bool {
+	/** Baut [subject, html] der Alert-Mail (echtes Template) — geteilt von send() + Vorschau. */
+	private static function build_mail( int $pid, string $type, array $data ): array {
 		$title = get_the_title( $pid );
 		$url   = (string) get_permalink( $pid );
 		$manage = class_exists( 'M24_Garage_Cart' ) ? add_query_arg( 'm24tab', 'notify', M24_Garage_Cart::page_url() ) : home_url( '/' );
@@ -138,6 +138,12 @@ class M24_Garage_Alerts {
 		$html = function_exists( 'm24_mail_shell' )
 			? m24_mail_shell( $head, $body, array( 'footer_extra' => $manage_link ) )
 			: '<h1>' . esc_html( $head ) . '</h1>' . $body; // Fallback (Template nicht geladen)
+		return array( $subject, $html );
+	}
+
+	/** @return bool wp_mail-Ergebnis (Brevo-Sender via m24fz_mail_from_email wie B2B/IL/Garage). */
+	private static function send( string $email, int $pid, string $type, array $data ): bool {
+		list( $subject, $html ) = self::build_mail( $pid, $type, $data );
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
@@ -151,6 +157,24 @@ class M24_Garage_Alerts {
 		catch ( \Throwable $t ) { $err = 'exception: ' . $t->getMessage(); }
 		remove_action( 'wp_mail_failed', $catch );
 		return $ok && '' === $err;
+	}
+
+	/**
+	 * Vorschau/Test-Versand einer Alert-Mail (Admin-Tool) — echtes build_mail() mit Dummy-Daten.
+	 * $type: 'price' | 'sold'. Nutzt das neueste veröffentlichte Fahrzeug (echtes Mosaik), sonst 0.
+	 */
+	public static function preview_send( string $to, string $type ): bool {
+		if ( ! is_email( $to ) ) { return false; }
+		$q   = get_posts( array( 'post_type' => 'm24_fahrzeug', 'post_status' => 'publish', 'numberposts' => 1, 'fields' => 'ids' ) );
+		$pid = ! empty( $q ) ? (int) $q[0] : 0;
+		$data = ( 'price' === $type ) ? array( 'old' => 129000, 'new' => 119000 ) : array( 'to' => 'verkauft' );
+		list( $subject, $html ) = self::build_mail( $pid, $type, $data );
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: ' . self::from_header(),
+			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
+		);
+		return (bool) wp_mail( $to, '[TEST] ' . $subject, $html, $headers );
 	}
 
 	private static function fmt( int $v ): string {

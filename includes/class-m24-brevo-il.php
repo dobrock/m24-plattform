@@ -436,6 +436,13 @@ class M24_Brevo_IL {
 	 * ================================================================== */
 
 	/** DOI-Bestätigungsmail an den Interessenten (CI-konform, Bestätigungs-Button). Sprache DE|EN. */
+	/** Vorschau/Test-Versand einer DOI-Mail (Admin-Tool): echtes send_doi_mail mit Dummy-Token/-Name. */
+	public static function preview_doi_mail( $to, $variant = '' ) {
+		if ( ! is_email( $to ) ) { return false; }
+		self::send_doi_mail( $to, 'Max Mustermann', str_repeat( 'a', 40 ), (string) $variant, 'de', 'Max' );
+		return true;
+	}
+
 	private static function send_doi_mail( $email, $name, $token, $variant = '', $lang = 'de', $vorname = '' ) {
 		$confirm_url = add_query_arg( self::QUERY_VAR, $token, self::confirm_page_url() );
 		$en          = ( 'en' === strtolower( (string) $lang ) );

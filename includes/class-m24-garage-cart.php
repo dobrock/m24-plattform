@@ -54,6 +54,20 @@ class M24_Garage_Cart {
 		// erreicht sie. Auf template_redirect (vor Theme-Header) starten, Callback ersetzt sie global.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_start_page_buffer' ), 0 );
 		add_action( 'wp_head', array( __CLASS__, 'hide_theme_title' ), 99 );
+		// Share-Token als bekannten Query-Var registrieren, damit redirect_canonical (Core + tagDiv-
+		// Mobile-Theme) ihn NICHT aus der URL strippt — sonst landet der Empfänger auf der leeren Garage.
+		add_filter( 'query_vars', array( __CLASS__, 'register_share_query_var' ) );
+		add_filter( 'redirect_canonical', array( __CLASS__, 'keep_share_url' ) );
+	}
+
+	public static function register_share_query_var( $vars ) {
+		$vars[] = self::SHARE_QUERY;
+		return $vars;
+	}
+
+	/** Kein kanonischer Redirect auf der Share-Ansicht (würde den Token-Query-Param verwerfen). */
+	public static function keep_share_url( $redirect ) {
+		return self::is_share_view() ? false : $redirect;
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -310,6 +324,42 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_send' ),
 		) );
+	}
+
+	/** Vorschau/Test-Versand der Garage-Mail (Admin-Tool) — echtes m24_mail_shell + Dummy-PDF-Anhang. */
+	public static function preview_send_mail( string $to ): bool {
+		if ( ! is_email( $to ) ) { return false; }
+		$share_url = self::page_url();
+		$inner  = '<p style="margin:0 0 14px;">Guten Tag,</p>'
+			. '<p style="margin:0 0 14px;">anbei Ihre persönliche Teile-Auswahl von MOTORSPORT24.</p>'
+			. '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . esc_html( 'Beispiel-Nachricht: Ihre angefragten Teile im Überblick.' ) . '</p>'
+			. '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zur Teile-Übersicht</a></p>'
+			. '<p style="margin:0;color:#5a6474;font-size:13px;">Das vollständige Exposé finden Sie im PDF-Anhang dieser E-Mail.</p>';
+		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( 'Ihre Teile-Auswahl', $inner ) : '<h1>Ihre Teile-Auswahl</h1>' . $inner;
+
+		$attachments = array();
+		$tmp_dir     = '';
+		if ( class_exists( 'M24_Garage_PDF' ) ) {
+			$pdf = M24_Garage_PDF::preview_pdf_string();
+			if ( '' !== $pdf ) {
+				$tmp_dir = trailingslashit( get_temp_dir() ) . 'm24gc-' . wp_generate_password( 10, false, false ) . '/';
+				if ( wp_mkdir_p( $tmp_dir ) ) {
+					$file = $tmp_dir . 'MOTORSPORT24-Teileauswahl.pdf';
+					if ( false !== file_put_contents( $file, $pdf ) ) { $attachments[] = $file; } // phpcs:ignore WordPress.WP.AlternativeFunctions
+				}
+			}
+		}
+		$host      = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+		if ( '' === $host ) { $host = 'motorsport24.de'; }
+		$headers   = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: MOTORSPORT24 <' . apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host ) . '>',
+			'Reply-To: MOTORSPORT24 <info@motorsport24.de>',
+		);
+		$ok = (bool) wp_mail( $to, '[TEST] Ihre Teile-Auswahl – MOTORSPORT24', $html, $headers, $attachments );
+		foreach ( $attachments as $f ) { if ( is_file( $f ) ) { @unlink( $f ); } } // phpcs:ignore
+		if ( '' !== $tmp_dir && is_dir( $tmp_dir ) ) { @rmdir( $tmp_dir ); } // phpcs:ignore
+		return $ok;
 	}
 
 	/** Empfänger-Adresse für den Sync-Log redigieren (kein Klartext-PII). */

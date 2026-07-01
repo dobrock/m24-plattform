@@ -31,7 +31,8 @@ if ( ! function_exists( 'm24_mail_shell' ) ) {
 	 * E-Mail-tauglich: Tabellen, Inline-Styles, absolute Logo-URL.
 	 */
 	function m24_mail_shell( $headline, $inner, array $opts = array() ) {
-		$logo = esc_url( plugins_url( 'assets/img/m24-logo.png', M24_PLATTFORM_FILE ) );
+		// WEISSE Logo-Variante (auf dem blauen Header lesbar) — dieselbe wie IL-/B2B-Mails, via Filter.
+		$logo = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
 		$ff   = "Saira, Arial, Helvetica, sans-serif";
 		$foot_extra = isset( $opts['footer_extra'] ) ? (string) $opts['footer_extra'] : '';
 		$head_html  = ( '' !== (string) $headline )

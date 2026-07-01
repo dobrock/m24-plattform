@@ -124,6 +124,27 @@ class M24_Garage_PDF {
 		return (string) $dompdf->output();
 	}
 
+	/** Vorschau-PDF mit Dummy-Positionen (Admin-Testtool) — echtes html()+Dompdf, ohne DB. */
+	public static function preview_pdf_string(): string {
+		$items = array(
+			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 2, 'title' => 'Bremsscheibe vorn (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-1001', 'unit' => 149.90, 'unit_fmt' => '149,90 €', 'line_total' => 299.80, 'line_fmt' => '299,80 €' ),
+			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 1, 'title' => 'Sportfahrwerk-Kit (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-2002', 'unit' => 1290.00, 'unit_fmt' => '1.290,00 €', 'line_total' => 1290.00, 'line_fmt' => '1.290,00 €' ),
+		);
+		$autoload = M24_PLATTFORM_DIR . 'vendor/autoload.php';
+		if ( ! is_readable( $autoload ) ) { return ''; }
+		require_once $autoload;
+		if ( ! class_exists( '\\Dompdf\\Dompdf' ) ) { return ''; }
+		$options = new \Dompdf\Options();
+		$options->set( 'isRemoteEnabled', false );
+		$options->set( 'defaultFont', 'DejaVu Sans' );
+		$options->set( 'isHtml5ParserEnabled', true );
+		$dompdf = new \Dompdf\Dompdf( $options );
+		$dompdf->loadHtml( self::html( $items, '1.589,80 €', false ), 'UTF-8' );
+		$dompdf->setPaper( 'A4', 'portrait' );
+		$dompdf->render();
+		return (string) $dompdf->output();
+	}
+
 	/* ── Lokale Assets als data:-URI (offline, kein Remote nötig) ─────────── */
 
 	private static function file_data_uri( string $file, int $max_bytes = 0 ): string {

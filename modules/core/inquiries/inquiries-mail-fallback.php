@@ -130,6 +130,25 @@ class M24_Inquiries_Mail_Fallback {
         return self::compose_and_send( self::normalize_data( $in ), (string) $reason, $to );
     }
 
+    /** Vorschau/Test-Versand der „Neue Anfrage"-Betreiber-Mail (Admin-Tool) — echtes build_html_body. */
+    public static function preview_notification( $to ) {
+        if ( ! is_email( $to ) ) { return false; }
+        $data = self::normalize_data( [
+            'anrede' => 'Herr', 'vorname' => 'Max', 'nachname' => 'Mustermann',
+            'email' => 'max.mustermann@example.com', 'tel' => '+49 30 1234567',
+            'firma' => 'Muster Motorsport GmbH', 'plz' => '13595', 'ort' => 'Berlin', 'land' => 'DE', 'biz' => '1',
+            'notes' => 'Beispiel-Anfrage aus dem Vorschau-Tool.',
+            'inquiry_source' => 'cart',
+            'items' => [
+                [ 'art' => 'Bremsscheibe vorn (Muster)', 'qty' => 2, 'price' => '149,90 €', 'src_url' => home_url( '/' ), 'src_art_nr' => 'ART-1001' ],
+                [ 'art' => 'Sportfahrwerk-Kit (Muster)', 'qty' => 1, 'price' => '1.290,00 €', 'src_url' => home_url( '/' ), 'src_art_nr' => 'ART-2002' ],
+            ],
+        ] );
+        $subject = '[TEST] ' . self::build_subject( $data, self::REASON_NOTIFY );
+        $body    = self::build_html_body( $data, self::REASON_NOTIFY );
+        return (bool) wp_mail( $to, $subject, $body, [ 'Content-Type: text/html; charset=UTF-8' ] );
+    }
+
     /** Validiertes Eingabe-Array -> Builder-Daten-Shape (wie collect_inquiry_data). */
     private static function normalize_data( array $in ) {
         $biz = isset( $in['biz'] ) ? (string) $in['biz'] : '';
