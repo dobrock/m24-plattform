@@ -942,8 +942,9 @@ class M24_Garage_Cart {
 		$scoped = array();
 		foreach ( (array) $hide as $sel ) { $scoped[] = $b . $sel; }
 
-		// (2) For-Sale-Sidebar (.tdi_6) weg + Content-Spalte 100% (filterbar, falls tagDiv die Klasse neu vergibt).
-		$sidebar = apply_filters( 'm24_garage_sidebar_selector', '.tdi_6' );
+		// (2) tagDiv-Sidebar weg + Content-Spalte 100%. STABILE Klasse .td-main-sidebar (nicht die
+		//     numerische .tdi_*, die beim Rebuild neu vergeben wird). Filterbar.
+		$sidebar = apply_filters( 'm24_garage_sidebar_selector', '.td-main-sidebar' );
 		$css  = implode( ',', $scoped ) . '{display:none!important}';
 		$css .= $b . $sidebar . '{display:none!important}';
 		$css .= $b . '.td-pb-row>.td-pb-span8,' . $b . '.vc_row .wpb_column{width:100%!important;max-width:100%!important;flex:1 1 100%!important}';
