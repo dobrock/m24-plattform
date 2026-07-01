@@ -130,14 +130,26 @@ class M24_Garage {
 		$consent  = ! empty( $p['consent'] );
 		$en       = ( 'en' === $lang );
 
-		if ( ! is_email( $email ) ) { return new WP_Error( 'm24g_form', $en ? 'Please enter a valid email.' : 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
-		if ( '' === $vorname )      { return new WP_Error( 'm24g_form', $en ? 'Please enter your first name.' : 'Bitte deinen Vornamen angeben.', array( 'status' => 422 ) ); }
-		if ( ! $consent )           { return new WP_Error( 'm24g_form', $en ? 'Please agree to the sign-up.' : 'Bitte der Anmeldung zustimmen.', array( 'status' => 422 ) ); }
+		// Diagnose: welche Felder ANWESEND (nur bool, keine Werte) — zeigt bei „consent fehlt", ob die
+		// Checkbox überhaupt mitgesendet wurde (unchecked → nicht im FormData).
+		self::log_step( 'add:received', 'ok', array(
+			'has_email'   => '' !== (string) ( $p['email'] ?? '' ),
+			'has_vorname' => '' !== (string) ( $p['vorname'] ?? '' ),
+			'has_consent' => isset( $p['consent'] ) && '' !== (string) $p['consent'],
+			'has_post_id' => $pid > 0,
+			'type'        => $type,
+		) );
+
+		if ( ! is_email( $email ) ) { self::log_step( 'add:gate', 'FAIL:email_invalid' ); return new WP_Error( 'm24g_form', $en ? 'Please enter a valid email.' : 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		if ( '' === $vorname )      { self::log_step( 'add:gate', 'FAIL:vorname_missing' ); return new WP_Error( 'm24g_form', $en ? 'Please enter your first name.' : 'Bitte deinen Vornamen angeben.', array( 'status' => 422 ) ); }
+		if ( ! $consent )           { self::log_step( 'add:gate', 'FAIL:consent_missing' ); return new WP_Error( 'm24g_form', $en ? 'Please agree to the sign-up.' : 'Bitte der Anmeldung zustimmen.', array( 'status' => 422 ) ); }
 
 		$expected_pt = ( 'part' === $type ) ? 'm24_teil' : 'm24_fahrzeug';
 		if ( ! $pid || $expected_pt !== get_post_type( $pid ) ) {
+			self::log_step( 'add:gate', 'FAIL:item_invalid' );
 			return new WP_Error( 'm24g_bad', $en ? 'Item not found.' : 'Eintrag unbekannt.', array( 'status' => 400 ) );
 		}
+		self::log_step( 'add:gates', 'passed' );
 
 		$now = current_time( 'mysql' );
 
@@ -152,7 +164,7 @@ class M24_Garage {
 			), array( 'id' => (int) $existing['id'] ) );
 			$doi_status = (string) $existing['doi_status'];
 		} else {
-			$wpdb->insert( $users, array(
+			$ins = $wpdb->insert( $users, array(
 				'email'      => $email,
 				'vorname'    => $vorname,
 				'nachname'   => $nachname,
@@ -161,6 +173,7 @@ class M24_Garage {
 				'created_at' => $now,
 			) );
 			$doi_status = 'pending';
+			self::log_step( 'user:insert', false === $ins ? 'FAIL:' . ( $wpdb->last_error ?: 'db' ) : 'ok' );
 		}
 
 		// 2) Item upsert mit Preis-/Status-Snapshot.
@@ -185,7 +198,10 @@ class M24_Garage {
 
 		// 3) DOI-Mail nur bei neuem/unbestätigtem User.
 		if ( 'confirmed' !== $doi_status ) {
+			self::log_step( 'doi:reached', 'ok' ); // Sendefunktion erreicht (Ergebnis loggt send_mail)
 			self::send_doi_mail( $email, $vorname, $lang );
+		} else {
+			self::log_step( 'doi:skipped', 'already_confirmed' );
 		}
 
 		set_transient( $rk, $cnt + 1, HOUR_IN_SECONDS );
@@ -265,18 +281,58 @@ class M24_Garage {
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>'
 			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
 
+		self::send_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), 'doi' );
+	}
+
+	/**
+	 * Absender-Header. Honoriert denselben Filter wie B2B/IL (m24fz_mail_from_email) → EIN
+	 * verifizierter Brevo-Sender site-weit. Vorher hardcodete Garage noreply@ → wenn der Filter
+	 * einen verifizierten Sender setzte, verschickte Brevo Garage-Mails still nicht (Bug).
+	 */
+	private static function from_header() {
+		$host = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+		if ( '' === $host ) { $host = 'motorsport24.de'; }
+		$email = apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host );
+		return 'MOTORSPORT24 <' . $email . '>';
+	}
+
+	/**
+	 * Mail senden + Ergebnis loggen (Schritt/Status, KEINE PII außer maskierter Adresse).
+	 * „Verbindung testen" prüft nur GET /account — der echte Transactional-Send ist der Blindspot;
+	 * hier machen wir Erfolg/Fehler sichtbar. wp_mail_failed fängt SMTP-/Brevo-Ablehnungen ab.
+	 */
+	private static function send_mail( $email, $subject, $html, $kind ) {
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
 			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
 		);
-		wp_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), $headers );
+		$err = '';
+		$catch = function ( $wp_error ) use ( &$err ) {
+			if ( is_wp_error( $wp_error ) ) { $err = $wp_error->get_error_message(); }
+		};
+		add_action( 'wp_mail_failed', $catch );
+		$ok = false;
+		try {
+			$ok = (bool) wp_mail( $email, $subject, $html, $headers );
+		} catch ( \Throwable $t ) { // PHP 8.x: Fatal/TypeError im Sendepfad sichtbar machen
+			$err = 'exception: ' . $t->getMessage();
+		}
+		remove_action( 'wp_mail_failed', $catch );
+		self::log_step( 'mail_send:' . $kind, ( $ok && '' === $err ) ? 'ok' : 'FAIL', array(
+			'to'   => class_exists( 'M24_Brevo_Client' ) ? M24_Brevo_Client::mask_email( (string) $email ) : 'x',
+			'from' => self::from_header(),
+			'err'  => $err ?: null,
+		) );
+		return $ok && '' === $err;
 	}
 
-	private static function from_header() {
-		$host = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
-		if ( '' === $host ) { $host = 'motorsport24.de'; }
-		return 'MOTORSPORT24 <noreply@' . $host . '>';
+	/** Diagnose-Log (Sync-Log): Schritt + Status, ohne PII/Token/Link. */
+	private static function log_step( $step, $status, $extra = array() ) {
+		if ( ! class_exists( 'M24_Logger' ) ) { return; }
+		$payload = array_merge( array( 'step' => $step, 'status' => $status ), (array) $extra );
+		if ( 'FAIL' === $status ) { M24_Logger::warning( 'garage', $step . ' → ' . $status, $payload ); }
+		else { M24_Logger::info( 'garage', $step . ' → ' . $status, $payload ); }
 	}
 
 	/** CI-Mail-Gerüst (Gradient-Header, Saira, 600px). */
@@ -404,12 +460,7 @@ class M24_Garage {
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>'
 			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
 
-		$headers = array(
-			'Content-Type: text/html; charset=UTF-8',
-			'From: ' . self::from_header(),
-			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
-		);
-		wp_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), $headers );
+		self::send_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), 'login' );
 	}
 
 	/** ?m24login=TOKEN → Token verbrauchen → E-Mail-gebundene Session → Redirect Garage-Seite (G2b). */
