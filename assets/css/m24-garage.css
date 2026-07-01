@@ -212,3 +212,13 @@
 	.m24gc-ncard .m24gc-title{grid-area:title}
 	.m24gc-ncard .m24gc-vpills{grid-area:pills}
 }
+
+/* ── Footer bei kurzem Inhalt runterdrücken (Garage-Seite, Owner + Share). .m24gc-page existiert
+ *    nur auf der Garage-Seite → klassenbasiert ausreichend gescoped. ── */
+.m24gc-page{min-height:55vh}
+
+/* ── Share-Ansicht: read-only Dashboard (nutzt .m24gc-dash-Styling; Abschnitts-Überschriften) ── */
+.m24gc-shared .m24gc-shared-sec{margin:0 0 22px}
+.m24gc-shared .m24gc-section-h{font-size:15px;font-weight:700;color:#5a6474;margin:0 0 12px}
+.m24gc-shared-hint{color:#8a929c;font-size:13.5px;margin:6px 0 0}
+.m24gc-shared .m24gc-pageactions{display:flex;justify-content:flex-end}

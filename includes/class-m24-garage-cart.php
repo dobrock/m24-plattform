@@ -903,7 +903,7 @@ class M24_Garage_Cart {
 	 * Kopf: Thumb + Titel + Status (Farbpunkt) + Preis (§25a: NUR Brutto) + Entfernen (Cart-Remove).
 	 * Fußzeile: 3 Textaktionen (Teilen/Exposé-PDF/Anfrage) + 2 Benachrichtigen-Pills (Präferenz-Toggle).
 	 */
-	private static function render_vehicle_card( array $it, int $acc ) {
+	private static function render_vehicle_card( array $it, int $acc, bool $readonly = false ) {
 		$pid = (int) $it['post_id'];
 		$st  = class_exists( 'M24FZ_CPT' ) ? (string) M24FZ_CPT::status( $pid ) : '';
 		$map = array(
@@ -915,13 +915,8 @@ class M24_Garage_Cart {
 		);
 		list( $st_label, $st_tone ) = $map[ $st ] ?? array( 'Gelistet', 'ok' );
 		$price = ( null !== $it['unit_fmt'] ) ? $it['unit_fmt'] : 'Preis auf Anfrage';
-		$pref  = self::notify_for( $acc, $pid );
-		$mailto = 'mailto:?subject=' . rawurlencode( $it['title'] . ' — MOTORSPORT24' )
-			. '&body=' . rawurlencode( $it['title'] . "\n" . $it['url'] );
-		$anfrage = add_query_arg( 'm24anfrage', '1', $it['url'] );
-		$pdf     = M24_Garage_PDF::vehicle_url( $pid );
 		?>
-		<div class="m24gc-vcard" data-m24gc-row data-post-id="<?php echo esc_attr( $pid ); ?>" data-post-type="m24_fahrzeug" data-line="">
+		<div class="m24gc-vcard<?php echo $readonly ? ' is-readonly' : ''; ?>"<?php echo $readonly ? '' : ' data-m24gc-row data-post-id="' . esc_attr( $pid ) . '" data-post-type="m24_fahrzeug" data-line=""'; ?>>
 			<div class="m24gc-vcard-head">
 				<a class="m24gc-thumb" href="<?php echo esc_url( $it['url'] ); ?>">
 					<?php if ( $it['thumb'] ) : ?><img src="<?php echo esc_url( $it['thumb'] ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
@@ -931,19 +926,26 @@ class M24_Garage_Cart {
 					<span class="m24gc-vstatus m24gc-vstatus--<?php echo esc_attr( $st_tone ); ?>"><span class="m24gc-vdot" aria-hidden="true"></span><?php echo esc_html( $st_label ); ?></span>
 				</div>
 				<div class="m24gc-vprice"><?php echo esc_html( $price ); ?></div>
-				<button type="button" class="m24gc-remove" aria-label="Fahrzeug entfernen" data-m24gc-remove>&times;</button>
+				<?php if ( ! $readonly ) : ?><button type="button" class="m24gc-remove" aria-label="Fahrzeug entfernen" data-m24gc-remove>&times;</button><?php endif; ?>
 			</div>
-			<div class="m24gc-vcard-foot">
-				<div class="m24gc-vactions">
-					<a class="m24gc-vact" href="<?php echo esc_url( $mailto ); ?>">Teilen per E-Mail</a>
-					<a class="m24gc-vact" href="<?php echo esc_url( $pdf ); ?>">Exposé als PDF</a>
-					<a class="m24gc-vact" href="<?php echo esc_url( $anfrage ); ?>">Anfrage senden</a>
+			<?php if ( ! $readonly ) :
+				$mailto  = 'mailto:?subject=' . rawurlencode( $it['title'] . ' — MOTORSPORT24' ) . '&body=' . rawurlencode( $it['title'] . "\n" . $it['url'] );
+				$anfrage = add_query_arg( 'm24anfrage', '1', $it['url'] );
+				$pdf     = M24_Garage_PDF::vehicle_url( $pid );
+				$pref    = self::notify_for( $acc, $pid );
+				?>
+				<div class="m24gc-vcard-foot">
+					<div class="m24gc-vactions">
+						<a class="m24gc-vact" href="<?php echo esc_url( $mailto ); ?>">Teilen per E-Mail</a>
+						<a class="m24gc-vact" href="<?php echo esc_url( $pdf ); ?>">Exposé als PDF</a>
+						<a class="m24gc-vact" href="<?php echo esc_url( $anfrage ); ?>">Anfrage senden</a>
+					</div>
+					<div class="m24gc-vpills" data-m24gc-notify data-post-id="<?php echo esc_attr( $pid ); ?>">
+						<button type="button" class="m24gc-pill<?php echo $pref['price'] ? ' is-on' : ''; ?>" data-m24gc-pref="price" aria-pressed="<?php echo $pref['price'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Preisänderung</button>
+						<button type="button" class="m24gc-pill<?php echo $pref['sold'] ? ' is-on' : ''; ?>" data-m24gc-pref="sold" aria-pressed="<?php echo $pref['sold'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Verkauft / reserviert</button>
+					</div>
 				</div>
-				<div class="m24gc-vpills" data-m24gc-notify data-post-id="<?php echo esc_attr( $pid ); ?>">
-					<button type="button" class="m24gc-pill<?php echo $pref['price'] ? ' is-on' : ''; ?>" data-m24gc-pref="price" aria-pressed="<?php echo $pref['price'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Preisänderung</button>
-					<button type="button" class="m24gc-pill<?php echo $pref['sold'] ? ' is-on' : ''; ?>" data-m24gc-pref="sold" aria-pressed="<?php echo $pref['sold'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Verkauft / reserviert</button>
-				</div>
-			</div>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -1126,27 +1128,53 @@ class M24_Garage_Cart {
 			return (string) ob_get_clean();
 		}
 
-		$items = self::items( $acc );
-		list( , $grand_fmt, $has_unpriced ) = self::grand_total( $items );
+		$items    = self::items( $acc );
+		$parts    = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
+		$vehicles = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' === $it['post_type']; } ) );
+		list( $grand_num, $grand_fmt, $has_unpriced ) = self::grand_total( $parts ); // Teile-Summe (Fahrzeuge §25a je Karte)
+		$net_fmt  = self::fmt( $grand_num / 1.19 );
+		$p_count  = count( $parts );
+		$unpriced = 0;
+		foreach ( $parts as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
+		// Read-only-Dashboard: dieselben Karten/Listen wie die Eigentümer-Ansicht, server-seitig,
+		// OHNE JS-abhängige Steuerung (kein ±/Entfernen/Pills/Master/Tabs/Anfrage/Login-Chrome).
 		?>
-		<div class="m24gc-page m24gc-shared">
-			<h2 class="m24gc-h">Geteilte Garage</h2>
-			<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — aktueller Stand dieser Garage.</p>
+		<div class="m24gc-page m24gc-dash m24gc-shared">
+			<header class="m24gc-dash-head">
+				<h1 class="m24gc-dash-title">Geteilte Garage</h1>
+				<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — aktueller Stand dieser Garage.</p>
+			</header>
+
 			<?php if ( empty( $items ) ) : ?>
-				<p class="m24gc-empty">Diese Garage ist aktuell leer.</p>
+				<div class="m24gc-emptybox"><div class="m24gc-emptybox-t">Diese Garage ist aktuell leer</div></div>
 			<?php else : ?>
-				<div class="m24gc-list">
-					<?php foreach ( $items as $it ) : self::render_row( $it, true ); endforeach; ?>
-				</div>
-				<div class="m24gc-summary">
-					<span class="m24gc-summary-label">Gesamtsumme</span>
-					<span class="m24gc-grand"><?php echo esc_html( $grand_fmt ); ?></span>
-				</div>
-				<?php if ( $has_unpriced ) : ?>
-					<p class="m24gc-note">Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p>
+				<?php if ( ! empty( $vehicles ) ) : ?>
+					<section class="m24gc-shared-sec">
+						<h2 class="m24gc-section-h">Geparkte Fahrzeuge</h2>
+						<div class="m24gc-vlist">
+							<?php foreach ( $vehicles as $it ) : self::render_vehicle_card( $it, 0, true ); endforeach; ?>
+						</div>
+					</section>
 				<?php endif; ?>
+
+				<?php if ( ! empty( $parts ) ) : ?>
+					<section class="m24gc-shared-sec">
+						<h2 class="m24gc-section-h">Teile</h2>
+						<div class="m24gc-list">
+							<?php foreach ( $parts as $it ) : self::render_row( $it, true ); endforeach; ?>
+						</div>
+						<div class="m24gc-listfoot">
+							<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
+							<span class="m24gc-listfoot-r">
+								<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
+								<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
+							</span>
+						</div>
+					</section>
+				<?php endif; ?>
+
 				<div class="m24gc-pageactions">
-					<a class="m24gc-pdf-btn" href="<?php echo esc_url( M24_Garage_PDF::share_url( $token ) ); ?>">Als PDF herunterladen</a>
+					<a class="m24gc-pdf-btn m24gc-btn-brass" href="<?php echo esc_url( M24_Garage_PDF::share_url( $token ) ); ?>">Als PDF herunterladen</a>
 				</div>
 			<?php endif; ?>
 		</div>
