@@ -49,7 +49,8 @@ class M24_Garage_Cart {
 		// Social-Preview NUR auf der geteilten Read-only-Ansicht: Head puffern (vor Yoast prio 1),
 		// konkurrierende og:/twitter:-Tags entfernen, eigenen Satz anhängen (keine Dubletten).
 		add_action( 'wp_head', array( __CLASS__, 'og_buffer_start' ), 0 );
-		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 9 );
+		// Spät schließen (999), damit auch nach Prio 9 emittierte robots-Meta (z. B. tagDiv) im Puffer landet.
+		add_action( 'wp_head', array( __CLASS__, 'og_buffer_end' ), 999 );
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -770,7 +771,7 @@ class M24_Garage_Cart {
 		}
 	}
 
-	/** Konkurrierende og:/twitter:-Meta aus dem Puffer entfernen, eigenen Satz anhängen. */
+	/** Konkurrierende og:/twitter:-/robots-Meta aus dem Puffer entfernen, eigenen Satz anhängen. */
 	public static function og_buffer_end() {
 		if ( ! self::$og_buf ) { return; }
 		self::$og_buf = false;
@@ -781,7 +782,14 @@ class M24_Garage_Cart {
 			'',
 			$head
 		);
+		// ALLE robots-Meta entfernen (egal welcher Emitter: Yoast/Core/tagDiv) → gleich EINE korrekte setzen.
+		$head = preg_replace(
+			'#[ \t]*<meta[^>]+name=[\'"]robots[\'"][^>]*>\s*#i',
+			'',
+			$head
+		);
 		echo $head; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — WP-Core-Head, unverändert durchgereicht
+		echo '<meta name="robots" content="noindex, nofollow">' . "\n"; // konsistent mit X-Robots-Header (Capability-URL)
 		echo self::share_og_tags(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — intern escaped
 	}
 
