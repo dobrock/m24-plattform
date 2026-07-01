@@ -81,9 +81,10 @@ class M24_Garage_PDF {
 			} ) );
 			if ( empty( $items ) ) { wp_die( esc_html__( 'Fahrzeug nicht in deiner Garage.', 'm24-plattform' ), '', array( 'response' => 404 ) ); }
 		}
-		list( , $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
+		list( $grand_num, $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
+		$net_fmt = number_format( (float) $grand_num / 1.19, 2, ',', '.' ) . ' €';
 
-		try { $dompdf = self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced ) ); }
+		try { $dompdf = self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt ) ); }
 		catch ( \Throwable $t ) { wp_die( 'PDF-Bibliothek nicht verfügbar.', '', array( 'response' => 500 ) ); }
 
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
@@ -104,8 +105,9 @@ class M24_Garage_PDF {
 				return (int) $it['post_id'] === $pid;
 			} ) );
 		}
-		list( , $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
-		try { return (string) self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced ) )->output(); }
+		list( $grand_num, $grand_fmt, $has_unpriced ) = M24_Garage_Cart::grand_total( $items );
+		$net_fmt = number_format( (float) $grand_num / 1.19, 2, ',', '.' ) . ' €';
+		try { return (string) self::dompdf_render( self::html( $items, $grand_fmt, $has_unpriced, $net_fmt ) )->output(); }
 		catch ( \Throwable $t ) { return ''; }
 	}
 
@@ -115,7 +117,8 @@ class M24_Garage_PDF {
 			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 2, 'title' => 'Bremsscheibe vorn (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-1001', 'unit' => 149.90, 'unit_fmt' => '149,90 €', 'line_total' => 299.80, 'line_fmt' => '299,80 €' ),
 			array( 'post_id' => 0, 'post_type' => 'm24_teil', 'qty' => 1, 'title' => 'Sportfahrwerk-Kit (Muster)', 'url' => home_url( '/' ), 'thumb' => '', 'artnr' => 'ART-2002', 'unit' => 1290.00, 'unit_fmt' => '1.290,00 €', 'line_total' => 1290.00, 'line_fmt' => '1.290,00 €' ),
 		);
-		try { return (string) self::dompdf_render( self::html( $items, '1.589,80 €', false ) )->output(); }
+		$net_fmt = number_format( 1589.80 / 1.19, 2, ',', '.' ) . ' €';
+		try { return (string) self::dompdf_render( self::html( $items, '1.589,80 €', false, $net_fmt ) )->output(); }
 		catch ( \Throwable $t ) { return ''; }
 	}
 
@@ -323,7 +326,7 @@ class M24_Garage_PDF {
 
 	/* ── HTML (CI: Messing #9a6b25, Blau #0e447e) ────────────────────────── */
 
-	private static function html( array $items, string $grand_fmt, bool $has_unpriced ): string {
+	private static function html( array $items, string $grand_fmt, bool $has_unpriced, string $net_fmt = '' ): string {
 		$date = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y' ) : gmdate( 'd.m.Y' );
 
 		$rows = '';
@@ -375,6 +378,9 @@ class M24_Garage_PDF {
 			. 'table.sum .sum-spacer { width: 55%; }'
 			. 'table.sum .sum-lbl { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 10pt; color: #374151; }'
 			. 'table.sum .sum-val { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; }'
+			// Netto- + USt-Zeilen: gleicher grauer Block, kleiner/grau, kompakt.
+			. 'table.sum .sum-sub { background: #f3f4f6; text-align: right; font-size: 9pt; color: #5a6474; padding: 2pt 8pt; }'
+			. 'table.sum .sum-sub-last { padding-bottom: 8pt; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
 		$garage_url = apply_filters( 'm24_teile_garage_url', class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
@@ -385,7 +391,11 @@ class M24_Garage_PDF {
 			. '<table class="items"><thead><tr>'
 			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
-			. '<table class="sum"><tr><td class="sum-spacer"></td><td class="sum-lbl">Gesamtsumme</td><td class="sum-val">' . esc_html( $grand_fmt ) . '</td></tr></table>'
+			. '<table class="sum">'
+			. '<tr><td class="sum-spacer"></td><td class="sum-lbl">Gesamtsumme (Brutto)</td><td class="sum-val">' . esc_html( $grand_fmt ) . '</td></tr>'
+			. ( '' !== $net_fmt ? '<tr><td class="sum-spacer"></td><td class="sum-sub">Netto</td><td class="sum-sub">' . esc_html( $net_fmt ) . '</td></tr>' : '' )
+			. '<tr><td class="sum-spacer"></td><td class="sum-sub sum-sub-last" colspan="2">inkl. 19 % USt</td></tr>'
+			. '</table>'
 			. $note;
 		return self::document( $css, $body );
 	}
@@ -448,10 +458,20 @@ class M24_Garage_PDF {
 		// Preis (Brutto, §25a) oder „auf Anfrage".
 		$preis_auf_anfrage = (bool) (int) get_post_meta( $pid, '_m24fz_preis_auf_anfrage', true );
 		$preis_val = (int) get_post_meta( $pid, '_m24fz_preis', true );
+		$tax_note  = '';
 		if ( $preis_auf_anfrage || $preis_val <= 0 ) {
-			$preis_fmt = 'Preis auf Anfrage';
+			$preis_fmt = 'Preis auf Anfrage'; // KEIN Steuerhinweis
 		} else {
 			$preis_fmt = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::format( (float) $preis_val ) : ( number_format( $preis_val, 2, ',', '.' ) . ' €' );
+			// Steuer-/Netto-Hinweis exakt wie die Fahrzeugseite (preis_html) über _m24fz_mwst_ausweisbar.
+			$ausweisbar = (int) get_post_meta( $pid, '_m24fz_mwst_ausweisbar', true );
+			if ( $ausweisbar ) {
+				$netto     = (float) $preis_val / 1.19;
+				$netto_fmt = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::format( $netto ) : ( number_format( $netto, 2, ',', '.' ) . ' €' );
+				$tax_note  = 'inkl. 19 % MwSt. · Netto ' . $netto_fmt;
+			} else {
+				$tax_note = 'Differenzbesteuert nach §25a UStG'; // KEIN Netto/USt ausweisen
+			}
 		}
 
 		$besch = (string) get_post_meta( $pid, '_m24fz_beschreibung', true );
@@ -471,6 +491,7 @@ class M24_Garage_PDF {
 			. '.price { margin: 14px 0; padding-top: 10px; border-top: 2px solid #14161a; text-align: right; }'
 			. '.price .lbl { color: #5a6474; font-size: 11px; }'
 			. '.price .val { font-size: 17px; font-weight: bold; margin-left: 14px; }'
+			. '.price-tax { text-align: right; color: #5a6474; font-size: 9.5px; margin-top: 3px; }'
 			. '.sec-h { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5a6474; margin: 16px 0 6px; }'
 			. '.besch { font-size: 11px; line-height: 1.55; color: #1a1d23; }';
 
@@ -479,6 +500,7 @@ class M24_Garage_PDF {
 			. $img_html
 			. ( '' !== $rows ? '<table class="specs">' . $rows . '</table>' : '' )
 			. '<div class="price"><span class="lbl">Preis</span><span class="val">' . esc_html( $preis_fmt ) . '</span></div>'
+			. ( '' !== $tax_note ? '<div class="price-tax">' . esc_html( $tax_note ) . '</div>' : '' )
 			. $besch_html;
 		return self::document( $css, $body );
 	}
