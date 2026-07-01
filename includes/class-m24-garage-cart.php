@@ -818,22 +818,33 @@ class M24_Garage_Cart {
 	}
 
 	/**
-	 * Doppelten Titel vermeiden: Dashboard rendert „Meine Garage" selbst → Theme-Seitentitel auf der
-	 * Eigentümer-Garage-Seite ausblenden. NICHT auf der Share-View (die bleibt unangetastet). Scoped
-	 * auf body.page-id-{ID}; Selektorliste filterbar (analog Confirm-Seite).
+	 * Eigentümer-Garage-Seite: Theme-Chrome zurückdrängen, damit das Dashboard sauber + voll steht.
+	 * (1) Theme-Seitentitel + Breadcrumb ausblenden (Dashboard rendert „Meine Garage" selbst).
+	 * (2) WPBakery-Sidebar-Spalte (.tdi_6) ausblenden + Content auf volle Breite ziehen.
+	 * NUR Eigentümer-View: NICHT auf der Share-View (unberührt), NICHT für Gäste. Scoped auf body.page-id-{ID}.
 	 */
 	public static function hide_theme_title() {
 		if ( is_admin() ) { return; }
 		$pid = (int) get_option( self::PAGE_OPTION );
 		if ( ! $pid || ! is_page( $pid ) ) { return; }
 		if ( ! empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification — Share-View unberührt
-		if ( self::current_account_id() <= 0 ) { return; } // Gast-Hinweis behält Theme-Titel
-		$selectors = apply_filters( 'm24_garage_hide_title_selectors', array(
-			'.td-page-header', '.td-page-title', '.entry-title', '.tdb-title-text', '.tdb_title',
+		if ( self::current_account_id() <= 0 ) { return; } // Gast-Hinweis behält Theme-Chrome
+		$b = 'body.page-id-' . $pid . ' ';
+
+		// (1) Titel + Breadcrumb ausblenden (filterbar).
+		$hide = apply_filters( 'm24_garage_hide_title_selectors', array(
+			'.td-page-header', '.td-page-title', '.entry-title', '.tdb-title-text', '.tdb_title', '.entry-crumbs',
 		) );
 		$scoped = array();
-		foreach ( (array) $selectors as $sel ) { $scoped[] = 'body.page-id-' . $pid . ' ' . $sel; }
-		echo '<style id="m24gc-hide-title">' . implode( ',', $scoped ) . '{display:none!important}</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		foreach ( (array) $hide as $sel ) { $scoped[] = $b . $sel; }
+
+		// (2) For-Sale-Sidebar (.tdi_6) weg + Content-Spalte 100% (filterbar, falls tagDiv die Klasse neu vergibt).
+		$sidebar = apply_filters( 'm24_garage_sidebar_selector', '.tdi_6' );
+		$css  = implode( ',', $scoped ) . '{display:none!important}';
+		$css .= $b . $sidebar . '{display:none!important}';
+		$css .= $b . '.td-pb-row>.td-pb-span8,' . $b . '.vc_row .wpb_column{width:100%!important;max-width:100%!important;flex:1 1 100%!important}';
+
+		echo '<style id="m24gc-owner-layout">' . $css . '</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	/** Ist der aktuelle Request die öffentliche, token-basierte Share-Ansicht der Garage-Seite? */
