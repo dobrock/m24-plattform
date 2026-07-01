@@ -160,7 +160,8 @@ class M24_Garage_PDF {
 	 */
 	private static function frame_css(): string {
 		return self::font_face_css()
-			. '@page{size:A4;margin:90pt 46.28pt 70pt 46.28pt;}'
+			// Oben 110pt frei: Logo (top 28pt, ~30pt hoch) + Kopfzeile; Content startet ≥45pt unter Logo-Unterkante.
+			. '@page{size:A4;margin:110pt 46.28pt 70pt 46.28pt;}'
 			. 'body{margin:0;font-family:"Liberation Sans",Arial,sans-serif;color:#1a1d23;font-size:11px;}'
 			. '.m24-logo{position:fixed;right:46.28pt;top:28pt;width:130pt;height:29.2pt;}'
 			. '.m24-foot{position:fixed;left:46.28pt;right:46.28pt;bottom:28pt;}'
@@ -290,20 +291,17 @@ class M24_Garage_PDF {
 
 		$rows = '';
 		if ( empty( $items ) ) {
-			$rows = '<tr><td colspan="5" class="empty">Diese Garage ist aktuell leer.</td></tr>';
+			$rows = '<tr><td colspan="4" class="empty">Diese Garage ist aktuell leer.</td></tr>';
 		} else {
 			foreach ( $items as $it ) {
-				$thumb = self::thumb_uri( (int) $it['post_id'] );
-				$img   = $thumb ? '<img class="th" src="' . esc_attr( $thumb ) . '">' : '<span class="th th-ph"></span>';
 				$unit  = ( null !== $it['unit_fmt'] ) ? esc_html( $it['unit_fmt'] ) : '<span class="ask">Preis auf Anfrage</span>';
 				$line  = ( null !== $it['line_fmt'] ) ? esc_html( $it['line_fmt'] ) : '—';
 				$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
 				$rows .= '<tr>'
-					. '<td class="c-img">' . $img . '</td>'
-					. '<td class="c-tit"><div class="tit">' . esc_html( $it['title'] ) . '</div>' . $artnr . '</td>'
-					. '<td class="c-unit">' . $unit . '</td>'
-					. '<td class="c-qty">' . (int) $it['qty'] . '</td>'
-					. '<td class="c-line">' . $line . '</td>'
+					. '<td class="c-pos"><div class="tit">' . esc_html( $it['title'] ) . '</div>' . $artnr . '</td>'
+					. '<td class="r c-unit">' . $unit . '</td>'
+					. '<td class="r c-qty">' . (int) $it['qty'] . '</td>'
+					. '<td class="r c-line">' . $line . '</td>'
 					. '</tr>';
 			}
 		}
@@ -313,34 +311,36 @@ class M24_Garage_PDF {
 			: '';
 
 		$css = self::frame_css()
-			. '.h-title { font-size: 19px; font-weight: bold; margin: 0 0 2px; }'
-			. '.h-date { color: #5a6474; font-size: 11px; margin-bottom: 16px; }'
+			// Kopf oben links auf Logo-Höhe (fixed), damit die Tabelle sauber darunter beginnt.
+			. '.g-head { position: fixed; left: 46.28pt; top: 28pt; }'
+			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
+			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
+			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner.
 			. 'table.items { width: 100%; border-collapse: collapse; }'
-			. 'table.items th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5a6474; border-bottom: 1px solid #c9ced4; padding: 0 6px 6px; }'
-			. 'table.items td { padding: 8px 6px; border-bottom: 1px solid #eef0f2; vertical-align: middle; }'
-			. '.c-img { width: 46px; }'
-			. '.th { width: 44px; height: 34px; }'
-			. '.th-ph { display: inline-block; width: 44px; height: 34px; background: #eef0f2; }'
-			. '.tit { font-weight: bold; font-size: 11.5px; }'
-			. '.art { color: #8a929c; font-size: 9.5px; margin-top: 2px; }'
-			. '.c-unit { white-space: nowrap; }'
-			. '.c-qty { text-align: center; width: 44px; }'
-			. '.c-line { text-align: right; white-space: nowrap; font-weight: bold; width: 92px; }'
+			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 7pt 8pt; border-bottom: 1px solid #e5e7eb; }'
+			. 'table.items td { padding: 8pt; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 10pt; }'
+			. 'table.items th.r, table.items td.r { text-align: right; }'
+			. '.c-unit-col { width: 92pt; } .c-qty-col { width: 52pt; } .c-line-col { width: 92pt; }'
+			. '.tit { font-weight: bold; font-size: 10.5pt; color: #1a1d23; }'
+			. '.art { color: #9aa3b0; font-size: 8pt; margin-top: 2px; }'
+			. '.c-unit, .c-line { white-space: nowrap; } .c-line { font-weight: bold; }'
 			. '.ask { color: #9a6b25; }'
-			. '.empty { text-align: center; color: #5a6474; padding: 22px 0; }'
-			. '.sum { margin-top: 14px; padding-top: 10px; border-top: 2px solid #14161a; text-align: right; }'
-			. '.sum .lbl { color: #5a6474; font-size: 11px; }'
-			. '.sum .val { font-size: 17px; font-weight: bold; margin-left: 14px; }'
-			. '.note { color: #8a929c; font-size: 9.5px; text-align: right; margin: 6px 0 0; }';
+			. '.empty { text-align: center; color: #6b7280; padding: 22pt 0; }'
+			// Gesamtsumme = rechtsbündiger grauer Block (wie „Gross total").
+			. 'table.sum { width: 100%; border-collapse: collapse; margin-top: 12pt; }'
+			. 'table.sum td { padding: 8pt; }'
+			. 'table.sum .sum-spacer { width: 55%; }'
+			. 'table.sum .sum-lbl { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 10pt; color: #374151; }'
+			. 'table.sum .sum-val { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; }'
+			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
 		return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>' . $css . '</style></head><body>'
 			. self::frame_html( $logo )
-			. '<div class="h-title">Meine Garage</div>'
-			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div>'
+			. '<div class="g-head"><div class="h-title">Meine Garage</div><div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
-			. '<th></th><th>Position</th><th>Einzelpreis</th><th>Menge</th><th>Summe</th>'
+			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
-			. '<div class="sum"><span class="lbl">Gesamtsumme</span><span class="val">' . esc_html( $grand_fmt ) . '</span></div>'
+			. '<table class="sum"><tr><td class="sum-spacer"></td><td class="sum-lbl">Gesamtsumme</td><td class="sum-val">' . esc_html( $grand_fmt ) . '</td></tr></table>'
 			. $note
 			. '</body></html>';
 	}
