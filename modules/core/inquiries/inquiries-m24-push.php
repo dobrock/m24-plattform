@@ -152,6 +152,22 @@ class M24_Inquiries_Push {
             return;
         }
 
+        // Test-Mode ZUM AUSFÜHRUNGSZEITPUNKT prüfen (wie der synchrone Pfad). Der Cron-Loopback ist ein
+        // eigener Request (is_admin()===false) — die Settings-Klasse hier defensiv sicherstellen, sonst
+        // überspränge M24_REST_Client::get_base_url() den Test-Mode-Zweig und pushte an Production.
+        if ( ! class_exists( 'M24_Settings' ) && defined( 'M24_PLATTFORM_DIR' ) && is_readable( M24_PLATTFORM_DIR . 'admin/class-m24-settings.php' ) ) {
+            require_once M24_PLATTFORM_DIR . 'admin/class-m24-settings.php';
+        }
+        // Frischer Options-Read (persistenter Objekt-Cache im Loopback kann stale sein).
+        wp_cache_delete( M24_REST_Client::SETTINGS_OPTION, 'options' );
+        $is_test  = class_exists( 'M24_Settings' ) && M24_Settings::is_test_mode_active();
+        $tgt_host = class_exists( 'M24_REST_Client' ) ? (string) wp_parse_url( M24_REST_Client::get_base_url(), PHP_URL_HOST ) : '';
+        self::log_info( $post_id, 'Push-Ausführung — Zielkonfiguration aufgelöst', [
+            'test_mode'   => $is_test ? 'on' : 'off',
+            'target'      => $is_test ? 'mock' : 'production',
+            'target_host' => $tgt_host,
+        ] );
+
         $attempts = (int) get_post_meta( $post_id, '_m24_push_attempts', true );
         $attempts++;
         update_post_meta( $post_id, '_m24_push_attempts',     $attempts );
