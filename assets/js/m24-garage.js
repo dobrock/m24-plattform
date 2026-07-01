@@ -61,21 +61,28 @@
 		if (!tabsWrap) { return; }
 		var tabs = tabsWrap.querySelectorAll('[data-m24gc-tab]');
 		var panels = document.querySelectorAll('[data-m24gc-panel]');
-		tabsWrap.addEventListener('click', function (e) {
-			var btn = e.target.closest('[data-m24gc-tab]');
-			if (!btn) { return; }
-			var key = btn.getAttribute('data-m24gc-tab');
+		function activate(key) {
+			var found = false;
 			tabs.forEach(function (t) {
-				var on = t === btn;
+				var on = t.getAttribute('data-m24gc-tab') === key;
+				if (on) { found = true; }
 				t.classList.toggle('is-active', on);
 				if (on) { t.setAttribute('aria-selected', 'true'); } else { t.removeAttribute('aria-selected'); }
 			});
+			if (!found) { return; }
 			panels.forEach(function (p) {
 				var on = p.getAttribute('data-m24gc-panel') === key;
 				p.classList.toggle('is-active', on);
 				p.hidden = !on;
 			});
+		}
+		tabsWrap.addEventListener('click', function (e) {
+			var btn = e.target.closest('[data-m24gc-tab]');
+			if (btn) { activate(btn.getAttribute('data-m24gc-tab')); }
 		});
+		// Deep-Link aus Alert-Mail „Benachrichtigungen verwalten": ?m24tab=notify öffnet den Tab.
+		var m = location.search.match(/[?&]m24tab=([a-z]+)/);
+		if (m) { activate(m[1]); }
 	})();
 
 	/* ── Zähler (Schwebe-FAB + jeder Header-Slot mit [data-m24-garage-count]) ── */
@@ -281,6 +288,24 @@
 				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
 			});
 		});
+	}
+
+	/* ── Master-Schalter „Alle Benachrichtigungen" (Etappe 3) ── */
+	if (page && cfg.notifyMaster) {
+		var master = page.querySelector('[data-m24gc-master]');
+		if (master) {
+			master.addEventListener('change', function () {
+				var on = master.checked;
+				master.disabled = true;
+				fetch(cfg.notifyMaster, {
+					method: 'POST', credentials: 'same-origin', headers: headers(),
+					body: JSON.stringify({ on: on })
+				}).then(function (r) { return r.json(); }).then(function (d) {
+					master.disabled = false;
+					if (!d || !d.ok) { master.checked = !on; toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); }
+				}).catch(function () { master.disabled = false; master.checked = !on; toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); });
+			});
+		}
 	}
 
 	/* ── Garage als Anfrage senden (reuse Sammelanfrage-Strecke, Etappe 4) ── */

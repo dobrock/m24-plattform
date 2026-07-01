@@ -194,3 +194,21 @@
 	.m24gc-vcard-head .m24gc-remove{grid-area:remove}
 	.m24gc-vcard-foot{flex-direction:column;align-items:flex-start}
 }
+
+/* ── Etappe 3: Benachrichtigungen-Tab (Präferenz-Center) ── */
+.m24gc-notify-master{background:#fff;border:1px solid #eef0f2;border-radius:6px;box-shadow:0 1px 3px rgba(20,22,26,.05);padding:16px 18px;margin:0 0 14px}
+.m24gc-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:15px;color:#14161a}
+.m24gc-switch input{position:absolute;opacity:0;width:0;height:0}
+.m24gc-switch-track{position:relative;width:44px;height:24px;border-radius:999px;background:#c2cad3;transition:background .15s;flex:0 0 auto}
+.m24gc-switch-track::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.m24gc-switch input:checked + .m24gc-switch-track{background:#1f74c4}
+.m24gc-switch input:checked + .m24gc-switch-track::after{transform:translateX(20px)}
+.m24gc-ncard{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:14px;background:#fff;border:1px solid #eef0f2;border-radius:6px;box-shadow:0 1px 3px rgba(20,22,26,.05);padding:12px 16px}
+.m24gc-ncard .m24gc-thumb{width:64px;height:48px;border-radius:5px}
+.m24gc-ncard .m24gc-title{font-size:15px;font-weight:700}
+@media(max-width:860px){
+	.m24gc-ncard{grid-template-columns:56px 1fr;grid-template-areas:"thumb title" "pills pills";row-gap:10px}
+	.m24gc-ncard .m24gc-thumb{grid-area:thumb;width:56px;height:44px}
+	.m24gc-ncard .m24gc-title{grid-area:title}
+	.m24gc-ncard .m24gc-vpills{grid-area:pills}
+}

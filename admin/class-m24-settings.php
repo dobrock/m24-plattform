@@ -97,6 +97,16 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Garage-Alerts (Etappe 3): per-Fahrzeug Preis-/Status-Mails. Default AUS — erst nach §7-Opt-out an.
+        register_setting(
+            'm24_plattform_group',
+            'm24_garage_alerts_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
         // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
         register_setting(
             'm24_plattform_group',
@@ -564,6 +574,22 @@ class M24_Settings {
                             </label>
                             <p class="description">
                                 <?php echo esc_html__( 'Default aus. Erst nach Live-Verifikation aktivieren. Steuert nur den Header-Button — die bestehende Händler-Login-Seite bleibt unabhängig davon aktiv.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2 style="margin-top:24px;"><?php echo esc_html__( 'Garage-Alerts (Beta, Etappe 3)', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Preis-/Status-Mails senden', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_garage_alerts_enabled" value="1" <?php checked( (bool) get_option( 'm24_garage_alerts_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Per-Fahrzeug-Alerts (Preisänderung / verkauft-reserviert) tatsächlich per E-Mail versenden', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Solange aus: Pipeline läuft + loggt („would-send", Kontext „alerts"), sendet aber nichts. Erst nach §7-UWG-Opt-out aktivieren.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>

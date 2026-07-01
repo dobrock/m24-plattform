@@ -221,6 +221,24 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_notify' ),
 		) );
+		// Etappe 3: Master-Schalter (alle Garage-Alerts des Accounts an/aus).
+		register_rest_route( self::NS, '/garage/notify-master', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_notify_master' ),
+		) );
+	}
+
+	/** Master-Schalter: '0' = Account bekommt KEINE Garage-Alerts (überschreibt alle per-Fahrzeug-Prefs). */
+	public static function notify_master( int $acc ): bool {
+		return '0' !== (string) get_user_meta( $acc, M24_Garage_Alerts::MASTER_META, true ); // Default AN
+	}
+
+	public static function handle_notify_master( WP_REST_Request $req ) {
+		$acc = self::current_account_id();
+		$on  = filter_var( $req->get_param( 'on' ), FILTER_VALIDATE_BOOLEAN );
+		update_user_meta( $acc, M24_Garage_Alerts::MASTER_META, $on ? '1' : '0' );
+		return rest_ensure_response( array( 'ok' => true, 'master' => $on ) );
 	}
 
 	/* ── Etappe 2: Benachrichtigungs-Präferenz je Fahrzeug (account-gebunden, usermeta) ── */
@@ -616,6 +634,7 @@ class M24_Garage_Cart {
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),
 			'notify'   => esc_url_raw( rest_url( self::NS . '/garage/notify' ) ),
+			'notifyMaster' => esc_url_raw( rest_url( self::NS . '/garage/notify-master' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
@@ -684,6 +703,10 @@ class M24_Garage_Cart {
 		$veh_count = count( $vehicles );
 		$unpriced  = 0;
 		foreach ( $parts as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
+
+		// Etappe 3: Benachrichtigungs-Abos des Accounts (Präferenz-Center).
+		$subs      = self::notify_all( $acc );
+		$master_on = self::notify_master( $acc );
 
 		$share_tok = self::share_token_existing( $acc );
 		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
@@ -774,12 +797,49 @@ class M24_Garage_Cart {
 				<?php endif; ?>
 			</section>
 
-			<!-- TAB: Benachrichtigungen — Etappe 3 Platzhalter -->
+			<!-- TAB: Benachrichtigungen — Präferenz-Center (Etappe 3) -->
 			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="notify" hidden>
-				<div class="m24gc-emptybox">
-					<div class="m24gc-emptybox-t">Noch keine Benachrichtigungen</div>
-					<p class="m24gc-emptybox-s">Hier kannst du künftig Preis- und Verfügbarkeits-Alarme für deine Garage verwalten.</p>
+				<?php
+				// Nur veröffentlichte Fahrzeuge mit mind. einer aktiven Pref auflisten.
+				$sub_rows = array();
+				foreach ( (array) $subs as $spid => $p ) {
+					$spid = (int) $spid;
+					if ( 'm24_fahrzeug' !== get_post_type( $spid ) || 'publish' !== get_post_status( $spid ) ) { continue; }
+					if ( empty( $p['price'] ) && empty( $p['sold'] ) ) { continue; }
+					$sub_rows[ $spid ] = array( 'price' => ! empty( $p['price'] ), 'sold' => ! empty( $p['sold'] ) );
+				}
+				?>
+				<div class="m24gc-notify-master">
+					<label class="m24gc-switch">
+						<input type="checkbox" data-m24gc-master <?php checked( $master_on ); ?>>
+						<span class="m24gc-switch-track" aria-hidden="true"></span>
+						<span class="m24gc-switch-label">Alle Benachrichtigungen<?php echo $master_on ? '' : ' (aus)'; ?></span>
+					</label>
+					<p class="m24gc-hint" style="text-align:left;margin:6px 0 0;">Globaler Schalter — aus = du bekommst keine Garage-Mails, unabhängig von den Einstellungen unten.</p>
 				</div>
+				<?php if ( empty( $sub_rows ) ) : ?>
+					<div class="m24gc-emptybox">
+						<div class="m24gc-emptybox-t">Noch keine Benachrichtigungen aktiv</div>
+						<p class="m24gc-emptybox-s">Aktiviere „Preisänderung" oder „Verkauft / reserviert" bei einem geparkten Fahrzeug — es erscheint dann hier.</p>
+					</div>
+				<?php else : ?>
+					<div class="m24gc-vlist">
+						<?php foreach ( $sub_rows as $spid => $pref ) :
+							$thumb = get_the_post_thumbnail_url( $spid, 'medium' );
+							?>
+							<div class="m24gc-ncard" data-m24gc-notify data-post-id="<?php echo esc_attr( $spid ); ?>">
+								<a class="m24gc-thumb" href="<?php echo esc_url( (string) get_permalink( $spid ) ); ?>">
+									<?php if ( $thumb ) : ?><img src="<?php echo esc_url( $thumb ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
+								</a>
+								<a class="m24gc-title" href="<?php echo esc_url( (string) get_permalink( $spid ) ); ?>"><?php echo esc_html( get_the_title( $spid ) ); ?></a>
+								<div class="m24gc-vpills">
+									<button type="button" class="m24gc-pill<?php echo $pref['price'] ? ' is-on' : ''; ?>" data-m24gc-pref="price" aria-pressed="<?php echo $pref['price'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Preisänderung</button>
+									<button type="button" class="m24gc-pill<?php echo $pref['sold'] ? ' is-on' : ''; ?>" data-m24gc-pref="sold" aria-pressed="<?php echo $pref['sold'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Verkauft / reserviert</button>
+								</div>
+							</div>
+						<?php endforeach; ?>
+					</div>
+				<?php endif; ?>
 			</section>
 		</div>
 		<?php
