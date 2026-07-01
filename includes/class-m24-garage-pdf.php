@@ -329,21 +329,41 @@ class M24_Garage_PDF {
 	private static function html( array $items, string $grand_fmt, bool $has_unpriced, string $net_fmt = '' ): string {
 		$date = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y' ) : gmdate( 'd.m.Y' );
 
+		// Netto-Layout: Steuerart je Zeile ableiten, Preise NETTO ausweisen, Totals selbst summieren.
+		$net19_sum = 0.0; // Summe Netto (19 % Regelbesteuerung: Teile + ausweisbare Fahrzeuge)
+		$diff_sum  = 0.0; // Summe §25a-differenzbesteuert (kein ausweisbares Netto/USt)
+		$fmt = function ( $v ) { return number_format( (float) $v, 2, ',', '.' ) . ' €'; };
+
 		$rows = '';
 		if ( empty( $items ) ) {
 			$rows = '<tr><td colspan="4" class="empty">Diese Garage ist aktuell leer.</td></tr>';
 		} else {
 			foreach ( $items as $it ) {
-				$unit  = ( null !== $it['unit_fmt'] ) ? esc_html( $it['unit_fmt'] ) : '<span class="ask">Preis auf Anfrage</span>';
-				$line  = ( null !== $it['line_fmt'] ) ? esc_html( $it['line_fmt'] ) : '—';
+				$is_veh = ( 'm24_fahrzeug' === $it['post_type'] );
+				$diff   = $is_veh && ! (int) get_post_meta( (int) $it['post_id'], '_m24fz_mwst_ausweisbar', true );
+				$unit_g = $it['unit'];       // Brutto (numerisch) oder null = „Preis auf Anfrage"
+				$line_g = $it['line_total']; // Brutto (numerisch) oder null
+				$mark   = '';
+				if ( null === $unit_g ) {
+					$unit_out = '<span class="ask">Preis auf Anfrage</span>'; $line_out = '—';
+				} elseif ( $diff ) {
+					// §25a: kein Netto/USt ausweisbar → Preis unverändert, Zeile markieren.
+					$unit_out = esc_html( $fmt( $unit_g ) ); $line_out = esc_html( $fmt( $line_g ) );
+					$mark = '<div class="tax-diff">§25a · differenzbesteuert, keine ausweisbare USt</div>';
+					$diff_sum += (float) $line_g;
+				} else {
+					// 19 %: Netto ausweisen.
+					$unit_out = esc_html( $fmt( $unit_g / 1.19 ) ); $line_out = esc_html( $fmt( $line_g / 1.19 ) );
+					$net19_sum += (float) $line_g / 1.19;
+				}
 				$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
 				$t     = esc_html( $it['title'] );
 				$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
 				$rows .= '<tr>'
-					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . '</td>'
-					. '<td class="r c-unit">' . $unit . '</td>'
+					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
+					. '<td class="r c-unit">' . $unit_out . '</td>'
 					. '<td class="r c-qty">' . (int) $it['qty'] . '</td>'
-					. '<td class="r c-line">' . $line . '</td>'
+					. '<td class="r c-line">' . $line_out . '</td>'
 					. '</tr>';
 			}
 		}
@@ -371,16 +391,16 @@ class M24_Garage_PDF {
 			. '.art { color: #9aa3b0; font-size: 8pt; margin-top: 2px; }'
 			. '.c-unit, .c-line { white-space: nowrap; } .c-line { font-weight: bold; }'
 			. '.ask { color: #9a6b25; }'
+			. '.tax-diff { color: #9a6b25; font-size: 8pt; margin-top: 3px; }' // Messing-Markierung §25a
 			. '.empty { text-align: center; color: #6b7280; padding: 22pt 0; }'
-			// Gesamtsumme = rechtsbündiger grauer Block (wie „Gross total").
+			// Totals = rechtsbündiger grauer Block (#f3f4f6). Netto/USt/§25a klein grau, Gesamt fett.
 			. 'table.sum { width: 100%; border-collapse: collapse; margin-top: 12pt; }'
-			. 'table.sum td { padding: 8pt; }'
+			. 'table.sum td { padding: 2pt 8pt; }'
 			. 'table.sum .sum-spacer { width: 55%; }'
-			. 'table.sum .sum-lbl { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 10pt; color: #374151; }'
-			. 'table.sum .sum-val { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; }'
-			// Netto- + USt-Zeilen: gleicher grauer Block, kleiner/grau, kompakt.
-			. 'table.sum .sum-sub { background: #f3f4f6; text-align: right; font-size: 9pt; color: #5a6474; padding: 2pt 8pt; }'
-			. 'table.sum .sum-sub-last { padding-bottom: 8pt; }'
+			. 'table.sum .sum-sub { background: #f3f4f6; text-align: right; font-size: 9pt; color: #5a6474; white-space: nowrap; }'
+			. 'table.sum .sum-note { background: #f3f4f6; text-align: right; font-size: 8pt; color: #9aa3b0; padding-top: 0; }'
+			. 'table.sum .sum-first td { padding-top: 8pt; }'
+			. 'table.sum .sum-total { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; border-top: 1px solid #d1d5db; padding: 6pt 8pt 8pt; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
 		$garage_url = apply_filters( 'm24_teile_garage_url', class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
@@ -389,15 +409,30 @@ class M24_Garage_PDF {
 			. '<div class="h-garagelink"><a href="' . esc_url( $garage_url ) . '">Zur Teile-Garage</a></div>'
 			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
 			. '<table class="items"><thead><tr>'
-			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe</th>'
+			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="r c-qty-col">Menge</th><th class="r c-line-col">Summe (netto)</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
-			. '<table class="sum">'
-			. '<tr><td class="sum-spacer"></td><td class="sum-lbl">Gesamtsumme (Brutto)</td><td class="sum-val">' . esc_html( $grand_fmt ) . '</td></tr>'
-			. ( '' !== $net_fmt ? '<tr><td class="sum-spacer"></td><td class="sum-sub">Netto</td><td class="sum-sub">' . esc_html( $net_fmt ) . '</td></tr>' : '' )
-			. '<tr><td class="sum-spacer"></td><td class="sum-sub sum-sub-last" colspan="2">inkl. 19 % USt</td></tr>'
-			. '</table>'
+			. self::sum_block( $net19_sum, $diff_sum, $fmt )
 			. $note;
 		return self::document( $css, $body );
+	}
+
+	/** Totals-Block (netto/USt/§25a → Gesamt brutto), rechtsbündig, grauer Block. Nur vorhandene Zeilen. */
+	private static function sum_block( float $net19_sum, float $diff_sum, callable $fmt ): string {
+		$brutto_total = $net19_sum * 1.19 + $diff_sum;
+		$r = '<table class="sum">';
+		$first = ' sum-first';
+		if ( $net19_sum > 0 ) {
+			$r .= '<tr class="' . trim( $first ) . '"><td class="sum-spacer"></td><td class="sum-sub">Zwischensumme netto (19 % USt)</td><td class="sum-sub">' . esc_html( $fmt( $net19_sum ) ) . '</td></tr>';
+			$r .= '<tr><td class="sum-spacer"></td><td class="sum-sub">zzgl. 19 % USt</td><td class="sum-sub">' . esc_html( $fmt( $net19_sum * 0.19 ) ) . '</td></tr>';
+			$first = '';
+		}
+		if ( $diff_sum > 0 ) {
+			$r .= '<tr class="' . trim( $first ) . '"><td class="sum-spacer"></td><td class="sum-sub">Differenzbesteuert (§25a)</td><td class="sum-sub">' . esc_html( $fmt( $diff_sum ) ) . '</td></tr>';
+			$r .= '<tr><td class="sum-spacer"></td><td class="sum-note" colspan="2">keine ausweisbare USt</td></tr>';
+		}
+		$r .= '<tr><td class="sum-spacer"></td><td class="sum-total">Gesamtsumme (brutto)</td><td class="sum-total">' . esc_html( $fmt( $brutto_total ) ) . '</td></tr>';
+		$r .= '</table>';
+		return $r;
 	}
 
 	/* ── TEIL B: Fahrzeug-Exposé (gleicher Rahmen, Fahrzeug-Datenblatt) ──────────────────── */
