@@ -26,10 +26,6 @@ class M24_Inquiries_Form {
 
         add_shortcode( 'm24_anfrage_form', [ __CLASS__, 'render_shortcode' ] );
         add_action( 'template_redirect', [ __CLASS__, 'handle_submit' ] );
-
-        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info( 'inquiries_form', 'Form-Modul geladen', [ 'version' => M24_PLATTFORM_VERSION ] );
-        }
     }
 
     /**

@@ -72,10 +72,6 @@ class M24_Inquiries_Push {
         // Cron-Callback fuer den eigentlichen Push.
         add_action( self::CRON_HOOK_PUSH,  [ __CLASS__, 'run_push' ], 10, 1 );
         add_action( self::CRON_HOOK_RETRY, [ __CLASS__, 'run_push' ], 10, 1 );
-
-        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info( 'inquiries_push', 'Push-Modul geladen' );
-        }
     }
 
     // ────────────────────────────────────────────────────────────────────

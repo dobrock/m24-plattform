@@ -45,10 +45,6 @@ class M24_Inquiries_Mock {
         self::$initialized = true;
 
         add_action( 'rest_api_init', [ __CLASS__, 'register_routes' ] );
-
-        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info( 'inquiries_mock', 'Mock-Endpoint-Modul geladen' );
-        }
     }
 
     /**

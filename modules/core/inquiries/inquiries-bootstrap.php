@@ -70,14 +70,6 @@ class M24_Inquiries {
         // if ( is_admin() ) {
         //     require_once __DIR__ . '/inquiries-admin-monitor.php';
         // }
-
-        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info(
-                'inquiries_bootstrap',
-                'Inquiries-Modul geladen',
-                [ 'version' => M24_PLATTFORM_VERSION ]
-            );
-        }
     }
 
     /**

@@ -211,11 +211,17 @@ class M24_Updater {
 	 * Ableitung umgeht. Nach Reset kompiliert der nächste Request frisch → kein erneuter Reset.
 	 */
 	public static function selfheal_opcache() {
-		if ( ! function_exists( 'opcache_reset' ) || ! function_exists( 'get_file_data' ) ) { return; }
+		if ( ! function_exists( 'get_file_data' ) ) { return; }
+		// Header-Version (frisch von der Platte) gegen die zuletzt „gesehene" Version (Option) prüfen —
+		// NICHT gegen die Konstante (die wird seit 0.11.118 selbst aus dem Header abgeleitet → immer gleich,
+		// Kanari tot). Bei Versionswechsel EINMAL OPcache zurücksetzen, damit neuer Bytecode wirklich greift.
 		$data     = get_file_data( M24_PLATTFORM_FILE, array( 'v' => 'Version' ) );
 		$file_ver = isset( $data['v'] ) ? trim( (string) $data['v'] ) : '';
-		if ( '' !== $file_ver && $file_ver !== (string) M24_PLATTFORM_VERSION ) {
-			self::reset_opcache( sprintf( 'Selbstheilung: Datei v%s != geladen v%s (stale Bytecode)', $file_ver, M24_PLATTFORM_VERSION ) );
+		if ( '' === $file_ver ) { return; }
+		if ( (string) get_option( 'm24_opcache_ver', '' ) === $file_ver ) { return; } // schon zurückgesetzt
+		update_option( 'm24_opcache_ver', $file_ver ); // zuerst stempeln (kein Re-Entry / Loop)
+		if ( function_exists( 'opcache_reset' ) ) {
+			self::reset_opcache( sprintf( 'Deploy erkannt (v%s) → OPcache-Reset', $file_ver ) );
 		}
 	}
 

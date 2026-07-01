@@ -25,10 +25,6 @@ class M24_Inquiries_Validation {
             return;
         }
         self::$initialized = true;
-
-        if ( defined( 'M24_LOG_MODULE_LOADS' ) && M24_LOG_MODULE_LOADS && class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info( 'inquiries_validation', 'Validation-Modul geladen' );
-        }
     }
 
     /**
