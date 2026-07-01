@@ -180,6 +180,77 @@ class M24_Garage_Cart {
 		return add_query_arg( self::SHARE_QUERY, $token, self::page_url() );
 	}
 
+	/* ── Share-Snapshot (eingefroren je Token; Migration 008) ────────────── */
+
+	private static function snapshot_table(): string {
+		return M24_Database::table( 'garage_snapshot' );
+	}
+
+	/**
+	 * Aktuelle Teile-Merkzettel-Positionen (NUR Teile, keine Fahrzeuge) für $token einfrieren.
+	 * Bei generate + rotate aufgerufen → frischer Snapshot am (neuen) Token. Reihenfolge = items()
+	 * (sort_order, sobald Migration 009 aktiv). Alte Snapshots des Accounts werden ersetzt.
+	 */
+	public static function write_snapshot( int $acc, string $token ): void {
+		if ( $acc <= 0 || '' === $token ) { return; }
+		global $wpdb;
+		$t     = self::snapshot_table();
+		$parts = array_values( array_filter( self::items( $acc ), static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
+
+		$items = array();
+		$gross_sum = 0.0; $unpriced = 0; $i = 0;
+		foreach ( $parts as $it ) {
+			$gross = ( null !== $it['unit'] ) ? (float) $it['unit'] : null;
+			$net   = ( null !== $gross ) ? $gross / 1.19 : null;
+			if ( null !== $gross ) { $gross_sum += $gross * (int) $it['qty']; } else { $unpriced++; }
+			$items[] = array(
+				'article_id'  => (int) $it['post_id'],
+				'title'       => (string) $it['title'],
+				'art_nr'      => (string) $it['artnr'],
+				'price_gross' => $gross,
+				'price_net'   => $net,
+				'qty'         => (int) $it['qty'],
+				'image_url'   => (string) $it['thumb'],
+				'sort_order'  => $i++,
+			);
+		}
+		$totals = array(
+			'gross'     => $gross_sum,
+			'net'       => $gross_sum / 1.19,
+			'gross_fmt' => self::fmt( $gross_sum ),
+			'net_fmt'   => self::fmt( $gross_sum / 1.19 ),
+			'count'     => count( $items ),
+			'unpriced'  => $unpriced,
+		);
+
+		// Pro Account genau einen aktuellen Snapshot halten (alter Token ist nach rotate ohnehin tot).
+		$wpdb->delete( $t, array( 'account_id' => $acc ) );
+		$wpdb->insert( $t, array(
+			'share_token' => $token,
+			'account_id'  => $acc,
+			'created_at'  => current_time( 'mysql' ),
+			'items_json'  => wp_json_encode( $items ),
+			'totals_json' => wp_json_encode( $totals ),
+		) );
+	}
+
+	/** Snapshot zum Token lesen (items + totals) oder null. */
+	public static function read_snapshot( string $token ) {
+		global $wpdb;
+		$t   = self::snapshot_table();
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT items_json, totals_json FROM $t WHERE share_token = %s ORDER BY id DESC LIMIT 1", $token ), ARRAY_A );
+		if ( ! $row ) { return null; }
+		$items  = json_decode( (string) $row['items_json'], true );
+		$totals = json_decode( (string) $row['totals_json'], true );
+		return array( 'items' => is_array( $items ) ? $items : array(), 'totals' => is_array( $totals ) ? $totals : array() );
+	}
+
+	public static function delete_snapshots( int $acc ): void {
+		if ( $acc <= 0 ) { return; }
+		global $wpdb;
+		$wpdb->delete( self::snapshot_table(), array( 'account_id' => $acc ) );
+	}
+
 	/* ── REST ────────────────────────────────────────────────────────────── */
 
 	public static function register_routes() {
@@ -284,11 +355,14 @@ class M24_Garage_Cart {
 
 		if ( 'rotate' === $action ) {
 			$tok = self::share_token_rotate( $acc );
+			self::write_snapshot( $acc, $tok ); // neuer Token → frischer Snapshot
 		} elseif ( 'revoke' === $action ) {
 			self::share_token_revoke( $acc );
+			self::delete_snapshots( $acc );
 			return rest_ensure_response( array( 'ok' => true, 'url' => '', 'token' => '' ) );
 		} else { // generate / default: vorhandenen Token zeigen oder erzeugen
 			$tok = self::share_token_get_or_create( $acc );
+			self::write_snapshot( $acc, $tok ); // generate → frischer Snapshot am aktuellen Token
 		}
 		return rest_ensure_response( array( 'ok' => true, 'url' => self::share_url( $tok ), 'token' => $tok ) );
 	}
@@ -707,6 +781,8 @@ class M24_Garage_Cart {
 		// Etappe 3: Benachrichtigungs-Abos des Accounts (Präferenz-Center).
 		$subs      = self::notify_all( $acc );
 		$master_on = self::notify_master( $acc );
+		// Default-Tab: „Teile-Merkzettel", wenn keine Fahrzeuge geparkt sind — sonst „Geparkte Fahrzeuge".
+		$def_parts = ( 0 === $veh_count );
 
 		$share_tok = self::share_token_existing( $acc );
 		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
@@ -727,13 +803,13 @@ class M24_Garage_Cart {
 			</header>
 
 			<nav class="m24gc-tabs" role="tablist" data-m24gc-tabs>
-				<button type="button" class="m24gc-tab is-active" role="tab" aria-selected="true" data-m24gc-tab="vehicles">Geparkte Fahrzeuge <span class="m24gc-tab-badge" data-m24gc-badge="vehicles"<?php echo 0 === $veh_count ? ' hidden' : ''; ?>><?php echo (int) $veh_count; ?></span></button>
-				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24gc-badge="parts"<?php echo 0 === $count ? ' hidden' : ''; ?>><?php echo (int) $count; ?></span></button>
+				<button type="button" class="m24gc-tab<?php echo $def_parts ? '' : ' is-active'; ?>" role="tab"<?php echo $def_parts ? '' : ' aria-selected="true"'; ?> data-m24gc-tab="vehicles">Geparkte Fahrzeuge <span class="m24gc-tab-badge" data-m24gc-badge="vehicles"<?php echo 0 === $veh_count ? ' hidden' : ''; ?>><?php echo (int) $veh_count; ?></span></button>
+				<button type="button" class="m24gc-tab<?php echo $def_parts ? ' is-active' : ''; ?>" role="tab"<?php echo $def_parts ? ' aria-selected="true"' : ''; ?> data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24gc-badge="parts"<?php echo 0 === $count ? ' hidden' : ''; ?>><?php echo (int) $count; ?></span></button>
 				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="notify">Benachrichtigungen</button>
 			</nav>
 
 			<!-- TAB: Geparkte Fahrzeuge — volle Breite, eine Karte je Fahrzeug -->
-			<section class="m24gc-panel is-active" role="tabpanel" data-m24gc-panel="vehicles">
+			<section class="m24gc-panel<?php echo $def_parts ? '' : ' is-active'; ?>" role="tabpanel" data-m24gc-panel="vehicles"<?php echo $def_parts ? ' hidden' : ''; ?>>
 				<?php if ( empty( $vehicles ) ) : ?>
 					<div class="m24gc-emptybox">
 						<div class="m24gc-emptybox-t">Deine geparkten Fahrzeuge erscheinen hier</div>
@@ -747,7 +823,7 @@ class M24_Garage_Cart {
 			</section>
 
 			<!-- TAB: Teile-Merkzettel — bestehender Cart (umgezogen) -->
-			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="parts" hidden>
+			<section class="m24gc-panel<?php echo $def_parts ? ' is-active' : ''; ?>" role="tabpanel" data-m24gc-panel="parts"<?php echo $def_parts ? '' : ' hidden'; ?>>
 				<?php if ( empty( $parts ) ) : ?>
 					<div class="m24gc-emptybox" data-m24gc-emptystate>
 						<div class="m24gc-emptybox-t">Dein Teile-Merkzettel ist leer</div>
@@ -1128,57 +1204,63 @@ class M24_Garage_Cart {
 			return (string) ob_get_clean();
 		}
 
-		$items    = self::items( $acc );
-		$parts    = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
-		$vehicles = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' === $it['post_type']; } ) );
-		list( $grand_num, $grand_fmt, $has_unpriced ) = self::grand_total( $parts ); // Teile-Summe (Fahrzeuge §25a je Karte)
-		$net_fmt  = self::fmt( $grand_num / 1.19 );
-		$p_count  = count( $parts );
-		$unpriced = 0;
-		foreach ( $parts as $it ) { if ( null === $it['line_total'] ) { $unpriced++; } }
-		// Read-only-Dashboard: dieselben Karten/Listen wie die Eigentümer-Ansicht, server-seitig,
-		// OHNE JS-abhängige Steuerung (kein ±/Entfernen/Pills/Master/Tabs/Anfrage/Login-Chrome).
+		// Aus dem EINGEFRORENEN Snapshot rendern (nicht aus dem Live-Cart). Fehlt einer (Alt-Token vor 008),
+		// lazy erzeugen. Reine Teile-Liste — keine Fahrzeuge, keine Aktions-Boxen (Prompt).
+		$snap = self::read_snapshot( $token );
+		if ( null === $snap ) { self::write_snapshot( $acc, $token ); $snap = self::read_snapshot( $token ); }
+		$items  = ( $snap && ! empty( $snap['items'] ) ) ? $snap['items'] : array();
+		$totals = ( $snap && ! empty( $snap['totals'] ) ) ? $snap['totals'] : array();
+		$p_count   = (int) ( $totals['count'] ?? count( $items ) );
+		$unpriced  = (int) ( $totals['unpriced'] ?? 0 );
+		$grand_fmt = (string) ( $totals['gross_fmt'] ?? self::fmt( 0.0 ) );
+		$net_fmt   = (string) ( $totals['net_fmt'] ?? self::fmt( 0.0 ) );
 		?>
 		<div class="m24gc-page m24gc-dash m24gc-shared">
 			<header class="m24gc-dash-head">
 				<h1 class="m24gc-dash-title">Geteilte Garage</h1>
-				<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — aktueller Stand dieser Garage.</p>
+				<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — Stand zum Zeitpunkt des Teilens.</p>
 			</header>
 
 			<?php if ( empty( $items ) ) : ?>
 				<div class="m24gc-emptybox"><div class="m24gc-emptybox-t">Diese Garage ist aktuell leer</div></div>
 			<?php else : ?>
-				<?php if ( ! empty( $vehicles ) ) : ?>
-					<section class="m24gc-shared-sec">
-						<h2 class="m24gc-section-h">Geparkte Fahrzeuge</h2>
-						<div class="m24gc-vlist">
-							<?php foreach ( $vehicles as $it ) : self::render_vehicle_card( $it, 0, true ); endforeach; ?>
-						</div>
-					</section>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $parts ) ) : ?>
-					<section class="m24gc-shared-sec">
-						<h2 class="m24gc-section-h">Teile</h2>
-						<div class="m24gc-list">
-							<?php foreach ( $parts as $it ) : self::render_row( $it, true ); endforeach; ?>
-						</div>
-						<div class="m24gc-listfoot">
-							<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
-							<span class="m24gc-listfoot-r">
-								<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
-								<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
-							</span>
-						</div>
-					</section>
-				<?php endif; ?>
-
-				<div class="m24gc-pageactions">
-					<a class="m24gc-pdf-btn m24gc-btn-brass" href="<?php echo esc_url( M24_Garage_PDF::share_url( $token ) ); ?>">Als PDF herunterladen</a>
-				</div>
+				<section class="m24gc-shared-sec">
+					<div class="m24gc-list">
+						<?php foreach ( $items as $it ) : self::render_snapshot_row( (array) $it ); endforeach; ?>
+					</div>
+					<div class="m24gc-listfoot">
+						<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
+						<span class="m24gc-listfoot-r">
+							<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
+							<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
+						</span>
+					</div>
+				</section>
 			<?php endif; ?>
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/** Eine read-only Teile-Zeile aus einem Snapshot-Item (items_json-Shape). */
+	private static function render_snapshot_row( array $it ) {
+		$gross = isset( $it['price_gross'] ) && null !== $it['price_gross'] ? (float) $it['price_gross'] : null;
+		$qty   = max( 1, (int) ( $it['qty'] ?? 1 ) );
+		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : '—';
+		$unit  = ( null !== $gross ) ? self::fmt( $gross ) : 'Preis auf Anfrage';
+		?>
+		<div class="m24gc-row is-readonly">
+			<span class="m24gc-thumb">
+				<?php if ( ! empty( $it['image_url'] ) ) : ?><img src="<?php echo esc_url( (string) $it['image_url'] ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
+			</span>
+			<div class="m24gc-info">
+				<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
+				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( (string) $it['art_nr'] ); ?></span><?php endif; ?>
+				<span class="m24gc-unit"><?php echo esc_html( $unit ); ?></span>
+			</div>
+			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
+			<div class="m24gc-line"><?php echo esc_html( $line ); ?></div>
+		</div>
+		<?php
 	}
 }
