@@ -234,10 +234,10 @@ class M24_Catalog_Hub {
 		return in_array( $s, array( 'preis-auf', 'preis-ab', 'neu' ), true ) ? $s : 'preis-ab';
 	}
 	public static function current_paged() { return max( 1, (int) get_query_var( 'paged' ) ); }
-	/** ?kat= im Request (rennsport|gebraucht|alle) oder '' (⇒ Hub-Default greift). */
+	/** ?kat= im Request (rennsport|gebraucht|karosserie|alle) oder '' (⇒ Hub-Default greift). */
 	public static function current_kat() {
 		$k = isset( $_GET['kat'] ) ? sanitize_key( wp_unslash( $_GET['kat'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
-		return in_array( $k, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $k : '';
+		return in_array( $k, array( 'rennsport', 'gebraucht', 'karosserie', 'alle' ), true ) ? $k : '';
 	}
 	/** Effektive Kategorie eines Hubs: ?kat= (Vorrang) → Hub-Default (default_kat) → 'alle'. */
 	public static function effective_kat( $hub = '' ) {
@@ -319,7 +319,7 @@ class M24_Catalog_Hub {
 	 * die Switch-Mengen + Telemetrie. Rueckgabe [rennsport,gebraucht,alle].
 	 */
 	public static function kat_counts( $hub = '' ) {
-		$res = array( 'rennsport' => 0, 'gebraucht' => 0, 'alle' => 0 );
+		$res = array( 'rennsport' => 0, 'gebraucht' => 0, 'karosserie' => 0, 'alle' => 0 );
 		$ids = self::term_ids( $hub );
 		if ( empty( $ids ) ) { return $res; }
 		$base = array(
@@ -332,9 +332,14 @@ class M24_Catalog_Hub {
 		);
 		$r = $base; $r['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ), self::typ_clause( 'rennsport' ) );
 		$g = $base; $g['meta_query'] = array( 'relation' => 'AND', array( 'key' => '_m24_status', 'value' => 'aktiv' ), self::typ_clause( 'gebraucht' ) );
-		$res['rennsport'] = count( ( new WP_Query( $r ) )->posts );
-		$res['gebraucht'] = count( ( new WP_Query( $g ) )->posts );
-		$res['alle']      = $res['rennsport'] + $res['gebraucht'];
+		// Karosserie: Baugruppe-Filter (unabhängig von neu/gebraucht).
+		$k = $base;
+		$k['tax_query'] = array( 'relation' => 'AND', array( 'taxonomy' => self::TAX, 'terms' => $ids ), array( 'taxonomy' => 'm24_baugruppe', 'field' => 'slug', 'terms' => 'karosserie' ) );
+		$k['meta_query'] = array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) );
+		$res['rennsport']  = count( ( new WP_Query( $r ) )->posts );
+		$res['gebraucht']  = count( ( new WP_Query( $g ) )->posts );
+		$res['karosserie'] = count( ( new WP_Query( $k ) )->posts );
+		$res['alle']       = $res['rennsport'] + $res['gebraucht'];
 		return $res;
 	}
 
@@ -360,13 +365,19 @@ class M24_Catalog_Hub {
 		$ids = self::term_ids( $hub );
 		if ( empty( $ids ) ) { return array(); }
 		$typ  = self::typ_clause( $kat );
+		// Karosserie: Baugruppe-Filter (Slug karosserie), unabhängig von neu/gebraucht (typ_clause=null).
+		$tax_query = array( array( 'taxonomy' => self::TAX, 'terms' => $ids ) );
+		if ( 'karosserie' === $kat ) {
+			$tax_query['relation'] = 'AND';
+			$tax_query[] = array( 'taxonomy' => 'm24_baugruppe', 'field' => 'slug', 'terms' => 'karosserie' );
+		}
 		$base = array(
 			'post_type'      => 'm24_teil',
 			'post_status'    => 'publish',
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
-			'tax_query'      => array( array( 'taxonomy' => self::TAX, 'terms' => $ids ) ),
+			'tax_query'      => $tax_query,
 		);
 		if ( '' !== $q ) { $base['s'] = $q; }
 
@@ -417,7 +428,7 @@ class M24_Catalog_Hub {
 		$hub   = $hub ?: self::current();
 		$q     = ( null === $q )    ? self::current_q()    : trim( (string) $q );
 		$sort  = ( null === $sort ) ? self::current_sort() : ( in_array( $sort, array( 'preis-auf', 'preis-ab', 'neu' ), true ) ? $sort : 'preis-ab' );
-		$kat   = ( null === $kat )  ? self::effective_kat( $hub ) : ( in_array( $kat, array( 'rennsport', 'gebraucht', 'alle' ), true ) ? $kat : 'alle' );
+		$kat   = ( null === $kat )  ? self::effective_kat( $hub ) : ( in_array( $kat, array( 'rennsport', 'gebraucht', 'karosserie', 'alle' ), true ) ? $kat : 'alle' );
 		$ids   = self::ordered_ids( $hub, $sort, $q, $kat );
 		$total = count( $ids );
 		$per   = self::PER_PAGE;

@@ -27,7 +27,8 @@ $lq_q   = $list['q'];
 $lsort  = $list['sort'];
 $lkat   = $list['kat'] ?? 'alle';
 $kcounts = M24_Catalog_Hub::kat_counts( $hub ); // [rennsport,gebraucht,alle] — Switch-Mengen
-$kat_labels = array( 'rennsport' => 'Rennsport', 'gebraucht' => 'Gebraucht', 'alle' => 'Alle' );
+// Dropdown-Reihenfolge/-Labels: Alle · Karosserie · Neuteile(=rennsport) · Gebrauchtteile(=gebraucht).
+$kat_labels = array( 'alle' => 'Alle', 'karosserie' => 'Karosserie', 'rennsport' => 'Neuteile', 'gebraucht' => 'Gebrauchtteile' );
 $cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array();
 
 // Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
@@ -103,12 +104,9 @@ $ld = array(
 .m24hub .m24hub-sortwrap select{height:var(--m24hub-ctl-h);font-family:inherit;font-size:14px;line-height:1.2;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer;box-sizing:border-box}
 .m24hub .m24hub-resetq{font-size:13px;color:var(--blue);white-space:nowrap}
 /* Kategorie-Switch (Rennsport | Gebraucht | Alle) — Stil wie Ansicht-Umschalter */
-.m24hub .m24hub-katsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box}
-.m24hub .m24hub-katsw a{display:inline-flex;align-items:center;padding:0 14px;cursor:pointer;color:var(--muted);border-left:1px solid var(--line);font-size:13px;font-weight:600;text-decoration:none}
-.m24hub .m24hub-katsw a:first-child{border-left:none}
-.m24hub .m24hub-katsw a.on{background:var(--blue);color:#fff}
-.m24hub .m24hub-katsw a:hover:not(.on){background:#f0f0ee}
-.m24hub .m24hub-katsw .m24hub-katn{font-weight:500;opacity:.7;font-size:12px;margin-left:1px}
+.m24hub .m24hub-katwrap{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+.m24hub .m24hub-katlabel{font-size:13px;color:var(--muted)}
+.m24hub .m24hub-katwrap select{height:var(--m24hub-ctl-h);font-family:inherit;font-size:14px;line-height:1.2;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);cursor:pointer;box-sizing:border-box}
 /* Ansicht-Umschalter (Segmented Control) */
 .m24hub .m24hub-viewsw{display:inline-flex;height:var(--m24hub-ctl-h);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex:0 0 auto;box-sizing:border-box}
 .m24hub .m24hub-viewsw button{border:none;background:#fff;padding:0 11px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);font-family:inherit;font-size:12px;font-weight:600}
@@ -221,18 +219,16 @@ $ld = array(
 				<input id="m24hub-q" name="q" type="search" value="<?php echo esc_attr( $lq_q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen …' ); ?>" aria-label="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen' ); ?>">
 			</div>
 			<div class="m24hub-controls-right">
-				<div class="m24hub-katsw" id="m24hub-katsw" role="group" aria-label="Kategorie wählen">
-					<?php
-					foreach ( $kat_labels as $kv => $kl ) :
-						$href = esc_url( add_query_arg( array_filter( array(
-							'kat'  => $kv,
-							'q'    => '' !== $lq_q ? $lq_q : null,
-							'sort' => 'neu' !== $lsort ? $lsort : null,
-						) ), $hub_url ) );
-						$cnt = isset( $kcounts[ $kv ] ) ? (int) $kcounts[ $kv ] : 0;
-						?>
-						<a href="<?php echo $href; ?>" data-kat="<?php echo esc_attr( $kv ); ?>" class="<?php echo $lkat === $kv ? 'on' : ''; ?>" rel="nofollow"><?php echo esc_html( $kl ); ?> <span class="m24hub-katn">(<?php echo esc_html( number_format_i18n( $cnt ) ); ?>)</span></a>
-					<?php endforeach; ?>
+				<div class="m24hub-katwrap">
+					<label for="m24hub-kat" class="m24hub-katlabel">Filter:</label>
+					<select id="m24hub-kat" name="kat" aria-label="Kategorie wählen">
+						<?php
+						foreach ( $kat_labels as $kv => $kl ) :
+							$cnt = isset( $kcounts[ $kv ] ) ? (int) $kcounts[ $kv ] : 0;
+							?>
+							<option value="<?php echo esc_attr( $kv ); ?>" <?php selected( $lkat, $kv ); ?>><?php echo esc_html( $kl ); ?> (<?php echo esc_html( number_format_i18n( $cnt ) ); ?>)</option>
+						<?php endforeach; ?>
+					</select>
 				</div>
 				<div class="m24hub-viewsw" id="m24hub-viewsw" role="group" aria-label="Ansicht wählen">
 					<button type="button" data-view="view-3" title="3 Spalten" aria-label="3 Spalten"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2" width="3.2" height="12" rx="1"></rect><rect x="6.4" y="2" width="3.2" height="12" rx="1"></rect><rect x="11.8" y="2" width="3.2" height="12" rx="1"></rect></svg>3</button>
@@ -300,6 +296,25 @@ $ld = array(
 	root.addEventListener('touchstart',function(e){x0=e.touches[0].clientX;},{passive:true});
 	root.addEventListener('touchend',function(e){if(x0===null)return;var dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>40){dx<0?next():prev();restart();}x0=null;},{passive:true});
 	start();
+})();
+</script>
+<script>
+/* Teile-Filter: Dropdown-Navigation (?kat=) + Persistenz (localStorage m24_teile_filter). */
+(function(){
+	var sel=document.getElementById('m24hub-kat'); if(!sel) return;
+	var KEY='m24_teile_filter';
+	var valid=/^(alle|karosserie|rennsport|gebraucht)$/;
+	sel.addEventListener('change',function(){
+		var v=sel.value; try{localStorage.setItem(KEY,v);}catch(e){}
+		var p=new URLSearchParams(location.search); p.set('kat',v); location.search=p.toString();
+	});
+	// Ohne explizites ?kat= gemerkten Wert anwenden (Ziel trägt ?kat= → kein Loop; keine Kollision mit Canonical).
+	if(!new URLSearchParams(location.search).has('kat')){
+		var stored=null; try{stored=localStorage.getItem(KEY);}catch(e){}
+		if(stored && valid.test(stored) && stored!==sel.value){
+			var p2=new URLSearchParams(location.search); p2.set('kat',stored); location.search=p2.toString();
+		}
+	}
 })();
 </script>
 <?php
