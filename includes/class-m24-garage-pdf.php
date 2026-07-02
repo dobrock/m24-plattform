@@ -366,9 +366,9 @@ class M24_Garage_PDF {
 				$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
 				$rows .= '<tr>'
 					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
-					. '<td class="r c-unit">' . $unit_out . '</td>'
+					. '<td class="c c-unit">' . $unit_out . '</td>'
 					. '<td class="c-qty">' . (int) $it['qty'] . '</td>'
-					. '<td class="r c-line">' . $line_out . '</td>'
+					. '<td class="c c-line">' . $line_out . '</td>'
 					. '</tr>';
 			}
 		}
@@ -391,7 +391,7 @@ class M24_Garage_PDF {
 			. 'table.items th { background: #f3f4f6; text-align: left; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .03em; color: #374151; padding: 6pt 6pt; border-bottom: 1px solid #e5e7eb; }'
 			. 'table.items td { padding: 7pt 6pt; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 9pt; }'
 			. 'table.items th.r, table.items td.r { text-align: right; }'
-			. '.c-unit-col { width: 80pt; } .c-qty-col { width: 44pt; } .c-line-col { width: 80pt; }'
+			. 'th.c, td.c { text-align: center; }' // Einzelpreis + Summe zentriert (Breiten via colgroup)
 			. '.c-pos { padding-right: 10pt; }'
 			. 'td.c-unit, td.c-qty, td.c-line { padding-left: 4pt; padding-right: 4pt; }'
 			. '.c-qty-col, td.c-qty { text-align: center; }' // Menge zentriert (Einzelpreis/Summe bleiben rechts)
@@ -417,8 +417,10 @@ class M24_Garage_PDF {
 			. '<div class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></div>'
 			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div>'
 			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
-			. '<table class="items"><thead><tr>'
-			. '<th class="c-pos">Position</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="c-qty-col">Menge</th><th class="r c-line-col">Summe (netto)</th>'
+			. '<table class="items">'
+			. '<colgroup><col style="width:250pt"><col style="width:90pt"><col style="width:54pt"><col style="width:89pt"></colgroup>'
+			. '<thead><tr>'
+			. '<th class="c-pos">Position</th><th class="c c-unit-col">Einzelpreis (netto)</th><th class="c-qty-col">Menge</th><th class="c c-line-col">Summe (netto)</th>'
 			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
 			. self::sum_block( $net19_sum, $diff_sum, $fmt )
 			. $note;
