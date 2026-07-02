@@ -107,6 +107,26 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Passwordless Magic-Link-Login „D" — Default AUS (kein Deploy-Lockout). Erst nach Staging-Test an.
+        register_setting(
+            'm24_plattform_group',
+            'm24_login_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
+        // Admin-Allowlist (Komma-Mails) — nur diese dürfen Admin-Sessions per Magic-Link bekommen.
+        register_setting(
+            'm24_plattform_group',
+            'm24_login_admin_allowlist',
+            [
+                'type'              => 'string',
+                'sanitize_callback' => static function ( $v ) { return sanitize_text_field( (string) $v ); },
+                'default'           => '',
+            ]
+        );
         // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
         register_setting(
             'm24_plattform_group',
@@ -590,6 +610,31 @@ class M24_Settings {
                             </label>
                             <p class="description">
                                 <?php echo esc_html__( 'Default aus. Solange aus: Pipeline läuft + loggt („would-send", Kontext „alerts"), sendet aber nichts. Erst nach §7-UWG-Opt-out aktivieren.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2 style="margin-top:24px;"><?php echo esc_html__( 'Passwordless-Login „D" (Beta)', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Magic-Link-Login aktiv', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_login_enabled" value="1" <?php checked( (bool) get_option( 'm24_login_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Konto-Header + Magic-Link-Login + /m24-login/-Strecke aktivieren (leitet wp-login.php auf das Modal um)', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Erst nach Staging-Test aktivieren. Break-Glass bleibt immer: wp-login.php?m24_classic=1 zeigt das Passwort-Formular.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Admin-Allowlist (Magic-Link)', 'm24-plattform' ); ?></th>
+                        <td>
+                            <input type="text" class="regular-text" name="m24_login_admin_allowlist" value="<?php echo esc_attr( (string) get_option( 'm24_login_admin_allowlist', '' ) ); ?>" placeholder="admin@…, zweiter@…" />
+                            <p class="description">
+                                <?php echo esc_html__( 'Komma-getrennte E-Mails, die Admin-Sessions per Magic-Link bekommen dürfen. Die Site-Admin-Adresse ist immer erlaubt. Hinweis: passwordless Admin = das E-Mail-Konto ist der einzige Faktor — Postfach mit 2FA absichern.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>
