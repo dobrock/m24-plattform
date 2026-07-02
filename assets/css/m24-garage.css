@@ -250,3 +250,7 @@
 .m24gc-sendmail-status{display:block;margin-top:8px;font-size:13px;min-height:1em}
 .m24gc-sendmail-status.is-ok{color:#1a7f37}
 .m24gc-sendmail-status.is-error{color:#c8102e}
+
+/* ── Primärer „Garage-Link kopieren & teilen"-Button (Share-Karte) ── */
+.m24gc-share-primary{display:block;width:100%;box-sizing:border-box;border:0;border-radius:6px;color:#fff;font-weight:700;font-size:15px;padding:12px 18px;margin:0 0 12px;cursor:pointer}
+.m24gc-share-primary:disabled{opacity:.65;cursor:progress}

@@ -972,11 +972,15 @@ class M24_Garage_Cart {
 	public static function shortcode( $atts = array() ) {
 		// Etappe 2: öffentliche, schreibgeschützte Ansicht über Token (ohne Login, zeigt Token-Eigentümer-Garage).
 		$share = isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$acc   = self::current_account_id();
 		if ( '' !== $share ) {
-			return self::render_shared( $share );
+			// Eigener Token beim eingeloggten Eigentümer → editierbare Ansicht (Adresszeile-Spiegel reload-sicher).
+			// Nur fremde/ausgeloggte Besucher bekommen die read-only Ansicht.
+			if ( ! ( $acc > 0 && self::resolve_share_token( $share ) === $acc ) ) {
+				return self::render_shared( $share );
+			}
 		}
 
-		$acc = self::current_account_id();
 		ob_start();
 
 		if ( $acc <= 0 ) {
@@ -1006,7 +1010,9 @@ class M24_Garage_Cart {
 		// Default-Tab: „Teile-Merkzettel", wenn keine Fahrzeuge geparkt sind — sonst „Geparkte Fahrzeuge".
 		$def_parts = ( 0 === $veh_count );
 
+		// Immer einen gültigen Link bereithalten: bei nicht-leerer Garage Token sicherstellen (foolproof teilbar).
 		$share_tok = self::share_token_existing( $acc );
+		if ( '' === $share_tok && ! empty( $items ) ) { $share_tok = self::share_token_get_or_create( $acc ); }
 		$share_url = ( '' !== $share_tok ) ? self::share_url( $share_tok ) : '';
 
 		$u        = wp_get_current_user();
@@ -1078,6 +1084,7 @@ class M24_Garage_Cart {
 							</div>
 							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
 								<h3 class="m24gc-card-h">Teilen &amp; sichern</h3>
+								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link kopieren &amp; teilen</button>
 								<div class="m24gc-share-row">
 									<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
 									<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>

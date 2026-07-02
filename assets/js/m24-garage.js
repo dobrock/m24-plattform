@@ -203,6 +203,14 @@
 
 		function shareMsg(t) { if (msgEl) { msgEl.textContent = t || ''; } }
 
+		// Adresszeile = der teilbare Token-Link (deckt „Adresszeile kopieren" ab). Eigentümer sieht dabei
+		// weiter die editierbare Ansicht (Server rendert den eigenen Token nicht read-only).
+		function mirrorUrl(url) {
+			if (url && url.indexOf('m24garage_share=') !== -1 && window.history && history.replaceState) {
+				try { history.replaceState(null, '', url); } catch (e) {}
+			}
+		}
+
 		function applyUrl(url) {
 			if (inEl) { inEl.value = url || ''; }
 			var has = !!url;
@@ -211,7 +219,7 @@
 			if (rotBtn) { rotBtn.hidden = !has; }
 		}
 
-		if (inEl && inEl.value) { applyUrl(inEl.value); }
+		if (inEl && inEl.value) { applyUrl(inEl.value); mirrorUrl(inEl.value); }
 
 		function shareReq(action, after) {
 			return fetch(cfg.share, {
@@ -220,7 +228,7 @@
 				headers: headers(),
 				body: JSON.stringify({ action: action })
 			}).then(function (r) { return r.json(); }).then(function (d) {
-				if (d && d.ok) { applyUrl(d.url); if (after) { after(d); } }
+				if (d && d.ok) { applyUrl(d.url); mirrorUrl(d.url); if (after) { after(d); } }
 				else { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); }
 			}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); });
 		}
@@ -245,6 +253,30 @@
 				} else if (inEl) {
 					inEl.select(); document.execCommand && document.execCommand('copy'); done();
 				}
+			});
+		}
+
+		// Primär-Aktion: frischen Snapshot erzeugen (Freeze zum Klick-Zeitpunkt) → teilen bzw. kopieren.
+		var primaryBtn = sharePanel.querySelector('[data-m24gc-share-primary]');
+		if (primaryBtn) {
+			primaryBtn.addEventListener('click', function () {
+				shareMsg('');
+				primaryBtn.disabled = true;
+				shareReq('generate', function (d) {
+					var url = d && d.url;
+					if (!url) { return; }
+					mirrorUrl(url);
+					if (navigator.share) {
+						navigator.share({ title: 'Meine MOTORSPORT24-Garage', url: url }).catch(function () {});
+					} else if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(url).then(function () {
+							toast('Link kopiert – in WhatsApp einfügen.');
+						}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.copied) || 'Kopiert.'); });
+					} else if (inEl) {
+						inEl.select(); document.execCommand && document.execCommand('copy');
+						toast('Link kopiert – in WhatsApp einfügen.');
+					}
+				}).then(function () { primaryBtn.disabled = false; });
 			});
 		}
 		// Server-seitiger Versand „An Kunden senden" (+ optional Exposé-PDF-Anhang).
