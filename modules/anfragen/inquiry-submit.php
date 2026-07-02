@@ -116,6 +116,12 @@ class M24_Inquiry_Submit {
 			) );
 		}
 
+		// Registrieren (optional, nur Gäste): passwordloses Konto anlegen + Magic-Link schicken (unabhängig
+		// vom Header-UI-Flag). Nie den Anfrage-Erfolg blockieren, falls die Anlage scheitert.
+		if ( ! empty( $params['register'] ) && ! is_user_logged_in() && class_exists( 'M24_Login' ) ) {
+			M24_Login::create_account_and_send_link( (string) $result['email'], $name );
+		}
+
 		return new WP_REST_Response( array( 'ok' => true ), 200 );
 	}
 

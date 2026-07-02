@@ -77,8 +77,21 @@ function m24_inquiry_fields() {
 		</label>
 		<label class="m24-iqf-optin">
 			<input type="checkbox" name="il_optin" value="1">
-			<span><?php esc_html_e( 'Ja, informiert mich über passende Fahrzeuge/Teile (Interessentenliste, jederzeit abbestellbar).', 'm24-plattform' ); ?></span>
+			<span><?php esc_html_e( 'Ja, informiert mich über Neuigkeiten.', 'm24-plattform' ); ?></span>
 		</label>
+		<?php if ( ! is_user_logged_in() ) : ?>
+		<label class="m24-iqf-optin">
+			<input type="checkbox" name="register" value="1">
+			<span><?php esc_html_e( 'Konto anlegen, damit ich jederzeit Zugriff auf meine Garage und E-Mail-Einstellungen habe.', 'm24-plattform' ); ?>
+			<small class="m24-iqf-optin-note"><?php
+				printf(
+					/* translators: %s = Datenschutz-Link */
+					esc_html__( 'Wir legen ein passwortloses Konto an und schicken dir einen Login-Link. Details in der %s.', 'm24-plattform' ),
+					'<a href="' . esc_url( function_exists( 'm24_datenschutz_url' ) ? m24_datenschutz_url() : home_url( '/datenschutz/' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Datenschutzerklärung', 'm24-plattform' ) . '</a>'
+				); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — Link bereits escaped
+			?></small></span>
+		</label>
+		<?php endif; ?>
 		<p class="m24-iqf-error" data-m24-iqf-error role="alert" hidden></p>
 	</div>
 	<?php

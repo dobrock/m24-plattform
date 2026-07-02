@@ -31,19 +31,66 @@ class M24_Login {
 	}
 
 	public static function init() {
-		// Break-Glass IMMER: wp-login.php bleibt erreichbar; die Umleitung unten ist flag- + GET-gated.
-		add_action( 'login_init', array( __CLASS__, 'maybe_redirect_wp_login' ) );
-
-		if ( ! self::enabled() ) { return; }
-
+		// Token-Strecke IMMER aktiv (sicher: rate-limited, neutral, Single-Use) — damit Magic-/Registrierungs-
+		// Links AUCH bei UI-Flag AUS einlösbar sind (Account-Anlage im Anfrage-Modal funktioniert unabhängig).
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ), 5 );
 		add_filter( 'query_vars', array( __CLASS__, 'register_qv' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_verify' ), 5 );
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+		// Break-Glass IMMER: wp-login.php bleibt erreichbar; die Umleitung ist flag- + GET-gated.
+		add_action( 'login_init', array( __CLASS__, 'maybe_redirect_wp_login' ) );
+
+		// Nur die SICHTBARE Header-UI ist flag-gated (m24_login_enabled).
+		if ( ! self::enabled() ) { return; }
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		// tagDiv-Block-Header umgeht Theme-Hooks → per Footer rendern, JS platziert in die Header-Actions.
 		add_action( 'wp_footer', array( __CLASS__, 'render' ) );
 		add_action( 'wp_body_open', array( __CLASS__, 'render' ) );
+	}
+
+	/**
+	 * Guest-Registrierung aus dem Anfrage-Modal: WP-User (customer/subscriber) OHNE Passwort anlegen (falls
+	 * neu) + ersten Magic-Link schicken. Unabhängig vom UI-Flag. @return bool true = Link verschickt.
+	 */
+	public static function create_account_and_send_link( string $email, string $name = '' ): bool {
+		$email = strtolower( sanitize_email( $email ) );
+		if ( ! is_email( $email ) ) { return false; }
+
+		$user = get_user_by( 'email', $email );
+		if ( $user ) {
+			$user_id = (int) $user->ID;
+		} else {
+			$first = trim( $name );
+			$last  = '';
+			if ( false !== strpos( $first, ' ' ) ) { list( $first, $last ) = array_map( 'trim', explode( ' ', $first, 2 ) ); }
+			$role = get_role( 'customer' ) ? 'customer' : 'subscriber';
+			$uid  = wp_insert_user( array(
+				'user_login'   => self::unique_login( $email ),
+				'user_email'   => $email,
+				'user_pass'    => wp_generate_password( 28, true, true ), // Zufalls-PW (nie genutzt; Login passwordless)
+				'display_name' => '' !== trim( $name ) ? $name : $email,
+				'first_name'   => $first,
+				'last_name'    => $last,
+				'role'         => $role,
+			) );
+			if ( is_wp_error( $uid ) ) { self::log( 'register:insert_failed' ); return false; }
+			$user_id = (int) $uid;
+			self::log( 'register:created', $user_id );
+		}
+
+		$raw = M24_B2B::issue_token( $email, self::PURPOSE, $user_id, self::TTL );
+		self::send_login_mail( $email, $raw );
+		self::log( 'register:link_sent', $user_id );
+		return true;
+	}
+
+	/** Eindeutigen user_login aus dem E-Mail-Local-Part ableiten. */
+	private static function unique_login( string $email ): string {
+		$base = sanitize_user( current( explode( '@', $email ) ), true );
+		if ( '' === $base ) { $base = 'kunde'; }
+		$login = $base; $i = 1;
+		while ( username_exists( $login ) ) { $login = $base . $i; $i++; }
+		return $login;
 	}
 
 	/* ── Rewrite /m24-login/{token}/ ─────────────────────────────────────── */

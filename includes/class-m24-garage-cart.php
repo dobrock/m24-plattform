@@ -1247,6 +1247,7 @@ class M24_Garage_Cart {
 								<div class="m24gc-brutto-big" data-m24gc-grand><?php echo esc_html( $grand_fmt ); ?></div>
 								<div class="m24gc-net"><span data-m24gc-net><?php echo esc_html( $net_fmt ); ?></span> netto</div>
 								<?php if ( $has_unpriced ) : ?><p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p><?php endif; ?>
+								<p class="m24gc-intro">Sende uns Deine Garage als Anfrage, damit wir dir ein verbindliches Angebot inkl. Lieferzeit und Nebenkosten wie Verpackung, Versand und ggf. Zollabwicklung kalkulieren können.</p>
 								<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Nachricht (optional)"></textarea>
 								<button type="button" class="m24gc-send-btn m24gc-btn-blue" data-m24gc-send-btn>Als Anfrage senden</button>
 								<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
@@ -1257,7 +1258,8 @@ class M24_Garage_Cart {
 								<h3 class="m24gc-card-h">Garage teilen</h3>
 
 								<!-- Variante A: EIN primärer Button — friert den aktuellen Stand in DENSELBEN Token neu ein + kopiert. -->
-								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>🔗 Garage-Link erstellen &amp; teilen</button>
+								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link erstellen &amp; teilen</button>
+								<p class="m24gc-share-info">Dein Klick auf den Button erstellt ein Abbild Deiner aktuellen Garage, welche Du über den generierten Link versenden kannst. Änderungen an dem Inhalt Deiner Garage speicherst Du mit einem erneuten Klick auf den Button.</p>
 								<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
 								<input type="hidden" data-m24gc-share-input value="<?php echo esc_attr( $share_url ); ?>">
 
