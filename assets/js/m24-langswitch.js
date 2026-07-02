@@ -29,11 +29,6 @@
 		wrap.setAttribute('role', 'navigation');
 		wrap.setAttribute('aria-label', 'Sprache');
 		wrap.setAttribute('data-m24langsw-ctx', ctx);
-		var globe = document.createElement('span');
-		globe.className = 'm24langsw-globe';
-		globe.setAttribute('aria-hidden', 'true');
-		globe.textContent = '🌐';
-		wrap.appendChild(globe);
 		wrap.appendChild(lnk('de', cfg.de, 'DE', '🇩🇪 Deutsch'));
 		var sep = document.createElement('span');
 		sep.className = 'm24langsw-sep';
