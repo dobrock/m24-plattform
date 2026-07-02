@@ -176,12 +176,17 @@ class M24FZ_SEO {
 	}
 
 	/** Kurzbeschreibung (~160 Zeichen) aus Zusammenfassung → Beschreibung → Excerpt. */
-	/** og:title im mobile.de-Stil: „[Hersteller] [Modell] für [Preis]" (bzw. „– Preis auf Anfrage"). */
+	/** og:title im mobile.de-Stil: „[Hersteller] [Modell] für [Preis]" (bzw. Status/„– Preis auf Anfrage"). */
 	private static function og_title( $id ) {
 		$marke  = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
 		if ( '' === $marke && class_exists( 'M24FZ_Telemetry' ) ) { $marke = (string) M24FZ_Telemetry::guess_brand( get_the_title( $id ) ); }
 		$modell = trim( (string) get_post_meta( $id, '_m24fz_modell', true ) );
 		$base   = ( '' !== $marke && '' !== $modell ) ? trim( $marke . ' ' . $modell ) : get_the_title( $id );
+
+		// Status hat Vorrang vor dem Preis: reserviert/verkauft zeigen KEINEN Preis.
+		$st = class_exists( 'M24FZ_CPT' ) ? (string) M24FZ_CPT::status( $id ) : '';
+		if ( 'reserviert' === $st ) { return $base . ' – RESERVIERT'; }
+		if ( 'verkauft' === $st )   { return $base . ' – VERKAUFT'; }
 
 		$paf   = (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true );
 		$preis = (int) get_post_meta( $id, '_m24fz_preis', true );
