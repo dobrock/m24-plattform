@@ -295,3 +295,11 @@
 /* ── Intro-/Info-Texte in den Garage-Karten (klein, grau) ── */
 .m24gc-intro{margin:10px 0 4px;font-size:12.5px;line-height:1.5;color:#8a929c}
 .m24gc-share-info{margin:8px 0 4px;font-size:12.5px;line-height:1.5;color:#8a929c}
+
+/* ── E-Mail-/PDF-Bereich (Vorschlag 2): blauer Outline-Button + PDF als Text-Link ── */
+.m24gc-btn-outline-blue{display:block;width:100%;box-sizing:border-box;margin:0 0 4px;background:#fff;color:#1f74c4;border:1px solid #1f74c4;border-radius:6px;font:700 14px/1 'Saira',Arial,sans-serif;padding:11px 16px;cursor:pointer;text-align:center}
+.m24gc-btn-outline-blue:hover{background:#1f74c4;color:#fff}
+.m24gc-btn-outline-blue[aria-expanded="true"]{background:#eef4fb}
+.m24gc-btn-outline-blue[aria-expanded="true"]:hover{background:#1f74c4;color:#fff}
+.m24gc-pdf-textlink{display:inline-block;margin-top:12px;color:#5a6474;font-size:13px;text-decoration:underline;font-family:'Saira',Arial,sans-serif}
+.m24gc-pdf-textlink:hover{color:#1f74c4}

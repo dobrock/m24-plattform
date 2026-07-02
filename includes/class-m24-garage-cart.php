@@ -1259,7 +1259,7 @@ class M24_Garage_Cart {
 
 								<!-- Variante A: EIN primärer Button — friert den aktuellen Stand in DENSELBEN Token neu ein + kopiert. -->
 								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link erstellen &amp; teilen</button>
-								<p class="m24gc-share-info">Dein Klick auf den Button erstellt ein Abbild Deiner aktuellen Garage, welche Du über den generierten Link versenden kannst. Änderungen an dem Inhalt Deiner Garage speicherst Du mit einem erneuten Klick auf den Button.</p>
+								<p class="m24gc-share-info">Dein Klick auf den Button erstellt ein Abbild deiner aktuellen Garage, welches du über den Link versenden kannst. Änderungen speicherst du mit einem erneuten Klick.</p>
 								<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
 								<input type="hidden" data-m24gc-share-input value="<?php echo esc_attr( $share_url ); ?>">
 
@@ -1277,8 +1277,8 @@ class M24_Garage_Cart {
 
 								<div class="m24gc-share-sep" aria-hidden="true"></div>
 
-								<!-- Eingeklappt: Per E-Mail an Kunden (bestehende Backend-Logik, nur UI verschoben) -->
-								<button type="button" class="m24gc-email-toggle" data-m24gc-email-toggle aria-expanded="false">✉️ Per E-Mail an Kunden <span class="m24gc-email-caret" aria-hidden="true">▾</span></button>
+								<!-- Vorschlag 2: blauer Sekundär-Button (Outline) klappt das E-Mail-Formular inline auf -->
+								<button type="button" class="m24gc-btn-outline-blue" data-m24gc-email-toggle aria-expanded="false">Per E-Mail senden</button>
 								<div class="m24gc-sendmail" data-m24gc-sendmail hidden>
 									<label class="m24gc-field">
 										<span class="m24gc-field-lbl">E-Mail-Adresse des Kunden</span>
@@ -1292,11 +1292,11 @@ class M24_Garage_Cart {
 										<input type="checkbox" data-m24gc-sendmail-pdf checked>
 										<span>Exposé-PDF anhängen</span>
 									</label>
-									<button type="button" class="m24gc-pdf-btn m24gc-btn-brass" data-m24gc-sendmail-btn>An Kunden senden</button>
+									<button type="button" class="m24gc-send-btn m24gc-btn-blue" data-m24gc-sendmail-btn>An Kunden senden</button>
 									<span class="m24gc-sendmail-status" data-m24gc-sendmail-status role="status"></span>
 								</div>
 
-								<a class="m24gc-pdf-btn m24gc-btn-brass-outline" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">⬇ Als PDF herunterladen</a>
+								<a class="m24gc-pdf-textlink" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Als PDF herunterladen</a>
 							</div>
 						</aside>
 					</div>
