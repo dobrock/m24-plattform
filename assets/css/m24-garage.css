@@ -259,3 +259,6 @@
 .m24-garage-toggle .m24-btn-i{color:#1f74c4}
 .m24-garage-toggle.is-ingarage{border-color:#1f74c4;color:#1f74c4}
 .m24-garage-toggle.is-ingarage .m24-btn-i{fill:#1f74c4;color:#1f74c4}
+
+/* ── Share-Gültigkeitshinweis (Owner) ── */
+.m24gc-share-validity{margin:0 0 10px;font-size:12.5px;color:#8a929c}

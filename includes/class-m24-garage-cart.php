@@ -343,12 +343,13 @@ class M24_Garage_Cart {
 	public static function read_snapshot( string $token ) {
 		global $wpdb;
 		$t   = self::snapshot_table();
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT items_json, totals_json, vehicles_json FROM $t WHERE share_token = %s ORDER BY id DESC LIMIT 1", $token ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT items_json, totals_json, vehicles_json, created_at FROM $t WHERE share_token = %s ORDER BY id DESC LIMIT 1", $token ), ARRAY_A );
 		if ( ! $row ) { return null; }
 		$items    = json_decode( (string) $row['items_json'], true );
 		$totals   = json_decode( (string) $row['totals_json'], true );
 		$vehicles = json_decode( (string) ( $row['vehicles_json'] ?? '' ), true );
 		return array(
+			'created_at' => (string) ( $row['created_at'] ?? '' ),
 			'items'    => is_array( $items ) ? $items : array(),
 			'totals'   => is_array( $totals ) ? $totals : array(),
 			'vehicles' => is_array( $vehicles ) ? $vehicles : array(),
@@ -1146,6 +1147,7 @@ class M24_Garage_Cart {
 							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
 								<h3 class="m24gc-card-h">Teilen &amp; sichern</h3>
 								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link kopieren &amp; teilen</button>
+								<p class="m24gc-share-validity">Der erzeugte Garagen-Link ist 3 Monate gültig.</p>
 								<div class="m24gc-share-row">
 									<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
 									<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
@@ -1518,13 +1520,41 @@ class M24_Garage_Cart {
 		// lazy erzeugen. Reine Teile-Liste — keine Fahrzeuge, keine Aktions-Boxen (Prompt).
 		$snap = self::read_snapshot( $token );
 		if ( null === $snap ) { self::write_snapshot( $acc, $token ); $snap = self::read_snapshot( $token ); }
+
+		// 3-Monate-Gültigkeit: Snapshot älter als 90 Tage → abgelaufen (Menge eingefroren, aber zu alt).
+		$created = ( $snap && ! empty( $snap['created_at'] ) ) ? strtotime( (string) $snap['created_at'] ) : 0;
+		if ( $created > 0 && ( current_time( 'timestamp' ) - $created ) > ( 90 * DAY_IN_SECONDS ) ) {
+			?>
+			<div class="m24gc-page m24gc-shared">
+				<h2 class="m24gc-h">Geteilte Garage</h2>
+				<p class="m24gc-empty">Dieser Link ist abgelaufen. Bitte den Eigentümer um einen neuen Link.</p>
+			</div>
+			<?php
+			return (string) ob_get_clean();
+		}
+
 		$items    = ( $snap && ! empty( $snap['items'] ) ) ? $snap['items'] : array();
 		$vehicles = ( $snap && ! empty( $snap['vehicles'] ) ) ? $snap['vehicles'] : array();
-		$totals   = ( $snap && ! empty( $snap['totals'] ) ) ? $snap['totals'] : array();
-		$p_count   = (int) ( $totals['count'] ?? count( $items ) );
-		$unpriced  = (int) ( $totals['unpriced'] ?? 0 );
-		$grand_fmt = (string) ( $totals['gross_fmt'] ?? self::fmt( 0.0 ) );
-		$net_fmt   = (string) ( $totals['net_fmt'] ?? self::fmt( 0.0 ) );
+
+		// Preis-Ausnahme vom Freeze: Menge eingefroren, Preis LIVE je article_id (Fallback eingefroren, wenn
+		// Artikel gelöscht). Teile-Summen daraus live neu berechnen → Preisänderungen erscheinen, Zu-/Abgänge NICHT.
+		$gross_sum = 0.0; $unpriced = 0;
+		foreach ( $items as $k => $it ) {
+			$it   = (array) $it;
+			$aid  = (int) ( $it['article_id'] ?? 0 );
+			$qty  = max( 1, (int) ( $it['qty'] ?? 1 ) );
+			if ( $aid > 0 && 'm24_teil' === get_post_type( $aid ) && 'publish' === get_post_status( $aid ) ) {
+				$g = self::unit_price( 'm24_teil', $aid ); // live (null = auf Anfrage)
+			} else {
+				$g = ( isset( $it['price_gross'] ) && null !== $it['price_gross'] ) ? (float) $it['price_gross'] : null; // gelöscht → eingefroren
+			}
+			$it['live_gross'] = $g;
+			if ( null !== $g ) { $gross_sum += $g * $qty; } else { $unpriced++; }
+			$items[ $k ] = $it;
+		}
+		$p_count   = count( $items );
+		$grand_fmt = self::fmt( $gross_sum );
+		$net_fmt   = self::fmt( $gross_sum / 1.19 );
 		?>
 		<div class="m24gc-page m24gc-dash m24gc-shared">
 			<header class="m24gc-dash-head">
@@ -1565,9 +1595,13 @@ class M24_Garage_Cart {
 		return (string) ob_get_clean();
 	}
 
-	/** Eine read-only Teile-Zeile aus einem Snapshot-Item (items_json-Shape). */
+	/** Eine read-only Teile-Zeile aus einem Snapshot-Item (items_json-Shape). Preis: live_gross (Preis-Ausnahme) → sonst eingefroren. */
 	private static function render_snapshot_row( array $it ) {
-		$gross = isset( $it['price_gross'] ) && null !== $it['price_gross'] ? (float) $it['price_gross'] : null;
+		if ( array_key_exists( 'live_gross', $it ) ) {
+			$gross = ( null !== $it['live_gross'] ) ? (float) $it['live_gross'] : null;
+		} else {
+			$gross = isset( $it['price_gross'] ) && null !== $it['price_gross'] ? (float) $it['price_gross'] : null;
+		}
 		$qty   = max( 1, (int) ( $it['qty'] ?? 1 ) );
 		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : '—';
 		$unit  = ( null !== $gross ) ? self::fmt( $gross ) : 'Preis auf Anfrage';
@@ -1588,16 +1622,24 @@ class M24_Garage_Cart {
 	}
 
 	/**
-	 * Read-only Fahrzeug-Card aus dem eingefrorenen Snapshot-JSON — identisches Markup wie
-	 * render_vehicle_card(readonly). KEIN Live-Fetch, kein Remove/keine Aktionen, KEINE FIN/Art.-Nr.
+	 * Read-only Fahrzeug-Card aus dem eingefrorenen Snapshot-JSON — Markup wie render_vehicle_card(readonly).
+	 * Preis-Ausnahme: LIVE je article_id (Fallback eingefroren, wenn Fahrzeug gelöscht). Status/Titel/Bild
+	 * bleiben eingefroren. Kein Remove/keine Aktionen, KEINE FIN/Art.-Nr.
 	 */
 	private static function render_snapshot_vehicle_card( array $v ) {
 		$url   = (string) ( $v['url'] ?? '' );
 		$title = (string) ( $v['title'] ?? '' );
 		$img   = (string) ( $v['image_url'] ?? '' );
-		$price = (string) ( $v['price_fmt'] ?? 'Preis auf Anfrage' );
 		$tone  = (string) ( $v['status_tone'] ?? 'ok' );
 		$label = (string) ( $v['status_label'] ?? 'Gelistet' );
+		// Preis live (Menge/Bestand eingefroren): existiert das Fahrzeug → aktueller Preis, sonst eingefroren.
+		$aid = (int) ( $v['article_id'] ?? 0 );
+		if ( $aid > 0 && 'm24_fahrzeug' === get_post_type( $aid ) && 'publish' === get_post_status( $aid ) ) {
+			$lg    = self::unit_price( 'm24_fahrzeug', $aid );
+			$price = ( null !== $lg ) ? self::fmt( (float) $lg ) : 'Preis auf Anfrage';
+		} else {
+			$price = (string) ( $v['price_fmt'] ?? 'Preis auf Anfrage' );
+		}
 		?>
 		<div class="m24gc-vcard is-readonly">
 			<div class="m24gc-vcard-head">
