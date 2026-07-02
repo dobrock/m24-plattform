@@ -334,43 +334,43 @@ class M24_Garage_PDF {
 	private static function html( array $items, string $grand_fmt, bool $has_unpriced, string $net_fmt = '', string $share_url = '' ): string {
 		$date = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y' ) : gmdate( 'd.m.Y' );
 
+		// Teile-only (identisches Ausschluss-Prädikat wie write_snapshot()): Fahrzeuge gehören nicht ins
+		// Garage-Exposé. Tabelle + Summen laufen ausschließlich über die gefilterten Teile.
+		$items = array_values( array_filter( $items, static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
+
 		// Netto-Layout: Steuerart je Zeile ableiten, Preise NETTO ausweisen, Totals selbst summieren.
 		$net19_sum = 0.0; // Summe Netto (19 % Regelbesteuerung: Teile + ausweisbare Fahrzeuge)
 		$diff_sum  = 0.0; // Summe §25a-differenzbesteuert (kein ausweisbares Netto/USt)
 		$fmt = function ( $v ) { return number_format( (float) $v, 2, ',', '.' ) . ' €'; };
 
 		$rows = '';
-		if ( empty( $items ) ) {
-			$rows = '<tr><td colspan="4" class="empty">Diese Garage ist aktuell leer.</td></tr>';
-		} else {
-			foreach ( $items as $it ) {
-				$is_veh = ( 'm24_fahrzeug' === $it['post_type'] );
-				$diff   = $is_veh && ! (int) get_post_meta( (int) $it['post_id'], '_m24fz_mwst_ausweisbar', true );
-				$unit_g = $it['unit'];       // Brutto (numerisch) oder null = „Preis auf Anfrage"
-				$line_g = $it['line_total']; // Brutto (numerisch) oder null
-				$mark   = '';
-				if ( null === $unit_g ) {
-					$unit_out = '<span class="ask">Preis auf Anfrage</span>'; $line_out = '—';
-				} elseif ( $diff ) {
-					// §25a: kein Netto/USt ausweisbar → Preis unverändert, Zeile markieren.
-					$unit_out = esc_html( $fmt( $unit_g ) ); $line_out = esc_html( $fmt( $line_g ) );
-					$mark = '<div class="tax-diff">§25a · differenzbesteuert, keine ausweisbare USt</div>';
-					$diff_sum += (float) $line_g;
-				} else {
-					// 19 %: Netto ausweisen.
-					$unit_out = esc_html( $fmt( $unit_g / 1.19 ) ); $line_out = esc_html( $fmt( $line_g / 1.19 ) );
-					$net19_sum += (float) $line_g / 1.19;
-				}
-				$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
-				$t     = esc_html( $it['title'] );
-				$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
-				$rows .= '<tr>'
-					. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
-					. '<td class="c c-qty">' . (int) $it['qty'] . '</td>'
-					. '<td class="r c-unit">' . $unit_out . '</td>'
-					. '<td class="r c-line">' . $line_out . '</td>'
-					. '</tr>';
+		foreach ( $items as $it ) { // nur Teile (oben gefiltert); leer → Hinweis statt Tabelle (siehe $body)
+			$is_veh = ( 'm24_fahrzeug' === $it['post_type'] );
+			$diff   = $is_veh && ! (int) get_post_meta( (int) $it['post_id'], '_m24fz_mwst_ausweisbar', true );
+			$unit_g = $it['unit'];       // Brutto (numerisch) oder null = „Preis auf Anfrage"
+			$line_g = $it['line_total']; // Brutto (numerisch) oder null
+			$mark   = '';
+			if ( null === $unit_g ) {
+				$unit_out = '<span class="ask">Preis auf Anfrage</span>'; $line_out = '—';
+			} elseif ( $diff ) {
+				// §25a: kein Netto/USt ausweisbar → Preis unverändert, Zeile markieren.
+				$unit_out = esc_html( $fmt( $unit_g ) ); $line_out = esc_html( $fmt( $line_g ) );
+				$mark = '<div class="tax-diff">§25a · differenzbesteuert, keine ausweisbare USt</div>';
+				$diff_sum += (float) $line_g;
+			} else {
+				// 19 %: Netto ausweisen.
+				$unit_out = esc_html( $fmt( $unit_g / 1.19 ) ); $line_out = esc_html( $fmt( $line_g / 1.19 ) );
+				$net19_sum += (float) $line_g / 1.19;
 			}
+			$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
+			$t     = esc_html( $it['title'] );
+			$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
+			$rows .= '<tr>'
+				. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
+				. '<td class="c c-qty">' . (int) $it['qty'] . '</td>'
+				. '<td class="r c-unit">' . $unit_out . '</td>'
+				. '<td class="r c-line">' . $line_out . '</td>'
+				. '</tr>';
 		}
 
 		$note = $has_unpriced
@@ -416,14 +416,19 @@ class M24_Garage_PDF {
 		$body = '<div class="g-head">'
 			. '<div class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></div>'
 			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div>'
-			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>'
-			. '<table class="items">'
-			. '<colgroup><col style="width:262pt"><col style="width:50pt"><col style="width:86pt"><col style="width:85.28pt"></colgroup>'
-			. '<thead><tr>'
-			. '<th class="c-pos">Position</th><th class="c c-qty-col">Menge</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="r c-line-col">Summe (netto)</th>'
-			. '</tr></thead><tbody>' . $rows . '</tbody></table>'
-			. self::sum_block( $net19_sum, $diff_sum, $fmt )
-			. $note;
+			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>';
+		if ( empty( $items ) ) {
+			// Garage hatte nur Fahrzeuge (nach Teile-Filter nichts übrig) → weder Tabelle noch Summen.
+			$body .= '<p class="empty">Keine Teile in der Garage.</p>';
+		} else {
+			$body .= '<table class="items">'
+				. '<colgroup><col style="width:262pt"><col style="width:50pt"><col style="width:86pt"><col style="width:85.28pt"></colgroup>'
+				. '<thead><tr>'
+				. '<th class="c-pos">Position</th><th class="c c-qty-col">Menge</th><th class="r c-unit-col">Einzelpreis (netto)</th><th class="r c-line-col">Summe (netto)</th>'
+				. '</tr></thead><tbody>' . $rows . '</tbody></table>'
+				. self::sum_block( $net19_sum, $diff_sum, $fmt )
+				. $note;
+		}
 		return self::document( $css, $body );
 	}
 
