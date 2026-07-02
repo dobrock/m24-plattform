@@ -54,7 +54,7 @@ class M24FZ_SEO {
 
 	/** Vollständiger OG-/Twitter-Tag-Satz für ein Fahrzeug. */
 	private static function og_tags( $id ) {
-		$title = get_the_title( $id );
+		$title = self::og_title( $id );
 		$url   = get_permalink( $id );
 		$desc  = self::og_desc( $id );
 		$img   = self::og_image( $id );
@@ -176,7 +176,73 @@ class M24FZ_SEO {
 	}
 
 	/** Kurzbeschreibung (~160 Zeichen) aus Zusammenfassung → Beschreibung → Excerpt. */
+	/** og:title im mobile.de-Stil: „[Hersteller] [Modell] für [Preis]" (bzw. „– Preis auf Anfrage"). */
+	private static function og_title( $id ) {
+		$marke  = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
+		if ( '' === $marke && class_exists( 'M24FZ_Telemetry' ) ) { $marke = (string) M24FZ_Telemetry::guess_brand( get_the_title( $id ) ); }
+		$modell = trim( (string) get_post_meta( $id, '_m24fz_modell', true ) );
+		$base   = ( '' !== $marke && '' !== $modell ) ? trim( $marke . ' ' . $modell ) : get_the_title( $id );
+
+		$paf   = (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true );
+		$preis = (int) get_post_meta( $id, '_m24fz_preis', true );
+		$red   = (int) get_post_meta( $id, '_m24fz_preis_reduziert', true );
+		$eff   = ( $red > 0 && $red < $preis ) ? $red : $preis;
+		$cur   = ( 'CHF' === strtoupper( (string) get_post_meta( $id, '_m24fz_waehrung', true ) ) ) ? 'CHF' : '€';
+
+		if ( ! $paf && $eff > 0 ) {
+			return $base . ' für ' . number_format( $eff, 0, ',', '.' ) . ' ' . $cur;
+		}
+		return $base . ' – Preis auf Anfrage';
+	}
+
+	/** og:description im mobile.de-Stil: Baujahr · km · Leistung · Matching Numbers · Farbe · bis 3 Keyfacts. */
 	private static function og_desc( $id ) {
+		$g = function ( $key ) use ( $id ) { return trim( wp_strip_all_tags( (string) get_post_meta( $id, $key, true ) ) ); };
+		$seg = array();
+
+		// 1. Baujahr (sonst Erstzulassung)
+		$bj = $g( '_m24fz_baujahr' );
+		if ( '' === $bj ) { $bj = $g( '_m24fz_erstzulassung' ); }
+		if ( '' !== $bj ) { $seg[] = $bj; }
+
+		// 2. Laufleistung
+		if ( class_exists( 'M24FZ_Telemetry' ) ) {
+			$lauf = M24FZ_Telemetry::laufleistung( $g( '_m24fz_laufleistung' ), $g( '_m24fz_laufleistung_einheit' ) );
+			if ( '' !== $lauf ) { $seg[] = $lauf; }
+			// 3. Leistung
+			$leis = M24FZ_Telemetry::leistung_label( $g( '_m24fz_leistung_ps' ) );
+			if ( '' !== $leis ) { $seg[] = $leis; }
+		}
+
+		// 4. Matching Numbers
+		if ( (int) get_post_meta( $id, '_m24fz_matching_numbers', true ) ) { $seg[] = 'Matching Numbers'; }
+
+		// 5. Farbe (erste befüllte)
+		foreach ( array( '_m24fz_farbbez_hersteller', '_m24fz_farbe', '_m24fz_aussenfarbe' ) as $fk ) {
+			$fv = $g( $fk );
+			if ( '' !== $fv ) { $seg[] = $fv; break; }
+		}
+
+		// 6.–8. bis zu 3 Keyfacts
+		$kf = get_post_meta( $id, '_m24fz_keyfacts', true );
+		if ( is_array( $kf ) ) {
+			$n = 0;
+			foreach ( $kf as $fact ) {
+				$fact = trim( wp_strip_all_tags( (string) $fact ) );
+				if ( '' === $fact ) { continue; }
+				$seg[] = $fact;
+				if ( ++$n >= 3 ) { break; }
+			}
+		}
+
+		$chain = trim( implode( ' · ', $seg ) );
+		if ( '' === $chain ) { return self::og_desc_fallback( $id ); }
+		$chain = preg_replace( '/\s+/', ' ', $chain );
+		return ( mb_strlen( $chain ) > 160 ) ? rtrim( mb_substr( $chain, 0, 159 ) ) . '…' : $chain;
+	}
+
+	/** Fallback-Beschreibung (Zusammenfassung → Beschreibung → Excerpt), wenn die Spec-Kette leer ist. */
+	private static function og_desc_fallback( $id ) {
 		$d = trim( wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) ) );
 		if ( '' === $d ) { $d = trim( wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_beschreibung', true ) ) ); }
 		if ( '' === $d ) { $d = trim( wp_strip_all_tags( get_the_excerpt( $id ) ) ); }

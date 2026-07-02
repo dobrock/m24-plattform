@@ -322,7 +322,8 @@ class M24FZ_Template {
 	/** Fahrzeugdaten-Zeilen (nur befüllte). */
 	public static function daten_rows( $id ) {
 		$fields = array(
-			'_m24fz_erstzulassung' => 'Erstzulassung', '_m24fz_modell' => 'Modell', '_m24fz_baureihe' => 'Baureihe',
+			'_m24fz_marke' => 'Hersteller',
+			'_m24fz_erstzulassung' => 'Erstzulassung', '_m24fz_modell' => 'Modell', '_m24fz_baujahr' => 'Baujahr', '_m24fz_baureihe' => 'Baureihe',
 			'_m24fz_karosserie' => 'Karosserie', '_m24fz_hubraum' => 'Hubraum', '_m24fz_leistung_ps' => 'Leistung',
 			'_m24fz_gewicht' => 'Gewicht', // nur Rennwagen (s. Loop), leer/0 = ausgeblendet
 			'_m24fz_getriebe' => 'Getriebe', '_m24fz_antrieb' => 'Antrieb', '_m24fz_lenkung' => 'Lenkung',
