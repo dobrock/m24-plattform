@@ -115,7 +115,7 @@ class M24_Garage_Cart {
 		if ( '' === $og_title ) { $og_title = 'Meine MOTORSPORT24 Garage'; }
 		$og_desc  = 'Meine MOTORSPORT24-Rennsport Teile Garage mit ' . $n . ' Artikel' . ( 1 === $n ? '' : 'n' ) . ( '' !== $datum ? ' vom ' . $datum : '' );
 		$soc      = get_option( 'wpseo_social' );
-		$og_img   = ( is_array( $soc ) && ! empty( $soc['og_default_image'] ) ) ? (string) $soc['og_default_image'] : ( M24_PLATTFORM_URL . 'assets/img/og-garage.jpg' );
+		$og_img   = self::garage_og_image(); // stabile URL (kein Plugin-Asset, das nach Deploy 404t)
 		$og_url   = self::share_url( $token );
 		$og  = '<meta property="og:type" content="website">';
 		$og .= '<meta property="og:site_name" content="MOTORSPORT24">';
@@ -366,6 +366,16 @@ class M24_Garage_Cart {
 
 	private static function snapshot_table(): string {
 		return M24_Database::table( 'garage_snapshot' );
+	}
+
+	/**
+	 * Stabile OG-Bild-URL für die Garage-/Share-Ansicht (kein Plugin-Asset → 404-sicher nach Deploy).
+	 * Über Konstante M24_GARAGE_OG_IMAGE bzw. Filter m24_garage_og_image überschreibbar.
+	 */
+	public static function garage_og_image(): string {
+		$default = defined( 'M24_GARAGE_OG_IMAGE' ) ? M24_GARAGE_OG_IMAGE
+			: 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
+		return (string) apply_filters( 'm24_garage_og_image', $default );
 	}
 
 	/**
@@ -1591,7 +1601,7 @@ class M24_Garage_Cart {
 		$url   = self::share_url( $token );
 		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal in meine MOTORSPORT24-Garage' );
 		$desc  = apply_filters( 'm24_garage_share_og_desc', 'Fahrzeuge & Teile, die ich bei MOTORSPORT24 zusammengestellt habe.' );
-		// Feste Startvorschau (Kotflügel-WebP); Photon-Resize auf WhatsApp-taugliche 1200×630. Filterbar.
+		// Feste Startvorschau (Kotflügel-WebP), Photon-Resize (i0.wp.com) auf WhatsApp-taugliche 1200×630. Filterbar.
 		$src   = 'https://i0.wp.com/www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
 		$img   = apply_filters( 'm24_garage_share_og_image', $src . '?resize=1200%2C630&ssl=1' );
 		$w     = (int) apply_filters( 'm24_garage_share_og_w', 1200 );

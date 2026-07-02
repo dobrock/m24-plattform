@@ -84,10 +84,12 @@
 	var placed = { desktop: false, mobile: false };
 	function place() {
 		if (!placed.desktop) {
-			// Bevorzugt: unmittelbar VOR das Such-Icon in dessen Zeile (vertikal auf Header-Höhe).
+			// Bevorzugt: als SIBLING VOR den Such-BUTTON (nicht in ihn hinein) → gleiche Header-Actions-Zeile,
+			// vertikal auf Navi-Höhe. Vom gefundenen Icon zum Button-Wrapper hochklettern.
 			var icon = visibleSearchIcon();
-			if (icon && icon.parentNode) {
-				icon.parentNode.insertBefore(makeSwitch('desktop'), icon);
+			var btn  = icon && icon.closest ? ( icon.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || icon ) : icon;
+			if (btn && btn.parentNode) {
+				btn.parentNode.insertBefore(makeSwitch('desktop'), btn);
 				placed.desktop = true;
 			} else {
 				var host = firstVisible(DESKTOP);
