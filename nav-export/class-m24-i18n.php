@@ -1,0 +1,443 @@
+<?php
+/**
+ * M24 Plattform — i18n-Fundament (DE/EN).
+ *
+ * Wiederverwendbare String-Registry + Sprachauflösung (Query → Cookie → Accept-Language → DE).
+ * Quellsprache ist Deutsch; Englisch als Zusatz. Bewusst klein gehalten und ausbaufähig:
+ * detect_default_lang() ist isoliert → später auf CDN-Header/GeoIP umstellbar.
+ *
+ * Hinweis: Der Cookie-WRITE passiert in init() (Hook 'init', vor Ausgabe) — resolve_lang()
+ * ist seiteneffektfrei (nur Lesen), damit es gefahrlos während des Renderings aufrufbar ist.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class M24_I18n {
+
+    const COOKIE = 'm24_lang';
+    const VERSION = '2026-06-de1'; // Consent-/String-Stand (für _m24_consent-Snapshot)
+
+    public static function init() {
+        // Cookie aus ?lang setzen, solange noch keine Header raus sind.
+        if ( isset( $_GET['lang'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            self::set_cookie( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+        }
+        // GTranslate-Fix: Marken-Token MOTORSPORT24 im Theme-Footer notranslate-kapseln (Zahlendreher
+        // „MOTORSPORT2006 … since 24"). Nur den Footer puffern (get_footer→wp_footer), script/style bleiben unberührt.
+        if ( ! is_admin() ) {
+            add_action( 'get_footer', array( __CLASS__, 'footer_buffer_start' ), 999 );
+            add_action( 'wp_footer', array( __CLASS__, 'footer_buffer_end' ), PHP_INT_MAX );
+            // DE/EN-Sprach-Switch (Inline, Globus + Hover-Namen/Flaggen) im Header.
+            add_action( 'wp_enqueue_scripts', array( __CLASS__, 'langswitch_assets' ) );
+            add_action( 'wp_head', array( __CLASS__, 'langswitch_head' ), 3 );
+        }
+    }
+
+    /* ── DE/EN-Sprach-Switch (GTranslate /en/-Pfad) ──────────────────────── */
+
+    /** Aktuelle Sprache + Ziel-URLs (DE/EN) der AKTUELLEN Seite aus dem /en/-Pfad ableiten. */
+    private static function langswitch_urls(): array {
+        $uri   = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $path  = (string) wp_parse_url( $uri, PHP_URL_PATH );
+        if ( '' === $path ) { $path = '/'; }
+        $query = (string) wp_parse_url( $uri, PHP_URL_QUERY );
+        $qs    = ( '' !== $query ) ? '?' . $query : '';
+        $is_en = (bool) preg_match( '#^/en(/|$)#', $path );
+
+        $de_path = $is_en ? preg_replace( '#^/en#', '', $path ) : $path;
+        if ( '' === $de_path ) { $de_path = '/'; }
+        $en_path = $is_en ? $path : '/en' . ( '/' === $path ? '/' : $path );
+
+        return array(
+            'active' => $is_en ? 'en' : 'de',
+            'de'     => home_url( $de_path ) . $qs,
+            'en'     => home_url( $en_path ) . $qs,
+        );
+    }
+
+    public static function langswitch_assets() {
+        $js = 'assets/js/m24-langswitch.js';
+        $jv = file_exists( M24_PLATTFORM_DIR . $js ) ? (string) filemtime( M24_PLATTFORM_DIR . $js ) : M24_PLATTFORM_VERSION;
+        wp_enqueue_script( 'm24-langswitch', M24_PLATTFORM_URL . $js, array(), $jv, true );
+        wp_localize_script( 'm24-langswitch', 'M24Lang', self::langswitch_urls() );
+    }
+
+    /** Inline-CSS für den Switch + optionale hreflang-Alternates (nur wenn GTranslate KEINE ausgibt). */
+    public static function langswitch_head() {
+        $u = self::langswitch_urls();
+        // hreflang NUR wenn explizit aktiviert (GTranslate-URL-Add-on gibt i. d. R. selbst welche aus →
+        // Default AUS, kein Duplikat). Über Option/Filter m24_hreflang_enabled scharfschalten.
+        if ( apply_filters( 'm24_hreflang_enabled', (bool) (int) get_option( 'm24_hreflang_enabled', 0 ) ) ) {
+            echo "\n" . '<link rel="alternate" hreflang="de" href="' . esc_url( $u['de'] ) . '">';
+            echo "\n" . '<link rel="alternate" hreflang="en" href="' . esc_url( $u['en'] ) . '">';
+            echo "\n" . '<link rel="alternate" hreflang="x-default" href="' . esc_url( $u['de'] ) . '">' . "\n";
+        }
+        ?>
+<style id="m24-langsw-css">
+.m24langsw{display:inline-flex;align-items:center;gap:6px;font-family:'Saira',Arial,Helvetica,sans-serif;font-size:13px;line-height:1}
+.m24langsw--inhdr{margin:0 14px 0 0!important;vertical-align:middle!important;align-self:center!important;height:auto!important}
+/* neben dem Such-Icon in derselben Zeile → vertikal auf Header-Höhe zentrieren (nicht darunter hängen) */
+.tdb_header_search .m24langsw--inhdr,.tdb-header-search-wrap .m24langsw--inhdr,.td-header-menu-social .m24langsw--inhdr{display:inline-flex!important;align-items:center!important;float:none!important;position:relative!important;top:0!important}
+.m24langsw--float{position:fixed!important;top:10px;right:150px;z-index:100049;background:rgba(0,0,0,.4);padding:5px 10px;border-radius:999px}
+.m24langsw-globe{opacity:.85;font-size:14px}
+.m24langsw-sep{opacity:.5;margin:0 1px}
+.m24langsw-lnk{position:relative;color:#fff;opacity:.7;text-decoration:none;padding:2px 1px}
+.m24langsw-lnk:hover,.m24langsw-lnk:focus{opacity:1;color:#fff}
+.m24langsw-lnk.is-active{opacity:1;font-weight:700;border-bottom:2px solid #9a6b25}
+.m24langsw-lnk .m24langsw-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);white-space:nowrap;background:#14161a;color:#fff;font-weight:400;font-size:12px;padding:5px 9px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .12s;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2}
+.m24langsw-lnk:hover .m24langsw-tip,.m24langsw-lnk:focus .m24langsw-tip{opacity:1}
+</style>
+        <?php
+    }
+
+    /** Footer-Ausgabe puffern (ab get_footer). */
+    public static function footer_buffer_start() {
+        ob_start( array( __CLASS__, 'wrap_brand_notranslate' ) );
+    }
+
+    /** Puffer schließen (Ende wp_footer). */
+    public static function footer_buffer_end() {
+        if ( ob_get_level() > 0 ) { ob_end_flush(); }
+    }
+
+    /**
+     * Bare Marken-Token „MOTORSPORT24" in Text-Knoten mit <span class="notranslate"> kapseln.
+     * SICHER: nur zwischen >…< (Text), NICHT innerhalb <script>/<style>, NICHT wenn bereits gewrappt
+     * (Folge-Token in einem notranslate-Span). Nur das Token, umgebende Wörter bleiben übersetzbar.
+     */
+    public static function wrap_brand_notranslate( $html ) {
+        if ( '' === (string) $html || false === strpos( $html, 'MOTORSPORT24' ) ) { return $html; }
+        // script/style-Blöcke ausklammern (Platzhalter), Rest bearbeiten, dann zurücktauschen.
+        $stash = array();
+        $html  = preg_replace_callback( '#<(script|style)\b[^>]*>.*?</\1>#is', function ( $m ) use ( &$stash ) {
+            $key = "\0M24STASH" . count( $stash ) . "\0";
+            $stash[ $key ] = $m[0];
+            return $key;
+        }, $html );
+        // Nur Text-Knoten: Token, das NICHT direkt Teil eines Tags/Attributs ist. Bereits gewrappte
+        // (notranslate) überspringen: negativer Lookbehind auf translate="no">.
+        $html = preg_replace(
+            '/(?<!translate="no">)(?<![\w-])MOTORSPORT24(?![\w-])(?![^<]*>)/',
+            '<span class="notranslate" translate="no">MOTORSPORT24</span>',
+            $html
+        );
+        if ( ! empty( $stash ) ) { $html = strtr( $html, $stash ); }
+        return $html;
+    }
+
+    /**
+     * Sprach-Cookie setzen — EINE Quelle für Stil-C-Switcher (?lang), /sprache/-Endpoint, etc.
+     * Validiert über norm() (nur de|en). No-op bei ungültig oder bereits gesendeten Headern.
+     */
+    public static function set_cookie( $lang ): void {
+        $l = self::norm( $lang );
+        if ( '' === $l || headers_sent() ) {
+            return;
+        }
+        setcookie( self::COOKIE, $l, array(
+            'expires'  => time() + 30 * DAY_IN_SECONDS,
+            'path'     => '/',
+            'samesite' => 'Lax',
+            'httponly' => true,
+            'secure'   => is_ssl(),
+        ) );
+        $_COOKIE[ self::COOKIE ] = $l;
+    }
+
+    /**
+     * Wiederverwendbarer Mail-Footer-Block „Sprache ändern: DE | EN" → /sprache/?to=de|en.
+     * Aktive Sprache (= Mailsprache) messing/fett, andere als CI-blauer Link. Reines Inline-CSS
+     * (Saira), keine externen Assets / keine linear-gradients (Mail-Sanitizing-fest).
+     */
+    public static function mail_lang_footer( string $current = '' ): string {
+        $current = self::norm( $current );
+        $base    = home_url( '/sprache/' );
+        $stack   = "font-family:'Saira',Arial,Helvetica,sans-serif;";
+        $label   = ( 'en' === $current ) ? 'Change language' : 'Sprache ändern';
+        $out     = '<span style="color:#9aa3b0;' . $stack . '">' . esc_html( $label ) . ': </span>';
+        $first   = true;
+        foreach ( array( 'de' => 'DE', 'en' => 'EN' ) as $l => $txt ) {
+            if ( ! $first ) { $out .= '<span style="color:#cfd6df;"> | </span>'; }
+            $first = false;
+            if ( $l === $current ) {
+                $out .= '<span style="color:#9a6b25;font-weight:700;' . $stack . '">' . $txt . '</span>';
+            } else {
+                $url  = esc_url( add_query_arg( 'to', $l, $base ) );
+                $out .= '<a href="' . $url . '" style="color:#1f74c4;text-decoration:underline;' . $stack . '">' . $txt . '</a>';
+            }
+        }
+        return '<div style="margin-top:10px;font-size:12px;' . $stack . '">' . $out . '</div>';
+    }
+
+    private static function norm( $v ): string {
+        $v = strtolower( trim( (string) $v ) );
+        return in_array( $v, array( 'de', 'en' ), true ) ? $v : '';
+    }
+
+    /** Aktive Sprache: 1) ?lang  2) Cookie  3) Accept-Language  4) de. Seiteneffektfrei. */
+    public static function resolve_lang(): string {
+        if ( isset( $_GET['lang'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            $l = self::norm( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+            if ( $l ) { return $l; }
+        }
+        if ( isset( $_COOKIE[ self::COOKIE ] ) ) {
+            $l = self::norm( wp_unslash( $_COOKIE[ self::COOKIE ] ) );
+            if ( $l ) { return $l; }
+        }
+        return self::detect_default_lang();
+    }
+
+    /** Primäres Accept-Language-Tag: beginnt mit 'de' → de, sonst en. Isoliert (CDN/GeoIP-ready). */
+    public static function detect_default_lang(): string {
+        $al = isset( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ) ? strtolower( (string) $_SERVER['HTTP_ACCEPT_LANGUAGE'] ) : '';
+        $primary = trim( explode( ',', $al )[0] ?? '' );
+        if ( 0 === strpos( $primary, 'de' ) ) { return 'de'; }
+        if ( '' !== $primary ) { return 'en'; }
+        return 'de';
+    }
+
+    /** Übersetzung: fehlender Key → DE-Fallback → Key selbst. */
+    public static function t( string $key, ?string $lang = null ): string {
+        $lang = $lang ?: self::resolve_lang();
+        $s    = self::strings();
+        if ( isset( $s[ $lang ][ $key ] ) ) { return $s[ $lang ][ $key ]; }
+        if ( isset( $s['de'][ $key ] ) ) { return $s['de'][ $key ]; }
+        return $key;
+    }
+
+    /** Länder ISO-2 ⇒ Klarname je Sprache. DE/AT/CH oben, Rest alphabetisch. Filterbar. */
+    public static function countries( ?string $lang = null ): array {
+        $lang = $lang ?: self::resolve_lang();
+        $de = array(
+            'DE'=>'Deutschland','AT'=>'Österreich','CH'=>'Schweiz','BE'=>'Belgien','BG'=>'Bulgarien','CY'=>'Zypern',
+            'CZ'=>'Tschechien','DK'=>'Dänemark','EE'=>'Estland','ES'=>'Spanien','FI'=>'Finnland','FR'=>'Frankreich',
+            'GB'=>'Vereinigtes Königreich','GR'=>'Griechenland','HR'=>'Kroatien','HU'=>'Ungarn','IE'=>'Irland',
+            'IT'=>'Italien','LI'=>'Liechtenstein','LT'=>'Litauen','LU'=>'Luxemburg','LV'=>'Lettland','MT'=>'Malta',
+            'NL'=>'Niederlande','NO'=>'Norwegen','PL'=>'Polen','PT'=>'Portugal','RO'=>'Rumänien','SE'=>'Schweden',
+            'SK'=>'Slowakei','SI'=>'Slowenien','US'=>'USA',
+        );
+        $en = array(
+            'DE'=>'Germany','AT'=>'Austria','CH'=>'Switzerland','BE'=>'Belgium','BG'=>'Bulgaria','CY'=>'Cyprus',
+            'CZ'=>'Czechia','DK'=>'Denmark','EE'=>'Estonia','ES'=>'Spain','FI'=>'Finland','FR'=>'France',
+            'GB'=>'United Kingdom','GR'=>'Greece','HR'=>'Croatia','HU'=>'Hungary','IE'=>'Ireland','IT'=>'Italy',
+            'LI'=>'Liechtenstein','LT'=>'Lithuania','LU'=>'Luxembourg','LV'=>'Latvia','MT'=>'Malta','NL'=>'Netherlands',
+            'NO'=>'Norway','PL'=>'Poland','PT'=>'Portugal','RO'=>'Romania','SE'=>'Sweden','SK'=>'Slovakia',
+            'SI'=>'Slovenia','US'=>'United States',
+        );
+        $map = ( 'en' === $lang ) ? $en : $de;
+        $top = array( 'DE' => $map['DE'], 'AT' => $map['AT'], 'CH' => $map['CH'] );
+        $rest = $map;
+        unset( $rest['DE'], $rest['AT'], $rest['CH'] );
+        asort( $rest );
+        return (array) apply_filters( 'm24_i18n_countries', $top + $rest, $lang );
+    }
+
+    /* ── Flaggen (Inline-SVG, ~20px) ─────────────────────────────────────── */
+
+    public static function flag_de(): string {
+        return '<svg viewBox="0 0 5 3" aria-hidden="true"><rect width="5" height="3" fill="#000"/><rect width="5" height="2" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>';
+    }
+
+    public static function flag_en(): string {
+        // Kompakte, flache Union-Jack-Konstruktion; clip-path hält die Diagonalen im Rechteck.
+        return '<svg viewBox="0 0 60 30" aria-hidden="true">'
+            . '<clipPath id="m24uk"><rect width="60" height="30"/></clipPath>'
+            . '<g clip-path="url(#m24uk)">'
+            . '<rect width="60" height="30" fill="#012169"/>'
+            . '<path d="M0,0 60,30 M60,0 0,30" stroke="#fff" stroke-width="6"/>'
+            . '<path d="M0,0 60,30 M60,0 0,30" stroke="#C8102E" stroke-width="4"/>'
+            . '<rect x="25" width="10" height="30" fill="#fff"/><rect y="10" width="60" height="10" fill="#fff"/>'
+            . '<rect x="27" width="6" height="30" fill="#C8102E"/><rect y="12" width="60" height="6" fill="#C8102E"/>'
+            . '</g></svg>';
+    }
+
+    /** Flag-Umschalter „Minimal mit Kürzel": kleine Flagge + DE/EN, ein klickbares Element. */
+    public static function lang_switcher( ?string $current = null ): string {
+        $current = $current ?: self::resolve_lang();
+        $row = '<div class="m24b2b-lang" aria-label="Sprache wählen: Deutsch / English">';
+        foreach ( array( 'de' => self::flag_de(), 'en' => self::flag_en() ) as $l => $svg ) {
+            $label = 'de' === $l ? 'Deutsch' : 'English';
+            $abbr  = strtoupper( $l );
+            $inner = $svg . '<span>' . esc_html( $abbr ) . '</span>';
+            if ( $l === $current ) {
+                $row .= '<span class="m24-flag active" title="' . esc_attr( $label ) . '">' . $inner . '</span>';
+            } else {
+                $url  = esc_url( add_query_arg( 'lang', $l ) );
+                $row .= '<a class="m24-flag" href="' . $url . '" title="' . esc_attr( $label ) . '" aria-label="' . esc_attr( $label ) . '">' . $inner . '</a>';
+            }
+        }
+        return $row . '</div>';
+    }
+
+    /**
+     * Formular-Variante des Sprach-Umschalters „Minimal mit Kürzel": Flagge + DE/EN als
+     * Radio-Buttons (setzt einen Formularwert statt zu navigieren — für Modals/Formulare).
+     * Optik identisch zum lang_switcher (.m24-flag). Default = aktuelle Seitensprache.
+     */
+    public static function flag_radios( string $name = 'lang', ?string $current = null ): string {
+        $current = $current ?: self::resolve_lang();
+        $out = '<div class="m24-langpick" role="radiogroup" aria-label="Sprache wählen: Deutsch / English">';
+        foreach ( array( 'de' => self::flag_de(), 'en' => self::flag_en() ) as $l => $svg ) {
+            $label   = 'de' === $l ? 'Deutsch' : 'English';
+            $checked = ( $l === $current ) ? ' checked' : '';
+            $on      = ( $l === $current ) ? ' active' : '';
+            $inner   = $svg . '<span>' . esc_html( strtoupper( $l ) ) . '</span>';
+            $out    .= '<label class="m24-flag' . $on . '" title="' . esc_attr( $label ) . '">'
+                . '<input type="radio" name="' . esc_attr( $name ) . '" value="' . esc_attr( $l ) . '"' . $checked . '>'
+                . $inner . '</label>';
+        }
+        return $out . '</div>';
+    }
+
+    /* ── String-Registry ─────────────────────────────────────────────────── */
+
+    public static function strings(): array {
+        return array(
+            'de' => array(
+                // Registrierung
+                'reg_h1'        => 'Händler-Registrierung',
+                'reg_sub'       => 'Für den Zugang zu Händlerpreisen. Wir prüfen Ihre Angaben und schalten Sie frei.',
+                'f_firma'       => 'Firma',
+                'f_anrede'      => 'Anrede',
+                'anrede_herr'   => 'Herr',
+                'anrede_frau'   => 'Frau',
+                'anrede_divers' => 'Divers',
+                'f_land'        => 'Land',
+                'f_vorname'     => 'Vorname',
+                'f_nachname'    => 'Nachname',
+                'f_email'       => 'E-Mail',
+                'f_telefon'     => 'Telefon',
+                'f_uid'         => 'USt-IdNr.',
+                'uid_hint'      => '(Pflicht in der EU)',
+                'uid_ph'        => 'z. B. DE123456789',
+                'consent_ds'    => 'Ich habe die %s gelesen und stimme der Verarbeitung meiner Daten zur Bearbeitung von Registrierung und Anfragen zu.',
+                'consent_ds_link' => 'Datenschutzerklärung',
+                'consent_agb'   => 'Ich erkenne die %s an.',
+                'consent_agb_link' => 'AGB',
+                'submit_reg'    => 'Registrierung absenden',
+                'reg_ok_title'  => 'Fast geschafft!',
+                'reg_ok_text'   => 'Wir haben dir eine E-Mail geschickt. Bitte bestätige deine Registrierung über den Link darin (15 Minuten gültig).',
+                'reg_err'       => 'Bitte fülle alle Pflichtfelder korrekt aus (inkl. gültiger USt-IdNr. bei EU-Ländern) und stimme Datenschutz & AGB zu.',
+                'req'           => '*',
+                // Login
+                'login_h1'      => 'Händler-Login',
+                'login_sub'     => 'Gib deine E-Mail ein — wir schicken dir einen Login-Link. Kein Passwort nötig.',
+                'submit_login'  => 'Login-Link anfordern',
+                'login_ok_title'=> 'Check deine Mails',
+                'login_ok_text' => 'Wir haben dir einen Login-Link geschickt (15 Minuten gültig).',
+                'login_err_link'=> 'Link ungültig oder abgelaufen — fordere einen neuen an.',
+                // VIES (Frontend-Feedback)
+                'vies_checking' => 'Prüfe USt-IdNr. …',
+                'vies_ok'       => '✓ USt-IdNr. gültig',
+                'vies_bad'      => '✗ USt-IdNr. nicht gültig (VIES)',
+                'vies_na'       => 'konnte gerade nicht geprüft werden',
+                // Mails (für nächsten Chunk vorbereitet — Versand bleibt vorerst DE)
+                'mail_verify_subject'  => 'Bitte bestätige deine Registrierung – MOTORSPORT24',
+                'mail_verify_headline' => 'Registrierung bestätigen',
+                'mail_verify_body'     => 'Klicke zum Bestätigen deiner Händler-Registrierung. Der Link ist 15 Minuten gültig.',
+                'mail_verify_button'   => 'Registrierung bestätigen',
+                'mail_login_subject'   => 'Dein Login-Link – MOTORSPORT24',
+                'mail_login_headline'  => 'Login bei MOTORSPORT24',
+                'mail_login_body'      => 'Klicke, um dich einzuloggen. Der Link ist 15 Minuten gültig.',
+                'mail_login_button'    => 'Jetzt einloggen',
+                'mail_approval_subject'=> 'Dein Händler-Zugang ist freigeschaltet – MOTORSPORT24',
+                'mail_approval_headline'=> 'Zugang freigeschaltet',
+                'mail_approval_body'   => 'Deine Registrierung wurde geprüft und freigeschaltet. Du kannst dich jetzt einloggen und siehst Händlerpreise.',
+                'mail_approval_button' => 'Zum Login',
+                'mail_rejection_subject'=> 'Zu deiner Händler-Registrierung – MOTORSPORT24',
+                'mail_rejection_headline'=> 'Zu deiner Registrierung',
+                'mail_rejection_body'  => 'Wir konnten deine Registrierung für den Händlerbereich aktuell nicht freischalten.',
+                'mail_rejection_reason'=> 'Grund',
+                'mail_rejection_outro' => 'Falls das ein Irrtum ist oder du Angaben ergänzen möchtest, melde dich gern unter %s.',
+                'mail_footer_tagline'  => 'Classic & Race Cars and Parts Sales since 2006',
+                'mail_footer_imprint'  => 'Impressum',
+                'mail_footer_privacy'  => 'Datenschutz',
+                'mail_hello'           => 'Hallo %s,',
+            ),
+            'en' => array(
+                'reg_h1'        => 'Dealer registration',
+                'reg_sub'       => 'For access to dealer pricing. We review your details and approve your account.',
+                'f_firma'       => 'Company',
+                'f_anrede'      => 'Salutation',
+                'anrede_herr'   => 'Mr',
+                'anrede_frau'   => 'Ms',
+                'anrede_divers' => 'Diverse',
+                'f_land'        => 'Country',
+                'f_vorname'     => 'First name',
+                'f_nachname'    => 'Last name',
+                'f_email'       => 'Email',
+                'f_telefon'     => 'Phone',
+                'f_uid'         => 'VAT ID',
+                'uid_hint'      => '(required in the EU)',
+                'uid_ph'        => 'e.g. DE123456789',
+                // ENTWURF — juristisch zu prüfen; verlinkt vorerst die deutschen Seiten.
+                'consent_ds'    => 'I have read the %s and consent to the processing of my data for handling my registration and enquiries.',
+                'consent_ds_link' => 'Privacy Policy (in German)',
+                'consent_agb'   => 'I accept the %s.',
+                'consent_agb_link' => 'Terms & Conditions (AGB, in German)',
+                'submit_reg'    => 'Submit registration',
+                'reg_ok_title'  => 'Almost done!',
+                'reg_ok_text'   => 'We have sent you an email. Please confirm your registration via the link inside (valid for 15 minutes).',
+                'reg_err'       => 'Please complete all required fields correctly (incl. a valid VAT ID for EU countries) and accept the Privacy Policy & Terms.',
+                'req'           => '*',
+                'login_h1'      => 'Dealer login',
+                'login_sub'     => 'Enter your email — we will send you a login link. No password required.',
+                'submit_login'  => 'Request login link',
+                'login_ok_title'=> 'Check your inbox',
+                'login_ok_text' => 'We have sent you a login link (valid for 15 minutes).',
+                'login_err_link'=> 'Link invalid or expired — please request a new one.',
+                'vies_checking' => 'Checking VAT ID …',
+                'vies_ok'       => '✓ VAT ID valid',
+                'vies_bad'      => '✗ VAT ID not valid (VIES)',
+                'vies_na'       => 'could not be checked right now',
+                'mail_verify_subject'  => 'Please confirm your registration – MOTORSPORT24',
+                'mail_verify_headline' => 'Confirm registration',
+                'mail_verify_body'     => 'Click to confirm your dealer registration. The link is valid for 15 minutes.',
+                'mail_verify_button'   => 'Confirm registration',
+                'mail_login_subject'   => 'Your login link – MOTORSPORT24',
+                'mail_login_headline'  => 'Log in to MOTORSPORT24',
+                'mail_login_body'      => 'Click to log in. The link is valid for 15 minutes.',
+                'mail_login_button'    => 'Log in now',
+                'mail_approval_subject'=> 'Your dealer access is approved – MOTORSPORT24',
+                'mail_approval_headline'=> 'Access approved',
+                'mail_approval_body'   => 'Your registration has been reviewed and approved. You can now log in and see dealer pricing.',
+                'mail_approval_button' => 'Go to login',
+                'mail_rejection_subject'=> 'Regarding your dealer registration – MOTORSPORT24',
+                'mail_rejection_headline'=> 'Regarding your registration',
+                'mail_rejection_body'  => 'We were unable to approve your dealer registration at this time.',
+                'mail_rejection_reason'=> 'Reason',
+                'mail_rejection_outro' => 'If this is a mistake or you would like to add information, feel free to contact us at %s.',
+                'mail_footer_tagline'  => 'Classic & Race Cars and Parts Sales since 2006',
+                'mail_footer_imprint'  => 'Imprint',
+                'mail_footer_privacy'  => 'Privacy Policy',
+                'mail_hello'           => 'Hello %s,',
+            ),
+        );
+    }
+
+    /** Ablehngründe key ⇒ Label je Sprache (Mail nutzt Empfänger-Sprache; Admin/notes_intern = de). */
+    public static function reject_reasons( ?string $lang = null ): array {
+        $lang = $lang ?: self::resolve_lang();
+        $de = array(
+            'gewerbe'    => 'Keine gewerbliche Tätigkeit feststellbar',
+            'uid'        => 'USt-IdNr. ungültig / nicht verifizierbar',
+            'daten'      => 'Angaben unvollständig oder unplausibel',
+            'dublette'   => 'Bereits registriert (Dublette)',
+            'sortiment'  => 'Sortiment/Branche passt nicht',
+            'missbrauch' => 'Verdacht auf Missbrauch/Spam',
+            'sonstiges'  => 'Sonstiges',
+        );
+        $en = array(
+            'gewerbe'    => 'No commercial/business activity could be established',
+            'uid'        => 'VAT ID invalid / not verifiable',
+            'daten'      => 'Details incomplete or implausible',
+            'dublette'   => 'Already registered (duplicate)',
+            'sortiment'  => 'Product range/industry does not fit',
+            'missbrauch' => 'Suspected misuse/spam',
+            'sonstiges'  => 'Other',
+        );
+        return 'en' === $lang ? $en : $de;
+    }
+}

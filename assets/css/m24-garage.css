@@ -13,7 +13,17 @@
 .m24gc-empty{color:#5a6474;font-size:15px;line-height:1.6}
 .m24gc-list{display:flex;flex-direction:column;gap:12px}
 
-.m24gc-row{display:grid;grid-template-columns:84px 1fr auto auto 28px;align-items:center;gap:14px;background:#fff;border:1px solid #eef0f2;border-radius:14px;padding:12px 14px}
+/* Titel bekommt eine eigene, volle Zeile (grid-area title über alle Spalten) → lange Titel brechen NICHT
+ * mehr neben Bild/Menge/Preis um. grid-area-Zuweisungen NUR für direkte .m24gc-row-Kinder (kein Leak in
+ * Fahrzeug-/Notify-Cards, die .m24gc-title/.m24gc-thumb ebenfalls nutzen). */
+.m24gc-row{display:grid;grid-template-columns:84px 1fr auto auto 28px;grid-template-areas:"thumb title title title title" "thumb meta qty line rm";align-items:center;column-gap:14px;row-gap:4px;background:#fff;border:1px solid #eef0f2;border-radius:14px;padding:12px 14px}
+.m24gc-row>.m24gc-thumb{grid-area:thumb;align-self:center}
+.m24gc-row>.m24gc-title{grid-area:title;align-self:end}
+.m24gc-row>.m24gc-info{grid-area:meta}
+.m24gc-row>.m24gc-qty{grid-area:qty}
+.m24gc-row>.m24gc-line{grid-area:line}
+.m24gc-row>.m24gc-remove{grid-area:rm}
+.m24gc-row>.m24gc-drag{grid-area:drag}
 .m24gc-thumb{display:block;width:84px;height:64px;border-radius:9px;overflow:hidden;background:#f3f5f7;flex:0 0 auto}
 .m24gc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .m24gc-thumb-ph{display:block;width:100%;height:100%;background:repeating-linear-gradient(45deg,#eef0f2,#eef0f2 8px,#f6f8fa 8px,#f6f8fa 16px)}
@@ -41,7 +51,7 @@
 /* ── Geteilte Garage: statische Menge (read-only) ── */
 .m24gc-qty-static{display:inline-flex;align-items:center;gap:3px;font-size:14px;font-weight:700;color:#14161a;border:0;background:none;padding:0;justify-content:flex-end;min-width:48px}
 .m24gc-qty-static .m24gc-qty-x{color:#8a929c;font-weight:600}
-.m24gc-shared .m24gc-row{grid-template-columns:84px 1fr auto auto}
+.m24gc-shared .m24gc-row{grid-template-columns:84px 1fr auto auto;grid-template-areas:"thumb title title title" "thumb meta qty line"}
 .m24gc-shared-hint{color:#5a6474;font-size:14px;margin:0 0 16px}
 
 /* ── „Garage-Link versenden"-Panel (nur Eigentümer) ── */
@@ -81,12 +91,11 @@
 .m24gc-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 @media(max-width:620px){
-	.m24gc-row{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb info remove" "thumb qty line";row-gap:10px}
-	.m24gc-thumb{grid-area:thumb;width:64px;height:64px}
-	.m24gc-info{grid-area:info}
-	.m24gc-qty{grid-area:qty}
-	.m24gc-line{grid-area:line;align-self:center}
-	.m24gc-remove{grid-area:remove;justify-self:end}
+	/* Mobil: Titel volle Zeile oben; darunter Bild (spannt) + Meta/Menge/Preis. Area-Namen = Basis (meta/rm). */
+	.m24gc-row{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb title title" "thumb meta rm" "thumb qty line";row-gap:8px}
+	.m24gc-row>.m24gc-thumb{width:64px;height:64px;align-self:start}
+	.m24gc-row>.m24gc-line{align-self:center}
+	.m24gc-row>.m24gc-remove{justify-self:end}
 	.m24gc-fab{right:14px;bottom:78px}
 }
 
@@ -230,12 +239,12 @@
 .m24gc-shared .m24gc-pageactions{display:flex;justify-content:flex-end}
 
 /* ── Teile-Merkzettel Drag & Drop (Handle + Zustände) ── */
-.m24gc-row.has-drag{grid-template-columns:22px 84px 1fr auto auto 28px}
+.m24gc-row.has-drag{grid-template-columns:22px 84px 1fr auto auto 28px;grid-template-areas:"drag thumb title title title title" "drag thumb meta qty line rm"}
 .m24gc-drag{display:flex;align-items:center;justify-content:center;color:#c2cad3;font-size:13px;letter-spacing:-3px;cursor:grab;user-select:none;touch-action:none;line-height:1}
 .m24gc-drag:active{cursor:grabbing}
 .m24gc-row.m24gc-dragging{opacity:.75;box-shadow:0 6px 18px rgba(10,12,16,.18);background:#fff}
 @media(max-width:620px){
-	.m24gc-row.has-drag{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb info remove" "thumb qty line"}
+	.m24gc-row.has-drag{grid-template-columns:64px 1fr auto;grid-template-areas:"thumb title title" "thumb meta rm" "thumb qty line"}
 	.m24gc-drag{display:none}
 }
 

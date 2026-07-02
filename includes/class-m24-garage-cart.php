@@ -115,7 +115,7 @@ class M24_Garage_Cart {
 		if ( '' === $og_title ) { $og_title = 'Meine MOTORSPORT24 Garage'; }
 		$og_desc  = 'Meine MOTORSPORT24-Rennsport Teile Garage mit ' . $n . ' Artikel' . ( 1 === $n ? '' : 'n' ) . ( '' !== $datum ? ' vom ' . $datum : '' );
 		$soc      = get_option( 'wpseo_social' );
-		$og_img   = self::garage_og_image(); // stabile URL (kein Plugin-Asset, das nach Deploy 404t)
+		$og_img   = self::garage_og_image( $token ); // 1 Artikel → dessen Beitragsbild; sonst stabiles Default
 		$og_url   = self::share_url( $token );
 		$og  = '<meta property="og:type" content="website">';
 		$og .= '<meta property="og:site_name" content="MOTORSPORT24">';
@@ -369,13 +369,29 @@ class M24_Garage_Cart {
 	}
 
 	/**
-	 * Stabile OG-Bild-URL für die Garage-/Share-Ansicht (kein Plugin-Asset → 404-sicher nach Deploy).
-	 * Über Konstante M24_GARAGE_OG_IMAGE bzw. Filter m24_garage_og_image überschreibbar.
+	 * OG-Bild für die Garage-/Share-Ansicht. Enthält der Snapshot zum $token GENAU EINEN Artikel → dessen
+	 * Beitragsbild (Featured Image; Fallback: eingefrorenes image_url). Bei 0 oder >1 Artikeln → stabiles
+	 * Default-Bild (kein Plugin-Asset → 404-sicher). Über Konstante M24_GARAGE_OG_IMAGE / Filter überschreibbar.
 	 */
-	public static function garage_og_image(): string {
-		$default = defined( 'M24_GARAGE_OG_IMAGE' ) ? M24_GARAGE_OG_IMAGE
+	public static function garage_og_image( string $token = '' ): string {
+		$img = defined( 'M24_GARAGE_OG_IMAGE' ) ? M24_GARAGE_OG_IMAGE
 			: 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
-		return (string) apply_filters( 'm24_garage_og_image', $default );
+
+		if ( '' !== $token ) {
+			$snap = self::read_snapshot( $token );
+			if ( $snap ) {
+				$items = (array) ( $snap['items'] ?? array() );
+				$veh   = (array) ( $snap['vehicles'] ?? array() );
+				if ( 1 === ( count( $items ) + count( $veh ) ) ) {
+					$one = ! empty( $items ) ? reset( $items ) : reset( $veh );
+					$aid = (int) ( is_array( $one ) ? ( $one['article_id'] ?? 0 ) : 0 );
+					$fx  = $aid > 0 ? (string) get_the_post_thumbnail_url( $aid, 'large' ) : '';
+					if ( '' === $fx && is_array( $one ) && ! empty( $one['image_url'] ) ) { $fx = (string) $one['image_url']; }
+					if ( '' !== $fx ) { $img = $fx; }
+				}
+			}
+		}
+		return (string) apply_filters( 'm24_garage_og_image', $img, $token );
 	}
 
 	/**
@@ -1392,8 +1408,8 @@ class M24_Garage_Cart {
 					<span class="m24gc-thumb-ph" aria-hidden="true"></span>
 				<?php endif; ?>
 			</a>
+			<a class="m24gc-title" href="<?php echo esc_url( $it['url'] ); ?>"><?php echo esc_html( $it['title'] ); ?></a>
 			<div class="m24gc-info">
-				<a class="m24gc-title" href="<?php echo esc_url( $it['url'] ); ?>"><?php echo esc_html( $it['title'] ); ?></a>
 				<?php if ( '' !== $it['artnr'] ) : ?>
 					<span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( $it['artnr'] ); ?></span>
 				<?php endif; ?>
@@ -1601,11 +1617,13 @@ class M24_Garage_Cart {
 		$url   = self::share_url( $token );
 		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal in meine MOTORSPORT24-Garage' );
 		$desc  = apply_filters( 'm24_garage_share_og_desc', 'Fahrzeuge & Teile, die ich bei MOTORSPORT24 zusammengestellt habe.' );
-		// Feste Startvorschau (Kotflügel-WebP), Photon-Resize (i0.wp.com) auf WhatsApp-taugliche 1200×630. Filterbar.
-		$src   = 'https://i0.wp.com/www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
-		$img   = apply_filters( 'm24_garage_share_og_image', $src . '?resize=1200%2C630&ssl=1' );
 		$w     = (int) apply_filters( 'm24_garage_share_og_w', 1200 );
 		$h     = (int) apply_filters( 'm24_garage_share_og_h', 630 );
+		// Basis-Bild: bei genau 1 Artikel dessen Beitragsbild, sonst Default (garage_og_image). Photon-Resize
+		// (i0.wp.com) auf WhatsApp-taugliche 1200×630 beibehalten.
+		$base  = self::garage_og_image( $token );
+		$photon = 'https://i0.wp.com/' . preg_replace( '#^https?://#', '', $base );
+		$img   = apply_filters( 'm24_garage_share_og_image', $photon . '?resize=' . $w . '%2C' . $h . '&ssl=1' );
 
 		$out  = "\n";
 		$prop = function ( $key, $val ) {
@@ -1757,8 +1775,8 @@ class M24_Garage_Cart {
 			<span class="m24gc-thumb">
 				<?php if ( ! empty( $it['image_url'] ) ) : ?><img src="<?php echo esc_url( (string) $it['image_url'] ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
 			</span>
+			<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 			<div class="m24gc-info">
-				<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( (string) $it['art_nr'] ); ?></span><?php endif; ?>
 				<span class="m24gc-unit"><?php echo esc_html( $unit ); ?></span>
 			</div>
