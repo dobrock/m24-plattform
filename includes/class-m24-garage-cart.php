@@ -105,10 +105,38 @@ class M24_Garage_Cart {
 		$cssv = file_exists( $css ) ? (string) filemtime( $css ) : M24_PLATTFORM_VERSION;
 		$css_url = esc_url( M24_PLATTFORM_URL . 'assets/css/m24-garage.css?ver=' . $cssv );
 
+		// ── OG-/Twitter-Tags (Standalone hat keinen Yoast-Output) ──────────────
+		$snap  = self::read_snapshot( $token );
+		$n     = ( $snap ? count( (array) ( $snap['items'] ?? array() ) ) + count( (array) ( $snap['vehicles'] ?? array() ) ) : 0 );
+		$ts    = ( $snap && ! empty( $snap['created_at'] ) ) ? strtotime( (string) $snap['created_at'] ) : 0;
+		$datum = $ts ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) ) : '';
+		$pid   = (int) get_option( self::PAGE_OPTION );
+		// og:title: früherer Seiten-OG-Titel (Yoast) → Fallback.
+		$og_title = $pid ? trim( (string) get_post_meta( $pid, '_yoast_wpseo_opengraph-title', true ) ) : '';
+		if ( '' === $og_title ) { $og_title = 'Meine MOTORSPORT24 Garage'; }
+		$og_desc  = 'Meine MOTORSPORT24-Rennsport Teile Garage mit ' . $n . ' Artikel' . ( 1 === $n ? '' : 'n' ) . ( '' !== $datum ? ' vom ' . $datum : '' );
+		// og:image: Yoast-Default-Social-Image → Fallback-Asset. Absolut.
+		$soc      = get_option( 'wpseo_social' );
+		$og_img   = ( is_array( $soc ) && ! empty( $soc['og_default_image'] ) ) ? (string) $soc['og_default_image'] : ( M24_PLATTFORM_URL . 'assets/img/og-garage.jpg' );
+		$og_url   = self::share_url( $token );
+		$og  = '<meta property="og:type" content="website">';
+		$og .= '<meta property="og:site_name" content="MOTORSPORT24">';
+		$og .= '<meta property="og:title" content="' . esc_attr( $og_title ) . '">';
+		$og .= '<meta property="og:description" content="' . esc_attr( $og_desc ) . '">';
+		$og .= '<meta property="og:url" content="' . esc_url( $og_url ) . '">';
+		$og .= '<meta property="og:image" content="' . esc_url( $og_img ) . '">';
+		$og .= '<meta property="og:image:secure_url" content="' . esc_url( $og_img ) . '">';
+		$og .= '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">';
+		$og .= '<meta name="twitter:card" content="summary_large_image">';
+		$og .= '<meta name="twitter:title" content="' . esc_attr( $og_title ) . '">';
+		$og .= '<meta name="twitter:description" content="' . esc_attr( $og_desc ) . '">';
+		$og .= '<meta name="twitter:image" content="' . esc_url( $og_img ) . '">';
+
 		echo '<!doctype html><html lang="de"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>Geteilte Garage – MOTORSPORT24</title>'
 			. '<meta name="robots" content="noindex,nofollow">'
+			. $og // phpcs:ignore WordPress.Security.EscapeOutput — bereits escaped
 			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
 			. '<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;600;700&display=swap" rel="stylesheet">'
 			. '<link rel="stylesheet" href="' . $css_url . '">'
@@ -119,6 +147,17 @@ class M24_Garage_Cart {
 			. '.m24sa-wrap{max-width:900px;margin:0 auto;padding:24px 16px}'
 			. '.m24sa-foot{max-width:900px;margin:24px auto 40px;padding:18px 16px 0;border-top:1px solid #e6e9ee;text-align:center;font-size:12px;line-height:1.6;color:#9aa3b0}'
 			. '.m24sa-foot a{color:#1f74c4;text-decoration:none}'
+			// Netto-Zeile pro Teile-Karte (dezent grau).
+			. '.m24gc-line-net{display:block;font-weight:400;font-size:11px;color:#9aa3b0;margin-top:2px;white-space:nowrap}'
+			. 'a.m24gc-rowlink{text-decoration:none;color:inherit}'
+			// Mobil: Titel max. 2 Zeilen — Thumbnail kleiner, Titelspalte breiter, Typo straffer.
+			. '@media(max-width:480px){'
+			. '.m24gc-shared .m24gc-row{grid-template-columns:72px 1fr auto;grid-template-areas:"thumb info info" "thumb qty line";column-gap:10px}'
+			. '.m24gc-shared .m24gc-row .m24gc-thumb{grid-area:thumb;width:72px;height:56px}'
+			. '.m24gc-shared .m24gc-row .m24gc-info{grid-area:info;min-width:0}'
+			. '.m24gc-shared .m24gc-row .m24gc-title{font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
+			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}'
+			. '}'
 			. '</style></head><body>'
 			. '<div class="m24sa-bar"><img src="' . $logo . '" alt="MOTORSPORT24"></div>'
 			. '<div class="m24sa-wrap">' . $inner . '</div>'
@@ -358,6 +397,7 @@ class M24_Garage_Cart {
 				'price_net'   => $net,
 				'qty'         => (int) $it['qty'],
 				'image_url'   => (string) $it['thumb'],
+				'url'         => (string) $it['url'], // kanonische Teil-URL (Shop-Link in der Share-Ansicht)
 				'sort_order'  => $i++,
 			);
 		}
@@ -1677,8 +1717,21 @@ class M24_Garage_Cart {
 		$qty   = max( 1, (int) ( $it['qty'] ?? 1 ) );
 		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : '—';
 		$unit  = ( null !== $gross ) ? self::fmt( $gross ) : 'Preis auf Anfrage';
+		// Netto pro Position (kaufmännisch gerundet) — dezente Grau-Zeile unter dem Brutto.
+		$net_line = ( null !== $gross ) ? self::fmt( round( $gross * $qty / 1.19, 2 ) ) : '';
+
+		// Shop-Link: eingefrorene URL → sonst live per article_id (Altlinks); leer → nicht verlinkt.
+		$url = (string) ( $it['url'] ?? '' );
+		if ( '' === $url ) {
+			$aid = (int) ( $it['article_id'] ?? 0 );
+			if ( $aid > 0 && 'm24_teil' === get_post_type( $aid ) && 'publish' === get_post_status( $aid ) ) {
+				$url = (string) get_permalink( $aid );
+			}
+		}
+		$open  = ( '' !== $url ) ? '<a class="m24gc-row is-readonly m24gc-rowlink" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' : '<div class="m24gc-row is-readonly">';
+		$close = ( '' !== $url ) ? '</a>' : '</div>';
+		echo $open; // phpcs:ignore WordPress.Security.EscapeOutput
 		?>
-		<div class="m24gc-row is-readonly">
 			<span class="m24gc-thumb">
 				<?php if ( ! empty( $it['image_url'] ) ) : ?><img src="<?php echo esc_url( (string) $it['image_url'] ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
 			</span>
@@ -1688,8 +1741,9 @@ class M24_Garage_Cart {
 				<span class="m24gc-unit"><?php echo esc_html( $unit ); ?></span>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
-			<div class="m24gc-line"><?php echo esc_html( $line ); ?></div>
-		</div>
+			<div class="m24gc-line"><?php echo esc_html( $line ); ?><?php if ( '' !== $net_line ) : ?><span class="m24gc-line-net">inkl. 19 % MwSt · <?php echo esc_html( $net_line ); ?> netto</span><?php endif; ?></div>
+		<?php
+		echo $close; // phpcs:ignore WordPress.Security.EscapeOutput
 		<?php
 	}
 
