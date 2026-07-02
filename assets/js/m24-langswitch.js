@@ -43,10 +43,13 @@
 		// offsetParent!==null schließt display:none-Ancestors aus (z. B. .td-header-mobile-wrap auf Desktop).
 		return !!el && (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0));
 	}
+	function inMobile(el) {
+		return !!(el && el.closest && el.closest('.tdb_mobile_search, .tdb-header-search-button-mob, .tdb-mobile-search-icon, .td-header-mobile-wrap, #td-mobile-nav, .td-mobile-content'));
+	}
 	function firstVisible(selectors) {
 		for (var i = 0; i < selectors.length; i++) {
 			var nodes = document.querySelectorAll(selectors[i]);
-			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j]) && !inMobile(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}
@@ -71,7 +74,7 @@
 	function visibleSearchIcon() {
 		for (var i = 0; i < SEARCH.length; i++) {
 			var nodes = document.querySelectorAll(SEARCH[i]);
-			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j]) && !inMobile(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}

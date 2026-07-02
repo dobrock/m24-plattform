@@ -13,18 +13,21 @@
 	function isVisible(el) {
 		return !!el && (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0));
 	}
+	function inMobile(el) {
+		return !!(el && el.closest && el.closest('.tdb_mobile_search, .tdb-header-search-button-mob, .tdb-mobile-search-icon, .td-header-mobile-wrap, #td-mobile-nav, .td-mobile-content'));
+	}
 	function visibleSearchIcon() {
 		var sels = ['.tdb-head-search-btn', '.tdb-search-icon', '.td-icon-search', '.tdb_header_search a', '.td-search-opener'];
 		for (var i = 0; i < sels.length; i++) {
 			var nodes = document.querySelectorAll(sels[i]);
-			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j]) && !inMobile(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}
 	function firstVisible(sels) {
 		for (var i = 0; i < sels.length; i++) {
 			var nodes = document.querySelectorAll(sels[i]);
-			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j]) && !inMobile(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}
