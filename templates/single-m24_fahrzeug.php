@@ -142,7 +142,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 		<?php if ( $daten ) : ?>
 		<section class="m24fz-card m24fz-data">
 			<h2>Fahrzeugdaten</h2>
-			<div class="m24fz-data-grid"><?php foreach ( $daten as $r ) : ?><div class="row"><span class="k"><?php echo esc_html( $r['label'] ); ?></span><span class="v"><?php echo esc_html( $r['value'] ); ?></span></div><?php endforeach; ?></div>
+			<div class="m24fz-data-grid"><?php foreach ( $daten as $r ) : ?><div class="row"><span class="k"><?php echo esc_html( $r['label'] ); ?></span><span class="v"><?php if ( ! empty( $r['html'] ) ) { echo wp_kses( $r['value'], array( 'span' => array( 'class' => array(), 'translate' => array() ) ) ); } else { echo esc_html( $r['value'] ); } ?></span></div><?php endforeach; ?></div>
 		</section>
 		<?php endif; ?>
 

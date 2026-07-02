@@ -275,7 +275,7 @@ class M24FZ_Template {
 			echo '<button class="m24fz-btn m24fz-anfrage-open" type="button">Jetzt anfragen</button>';
 			echo '<button class="m24fz-btn ghost m24fz-park m24-garage-open" data-garage-type="vehicle" data-garage-id="' . (int) $id . '" type="button">♡ In meine Garage</button>';
 		}
-		echo '<div class="m24fz-seller"><strong>MOTORSPORT24 GmbH</strong><span>Internationaler Verkauf von Fahrzeugen seit 2006</span></div>';
+		echo '<div class="m24fz-seller"><strong><span class="notranslate" translate="no">MOTORSPORT24</span> GmbH</strong><span>Internationaler Verkauf von Fahrzeugen seit 2006</span></div>';
 		return ob_get_clean();
 	}
 
@@ -366,12 +366,14 @@ class M24FZ_Template {
 		foreach ( $toggles as $k => $label ) {
 			if ( (int) get_post_meta( $id, $k, true ) ) { $rows[] = array( 'label' => $label, 'value' => 'Ja' ); }
 		}
-		// Land Erstauslieferung / Standort mit Flagge.
+		// Land Erstauslieferung / Standort mit Flagge. Flaggen-Emoji in notranslate kapseln (GTranslate
+		// re-lokalisiert die Regional-Indicator-Zeichen sonst zur Zielsprache → falsche Flagge). NUR die
+		// Glyphe wrappen, den Ländernamen übersetzbar lassen. Wert ist vorescaptes HTML → 'html' => true.
 		foreach ( array( '_m24fz_land_erstauslieferung' => 'Erstauslieferung', '_m24fz_standort' => 'Standort' ) as $k => $label ) {
 			$cc = trim( (string) get_post_meta( $id, $k, true ) );
 			if ( '' === $cc ) { continue; }
-			$txt = M24FZ_Telemetry::flag( $cc ) . ' ' . M24FZ_Telemetry::country_name( $cc );
-			$rows[] = array( 'label' => $label, 'value' => $txt );
+			$html = '<span class="notranslate" translate="no">' . esc_html( M24FZ_Telemetry::flag( $cc ) ) . '</span> ' . esc_html( M24FZ_Telemetry::country_name( $cc ) );
+			$rows[] = array( 'label' => $label, 'value' => $html, 'html' => true );
 		}
 		return $rows;
 	}

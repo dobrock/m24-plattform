@@ -24,6 +24,47 @@ class M24_I18n {
         if ( isset( $_GET['lang'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
             self::set_cookie( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
         }
+        // GTranslate-Fix: Marken-Token MOTORSPORT24 im Theme-Footer notranslate-kapseln (Zahlendreher
+        // „MOTORSPORT2006 … since 24"). Nur den Footer puffern (get_footer→wp_footer), script/style bleiben unberührt.
+        if ( ! is_admin() ) {
+            add_action( 'get_footer', array( __CLASS__, 'footer_buffer_start' ), 999 );
+            add_action( 'wp_footer', array( __CLASS__, 'footer_buffer_end' ), PHP_INT_MAX );
+        }
+    }
+
+    /** Footer-Ausgabe puffern (ab get_footer). */
+    public static function footer_buffer_start() {
+        ob_start( array( __CLASS__, 'wrap_brand_notranslate' ) );
+    }
+
+    /** Puffer schließen (Ende wp_footer). */
+    public static function footer_buffer_end() {
+        if ( ob_get_level() > 0 ) { ob_end_flush(); }
+    }
+
+    /**
+     * Bare Marken-Token „MOTORSPORT24" in Text-Knoten mit <span class="notranslate"> kapseln.
+     * SICHER: nur zwischen >…< (Text), NICHT innerhalb <script>/<style>, NICHT wenn bereits gewrappt
+     * (Folge-Token in einem notranslate-Span). Nur das Token, umgebende Wörter bleiben übersetzbar.
+     */
+    public static function wrap_brand_notranslate( $html ) {
+        if ( '' === (string) $html || false === strpos( $html, 'MOTORSPORT24' ) ) { return $html; }
+        // script/style-Blöcke ausklammern (Platzhalter), Rest bearbeiten, dann zurücktauschen.
+        $stash = array();
+        $html  = preg_replace_callback( '#<(script|style)\b[^>]*>.*?</\1>#is', function ( $m ) use ( &$stash ) {
+            $key = "\0M24STASH" . count( $stash ) . "\0";
+            $stash[ $key ] = $m[0];
+            return $key;
+        }, $html );
+        // Nur Text-Knoten: Token, das NICHT direkt Teil eines Tags/Attributs ist. Bereits gewrappte
+        // (notranslate) überspringen: negativer Lookbehind auf translate="no">.
+        $html = preg_replace(
+            '/(?<!translate="no">)(?<![\w-])MOTORSPORT24(?![\w-])(?![^<]*>)/',
+            '<span class="notranslate" translate="no">MOTORSPORT24</span>',
+            $html
+        );
+        if ( ! empty( $stash ) ) { $html = strtr( $html, $stash ); }
+        return $html;
     }
 
     /**
