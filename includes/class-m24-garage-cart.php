@@ -58,13 +58,43 @@ class M24_Garage_Cart {
 		// Mobile-Theme) ihn NICHT aus der URL strippt — sonst landet der Empfänger auf der leeren Garage.
 		add_filter( 'query_vars', array( __CLASS__, 'register_share_query_var' ) );
 		add_filter( 'redirect_canonical', array( __CLASS__, 'keep_share_url' ) );
+		// Pfad-basierte Share-URL /meine-garage/geteilt/{token}/ (immun gegen Query-Stripping + Mobil-Cache-
+		// Base-Serving). Regel vor der Lang-Endpoint-Soft-Flush (prio 20) registrieren; Flush via M24_REWRITE_VERSION.
+		add_action( 'init', array( __CLASS__, 'add_share_rewrite' ), 5 );
+		// Legacy-Query-URLs (?m24garage_share=) 301 → Pfad-URL (vor dem Owner-Redirect).
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_legacy_share' ), 0 );
 		// Garage-Link wasserdicht (server-seitig, JS-/cache-unabhängig): Eigentümer immer auf eigenen Token.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_owner_to_token' ), 1 );
+	}
+
+	/** Rewrite: /meine-garage/geteilt/{token}/ → Garage-Seite + Token-Query-Var. */
+	public static function add_share_rewrite() {
+		add_rewrite_rule(
+			'^' . self::PAGE_SLUG . '/geteilt/([^/]+)/?$',
+			'index.php?pagename=' . self::PAGE_SLUG . '&' . self::SHARE_QUERY . '=$matches[1]',
+			'top'
+		);
+	}
+
+	/** Token aus dem Pfad (query_var, Pfad-URL) ODER $_GET (Legacy-Query-URL). */
+	private static function current_share_token(): string {
+		$t = get_query_var( self::SHARE_QUERY );
+		if ( is_string( $t ) && '' !== $t ) { return sanitize_text_field( $t ); }
+		return isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 	}
 
 	/** Diese Anfrage betrifft die Garage-Seite? */
 	private static function is_garage_page(): bool {
 		return is_page() && (int) get_queried_object_id() === (int) get_option( self::PAGE_OPTION );
+	}
+
+	/** Alte Query-URL /meine-garage/?m24garage_share=TOKEN → 301 auf die Pfad-URL. */
+	public static function maybe_redirect_legacy_share() {
+		if ( is_admin() || ! isset( $_GET[ self::SHARE_QUERY ] ) || ! self::is_garage_page() ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
+		$tok = sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' === $tok || ! get_option( 'permalink_structure' ) ) { return; } // ohne Pretty-Permalinks bleibt Query
+		wp_safe_redirect( self::share_url( $tok ), 301 );
+		exit;
 	}
 
 	/**
@@ -77,7 +107,7 @@ class M24_Garage_Cart {
 		if ( is_admin() || ! self::is_garage_page() ) { return; }
 		$acc = self::current_account_id();
 		if ( $acc <= 0 ) { return; }
-		$share = isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$share = self::current_share_token();
 		if ( '' !== $share && self::resolve_share_token( $share ) === $acc ) { return; } // eigener Token → ok
 		if ( empty( self::items( $acc ) ) ) { return; } // leere Garage → nichts zu teilen
 		$tok = self::share_token_get_or_create( $acc );
@@ -217,6 +247,11 @@ class M24_Garage_Cart {
 	}
 
 	public static function share_url( string $token ): string {
+		// Pfad-URL /meine-garage/geteilt/{token}/ (immun gegen Query-Stripping/Mobil-Cache). Ohne Pretty-
+		// Permalinks Fallback auf die Query-URL.
+		if ( get_option( 'permalink_structure' ) ) {
+			return trailingslashit( self::page_url() ) . 'geteilt/' . rawurlencode( $token ) . '/';
+		}
 		return add_query_arg( self::SHARE_QUERY, $token, self::page_url() );
 	}
 
@@ -997,7 +1032,7 @@ class M24_Garage_Cart {
 
 	public static function shortcode( $atts = array() ) {
 		// Etappe 2: öffentliche, schreibgeschützte Ansicht über Token (ohne Login, zeigt Token-Eigentümer-Garage).
-		$share = isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$share = self::current_share_token();
 		$acc   = self::current_account_id();
 		if ( '' !== $share ) {
 			// Eigener Token beim eingeloggten Eigentümer → editierbare Ansicht (Adresszeile-Spiegel reload-sicher).
@@ -1344,8 +1379,8 @@ class M24_Garage_Cart {
 		if ( is_admin() ) { return; }
 		$pid = (int) get_option( self::PAGE_OPTION );
 		if ( ! $pid || ! is_page( $pid ) ) { return; }
-		if ( ! empty( $_GET[ self::SHARE_QUERY ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification — Share-View unberührt
-		if ( self::current_account_id() <= 0 ) { return; } // Gast-Hinweis behält Theme-Chrome
+		// Full-Width/Sidebar-aus greift für Eigentümer-Ansicht UND für die token-basierte Share-Ansicht.
+		if ( '' === self::current_share_token() && self::current_account_id() <= 0 ) { return; } // nur Gast-Hinweis behält Theme-Chrome
 		$b = 'body.page-id-' . $pid . ' ';
 
 		// (1) Titel + Breadcrumb ausblenden (filterbar).
@@ -1367,7 +1402,7 @@ class M24_Garage_Cart {
 
 	/** Ist der aktuelle Request die öffentliche, token-basierte Share-Ansicht der Garage-Seite? */
 	private static function is_share_view(): bool {
-		if ( empty( $_GET[ self::SHARE_QUERY ] ) ) { return false; } // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' === self::current_share_token() ) { return false; }
 		return is_page() && (int) get_queried_object_id() === (int) get_option( self::PAGE_OPTION );
 	}
 
@@ -1427,7 +1462,7 @@ class M24_Garage_Cart {
 	 * Kein Token-Leak über die kanonische Share-URL hinaus, keine PII.
 	 */
 	private static function share_og_tags(): string {
-		$token = sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		$token = self::current_share_token();
 		$url   = self::share_url( $token );
 		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal in meine MOTORSPORT24-Garage' );
 		$desc  = apply_filters( 'm24_garage_share_og_desc', 'Fahrzeuge & Teile, die ich bei MOTORSPORT24 zusammengestellt habe.' );
