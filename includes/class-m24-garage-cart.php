@@ -237,26 +237,61 @@ class M24_Garage_Cart {
 			'unpriced'  => $unpriced,
 		);
 
+		// Fahrzeuge zusätzlich einfrieren (frozen). DATENSCHUTZ: KEINE FIN/Art.-Nr. in den Snapshot.
+		$status_map = array(
+			'gelistet'    => array( 'Gelistet', 'ok' ),
+			'reserviert'  => array( 'Reserviert', 'warn' ),
+			'verkauft'    => array( 'Verkauft', 'sold' ),
+			'deaktiviert' => array( 'Nicht verfügbar', 'sold' ),
+			'entwurf'     => array( 'In Vorbereitung', 'warn' ),
+		);
+		$vehicles = array();
+		$vi = 0;
+		foreach ( self::items( $acc ) as $it ) {
+			if ( 'm24_fahrzeug' !== $it['post_type'] ) { continue; }
+			$pid = (int) $it['post_id'];
+			$st  = class_exists( 'M24FZ_CPT' ) ? (string) M24FZ_CPT::status( $pid ) : '';
+			list( $st_label, $st_tone ) = $status_map[ $st ] ?? array( 'Gelistet', 'ok' );
+			$vehicles[] = array(
+				'article_id'   => $pid,
+				'title'        => (string) $it['title'],
+				'image_url'    => (string) $it['thumb'],
+				'price_gross'  => ( null !== $it['unit'] ) ? (float) $it['unit'] : null,
+				'price_fmt'    => ( null !== $it['unit_fmt'] ) ? (string) $it['unit_fmt'] : 'Preis auf Anfrage',
+				'status_label' => $st_label,
+				'status_tone'  => $st_tone,
+				'url'          => (string) $it['url'],
+				'sort_order'   => $vi++,
+				// KEIN 'art_nr'/FIN — Fahrzeuge tragen keine Art.-Nr. in der öffentlichen Ansicht.
+			);
+		}
+
 		// Pro Account genau einen aktuellen Snapshot halten (alter Token ist nach rotate ohnehin tot).
 		$wpdb->delete( $t, array( 'account_id' => $acc ) );
 		$wpdb->insert( $t, array(
-			'share_token' => $token,
-			'account_id'  => $acc,
-			'created_at'  => current_time( 'mysql' ),
-			'items_json'  => wp_json_encode( $items ),
-			'totals_json' => wp_json_encode( $totals ),
+			'share_token'   => $token,
+			'account_id'    => $acc,
+			'created_at'    => current_time( 'mysql' ),
+			'items_json'    => wp_json_encode( $items ),
+			'totals_json'   => wp_json_encode( $totals ),
+			'vehicles_json' => wp_json_encode( $vehicles ),
 		) );
 	}
 
-	/** Snapshot zum Token lesen (items + totals) oder null. */
+	/** Snapshot zum Token lesen (items + totals + vehicles) oder null. Rückwärtskompatibel (NULL → leer). */
 	public static function read_snapshot( string $token ) {
 		global $wpdb;
 		$t   = self::snapshot_table();
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT items_json, totals_json FROM $t WHERE share_token = %s ORDER BY id DESC LIMIT 1", $token ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT items_json, totals_json, vehicles_json FROM $t WHERE share_token = %s ORDER BY id DESC LIMIT 1", $token ), ARRAY_A );
 		if ( ! $row ) { return null; }
-		$items  = json_decode( (string) $row['items_json'], true );
-		$totals = json_decode( (string) $row['totals_json'], true );
-		return array( 'items' => is_array( $items ) ? $items : array(), 'totals' => is_array( $totals ) ? $totals : array() );
+		$items    = json_decode( (string) $row['items_json'], true );
+		$totals   = json_decode( (string) $row['totals_json'], true );
+		$vehicles = json_decode( (string) ( $row['vehicles_json'] ?? '' ), true );
+		return array(
+			'items'    => is_array( $items ) ? $items : array(),
+			'totals'   => is_array( $totals ) ? $totals : array(),
+			'vehicles' => is_array( $vehicles ) ? $vehicles : array(),
+		);
 	}
 
 	public static function delete_snapshots( int $acc ): void {
@@ -1415,8 +1450,9 @@ class M24_Garage_Cart {
 		// lazy erzeugen. Reine Teile-Liste — keine Fahrzeuge, keine Aktions-Boxen (Prompt).
 		$snap = self::read_snapshot( $token );
 		if ( null === $snap ) { self::write_snapshot( $acc, $token ); $snap = self::read_snapshot( $token ); }
-		$items  = ( $snap && ! empty( $snap['items'] ) ) ? $snap['items'] : array();
-		$totals = ( $snap && ! empty( $snap['totals'] ) ) ? $snap['totals'] : array();
+		$items    = ( $snap && ! empty( $snap['items'] ) ) ? $snap['items'] : array();
+		$vehicles = ( $snap && ! empty( $snap['vehicles'] ) ) ? $snap['vehicles'] : array();
+		$totals   = ( $snap && ! empty( $snap['totals'] ) ) ? $snap['totals'] : array();
 		$p_count   = (int) ( $totals['count'] ?? count( $items ) );
 		$unpriced  = (int) ( $totals['unpriced'] ?? 0 );
 		$grand_fmt = (string) ( $totals['gross_fmt'] ?? self::fmt( 0.0 ) );
@@ -1428,21 +1464,33 @@ class M24_Garage_Cart {
 				<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — Stand zum Zeitpunkt des Teilens.</p>
 			</header>
 
-			<?php if ( empty( $items ) ) : ?>
+			<?php if ( empty( $items ) && empty( $vehicles ) ) : ?>
 				<div class="m24gc-emptybox"><div class="m24gc-emptybox-t">Diese Garage ist aktuell leer</div></div>
 			<?php else : ?>
-				<section class="m24gc-shared-sec">
-					<div class="m24gc-list">
-						<?php foreach ( $items as $it ) : self::render_snapshot_row( (array) $it ); endforeach; ?>
-					</div>
-					<div class="m24gc-listfoot">
-						<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
-						<span class="m24gc-listfoot-r">
-							<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
-							<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
-						</span>
-					</div>
-				</section>
+				<?php if ( ! empty( $vehicles ) ) : ?>
+					<section class="m24gc-shared-sec">
+						<h2 class="m24gc-shared-sec-title">Geparkte Fahrzeuge</h2>
+						<div class="m24gc-vlist">
+							<?php foreach ( $vehicles as $v ) : self::render_snapshot_vehicle_card( (array) $v ); endforeach; ?>
+						</div>
+					</section>
+				<?php endif; ?>
+
+				<?php if ( ! empty( $items ) ) : ?>
+					<section class="m24gc-shared-sec">
+						<?php if ( ! empty( $vehicles ) ) : ?><h2 class="m24gc-shared-sec-title">Teile</h2><?php endif; ?>
+						<div class="m24gc-list">
+							<?php foreach ( $items as $it ) : self::render_snapshot_row( (array) $it ); endforeach; ?>
+						</div>
+						<div class="m24gc-listfoot">
+							<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
+							<span class="m24gc-listfoot-r">
+								<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
+								<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
+							</span>
+						</div>
+					</section>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -1467,6 +1515,33 @@ class M24_Garage_Cart {
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
 			<div class="m24gc-line"><?php echo esc_html( $line ); ?></div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Read-only Fahrzeug-Card aus dem eingefrorenen Snapshot-JSON — identisches Markup wie
+	 * render_vehicle_card(readonly). KEIN Live-Fetch, kein Remove/keine Aktionen, KEINE FIN/Art.-Nr.
+	 */
+	private static function render_snapshot_vehicle_card( array $v ) {
+		$url   = (string) ( $v['url'] ?? '' );
+		$title = (string) ( $v['title'] ?? '' );
+		$img   = (string) ( $v['image_url'] ?? '' );
+		$price = (string) ( $v['price_fmt'] ?? 'Preis auf Anfrage' );
+		$tone  = (string) ( $v['status_tone'] ?? 'ok' );
+		$label = (string) ( $v['status_label'] ?? 'Gelistet' );
+		?>
+		<div class="m24gc-vcard is-readonly">
+			<div class="m24gc-vcard-head">
+				<a class="m24gc-thumb" href="<?php echo esc_url( $url ); ?>">
+					<?php if ( '' !== $img ) : ?><img src="<?php echo esc_url( $img ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
+				</a>
+				<div class="m24gc-vinfo">
+					<a class="m24gc-title" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $title ); ?></a>
+					<span class="m24gc-vstatus m24gc-vstatus--<?php echo esc_attr( $tone ); ?>"><span class="m24gc-vdot" aria-hidden="true"></span><?php echo esc_html( $label ); ?></span>
+				</div>
+				<div class="m24gc-vprice"><?php echo esc_html( $price ); ?></div>
+			</div>
 		</div>
 		<?php
 	}
