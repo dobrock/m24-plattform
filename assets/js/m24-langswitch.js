@@ -72,13 +72,11 @@
 		return null;
 	}
 
-	// Sichtbarer Header-Actions-Container über das Desktop-Such-Icon (dessen Parent), robust gegen Theme-Rebuilds.
-	function pickDesktopViaSearch() {
+	// Sichtbares Desktop-Such-Icon → daneben (gleiche Flex-Zeile) einfügen = korrekte vertikale Höhe.
+	function visibleSearchIcon() {
 		for (var i = 0; i < SEARCH.length; i++) {
 			var nodes = document.querySelectorAll(SEARCH[i]);
-			for (var j = 0; j < nodes.length; j++) {
-				if (isVisible(nodes[j]) && nodes[j].parentNode) { return nodes[j].parentNode; }
-			}
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}
@@ -86,8 +84,15 @@
 	var placed = { desktop: false, mobile: false };
 	function place() {
 		if (!placed.desktop) {
-			var host = firstVisible(DESKTOP) || pickDesktopViaSearch();
-			if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
+			// Bevorzugt: unmittelbar VOR das Such-Icon in dessen Zeile (vertikal auf Header-Höhe).
+			var icon = visibleSearchIcon();
+			if (icon && icon.parentNode) {
+				icon.parentNode.insertBefore(makeSwitch('desktop'), icon);
+				placed.desktop = true;
+			} else {
+				var host = firstVisible(DESKTOP);
+				if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
+			}
 		}
 		if (!placed.mobile) {
 			var m = pickMobile();

@@ -49,6 +49,10 @@ class M24_B2B_Header_Login {
 		if ( self::$rendered || ! self::enabled() ) {
 			return; // Guard: Markup garantiert nur EINMAL (falls wp_footer + wp_body_open beide feuern)
 		}
+		// Neues „D"-Login-UI aktiv → alten Header-Login-Button (→ /haendler-login/) NICHT rendern (kein Doppel-Login).
+		if ( class_exists( 'M24_Login' ) && M24_Login::enabled() ) {
+			return;
+		}
 		self::$rendered = true;
 		if ( m24_is_b2b_authenticated() ) {
 			$url   = wp_logout_url( home_url( '/' ) ); // WP-Core hängt den Nonce an

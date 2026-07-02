@@ -1517,6 +1517,10 @@ class M24_Garage_Cart {
 		$css  = implode( ',', $scoped ) . '{display:none!important}';
 		$css .= $b . $sidebar . '{display:none!important}';
 		$css .= $b . '.td-pb-row>.td-pb-span8,' . $b . '.vc_row .wpb_column{width:100%!important;max-width:100%!important;flex:1 1 100%!important}';
+		// Sticky-Blocker beheben: .td-theme-wrap (Vorfahr) hat overflow-x/y:hidden → Scroll-Container → bricht
+		// position:sticky. overflow-x:clip klippt weiter horizontal, erzeugt aber KEINEN Scroll-Container;
+		// overflow-y MUSS visible sein. NUR auf der Garage-Seite (body-scoped), nicht global.
+		$css .= $b . '.td-theme-wrap{overflow-x:clip!important;overflow-y:visible!important}';
 
 		echo '<style id="m24gc-owner-layout">' . $css . '</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}

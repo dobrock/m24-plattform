@@ -77,7 +77,9 @@ class M24_I18n {
         ?>
 <style id="m24-langsw-css">
 .m24langsw{display:inline-flex;align-items:center;gap:6px;font-family:'Saira',Arial,Helvetica,sans-serif;font-size:13px;line-height:1}
-.m24langsw--inhdr{margin-left:14px!important;vertical-align:middle!important}
+.m24langsw--inhdr{margin:0 14px 0 0!important;vertical-align:middle!important;align-self:center!important;height:auto!important}
+/* neben dem Such-Icon in derselben Zeile → vertikal auf Header-Höhe zentrieren (nicht darunter hängen) */
+.tdb_header_search .m24langsw--inhdr,.tdb-header-search-wrap .m24langsw--inhdr,.td-header-menu-social .m24langsw--inhdr{display:inline-flex!important;align-items:center!important;float:none!important;position:relative!important;top:0!important}
 .m24langsw--float{position:fixed!important;top:10px;right:150px;z-index:100049;background:rgba(0,0,0,.4);padding:5px 10px;border-radius:999px}
 .m24langsw-globe{opacity:.85;font-size:14px}
 .m24langsw-sep{opacity:.5;margin:0 1px}
