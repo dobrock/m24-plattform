@@ -45,9 +45,71 @@ class M24_Catalog_Related {
 
 		if ( ! $manual_only && count( $result ) < $limit ) {
 			$exclude = array_merge( array( $post_id ), $result );
-			$result  = array_merge( $result, self::auto_fill( $post_id, $limit - count( $result ), $exclude ) );
+			// Karosserie-Teile: 3 der 5 aus derselben Modell+Karosserie-Rubrik zuerst (quartals-stabil).
+			if ( self::karosserie_term_id( $post_id ) > 0 ) {
+				$want = min( 3, $limit - count( $result ) );
+				$mk   = self::model_karosserie_fill( $post_id, $want, $exclude );
+				$result  = array_merge( $result, $mk );
+				$exclude = array_merge( $exclude, $mk );
+			}
+			// Rest wie bisher auffüllen (Modell → Baugruppe).
+			if ( count( $result ) < $limit ) {
+				$result = array_merge( $result, self::auto_fill( $post_id, $limit - count( $result ), $exclude ) );
+			}
 		}
 		return array_slice( $result, 0, $limit );
+	}
+
+	/** term_id der Baugruppe „Karosserie" am Teil (Slug „karosserie" bzw. Name „Karosserie") oder 0. */
+	private static function karosserie_term_id( $post_id ) {
+		$terms = get_the_terms( $post_id, M24_Catalog_CPT::TAXONOMY_BAUGRUPPE );
+		if ( ! $terms || is_wp_error( $terms ) ) { return 0; }
+		foreach ( $terms as $t ) {
+			if ( 'karosserie' === $t->slug || 0 === strcasecmp( (string) $t->name, 'Karosserie' ) ) { return (int) $t->term_id; }
+		}
+		return 0;
+	}
+
+	/** Bis zu $need Teile aus derselben Modell-Rubrik (m24_fahrzeugkat) UND Baugruppe Karosserie, quartals-stabil. */
+	private static function model_karosserie_fill( $post_id, $need, $exclude ) {
+		$need = (int) $need;
+		if ( $need <= 0 ) { return array(); }
+		$kt     = self::karosserie_term_id( $post_id );
+		$models = get_the_terms( $post_id, M24_Catalog_CPT::TAXONOMY );
+		if ( $kt <= 0 || ! $models || is_wp_error( $models ) ) { return array(); }
+		$ids = get_posts( array(
+			'post_type'      => M24_Catalog_CPT::POST_TYPE,
+			'post_status'    => 'publish',
+			'posts_per_page' => self::POOL,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'post__not_in'   => array_values( array_unique( $exclude ) ),
+			'tax_query'      => array(
+				'relation' => 'AND',
+				array( 'taxonomy' => M24_Catalog_CPT::TAXONOMY, 'terms' => wp_list_pluck( $models, 'term_id' ) ),
+				array( 'taxonomy' => M24_Catalog_CPT::TAXONOMY_BAUGRUPPE, 'terms' => array( $kt ) ),
+			),
+			'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
+		) );
+		return array_slice( self::quarterly_pick( $ids, $post_id, 'modell_karosserie' ), 0, $need );
+	}
+
+	/**
+	 * Deterministisch + QUARTALS-STABIL mischen (kein per-request rand → SEO-sicher, cachebar).
+	 * Seed = crc32( post_id | tax_key | YYYY'Q'n ). Innerhalb eines Quartals crawl-stabil, alle 3 Monate frisch.
+	 */
+	private static function quarterly_pick( $ids, $post_id, $tax_key ) {
+		$ids = self::stable_sort( $ids ); // stabile Basisreihenfolge
+		$n   = count( $ids );
+		if ( $n <= 1 ) { return $ids; }
+		$q = (int) ceil( ( (int) gmdate( 'n' ) ) / 3 );
+		mt_srand( crc32( $post_id . '|' . $tax_key . '|' . gmdate( 'Y' ) . 'Q' . $q ) );
+		for ( $i = $n - 1; $i > 0; $i-- ) { // deterministisches Fisher-Yates
+			$j = mt_rand( 0, $i );
+			$t = $ids[ $i ]; $ids[ $i ] = $ids[ $j ]; $ids[ $j ] = $t;
+		}
+		mt_srand(); // globalen RNG NICHT vergiften
+		return $ids;
 	}
 
 	/** Validierte, deduplizierte Pin-Liste (nur verfuegbare Teile, Reihenfolge erhalten). */
@@ -86,15 +148,8 @@ class M24_Catalog_Related {
 				'tax_query'      => array( array( 'taxonomy' => $tax, 'terms' => wp_list_pluck( $terms, 'term_id' ) ) ),
 				'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
 			) );
-			$sorted = self::stable_sort( $ids );
-			$n      = count( $sorted );
-			if ( $n > 1 ) {
-				// Pro-Seite stabiler Offset (Seed = Teil-ID + Taxonomie): jede Teil-Seite
-				// zeigt eine andere relevante Scheibe → interne Links streuen über die
-				// ganze Kategorie, pro Seite aber crawl-stabil. Kein rand().
-				$offset = (int) ( abs( crc32( $post_id . ':' . $tax ) ) % $n );
-				$sorted = array_merge( array_slice( $sorted, $offset ), array_slice( $sorted, 0, $offset ) );
-			}
+			// Quartals-stabil mischen (Seed = post_id|tax|YYYYQn) — crawl-stabil, alle 3 Monate frisch.
+			$sorted = self::quarterly_pick( $ids, $post_id, $tax );
 			foreach ( $sorted as $pid ) {
 				$out[] = (int) $pid;
 				if ( count( $out ) >= $need ) { break; }

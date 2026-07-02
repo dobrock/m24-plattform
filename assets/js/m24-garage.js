@@ -111,8 +111,32 @@
 		toastT = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
 	}
 
-	/* ── Bestehende „In meine Garage"-Buttons verdrahten (nur eingeloggt) ── */
+	/* ── „In meine Garage"-Buttons: Herz-Toggle (nur eingeloggt) ── */
+	// Zustand: nicht drin = Herz umrandet + „In meine Garage"; drin = Herz ausgefüllt + „In meiner Garage".
+	function setGarageBtn(btn, inGarage) {
+		if (!btn) { return; }
+		btn.classList.toggle('is-ingarage', !!inGarage);
+		btn.setAttribute('aria-pressed', inGarage ? 'true' : 'false');
+		var svg = btn.querySelector('.m24-btn-i');
+		if (svg) { svg.setAttribute('fill', inGarage ? 'currentColor' : 'none'); }
+		var txt = btn.querySelector('.m24-garage-txt');
+		if (txt) { txt.textContent = inGarage ? 'In meiner Garage' : 'In meine Garage'; }
+	}
+
 	if (cfg.loggedIn) {
+		// Initialzustand aus dem Cart-State: welche post_ids liegen bereits in der Garage?
+		var toggleBtns = Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle'));
+		if (toggleBtns.length && cfg.rest) {
+			fetch(cfg.rest, { credentials: 'same-origin', headers: headers() })
+				.then(function (r) { return r.json(); }).then(function (d) {
+					var ids = {};
+					if (d && d.items) { d.items.forEach(function (it) { ids[parseInt(it.post_id, 10)] = 1; }); }
+					toggleBtns.forEach(function (b) {
+						setGarageBtn(b, !!ids[parseInt(b.getAttribute('data-garage-id') || '0', 10)]);
+					});
+				}).catch(function () {});
+		}
+
 		document.addEventListener('click', function (e) {
 			var btn = e.target.closest ? e.target.closest('.m24-garage-open') : null;
 			if (!btn) { return; }
@@ -122,12 +146,21 @@
 			var pid = parseInt(btn.getAttribute('data-garage-id') || '0', 10);
 			if (!pid) { return; }
 			if (btn.dataset.m24gcBusy === '1') { return; }
+			var inGarage = btn.classList.contains('is-ingarage');
+			var isToggle = btn.classList.contains('m24-garage-toggle');
+			var path = ( isToggle && inGarage ) ? '/remove' : '/add';
 			btn.dataset.m24gcBusy = '1';
-			post('/add', { post_id: pid }).then(function (res) {
+			post(path, { post_id: pid }).then(function (res) {
 				btn.dataset.m24gcBusy = '';
 				if (res.ok && res.data && res.data.ok) {
 					updateCount(res.data.count);
-					toast((cfg.i18n && cfg.i18n.added) || 'In deine Garage gelegt.');
+					if (isToggle) {
+						var nowIn = ( '/add' === path );
+						setGarageBtn(btn, nowIn);
+						toast(nowIn ? ((cfg.i18n && cfg.i18n.added) || 'In deine Garage gelegt.') : 'Aus deiner Garage entfernt.');
+					} else {
+						toast((cfg.i18n && cfg.i18n.added) || 'In deine Garage gelegt.');
+					}
 				} else {
 					toast((res.data && res.data.message) || (cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
 				}

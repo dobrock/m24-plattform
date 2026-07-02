@@ -58,6 +58,32 @@ class M24_Garage_Cart {
 		// Mobile-Theme) ihn NICHT aus der URL strippt — sonst landet der Empfänger auf der leeren Garage.
 		add_filter( 'query_vars', array( __CLASS__, 'register_share_query_var' ) );
 		add_filter( 'redirect_canonical', array( __CLASS__, 'keep_share_url' ) );
+		// Garage-Link wasserdicht (server-seitig, JS-/cache-unabhängig): Eigentümer immer auf eigenen Token.
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_owner_to_token' ), 1 );
+	}
+
+	/** Diese Anfrage betrifft die Garage-Seite? */
+	private static function is_garage_page(): bool {
+		return is_page() && (int) get_queried_object_id() === (int) get_option( self::PAGE_OPTION );
+	}
+
+	/**
+	 * Ruft ein eingeloggter Eigentümer /meine-garage/ OHNE eigenen Token auf (kein Token oder fremder),
+	 * bei nicht-leerer Garage → 302 auf den eigenen Token-Link. Die Adresszeile trägt danach IMMER den
+	 * Token (Kopieren funktioniert ohne JS); der owner-owns-token-Branch rendert dann editierbar (kein Loop).
+	 * Ausgeloggte/Fremde bleiben unberührt (render_shared).
+	 */
+	public static function maybe_redirect_owner_to_token() {
+		if ( is_admin() || ! self::is_garage_page() ) { return; }
+		$acc = self::current_account_id();
+		if ( $acc <= 0 ) { return; }
+		$share = isset( $_GET[ self::SHARE_QUERY ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' !== $share && self::resolve_share_token( $share ) === $acc ) { return; } // eigener Token → ok
+		if ( empty( self::items( $acc ) ) ) { return; } // leere Garage → nichts zu teilen
+		$tok = self::share_token_get_or_create( $acc );
+		if ( '' === $tok ) { return; }
+		wp_safe_redirect( self::share_url( $tok ), 302 );
+		exit;
 	}
 
 	public static function register_share_query_var( $vars ) {

@@ -544,7 +544,7 @@ class M24_Catalog_Template_Detail {
 							<?php if ( $verkauft ) : ?>
 								<button type="button" class="btn btn-sec is-disabled" disabled aria-disabled="true" title="<?php esc_attr_e( 'Teil verkauft', 'm24-plattform' ); ?>"><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>In meine Garage</button>
 							<?php else : ?>
-								<button type="button" class="btn btn-sec m24-garage-open" data-garage-type="part" data-garage-id="<?php echo esc_attr( $id ); ?>"><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>In meine Garage</button>
+								<button type="button" class="btn btn-sec m24-garage-open m24-garage-toggle" data-garage-type="part" data-garage-id="<?php echo esc_attr( $id ); ?>"><svg class="m24-btn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg><span class="m24-garage-txt">In meine Garage</span></button>
 							<?php endif; ?>
 						</div>
 						</div>

@@ -267,9 +267,9 @@ class M24FZ_Template {
 				? 'Dieses Fahrzeug ist aktuell reserviert. Tragen Sie sich ein und erfahren Sie ähnliche Fahrzeuge zuerst.'
 				: 'Dieses Fahrzeug ist leider schon verkauft. Tragen Sie sich auf die Liste ein, um ähnliche Fahrzeuge in Zukunft nicht zu verpassen.';
 			echo M24FZ_CPT::status_badge_style_once(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			echo '<span class="m24-status-btn ' . esc_attr( M24FZ_CPT::status_sand_class( $st ) ) . '">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
+			echo '<span class="m24-status-btn ' . esc_attr( M24FZ_CPT::status_sand_class( $st ) ) . '" style="font-weight:normal;">' . esc_html( 'reserviert' === $st ? 'Reserviert' : 'Verkauft' ) . '</span>';
 			echo '<p class="m24fz-iltext" style="margin-top:12px;">' . esc_html( $txt ) . '</p>';
-			echo '<button class="m24fz-btn m24fz-il-open" type="button">Auf die Interessentenliste</button>';
+			echo '<button class="m24fz-btn m24fz-il-open" type="button" style="margin-top:14px;">Auf die Interessentenliste</button>';
 		} else {
 			echo self::preis_html( $id ); // phpcs:ignore
 			echo '<button class="m24fz-btn m24fz-anfrage-open" type="button">Jetzt anfragen</button>';
