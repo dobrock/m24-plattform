@@ -71,6 +71,64 @@ class M24_Garage_Cart {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_legacy_share' ), 0 );
 		// Garage-Link wasserdicht (server-seitig, JS-/cache-unabhängig): Eigentümer immer auf eigenen Token.
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_owner_to_token' ), 1 );
+		// Share-View als theme-unabhängiges Standalone-Dokument rendern (tagDiv-Mobile-Content-Pipeline umgehen).
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_standalone_share' ), 5 );
+	}
+
+	/**
+	 * Geteilte Garage komplett am Theme vorbei ausgeben: eigenes HTML5-Dokument, kein tagDiv-Content/-Footer
+	 * (auf dem Mobile-Render-Pfad landete der Shortcode-Output sonst nicht im Hauptinhalt). Nur für fremde/
+	 * ausgeloggte Besucher mit gültigem Snapshot; der eingeloggte Eigentümer behält seine editierbare Ansicht.
+	 */
+	public static function maybe_render_standalone_share() {
+		if ( is_admin() || ! self::is_share_view() ) { return; }
+		$token = self::current_share_token();
+		$acc   = self::resolve_share_token( $token );
+		if ( $acc <= 0 ) { return; }                                   // ungültiger Token → normaler Flow
+		$me = self::current_account_id();
+		if ( $me > 0 && $me === $acc ) { return; }                     // Eigentümer → editierbare Ansicht (Shortcode)
+		if ( null === self::read_snapshot( $token ) ) { return; }      // kein Snapshot → normaler Flow
+		self::render_shared_standalone( $token );                      // exit-et
+	}
+
+	/** Vollständiges Standalone-HTML für die Share-View (Header-Bar + Snapshot + kanonischer Footer). */
+	private static function render_shared_standalone( string $token ) {
+		$inner = self::render_shared( $token ); // liefert das Snapshot-Markup als String (eigener ob-Puffer)
+
+		// Theme-/Robots-Ausgabepuffer verwerfen (Callback läuft bei ob_end_clean NICHT) → sauberes eigenes Dokument.
+		while ( ob_get_level() > 0 ) { ob_end_clean(); }
+		nocache_headers();
+		if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
+
+		$logo = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
+		$css  = M24_PLATTFORM_DIR . 'assets/css/m24-garage.css';
+		$cssv = file_exists( $css ) ? (string) filemtime( $css ) : M24_PLATTFORM_VERSION;
+		$css_url = esc_url( M24_PLATTFORM_URL . 'assets/css/m24-garage.css?ver=' . $cssv );
+
+		echo '<!doctype html><html lang="de"><head><meta charset="utf-8">'
+			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
+			. '<title>Geteilte Garage – MOTORSPORT24</title>'
+			. '<meta name="robots" content="noindex,nofollow">'
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+			. '<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;600;700&display=swap" rel="stylesheet">'
+			. '<link rel="stylesheet" href="' . $css_url . '">'
+			. '<style>'
+			. 'html,body{margin:0}body{background:#fafafa;font-family:\'Saira\',Arial,Helvetica,sans-serif;color:#14161a}'
+			. '.m24sa-bar{background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 24px;text-align:right}'
+			. '.m24sa-bar img{height:30px;width:auto;display:inline-block;vertical-align:middle;border:0}'
+			. '.m24sa-wrap{max-width:900px;margin:0 auto;padding:24px 16px}'
+			. '.m24sa-foot{max-width:900px;margin:24px auto 40px;padding:18px 16px 0;border-top:1px solid #e6e9ee;text-align:center;font-size:12px;line-height:1.6;color:#9aa3b0}'
+			. '.m24sa-foot a{color:#1f74c4;text-decoration:none}'
+			. '</style></head><body>'
+			. '<div class="m24sa-bar"><img src="' . $logo . '" alt="MOTORSPORT24"></div>'
+			. '<div class="m24sa-wrap">' . $inner . '</div>'
+			. '<div class="m24sa-foot">'
+			. '<div style="color:#7e8794">Classic &amp; Race Cars and Parts Sales since 2006</div>'
+			. '<div style="margin-top:8px">MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin</div>'
+			. '<div style="margin-top:8px"><a href="https://www.motorsport24.de/impressum/">Impressum</a> · <a href="https://www.motorsport24.de/datenschutz/">Datenschutz</a> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></div>'
+			. '</div>'
+			. '</body></html>';
+		exit;
 	}
 
 	/** Rewrite: /meine-garage/geteilt/{token}/ → Garage-Seite + Token-Query-Var. */
