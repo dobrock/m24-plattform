@@ -11,3 +11,9 @@ Thumbs.db
 
 # Logs / temporaeres
 *.log
+
+# Dev-Tooling (Playwright Header-Dump) — nie ins Plugin committen
+node_modules/
+package.json
+package-lock.json
+assets/js/m24-langswitch-alt.js
