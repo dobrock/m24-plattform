@@ -29,7 +29,65 @@ class M24_I18n {
         if ( ! is_admin() ) {
             add_action( 'get_footer', array( __CLASS__, 'footer_buffer_start' ), 999 );
             add_action( 'wp_footer', array( __CLASS__, 'footer_buffer_end' ), PHP_INT_MAX );
+            // DE/EN-Sprach-Switch (Inline, Globus + Hover-Namen/Flaggen) im Header.
+            add_action( 'wp_enqueue_scripts', array( __CLASS__, 'langswitch_assets' ) );
+            add_action( 'wp_head', array( __CLASS__, 'langswitch_head' ), 3 );
         }
+    }
+
+    /* ── DE/EN-Sprach-Switch (GTranslate /en/-Pfad) ──────────────────────── */
+
+    /** Aktuelle Sprache + Ziel-URLs (DE/EN) der AKTUELLEN Seite aus dem /en/-Pfad ableiten. */
+    private static function langswitch_urls(): array {
+        $uri   = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $path  = (string) wp_parse_url( $uri, PHP_URL_PATH );
+        if ( '' === $path ) { $path = '/'; }
+        $query = (string) wp_parse_url( $uri, PHP_URL_QUERY );
+        $qs    = ( '' !== $query ) ? '?' . $query : '';
+        $is_en = (bool) preg_match( '#^/en(/|$)#', $path );
+
+        $de_path = $is_en ? preg_replace( '#^/en#', '', $path ) : $path;
+        if ( '' === $de_path ) { $de_path = '/'; }
+        $en_path = $is_en ? $path : '/en' . ( '/' === $path ? '/' : $path );
+
+        return array(
+            'active' => $is_en ? 'en' : 'de',
+            'de'     => home_url( $de_path ) . $qs,
+            'en'     => home_url( $en_path ) . $qs,
+        );
+    }
+
+    public static function langswitch_assets() {
+        $js = 'assets/js/m24-langswitch.js';
+        $jv = file_exists( M24_PLATTFORM_DIR . $js ) ? (string) filemtime( M24_PLATTFORM_DIR . $js ) : M24_PLATTFORM_VERSION;
+        wp_enqueue_script( 'm24-langswitch', M24_PLATTFORM_URL . $js, array(), $jv, true );
+        wp_localize_script( 'm24-langswitch', 'M24Lang', self::langswitch_urls() );
+    }
+
+    /** Inline-CSS für den Switch + optionale hreflang-Alternates (nur wenn GTranslate KEINE ausgibt). */
+    public static function langswitch_head() {
+        $u = self::langswitch_urls();
+        // hreflang NUR wenn explizit aktiviert (GTranslate-URL-Add-on gibt i. d. R. selbst welche aus →
+        // Default AUS, kein Duplikat). Über Option/Filter m24_hreflang_enabled scharfschalten.
+        if ( apply_filters( 'm24_hreflang_enabled', (bool) (int) get_option( 'm24_hreflang_enabled', 0 ) ) ) {
+            echo "\n" . '<link rel="alternate" hreflang="de" href="' . esc_url( $u['de'] ) . '">';
+            echo "\n" . '<link rel="alternate" hreflang="en" href="' . esc_url( $u['en'] ) . '">';
+            echo "\n" . '<link rel="alternate" hreflang="x-default" href="' . esc_url( $u['de'] ) . '">' . "\n";
+        }
+        ?>
+<style id="m24-langsw-css">
+.m24langsw{display:inline-flex;align-items:center;gap:6px;font-family:'Saira',Arial,Helvetica,sans-serif;font-size:13px;line-height:1}
+.m24langsw--inhdr{margin-left:14px!important;vertical-align:middle!important}
+.m24langsw--float{position:fixed!important;top:10px;right:150px;z-index:100049;background:rgba(0,0,0,.4);padding:5px 10px;border-radius:999px}
+.m24langsw-globe{opacity:.85;font-size:14px}
+.m24langsw-sep{opacity:.5;margin:0 1px}
+.m24langsw-lnk{position:relative;color:#fff;opacity:.7;text-decoration:none;padding:2px 1px}
+.m24langsw-lnk:hover,.m24langsw-lnk:focus{opacity:1;color:#fff}
+.m24langsw-lnk.is-active{opacity:1;font-weight:700;border-bottom:2px solid #9a6b25}
+.m24langsw-lnk .m24langsw-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);white-space:nowrap;background:#14161a;color:#fff;font-weight:400;font-size:12px;padding:5px 9px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .12s;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2}
+.m24langsw-lnk:hover .m24langsw-tip,.m24langsw-lnk:focus .m24langsw-tip{opacity:1}
+</style>
+        <?php
     }
 
     /** Footer-Ausgabe puffern (ab get_footer). */

@@ -127,6 +127,16 @@ class M24_Settings {
                 'default'           => '',
             ]
         );
+        // hreflang-Alternates (DE/EN) — nur aktivieren, wenn GTranslate KEINE ausgibt (sonst Duplikat).
+        register_setting(
+            'm24_plattform_group',
+            'm24_hreflang_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
         // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
         register_setting(
             'm24_plattform_group',
@@ -635,6 +645,18 @@ class M24_Settings {
                             <input type="text" class="regular-text" name="m24_login_admin_allowlist" value="<?php echo esc_attr( (string) get_option( 'm24_login_admin_allowlist', '' ) ); ?>" placeholder="admin@…, zweiter@…" />
                             <p class="description">
                                 <?php echo esc_html__( 'Komma-getrennte E-Mails, die Admin-Sessions per Magic-Link bekommen dürfen. Die Site-Admin-Adresse ist immer erlaubt. Hinweis: passwordless Admin = das E-Mail-Konto ist der einzige Faktor — Postfach mit 2FA absichern.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'hreflang DE/EN ausgeben', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_hreflang_enabled" value="1" <?php checked( (bool) get_option( 'm24_hreflang_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'hreflang-Alternates (de/en/x-default) im <head> ausgeben', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Nur aktivieren, wenn GTranslate NICHT bereits hreflang-Alternates ausgibt (sonst Duplikat). Default aus.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>
