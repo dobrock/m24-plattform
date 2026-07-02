@@ -34,6 +34,9 @@ class M24_Garage_Cart {
 	const META_TOKEN    = 'm24_garage_share_token'; // usermeta: aktueller Roh-Token (Vorhandensein = aktiv)
 	const META_CREATED  = 'm24_garage_share_created';
 
+	/** Setzt sich auf true, während plugin-EIGENE (A-/Legacy-)Redirects feuern → guard_share_redirect lässt sie durch. */
+	private static $allow_redirect = false;
+
 	public static function init() {
 		add_action( 'admin_init', array( __CLASS__, 'maybe_ensure_table' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_create_page' ) );
@@ -58,6 +61,9 @@ class M24_Garage_Cart {
 		// Mobile-Theme) ihn NICHT aus der URL strippt — sonst landet der Empfänger auf der leeren Garage.
 		add_filter( 'query_vars', array( __CLASS__, 'register_share_query_var' ) );
 		add_filter( 'redirect_canonical', array( __CLASS__, 'keep_share_url' ) );
+		// Mobil-Fix: JEDEN Server-Redirect auf der Share-View blocken (Core wp_redirect + Theme/tagDiv-Mobile),
+		// NICHT nur redirect_canonical. Eigene A-/Legacy-Redirects sind über $allow_redirect ausgenommen.
+		add_filter( 'wp_redirect', array( __CLASS__, 'guard_share_redirect' ), 0, 2 );
 		// Pfad-basierte Share-URL /meine-garage/geteilt/{token}/ (immun gegen Query-Stripping + Mobil-Cache-
 		// Base-Serving). Regel vor der Lang-Endpoint-Soft-Flush (prio 20) registrieren; Flush via M24_REWRITE_VERSION.
 		add_action( 'init', array( __CLASS__, 'add_share_rewrite' ), 5 );
@@ -93,6 +99,7 @@ class M24_Garage_Cart {
 		if ( is_admin() || ! isset( $_GET[ self::SHARE_QUERY ] ) || ! self::is_garage_page() ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
 		$tok = sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		if ( '' === $tok || ! get_option( 'permalink_structure' ) ) { return; } // ohne Pretty-Permalinks bleibt Query
+		self::$allow_redirect = true; // eigener Redirect → guard_share_redirect nicht blocken
 		wp_safe_redirect( self::share_url( $tok ), 301 );
 		exit;
 	}
@@ -112,6 +119,7 @@ class M24_Garage_Cart {
 		if ( empty( self::items( $acc ) ) ) { return; } // leere Garage → nichts zu teilen
 		$tok = self::share_token_get_or_create( $acc );
 		if ( '' === $tok ) { return; }
+		self::$allow_redirect = true; // eigener Redirect → guard_share_redirect nicht blocken
 		wp_safe_redirect( self::share_url( $tok ), 302 );
 		exit;
 	}
@@ -124,6 +132,12 @@ class M24_Garage_Cart {
 	/** Kein kanonischer Redirect auf der Share-Ansicht (würde den Token-Query-Param verwerfen). */
 	public static function keep_share_url( $redirect ) {
 		return self::is_share_view() ? false : $redirect;
+	}
+
+	/** Blockt jeden fremden Server-Redirect auf der Share-View (Token schon in Pfad/Query). Eigene durchlassen. */
+	public static function guard_share_redirect( $location, $status ) {
+		if ( self::$allow_redirect ) { return $location; }
+		return self::is_share_view() ? false : $location;
 	}
 
 	public static function table() { return M24_Database::table( 'garage_cart' ); }
@@ -1160,7 +1174,7 @@ class M24_Garage_Cart {
 
 								<!-- Server-seitiger Versand an Kunden (ersetzt den mailto:-Link) -->
 								<div class="m24gc-sendmail" data-m24gc-sendmail>
-									<h4 class="m24gc-sendmail-h">Per E-Mail an Kunden senden</h4>
+									<h4 class="m24gc-sendmail-h">Garage per E-Mail versenden</h4>
 									<label class="m24gc-field">
 										<span class="m24gc-field-lbl">E-Mail-Adresse des Kunden</span>
 										<input type="email" class="m24gc-field-input" data-m24gc-sendmail-to required placeholder="kunde@example.com" autocomplete="off">
