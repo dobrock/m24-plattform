@@ -322,7 +322,6 @@ class M24FZ_Template {
 	/** Fahrzeugdaten-Zeilen (nur befüllte). */
 	public static function daten_rows( $id ) {
 		$fields = array(
-			'_m24fz_marke' => 'Hersteller',
 			'_m24fz_erstzulassung' => 'Erstzulassung', '_m24fz_modell' => 'Modell', '_m24fz_baujahr' => 'Baujahr', '_m24fz_baureihe' => 'Baureihe',
 			'_m24fz_karosserie' => 'Karosserie', '_m24fz_hubraum' => 'Hubraum', '_m24fz_leistung_ps' => 'Leistung',
 			'_m24fz_gewicht' => 'Gewicht', // nur Rennwagen (s. Loop), leer/0 = ausgeblendet
@@ -335,6 +334,10 @@ class M24FZ_Template {
 		$is_renn = ( 'renn' === get_post_meta( $id, '_m24fz_template_typ', true ) );
 		if ( $is_renn ) { unset( $fields['_m24fz_erstzulassung'], $fields['_m24fz_kraftstoff'], $fields['_m24fz_lenkung'] ); }
 		$rows = array();
+		// Hersteller separat: guess_brand-Fallback (wie OG/JSON-LD) → erscheint auch ohne gepflegtes Marke-Feld.
+		$marke = trim( (string) get_post_meta( $id, '_m24fz_marke', true ) );
+		if ( '' === $marke && class_exists( 'M24FZ_Telemetry' ) ) { $marke = (string) M24FZ_Telemetry::guess_brand( get_the_title( $id ) ); }
+		if ( '' !== $marke ) { $rows[] = array( 'label' => 'Hersteller', 'value' => $marke ); }
 		foreach ( $fields as $k => $label ) {
 			$v = trim( (string) get_post_meta( $id, $k, true ) );
 			if ( '_m24fz_gewicht' === $k ) { // nur Rennwagen, 0/leer ausblenden, Format „{n} kg"
