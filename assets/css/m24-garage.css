@@ -127,11 +127,10 @@
  * dass die Sidebar-Mindestbreite die Ratio überstimmt und die Teileliste zerquetscht. */
 .m24gc-grid{display:grid;grid-template-columns:minmax(0, 1fr) 340px;gap:22px;align-items:start}
 .m24gc-col-main{min-width:0}
-/* Sidebar: normale Spalte (kein overflow-Clipping am Grid/Parent → sticky greift). Statt der ganzen
- * Spalte klebt die Summen-/Preis-Karte selbst → Gesamtpreis bleibt sichtbar, auch wenn beide Karten
- * zusammen höher als der Viewport sind. */
-.m24gc-col-side{display:flex;flex-direction:column;gap:16px;min-width:0;align-self:start}
-.m24gc-col-side .m24gc-sumcard{position:sticky;top:22px;z-index:2}
+/* Sticky auf die GANZE Sidebar-Spalte. align-self:start ist entscheidend: das Grid-Item bleibt content-hoch
+ * (statt auf Zeilenhöhe gestreckt) → sticky hat Laufweg entlang der langen Teileliste. Kein overflow-Clipping
+ * am Grid/Parent. Karte selbst NICHT sticky (klebte innerhalb der kurzen Spalte nicht). */
+.m24gc-col-side{display:flex;flex-direction:column;gap:16px;min-width:0;position:sticky;top:22px;align-self:start}
 .m24gc-card{background:#fff;border:1px solid #eef0f2;box-shadow:0 1px 3px rgba(20,22,26,.05);padding:18px}
 .m24gc-card-h{font-size:14px;font-weight:700;color:#5a6474;margin:0 0 10px}
 
@@ -165,7 +164,6 @@
 @media(max-width:860px){
 	.m24gc-grid{grid-template-columns:1fr}
 	.m24gc-col-side{position:static}
-	.m24gc-col-side .m24gc-sumcard{position:static}
 	.m24gc-tabs{gap:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 	.m24gc-tab{white-space:nowrap}
 }

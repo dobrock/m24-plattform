@@ -62,6 +62,8 @@
 		'.td-header-menu-social', '.td-header-sp-top-menu', '.top-header-menu',
 		'.tdb-header-align', '.td-header-menu-wrap-full'
 	];
+	// Such-Icon-Selektoren (tdb/Newspaper): dessen sichtbarer Container = Header-Actions-Bereich.
+	var SEARCH = [ '.tdb-search-icon', '.tdb-head-search-btn', '.td-icon-search', '.tdb_header_search a', '.td-search-opener' ];
 	// Mobil-Menü/-Header — bewusst OHNE Sichtbarkeits-Filter (ist bis zum Öffnen display:none).
 	var MOBILE = [ '#td-mobile-nav .td-menu-login', '#td-mobile-nav ul', '.td-mobile-content', '.td-header-mobile-wrap' ];
 
@@ -70,10 +72,21 @@
 		return null;
 	}
 
+	// Sichtbarer Header-Actions-Container über das Desktop-Such-Icon (dessen Parent), robust gegen Theme-Rebuilds.
+	function pickDesktopViaSearch() {
+		for (var i = 0; i < SEARCH.length; i++) {
+			var nodes = document.querySelectorAll(SEARCH[i]);
+			for (var j = 0; j < nodes.length; j++) {
+				if (isVisible(nodes[j]) && nodes[j].parentNode) { return nodes[j].parentNode; }
+			}
+		}
+		return null;
+	}
+
 	var placed = { desktop: false, mobile: false };
 	function place() {
 		if (!placed.desktop) {
-			var host = firstVisible(DESKTOP);
+			var host = firstVisible(DESKTOP) || pickDesktopViaSearch();
 			if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
 		}
 		if (!placed.mobile) {
