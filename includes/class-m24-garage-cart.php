@@ -1361,7 +1361,7 @@ class M24_Garage_Cart {
 	private static function share_og_tags(): string {
 		$token = sanitize_text_field( wp_unslash( $_GET[ self::SHARE_QUERY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		$url   = self::share_url( $token );
-		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal, in meine MOTORSPORT24-Garage' );
+		$title = apply_filters( 'm24_garage_share_og_title', 'Sieh mal in meine MOTORSPORT24-Garage' );
 		$desc  = apply_filters( 'm24_garage_share_og_desc', 'Fahrzeuge & Teile, die ich bei MOTORSPORT24 zusammengestellt habe.' );
 		// Feste Startvorschau (Kotflügel-WebP); Photon-Resize auf WhatsApp-taugliche 1200×630. Filterbar.
 		$src   = 'https://i0.wp.com/www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/m3-e92-kotflugel_01.webp';
