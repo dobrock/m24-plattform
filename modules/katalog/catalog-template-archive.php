@@ -248,7 +248,7 @@ class M24_Catalog_Archive {
 		);
 	}
 
-	public static function card_html( $post_id, $with_desc = false ) {
+	public static function card_html( $post_id, $with_desc = false, $from = '' ) {
 		$title  = get_the_title( $post_id );
 		$artnr  = get_post_meta( $post_id, '_m24_artikelnummer', true );
 		$oem    = get_post_meta( $post_id, '_m24_bmw_teilenummer', true );
@@ -285,11 +285,15 @@ class M24_Catalog_Archive {
 			}
 		}
 
+		// Herkunfts-Hub (?from={hub-slug}) mitführen → Breadcrumb zeigt das Modell des Navigations-Kontexts.
+		$link = get_permalink( $post_id );
+		if ( '' !== $from ) { $link = add_query_arg( 'from', $from, $link ); }
+
 		return sprintf(
 			// Kartentitel als div (kein Heading) — H-Struktur sauber (genau 1 H1, Sektionen H2).
 			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%8$s%7$s</span></a></article>',
 			$is_sold ? ' m24-card--sold' : '',
-			esc_url( get_permalink( $post_id ) ),
+			esc_url( $link ),
 			$thumb,
 			$badge,
 			esc_html( $title ),

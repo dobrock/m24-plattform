@@ -126,6 +126,15 @@ class M24_Catalog_Template_Detail {
 		$leichtbau    = (bool) (int) get_post_meta( $id, '_m24_leichtbau', true );
 		$terms      = get_the_terms( $id, M24_Catalog_CPT::TAXONOMY );
 		$term_names = ( $terms && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'name' ) : array();
+		// Breadcrumb-Kontext: Modell aus dem Herkunfts-Hub (?from={hub-slug}); Fallback = erster/Default-Term.
+		$crumb_term = ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) ? $terms[0] : null;
+		$from_hub   = isset( $_GET['from'] ) ? sanitize_title( wp_unslash( $_GET['from'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( '' !== $from_hub && $terms && ! is_wp_error( $terms ) && class_exists( 'M24_Catalog_Hub' ) ) {
+			$hub_tids = array_map( 'intval', (array) M24_Catalog_Hub::term_ids( $from_hub ) );
+			foreach ( $terms as $t ) {
+				if ( in_array( (int) $t->term_id, $hub_tids, true ) ) { $crumb_term = $t; break; }
+			}
+		}
 		$verkauft   = ( 'verkauft' === $status );
 		$preis_auf_anfrage = (bool) get_post_meta( $id, '_m24_preis_auf_anfrage', true );
 		$is_neu     = ( 'neu' === $typ );
@@ -400,8 +409,8 @@ class M24_Catalog_Template_Detail {
 			<div class="bc">
 				<a href="<?php echo esc_url( $home ); ?>" aria-label="Start" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></a>
 				<span>›</span><a href="<?php echo esc_url( $typ_url ); ?>"><?php echo esc_html( $typ_label ); ?></a>
-				<?php if ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) : // Primaer-Modell (erstes Term) — weitere Modelle bleiben uebers Archiv-Filter erreichbar. ?>
-					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $terms[0]->slug, $typ_url ) ); ?>"><?php echo esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $terms[0]->name ) : $terms[0]->name ); ?></a>
+				<?php if ( $crumb_term ) : // Modell des Navigations-Kontexts (?from=Hub) → Fallback Primaer-Term. ?>
+					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $crumb_term->slug, $typ_url ) ); ?>"><?php echo esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $crumb_term->name ) : $crumb_term->name ); ?></a>
 				<?php endif; ?>
 				<span>›</span><span><?php echo esc_html( get_the_title( $id ) ); ?></span>
 			</div>

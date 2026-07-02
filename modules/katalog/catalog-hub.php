@@ -456,10 +456,11 @@ class M24_Catalog_Hub {
 	public static function cards_html( $list ) {
 		$lq = $list['query'];
 		if ( $lq->have_posts() && class_exists( 'M24_Catalog_Archive' ) ) {
+			$from = isset( $list['hub'] ) ? (string) $list['hub'] : '';
 			ob_start();
 			while ( $lq->have_posts() ) {
 				$lq->the_post();
-				echo M24_Catalog_Archive::card_html( get_the_ID() ); // phpcs:ignore WordPress.Security.EscapeOutput
+				echo M24_Catalog_Archive::card_html( get_the_ID(), false, $from ); // phpcs:ignore WordPress.Security.EscapeOutput
 			}
 			wp_reset_postdata();
 			return ob_get_clean();
