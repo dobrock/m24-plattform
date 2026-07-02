@@ -1252,29 +1252,38 @@ class M24_Garage_Cart {
 								<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
 								<p class="m24gc-hint">Deine Kontaktdaten sind hinterlegt.</p>
 							</div>
+							<?php $share_short = ( '' !== $share_url ) ? preg_replace( '#^https?://#', '', rtrim( $share_url, '/' ) ) : ''; ?>
 							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
-								<h3 class="m24gc-card-h">Teilen &amp; sichern</h3>
-								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link kopieren &amp; teilen</button>
-								<p class="m24gc-share-validity">Der erzeugte Garagen-Link ist 3 Monate gültig.</p>
-								<div class="m24gc-share-row">
-									<input type="text" class="m24gc-share-input" data-m24gc-share-input readonly value="<?php echo esc_attr( $share_url ); ?>" placeholder="Noch kein Link erzeugt" aria-label="Geteilter Garage-Link">
-									<button type="button" class="m24gc-share-btn" data-m24gc-share-copy<?php echo '' === $share_url ? ' hidden' : ''; ?>>Kopieren</button>
-								</div>
-								<div class="m24gc-share-actions">
-									<button type="button" class="m24gc-share-gen" data-m24gc-share-generate<?php echo '' === $share_url ? '' : ' hidden'; ?>>Garage-Link erzeugen</button>
-									<button type="button" class="m24gc-share-rotate" data-m24gc-share-rotate<?php echo '' === $share_url ? ' hidden' : ''; ?>>Link zurückziehen / neu erzeugen</button>
-									<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
+								<h3 class="m24gc-card-h">Garage teilen</h3>
+
+								<!-- Variante A: EIN primärer Button — friert den aktuellen Stand in DENSELBEN Token neu ein + kopiert. -->
+								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>🔗 Garage-Link erstellen &amp; teilen</button>
+								<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
+								<input type="hidden" data-m24gc-share-input value="<?php echo esc_attr( $share_url ); ?>">
+
+								<!-- Kompakter Zustand nach Erzeugung: Link-Chip + Gültigkeit + zurückziehen -->
+								<div class="m24gc-share-chipwrap" data-m24gc-share-chipwrap<?php echo '' === $share_url ? ' hidden' : ''; ?>>
+									<div class="m24gc-share-chip">
+										<span class="m24gc-share-chip-url" data-m24gc-share-chip><?php echo esc_html( $share_short ); ?></span>
+										<button type="button" class="m24gc-share-chip-copy" data-m24gc-share-copy title="Link kopieren" aria-label="Link kopieren">⧉</button>
+									</div>
+									<div class="m24gc-share-chipmeta">
+										<span class="m24gc-badge">3 Monate gültig</span>
+										<button type="button" class="m24gc-share-revoke" data-m24gc-share-revoke>zurückziehen</button>
+									</div>
 								</div>
 
-								<!-- Server-seitiger Versand an Kunden (ersetzt den mailto:-Link) -->
-								<div class="m24gc-sendmail" data-m24gc-sendmail>
-									<h4 class="m24gc-sendmail-h">Garage per E-Mail versenden</h4>
+								<div class="m24gc-share-sep" aria-hidden="true"></div>
+
+								<!-- Eingeklappt: Per E-Mail an Kunden (bestehende Backend-Logik, nur UI verschoben) -->
+								<button type="button" class="m24gc-email-toggle" data-m24gc-email-toggle aria-expanded="false">✉️ Per E-Mail an Kunden <span class="m24gc-email-caret" aria-hidden="true">▾</span></button>
+								<div class="m24gc-sendmail" data-m24gc-sendmail hidden>
 									<label class="m24gc-field">
 										<span class="m24gc-field-lbl">E-Mail-Adresse des Kunden</span>
 										<input type="email" class="m24gc-field-input" data-m24gc-sendmail-to required placeholder="kunde@example.com" autocomplete="off">
 									</label>
 									<label class="m24gc-field">
-										<span class="m24gc-field-lbl">Nachricht (optional)</span>
+										<span class="m24gc-field-lbl">Persönliche Nachricht (optional)</span>
 										<textarea class="m24gc-field-input m24gc-field-textarea" data-m24gc-sendmail-msg rows="3" placeholder="Persönliche Nachricht an den Kunden"></textarea>
 									</label>
 									<label class="m24gc-check">
@@ -1285,7 +1294,7 @@ class M24_Garage_Cart {
 									<span class="m24gc-sendmail-status" data-m24gc-sendmail-status role="status"></span>
 								</div>
 
-								<a class="m24gc-pdf-btn m24gc-btn-brass" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">Als PDF herunterladen</a>
+								<a class="m24gc-pdf-btn m24gc-btn-brass-outline" href="<?php echo esc_url( M24_Garage_PDF::owner_url() ); ?>">⬇ Als PDF herunterladen</a>
 							</div>
 						</aside>
 					</div>

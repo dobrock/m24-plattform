@@ -230,9 +230,10 @@
 	if (sharePanel && cfg.share) {
 		var inEl = sharePanel.querySelector('[data-m24gc-share-input]');
 		var copyBtn = sharePanel.querySelector('[data-m24gc-share-copy]');
-		var genBtn = sharePanel.querySelector('[data-m24gc-share-generate]');
-		var rotBtn = sharePanel.querySelector('[data-m24gc-share-rotate]');
 		var msgEl = sharePanel.querySelector('[data-m24gc-share-msg]');
+		var chipWrap = sharePanel.querySelector('[data-m24gc-share-chipwrap]');
+		var chipEl = sharePanel.querySelector('[data-m24gc-share-chip]');
+		var revokeBtn = sharePanel.querySelector('[data-m24gc-share-revoke]');
 
 		function shareMsg(t) { if (msgEl) { msgEl.textContent = t || ''; } }
 
@@ -244,12 +245,13 @@
 			}
 		}
 
+		function shortUrl(url) { return (url || '').replace(/^https?:\/\//, '').replace(/\/+$/, ''); }
+
 		function applyUrl(url) {
 			if (inEl) { inEl.value = url || ''; }
 			var has = !!url;
-			if (copyBtn) { copyBtn.hidden = !has; }
-			if (genBtn) { genBtn.hidden = has; }
-			if (rotBtn) { rotBtn.hidden = !has; }
+			if (chipEl) { chipEl.textContent = shortUrl(url); }
+			if (chipWrap) { chipWrap.hidden = !has; }
 		}
 
 		if (inEl && inEl.value) { applyUrl(inEl.value); mirrorUrl(inEl.value); }
@@ -261,35 +263,27 @@
 				headers: headers(),
 				body: JSON.stringify({ action: action })
 			}).then(function (r) { return r.json(); }).then(function (d) {
-				if (d && d.ok) { applyUrl(d.url); mirrorUrl(d.url); if (after) { after(d); } }
+				if (d && d.ok) { applyUrl(d.url); if (d.url) { mirrorUrl(d.url); } if (after) { after(d); } }
 				else { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); }
 			}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); });
 		}
 
-		if (genBtn) {
-			genBtn.addEventListener('click', function () { shareMsg(''); shareReq('generate'); });
-		}
-		if (rotBtn) {
-			rotBtn.addEventListener('click', function () {
-				shareReq('rotate', function () { shareMsg((cfg.i18n && cfg.i18n.rotated) || ''); });
-			});
-		}
-		if (copyBtn) {
-			copyBtn.addEventListener('click', function () {
-				var val = inEl ? inEl.value : '';
-				if (!val) { return; }
-				var done = function () { shareMsg((cfg.i18n && cfg.i18n.copied) || 'Kopiert.'); };
-				if (navigator.clipboard && navigator.clipboard.writeText) {
-					navigator.clipboard.writeText(val).then(done).catch(function () {
-						if (inEl) { inEl.select(); document.execCommand && document.execCommand('copy'); done(); }
-					});
-				} else if (inEl) {
-					inEl.select(); document.execCommand && document.execCommand('copy'); done();
-				}
-			});
+		function copyUrl() {
+			var val = inEl ? inEl.value : '';
+			if (!val) { return; }
+			var done = function () { shareMsg('Link kopiert – z. B. in WhatsApp einfügen.'); };
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(val).then(done).catch(done);
+			} else {
+				var t = document.createElement('textarea'); t.value = val; document.body.appendChild(t);
+				t.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(t); done();
+			}
 		}
 
-		// Primär-Aktion: frischen Snapshot erzeugen (Freeze zum Klick-Zeitpunkt) → teilen bzw. kopieren.
+		if (copyBtn) { copyBtn.addEventListener('click', copyUrl); }
+
+		// Variante A: Primär-Aktion friert den AKTUELLEN Stand in DENSELBEN Token neu ein (action=generate:
+		// get-or-create Token + write_snapshot → Re-Freeze) und kopiert/teilt die kanonische URL.
 		var primaryBtn = sharePanel.querySelector('[data-m24gc-share-primary]');
 		if (primaryBtn) {
 			primaryBtn.addEventListener('click', function () {
@@ -301,15 +295,38 @@
 					mirrorUrl(url);
 					if (navigator.share) {
 						navigator.share({ title: 'Meine MOTORSPORT24-Garage', url: url }).catch(function () {});
-					} else if (navigator.clipboard && navigator.clipboard.writeText) {
-						navigator.clipboard.writeText(url).then(function () {
-							toast('Link kopiert – in WhatsApp einfügen.');
-						}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.copied) || 'Kopiert.'); });
-					} else if (inEl) {
-						inEl.select(); document.execCommand && document.execCommand('copy');
-						toast('Link kopiert – in WhatsApp einfügen.');
+						shareMsg('Aktueller Stand eingefroren – Link bereit zum Teilen.');
+					} else {
+						copyUrl();
 					}
 				}).then(function () { primaryBtn.disabled = false; });
+			});
+		}
+
+		// „zurückziehen": Token invalidieren (In-Page-Bestätigung, kein natives confirm).
+		if (revokeBtn) {
+			revokeBtn.addEventListener('click', function () {
+				if (revokeBtn.dataset.confirm !== '1') {
+					revokeBtn.dataset.confirm = '1';
+					revokeBtn.textContent = 'wirklich zurückziehen?';
+					setTimeout(function () { revokeBtn.dataset.confirm = ''; revokeBtn.textContent = 'zurückziehen'; }, 4000);
+					return;
+				}
+				revokeBtn.dataset.confirm = '';
+				revokeBtn.textContent = 'zurückziehen';
+				shareReq('revoke', function () { shareMsg('Link zurückgezogen – er ist nicht mehr gültig.'); });
+			});
+		}
+
+		// Eingeklappter E-Mail-Block: Text-Link toggelt das Formular.
+		var emailToggle = sharePanel.querySelector('[data-m24gc-email-toggle]');
+		var sendmailBox = sharePanel.querySelector('[data-m24gc-sendmail]');
+		if (emailToggle && sendmailBox) {
+			emailToggle.addEventListener('click', function () {
+				var open = sendmailBox.hidden;
+				sendmailBox.hidden = !open;
+				emailToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+				emailToggle.classList.toggle('is-open', open);
 			});
 		}
 		// Server-seitiger Versand „An Kunden senden" (+ optional Exposé-PDF-Anhang).
