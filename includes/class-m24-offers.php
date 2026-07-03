@@ -47,6 +47,62 @@ class M24_Offers {
 		add_filter( 'm24_inquiry_operator_links', array( __CLASS__, 'operator_mail_link' ), 10, 2 );
 		// Phase 2: Desk-Push beim Senden (no-op ohne M24_DESK_API_TOKEN-Konstante).
 		add_action( 'm24_offer_sent', array( __CLASS__, 'push_to_desk' ) );
+		// Admin-Angebotsliste (Übersicht + Reopen-Links).
+		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 20 );
+	}
+
+	/* ── Admin-Angebotsliste ────────────────────────────────────────────── */
+
+	public static function admin_menu() {
+		add_submenu_page( 'm24-plattform', 'Angebote', 'Angebote', 'manage_options', 'm24-offers', array( __CLASS__, 'render_admin_list' ) );
+	}
+
+	/** Operator-Modal mit dem Kontext eines bestehenden Angebots vorbefüllt wieder öffnen (Re-Quote). */
+	private static function reopen_url( $o ): string {
+		$cust = json_decode( (string) $o->customer_json, true ) ?: array();
+		$src  = json_decode( (string) $o->src_json, true ) ?: array();
+		$args = array_filter( array(
+			self::QV_NEW => 1,
+			'email' => (string) ( $cust['email'] ?? '' ), 'name' => (string) ( $cust['name'] ?? '' ),
+			'kundentyp' => (string) ( $cust['kundentyp'] ?? '' ), 'land' => (string) ( $cust['land'] ?? '' ),
+			'modell' => (string) ( $src['src_modell'] ?? '' ), 'pid' => (string) ( $src['src_pid'] ?? '' ),
+			'pillar' => (string) ( $src['src_pillar'] ?? '' ), 'lang' => (string) ( $src['src_lang'] ?? '' ),
+			'url' => (string) ( $src['src_url'] ?? '' ),
+		), static function ( $v ) { return '' !== $v && null !== $v; } );
+		return add_query_arg( $args, home_url( '/' ) ); // add_query_arg kodiert die Werte selbst
+	}
+
+	public static function render_admin_list() {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		global $wpdb;
+		$rows   = $wpdb->get_results( 'SELECT * FROM ' . self::table() . ' ORDER BY id DESC LIMIT 300' );
+		$badges = array(
+			'offen'      => array( 'Offen', '#1f74c4' ),
+			'bezahlt'    => array( 'Bezahlt', '#1a7f37' ),
+			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
+			'entwurf'    => array( 'Entwurf', '#8a929c' ),
+		);
+		echo '<div class="wrap"><h1>Angebote</h1>';
+		echo '<table class="widefat striped"><thead><tr>'
+			. '<th>Nr.</th><th>Kunde</th><th>Summe</th><th>Status</th><th>Gültig bis</th><th>Aktionen</th>'
+			. '</tr></thead><tbody>';
+		if ( empty( $rows ) ) {
+			echo '<tr><td colspan="6">Noch keine Angebote.</td></tr>';
+		}
+		foreach ( (array) $rows as $o ) {
+			$cust  = json_decode( (string) $o->customer_json, true ) ?: array();
+			$st    = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
+			$vu    = $o->valid_until ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( (string) $o->valid_until ) ) : gmdate( 'd.m.Y', strtotime( (string) $o->valid_until ) ) ) : '—';
+			echo '<tr>';
+			echo '<td><strong>' . esc_html( $o->offer_no ) . '</strong></td>';
+			echo '<td>' . esc_html( (string) ( $cust['name'] ?? '' ) ) . '<br><span style="color:#888;">' . esc_html( (string) ( $cust['email'] ?? '' ) ) . '</span></td>';
+			echo '<td style="white-space:nowrap;">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . ' €</td>';
+			echo '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-weight:600;background:' . esc_attr( $st[1] ) . ';">' . esc_html( $st[0] ) . '</span></td>';
+			echo '<td>' . esc_html( $vu ) . '</td>';
+			echo '<td><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a> &middot; <a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a></td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
