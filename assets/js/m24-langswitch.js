@@ -32,8 +32,27 @@
 		a.href = url;
 		a.setAttribute('hreflang', code);
 		a.setAttribute('aria-label', tip);
+		a.style.position = 'relative'; // Anker für das Tooltip (auch bei veraltetem Server-CSS)
 		if (active === code) { a.setAttribute('aria-current', 'true'); }
-		a.innerHTML = label + '<span class="m24langsw-tip" aria-hidden="true">' + tip + '</span>';
+		// Inline NUR das kompakte Label (DE/EN). Name + Flagge kommen in ein Tooltip-Element, das per
+		// INLINE-Styles bis :hover/:focus visuell verborgen ist → cache-immun (unabhängig von evtl.
+		// veraltetem Server-CSS erscheinen Name/Flagge nie inline).
+		a.appendChild(document.createTextNode(label));
+		var tipEl = document.createElement('span');
+		tipEl.className = 'm24langsw-tip';
+		tipEl.setAttribute('aria-hidden', 'true');
+		tipEl.textContent = tip;
+		tipEl.style.cssText = 'position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);'
+			+ 'white-space:nowrap;background:#14161a;color:#fff;font-weight:400;font-size:12px;padding:5px 9px;'
+			+ 'border-radius:6px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s;'
+			+ 'box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2';
+		a.appendChild(tipEl);
+		var show = function () { tipEl.style.opacity = '1'; tipEl.style.visibility = 'visible'; };
+		var hide = function () { tipEl.style.opacity = '0'; tipEl.style.visibility = 'hidden'; };
+		a.addEventListener('mouseenter', show);
+		a.addEventListener('mouseleave', hide);
+		a.addEventListener('focus', show);
+		a.addEventListener('blur', hide);
 		return a;
 	}
 
