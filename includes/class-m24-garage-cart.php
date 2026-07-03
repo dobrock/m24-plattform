@@ -1332,46 +1332,10 @@ class M24_Garage_Cart {
 			<!-- TAB: Benachrichtigungen — Präferenz-Center (Etappe 3) -->
 			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="notify" hidden>
 				<?php
-				// Nur veröffentlichte Fahrzeuge mit mind. einer aktiven Pref auflisten.
-				$sub_rows = array();
-				foreach ( (array) $subs as $spid => $p ) {
-					$spid = (int) $spid;
-					if ( 'm24_fahrzeug' !== get_post_type( $spid ) || 'publish' !== get_post_status( $spid ) ) { continue; }
-					if ( empty( $p['price'] ) && empty( $p['sold'] ) ) { continue; }
-					$sub_rows[ $spid ] = array( 'price' => ! empty( $p['price'] ), 'sold' => ! empty( $p['sold'] ) );
-				}
+				// Konto-/Einstellungsseite (Entwurf 1). Die per-Fahrzeug-Pills + Master darin nutzen dieselben
+				// data-Attribute → bestehende m24-garage.js-Verdrahtung (Delegation) greift unverändert.
+				echo class_exists( 'M24_Account' ) ? M24_Account::render_panel( $acc ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — intern esc_*
 				?>
-				<div class="m24gc-notify-master">
-					<label class="m24gc-switch">
-						<input type="checkbox" data-m24gc-master <?php checked( $master_on ); ?>>
-						<span class="m24gc-switch-track" aria-hidden="true"></span>
-						<span class="m24gc-switch-label">Alle Benachrichtigungen<?php echo $master_on ? '' : ' (aus)'; ?></span>
-					</label>
-					<p class="m24gc-hint" style="text-align:left;margin:6px 0 0;">Globaler Schalter — aus = du bekommst keine Garage-Mails, unabhängig von den Einstellungen unten.</p>
-				</div>
-				<?php if ( empty( $sub_rows ) ) : ?>
-					<div class="m24gc-emptybox">
-						<div class="m24gc-emptybox-t">Noch keine Benachrichtigungen aktiv</div>
-						<p class="m24gc-emptybox-s">Aktiviere „Preisänderung" oder „Verkauft / reserviert" bei einem geparkten Fahrzeug — es erscheint dann hier.</p>
-					</div>
-				<?php else : ?>
-					<div class="m24gc-vlist">
-						<?php foreach ( $sub_rows as $spid => $pref ) :
-							$thumb = get_the_post_thumbnail_url( $spid, 'medium' );
-							?>
-							<div class="m24gc-ncard" data-m24gc-notify data-post-id="<?php echo esc_attr( $spid ); ?>">
-								<a class="m24gc-thumb" href="<?php echo esc_url( (string) get_permalink( $spid ) ); ?>">
-									<?php if ( $thumb ) : ?><img src="<?php echo esc_url( $thumb ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24gc-thumb-ph" aria-hidden="true"></span><?php endif; ?>
-								</a>
-								<a class="m24gc-title" href="<?php echo esc_url( (string) get_permalink( $spid ) ); ?>"><?php echo esc_html( get_the_title( $spid ) ); ?></a>
-								<div class="m24gc-vpills">
-									<button type="button" class="m24gc-pill<?php echo $pref['price'] ? ' is-on' : ''; ?>" data-m24gc-pref="price" aria-pressed="<?php echo $pref['price'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Preisänderung</button>
-									<button type="button" class="m24gc-pill<?php echo $pref['sold'] ? ' is-on' : ''; ?>" data-m24gc-pref="sold" aria-pressed="<?php echo $pref['sold'] ? 'true' : 'false'; ?>"><span class="m24gc-pill-dot" aria-hidden="true"></span>Verkauft / reserviert</button>
-								</div>
-							</div>
-						<?php endforeach; ?>
-					</div>
-				<?php endif; ?>
 			</section>
 		</div>
 		<?php

@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.224
+ * Version:           0.11.225
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -139,6 +139,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-alerts.php'; // Mein
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-bar.php';    // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-login.php';        // Passwordless Magic-Link-Login „D" (flag-gated, Default aus)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-account.php';      // Konto-/Einstellungsseite (Entwurf 1) im Benachrichtigungen-Tab
 require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
@@ -322,6 +323,7 @@ add_action( 'plugins_loaded', function() {
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
     M24_Admin_Bar::init(); // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
     M24_Login::init(); // Passwordless Magic-Link-Login „D" (flag-gated)
+    M24_Account::init(); // Konto-/Einstellungsseite (Entwurf 1); Löschung/Export/Brevo-DOI via m24_account_danger_enabled
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
     add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link)

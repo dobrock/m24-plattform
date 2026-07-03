@@ -117,6 +117,16 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Konto-Seite „Gefahren-Zone" (Löschung Art.17 / Export Art.20 / Brevo-DOI-Writes) — Default AUS.
+        register_setting(
+            'm24_plattform_group',
+            'm24_account_danger_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
         // Admin-Allowlist (Komma-Mails) — nur diese dürfen Admin-Sessions per Magic-Link bekommen.
         register_setting(
             'm24_plattform_group',
@@ -645,6 +655,18 @@ class M24_Settings {
                             <input type="text" class="regular-text" name="m24_login_admin_allowlist" value="<?php echo esc_attr( (string) get_option( 'm24_login_admin_allowlist', '' ) ); ?>" placeholder="admin@…, zweiter@…" />
                             <p class="description">
                                 <?php echo esc_html__( 'Komma-getrennte E-Mails, die Admin-Sessions per Magic-Link bekommen dürfen. Die Site-Admin-Adresse ist immer erlaubt. Hinweis: passwordless Admin = das E-Mail-Konto ist der einzige Faktor — Postfach mit 2FA absichern.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Konto-Seite: Gefahren-Zone', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_account_danger_enabled" value="1" <?php checked( (bool) get_option( 'm24_account_danger_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Konto-Löschung (Art. 17), DSGVO-Export (Art. 20) und Brevo-DOI-Schreibzugriffe der Fahrzeug-Alerts scharf schalten', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Erst nach Staging-Test aktivieren. Aus = die Konto-Seite ist voll nutzbar (Profil/Anschriften/Alerts-Auswahl/Benachrichtigungen/gemerkte Fahrzeuge/geteilte Links/Opt-out), aber Löschung/Export/Brevo-Versand sind gesperrt.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>

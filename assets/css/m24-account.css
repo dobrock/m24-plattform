@@ -1,0 +1,82 @@
+/* M24 Konto-/Einstellungsseite (Entwurf 1, Zwei-Spalten, full-width). CI: Saira, Messing #9a6b25,
+   Blau-Verlauf 135° #1f74c4→#0e447e, weiße Karten auf #fafafa. */
+.m24acc{font-family:'Saira',Arial,Helvetica,sans-serif;color:#14161a}
+.m24acc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.m24acc-col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.m24acc-card{background:#fff;border:1px solid #eef0f2;border-radius:10px;box-shadow:0 1px 3px rgba(20,22,26,.05);padding:18px 20px}
+.m24acc-h{font-size:17px;font-weight:800;margin:0 0 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.m24acc-h4{font-size:13.5px;font-weight:700;margin:14px 0 8px;color:#3a424e}
+.m24acc-sub{font-size:12px;font-weight:600;color:#9a6b25}
+.m24acc-opt{font-weight:400;color:#9aa3b0;font-size:12px}
+.m24acc-badge{font-size:11.5px;font-weight:700;color:#9a6b25;background:#f6efe4;border-radius:999px;padding:3px 10px}
+
+/* Felder */
+.m24acc-field{display:block;margin:0 0 12px}
+.m24acc-field>span{display:block;font-size:12px;font-weight:600;color:#5a6474;margin:0 0 5px}
+.m24acc-field input{width:100%;box-sizing:border-box;height:44px;padding:0 12px;border:1px solid #d3d8de;border-radius:8px;font-size:16px;font-family:inherit;color:#14161a;background:#fff}
+.m24acc-field input:focus{outline:none;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.14)}
+.m24acc-field input[readonly]{background:#f4f6f8;color:#6b7480}
+.m24acc-row2{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.m24acc-note{font-size:12px;color:#8a929c;line-height:1.5;margin:8px 0 0}
+
+/* Segmented (Kundentyp / Sprache) */
+.m24acc-seg{display:inline-flex;border:1px solid #d3d8de;border-radius:8px;overflow:hidden;margin:2px 0 12px}
+.m24acc-segbtn{border:0;background:#fff;color:#3a424e;font:600 13.5px/1 'Saira',Arial,sans-serif;padding:9px 14px;cursor:pointer}
+.m24acc-segbtn+.m24acc-segbtn{border-left:1px solid #d3d8de}
+.m24acc-segbtn.is-on{background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}
+
+/* Chips (Alerts / Modelle) */
+.m24acc-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.m24acc-chip{border:1px solid #d3d8de;background:#fff;color:#3a424e;border-radius:999px;padding:7px 14px;font:600 13px/1 'Saira',Arial,sans-serif;cursor:pointer}
+.m24acc-chip:hover{border-color:#1f74c4;color:#1f74c4}
+.m24acc-chip.is-on{background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border-color:transparent}
+.m24acc-chip-model.is-on{background:#9a6b25;border-color:transparent}
+
+/* Buttons */
+.m24acc-btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;font:700 14px/1 'Saira',Arial,sans-serif;padding:11px 18px;cursor:pointer}
+.m24acc-btn:disabled{opacity:.6;cursor:progress}
+.m24acc-btn-blue{color:#fff;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);margin-top:4px}
+.m24acc-btn-ghost{background:#fff;color:#5a6474;border:1px solid #d3d8de}
+.m24acc-btn-ghost:hover{border-color:#1f74c4;color:#1f74c4}
+.m24acc-btn-danger{background:#fff;color:#9e2b2b;border:1px solid #e2b8b8}
+.m24acc-btn-danger:hover{background:#9e2b2b;color:#fff}
+.m24acc-status{display:block;font-size:12.5px;min-height:1em;margin-top:8px}
+.m24acc-status.is-ok{color:#1a7f37}
+.m24acc-status.is-error{color:#c8102e}
+
+/* Collapse (Anschriften) */
+.m24acc-collapse{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;color:#14161a;font:800 17px/1 'Saira',Arial,sans-serif;cursor:pointer;padding:0}
+.m24acc-caret{transition:transform .15s}
+.m24acc-collapse[aria-expanded="true"] .m24acc-caret{transform:rotate(180deg)}
+.m24acc-addrbody{margin-top:14px}
+.m24acc-addrgrp{padding-top:6px}
+.m24acc-addrgrp+.m24acc-addrgrp{border-top:1px solid #eef0f2;margin-top:10px}
+
+/* Konto-Aktionen / Danger */
+.m24acc-accactions{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.m24acc-danger{margin-top:12px;padding:12px 14px;background:#fdf4f4;border:1px solid #f0d6d6;border-radius:8px}
+.m24acc-danger p{margin:0 0 10px;font-size:13px;color:#7a3b3b;line-height:1.5}
+.m24acc-danger .m24acc-btn{margin-right:8px}
+
+/* Gemerkte Fahrzeuge */
+.m24acc-vrow{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:12px;padding:10px 0}
+.m24acc-vrow+.m24acc-vrow{border-top:1px solid #eef0f2}
+.m24acc-vinfo{min-width:0;display:flex;flex-direction:column;gap:2px}
+.m24acc-vmeta{font-size:12px;color:#8a929c}
+.m24acc-vactions{display:flex;align-items:center;gap:12px}
+.m24acc-vview{font-size:13px;color:#1f74c4;text-decoration:none;white-space:nowrap}
+.m24acc-vview:hover{text-decoration:underline}
+.m24acc-heart{border:0;background:none;color:#c8102e;font-size:20px;line-height:1;cursor:pointer}
+
+/* Geteilte Links */
+.m24acc-share{border:1px solid #eef0f2;border-radius:8px;padding:12px 14px}
+.m24acc-share-meta{font-size:13px;color:#3a424e}
+.m24acc-share-actions{display:flex;align-items:center;gap:12px;margin-top:8px}
+
+/* Footer §7 */
+.m24acc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid #e6e9ee}
+.m24acc-foot-txt{font-size:12.5px;color:#8a929c;flex:1 1 auto;min-width:200px}
+
+@media(max-width:860px){
+	.m24acc-grid{grid-template-columns:1fr}
+}
