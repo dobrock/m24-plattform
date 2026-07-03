@@ -216,7 +216,7 @@ class M24_Offers_Render {
 						<div class="m24off-pos-main">
 							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
 							<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?>
-							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a"><?php echo esc_html( self::st25a_line() ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
 						</div>
@@ -389,7 +389,9 @@ class M24_Offers_Render {
 		if ( ! $is_b2c ) {
 			$h .= '<p><strong>Gewährleistung.</strong> Verkauf im Rahmen eines Handelsgeschäfts unter Ausschluss der Sachmängelhaftung. Ausgenommen sind Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
 		} elseif ( $has_used ) {
-			$h .= '<p><strong>Gewährleistung (gebrauchte Ware).</strong> Es handelt sich um gebrauchte Ware. Die Verjährungsfrist für Mängelansprüche wird auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
+			// Mixed-safe: Klausel nur für die als gebraucht gekennzeichneten Artikel (nicht „Es handelt sich um
+			// gebrauchte Ware"). Bei reinen Neuware-Angeboten wird dieser Zweig gar nicht erreicht (has_used=false).
+			$h .= '<p><strong>Gewährleistung.</strong> Für als gebraucht gekennzeichnete Artikel wird die Verjährungsfrist für Mängelansprüche auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
 		}
 		$h .= '<p>' . esc_html( self::st25a_line() ) . ' (bei entsprechend gekennzeichneten Positionen).</p>';
 		$h .= '<p><strong>Anbieter:</strong> ' . esc_html( self::company_line() ) . '</p>';
@@ -397,7 +399,7 @@ class M24_Offers_Render {
 		foreach ( array( 'Impressum', 'AGB', 'Datenschutz' ) as $k ) {
 			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( $k ) . '</a>'; }
 		}
-		$h .= '<p>' . implode( ' · ', $links ) . '</p>';
+		$h .= '<p style="text-align:center;">' . implode( ' · ', $links ) . '</p>';
 		return $h;
 	}
 	/** Gate-Checkbox-Text (trägt die gesonderte Vereinbarung bei B2C + Gebrauchtware). */
@@ -432,7 +434,7 @@ class M24_Offers_Render {
 				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
 				. ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
-				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">' . esc_html( $it['race_note'] ) . '</span>' : '' )
+				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#93762f;font-size:11.5px;">🇩🇪 ' . esc_html( $it['race_note'] ) . '</span>' : '' )
 				. ( ! empty( $it['st25a'] ) ? '<br><span style="color:#8a929c;font-size:11px;">' . esc_html( self::st25a_line() ) . '</span>' : '' )
 				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
 				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
@@ -470,7 +472,7 @@ class M24_Offers_Render {
 		// Pflicht-Links.
 		$links = array();
 		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( $lbl ) . '</a>'; }
-		$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;">' . implode( ' &middot; ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput — Links escaped
+		$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;text-align:center;">' . implode( ' &middot; ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput — Links escaped
 		if ( (int) $o->account_id <= 0 ) {
 			$inner .= '<p style="margin:14px 0 0;font-size:13px;">Wir haben Ihnen zusätzlich einen Link zur <strong>Konto-Anlage</strong> geschickt — nach Bestätigung liegt dieses Angebot jederzeit in Ihrer MOTORSPORT24-Garage bereit.</p>';
 		}

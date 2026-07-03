@@ -121,7 +121,8 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-pos-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .m24off-pos-title{font-weight:700;font-size:14.5px;color:#14161a}
 .m24off-pos.is-link .m24off-pos-title{color:#1f74c4}
-.m24off-pos-race{font-size:11.5px;color:#9a6b25;font-weight:600}
+.m24off-pos-race{font-size:11.5px;color:#93762f;font-weight:500;display:inline-flex;align-items:center;gap:5px}
+.m24off-flag{display:inline-block;width:14px;height:10px;border-radius:2px;flex:0 0 auto;background:linear-gradient(#000 0 33.34%,#dd0000 33.34% 66.67%,#ffce00 66.67% 100%)}
 .m24off-pos-qty{color:#5a6474;font-size:13px;white-space:nowrap}
 .m24off-pos-line{font-weight:700;white-space:nowrap}
 .m24off-cextra .m24off-pos-title{font-weight:400;color:#5a6474}
