@@ -203,6 +203,30 @@ class M24_Inquiries_Mail_Fallback {
             $rn = $clean_name( $data['vorname'] . ' ' . $data['nachname'] );
             $headers[] = 'Reply-To: ' . ( '' !== $rn ? $rn . ' <' . $data['email'] . '>' : $data['email'] );
         }
+        // Angebots-Workflow: Operator-CTA („Angebot erstellen") in die interne Mail — nur wenn Angebote aktiv.
+        if ( class_exists( 'M24_Offers' ) && M24_Offers::enabled() ) {
+            $first   = ( ! empty( $data['items'] ) && is_array( $data['items'] ) ) ? (array) reset( $data['items'] ) : array();
+            $op_data = array(
+                'email'      => (string) $data['email'],
+                'name'       => trim( (string) $data['vorname'] . ' ' . (string) $data['nachname'] ),
+                'kundentyp'  => in_array( (string) ( $data['kundentyp'] ?? '' ), array( 'Geschäftskunde', 'b2b' ), true ) ? 'b2b' : 'b2c',
+                'land'       => (string) ( $data['land'] ?? '' ),
+                'src_modell' => (string) ( $first['src_modell'] ?? '' ),
+                'src_pid'    => (string) ( $first['src_pid'] ?? '' ),
+                'src_pillar' => (string) ( $first['src_pillar'] ?? '' ),
+                'src_url'    => (string) ( $first['src_url'] ?? '' ),
+                'src_lang'   => (string) ( $data['lang'] ?? '' ),
+            );
+            $links = apply_filters( 'm24_inquiry_operator_links', array(), $op_data );
+            if ( ! empty( $links ) ) {
+                $cta = '<div style="text-align:center;margin:18px 0;">';
+                foreach ( $links as $l ) {
+                    $cta .= '<a href="' . esc_url( $l['url'] ) . '" style="display:inline-block;background:#9a6b25;color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:8px;margin:4px;">' . esc_html( $l['label'] ) . '</a>';
+                }
+                $cta .= '</div>';
+                $body = ( false !== strpos( $body, '</body>' ) ) ? str_replace( '</body>', $cta . '</body>', $body ) : $body . $cta;
+            }
+        }
         return (bool) wp_mail( $to, $subject, $body, $headers );
     }
 

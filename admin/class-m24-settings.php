@@ -127,6 +127,23 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Angebots-Workflow v1 — Default AUS (bis Staging-Test). Steuer bleibt manuell.
+        register_setting(
+            'm24_plattform_group',
+            'm24_offers_enabled',
+            [
+                'type'              => 'boolean',
+                'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+                'default'           => 0,
+            ]
+        );
+        foreach ( array( 'm24_offer_preset_verpackung' => 25, 'm24_offer_preset_versand' => 49, 'm24_offer_preset_zoll' => 75 ) as $opt => $def ) {
+            register_setting( 'm24_plattform_group', $opt, [
+                'type'              => 'number',
+                'sanitize_callback' => static function ( $v ) { return max( 0, round( (float) $v, 2 ) ); },
+                'default'           => $def,
+            ] );
+        }
         // Admin-Allowlist (Komma-Mails) — nur diese dürfen Admin-Sessions per Magic-Link bekommen.
         register_setting(
             'm24_plattform_group',
@@ -667,6 +684,24 @@ class M24_Settings {
                             </label>
                             <p class="description">
                                 <?php echo esc_html__( 'Default aus. Erst nach Staging-Test aktivieren. Aus = die Konto-Seite ist voll nutzbar (Profil/Anschriften/Alerts-Auswahl/Benachrichtigungen/gemerkte Fahrzeuge/geteilte Links/Opt-out), aber Löschung/Export/Brevo-Versand sind gesperrt.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Angebots-Workflow v1', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_offers_enabled" value="1" <?php checked( (bool) get_option( 'm24_offers_enabled', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Angebote aktivieren (Operator-Modal, Teile-Picker, Kunden-Ansicht, Angebots-Mail, 5-Tage-Ablauf)', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Erst nach Staging-Test aktivieren. Steuer wird NIE auto-erkannt — der Operator wählt Modus/Satz manuell. Desk-Push (POST /api/orders, M24_DESK_TOKEN) folgt in Phase 2.', 'm24-plattform' ); ?>
+                            </p>
+                            <p class="description" style="margin-top:8px;">
+                                <?php echo esc_html__( 'Zusatz-Presets (€):', 'm24-plattform' ); ?>
+                                <?php echo esc_html__( 'Verpackung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_verpackung" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_verpackung', 25 ) ); ?>" />
+                                <?php echo esc_html__( 'Versand', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_versand" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_versand', 49 ) ); ?>" />
+                                <?php echo esc_html__( 'Zollabwicklung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_zoll" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_zoll', 75 ) ); ?>" />
                             </p>
                         </td>
                     </tr>

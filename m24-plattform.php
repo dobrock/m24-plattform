@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.229
+ * Version:           0.11.230
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '010' );
+define( 'M24_PLATTFORM_DB_VERSION',  '011' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -140,6 +140,8 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-bar.php';    // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-login.php';        // Passwordless Magic-Link-Login „D" (flag-gated, Default aus)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-account.php';      // Konto-/Einstellungsseite (Entwurf 1) im Benachrichtigungen-Tab
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm
@@ -324,6 +326,7 @@ add_action( 'plugins_loaded', function() {
     M24_Admin_Bar::init(); // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
     M24_Login::init(); // Passwordless Magic-Link-Login „D" (flag-gated)
     M24_Account::init(); // Konto-/Einstellungsseite (Entwurf 1); Löschung/Export/Brevo-DOI via m24_account_danger_enabled
+    M24_Offers::init(); // Angebots-Workflow v1 (flag-gated m24_offers_enabled, Default aus)
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
     add_action( 'init', [ 'M24_B2B_Auth', 'init' ] ); // B2B: Registrierung/Login/Confirm (Shortcodes, admin-post, Magic-Link)
