@@ -18,20 +18,22 @@ class M24_Admin_Bar {
 		// Priorität 90: nach dem Core-„edit"-Knoten (wp_admin_bar_edit_menu, prio 80) → wir können ihn ersetzen.
 		add_action( 'admin_bar_menu', array( __CLASS__, 'nodes' ), 90 );
 		add_action( 'wp_head', array( __CLASS__, 'style' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'footer_js' ) );
 	}
 
 	public static function nodes( $bar ) {
 		if ( is_admin() || ! is_user_logged_in() ) { return; }
 
-		// ── „🌐 Übersetzung bearbeiten" — auf JEDER GTranslate-Sprachseite (auch Archive/Startseite), nur
-		// Redakteure/Admins (edit_posts → NICHT eingeloggte B2B-Kunden). Öffnet den In-Context-Editor.
-		if ( self::is_translated() && current_user_can( 'edit_posts' ) ) {
+		// ── „🌐 Übersetzung bearbeiten": GTranslate liefert /en/ über einen Cloud-Proxy → das Origin-WP sieht
+		// bei /en/-Aufrufen IMMER den DE-Pfad (REQUEST_URI ohne /en/). Serverseitige Pfad-Erkennung matcht daher
+		// NIE. Deshalb den Knoten für Redakteure/Admins (edit_posts → NICHT B2B-Kunden) IMMER registrieren,
+		// initial versteckt (m24-tr-hidden) + href="#"; Sichtbarkeit + Ziel-URL setzt footer_js() clientseitig.
+		if ( current_user_can( 'edit_posts' ) ) {
 			$bar->add_node( array(
 				'id'    => 'm24-translate-edit',
-				// notranslate → GTranslate übersetzt das Label nicht selbst.
-				'title' => '<span class="notranslate">🌐 Übersetzung bearbeiten</span>',
-				'href'  => self::language_edit_url(),
-				'meta'  => array( 'class' => 'm24-adminbar-edit', 'target' => '_blank', 'rel' => 'noopener' ),
+				'title' => '<span class="notranslate">🌐 Übersetzung bearbeiten</span>', // notranslate: GTranslate übersetzt das Label nicht
+				'href'  => '#',
+				'meta'  => array( 'class' => 'm24-adminbar-edit m24-tr-hidden', 'target' => '_blank', 'rel' => 'noopener' ),
 			) );
 		}
 
@@ -63,26 +65,30 @@ class M24_Admin_Bar {
 		) );
 	}
 
-	/** Aktuelle Anfrage ist eine GTranslate-Sprachseite (Pfad-Präfix, erweiterbar via m24_translate_langs). */
-	private static function is_translated(): bool {
-		$path  = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH );
-		$langs = (array) apply_filters( 'm24_translate_langs', array( 'en' ) );
-		if ( empty( $langs ) ) { return false; }
-		return (bool) preg_match( '#^/(' . implode( '|', array_map( 'preg_quote', $langs ) ) . ')(/|$)#', $path );
+	/**
+	 * Clientseitige Sichtbarkeit/Ziel-URL des Übersetzungs-Knotens: im Browser ist location.pathname = /en/…
+	 * (der Proxy-Pfad). Nur Front-End + Redakteure/Admins. Auf /en/ → einblenden + href auf ?language_edit=1;
+	 * sonst (DE) → Knoten aus dem DOM entfernen. Kein Logging von URLs/Query-Strings.
+	 */
+	public static function footer_js() {
+		if ( is_admin() || ! is_user_logged_in() || ! is_admin_bar_showing() || ! current_user_can( 'edit_posts' ) ) { return; }
+		?>
+<script id="m24-tr-adminbar-js">
+(function(){
+	var li=document.getElementById('wp-admin-bar-m24-translate-edit'); if(!li) return;
+	if(/^\/en(\/|$)/.test(location.pathname)){
+		var u=new URL(location.href); u.searchParams.delete('language_edit'); u.searchParams.set('language_edit','1');
+		var a=li.querySelector('a.ab-item'); if(a) a.href=u.toString();
+		li.classList.remove('m24-tr-hidden'); li.style.display='';
+	} else { li.parentNode && li.parentNode.removeChild(li); }
+})();
+</script>
+		<?php
 	}
 
-	/** Aktuelle URL (Host + Pfad + Query) mit language_edit=1 — evtl. vorhandener Param wird ersetzt. */
-	private static function language_edit_url(): string {
-		$host = isset( $_SERVER['HTTP_HOST'] ) ? (string) wp_unslash( $_SERVER['HTTP_HOST'] ) : '';
-		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
-		$url  = ( is_ssl() ? 'https://' : 'http://' ) . $host . $uri;
-		$url  = remove_query_arg( 'language_edit', $url );
-		return esc_url_raw( add_query_arg( 'language_edit', '1', $url ) );
-	}
-
-	/** Dezentes Highlight, damit der M24-Knoten klar erkennbar ist. */
+	/** Dezentes Highlight + initial verstecktes Übersetzungs-Node (bis JS auf /en/ einblendet). */
 	public static function style() {
 		if ( is_admin() || ! is_user_logged_in() || ! is_admin_bar_showing() ) { return; }
-		echo '<style id="m24-adminbar-css">#wpadminbar li#wp-admin-bar-m24-edit>.ab-item,#wpadminbar li#wp-admin-bar-m24-translate-edit>.ab-item{background:#9a6b25!important;color:#fff!important;font-weight:600}</style>' . "\n";
+		echo '<style id="m24-adminbar-css">#wpadminbar li#wp-admin-bar-m24-edit>.ab-item,#wpadminbar li#wp-admin-bar-m24-translate-edit>.ab-item{background:#9a6b25!important;color:#fff!important;font-weight:600}#wpadminbar li#wp-admin-bar-m24-translate-edit.m24-tr-hidden{display:none}</style>' . "\n";
 	}
 }
