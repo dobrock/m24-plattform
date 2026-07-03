@@ -52,13 +52,21 @@ class M24_Login {
 	 * Guest-Registrierung aus dem Anfrage-Modal: WP-User (customer/subscriber) OHNE Passwort anlegen (falls
 	 * neu) + ersten Magic-Link schicken. Unabhängig vom UI-Flag. @return bool true = Link verschickt.
 	 */
-	public static function create_account_and_send_link( string $email, string $name = '' ): bool {
+	public static function create_account_and_send_link( string $email, string $name = '', bool $newsletter_optin = false ): bool {
 		$email = strtolower( sanitize_email( $email ) );
 		if ( ! is_email( $email ) ) { return false; }
 
+		// Rate-Limit (E-Mail UND IP) — verhindert Massen-Kontoanlage/Mail-Spam über die Register-Checkbox.
+		if ( ! self::rate_ok( 'e', md5( $email ) ) || ! self::rate_ok( 'i', self::ip_key() ) ) {
+			self::log( 'register:rate_limited' );
+			return false;
+		}
+
 		$user = get_user_by( 'email', $email );
 		if ( $user ) {
+			// Edge-Case „E-Mail existiert bereits": KEIN Duplikat-Konto → nur Magic-Link ans bestehende Konto.
 			$user_id = (int) $user->ID;
+			self::log( 'register:existing', $user_id );
 		} else {
 			$first = trim( $name );
 			$last  = '';
@@ -76,6 +84,16 @@ class M24_Login {
 			if ( is_wp_error( $uid ) ) { self::log( 'register:insert_failed' ); return false; }
 			$user_id = (int) $uid;
 			self::log( 'register:created', $user_id );
+		}
+
+		// Opt-in → Konto-Präferenzen: Newsletter-/Alert-Einwilligung auf dem Konto vermerken (DOI-Status
+		// pending; der Brevo-DOI läuft separat über register_interessent). Master-Alerts bleiben Default AN.
+		// KEIN Scharfschalten von Alert-Versand (global via m24_garage_alerts_enabled gegated).
+		if ( $newsletter_optin ) {
+			update_user_meta( $user_id, '_m24_newsletter_optin', current_time( 'mysql', true ) );
+			if ( class_exists( 'M24_Garage_Alerts' ) && '' === (string) get_user_meta( $user_id, M24_Garage_Alerts::MASTER_META, true ) ) {
+				update_user_meta( $user_id, M24_Garage_Alerts::MASTER_META, '1' ); // explizit AN (Default war ohnehin AN)
+			}
 		}
 
 		$raw = M24_B2B::issue_token( $email, self::PURPOSE, $user_id, self::TTL );
@@ -167,29 +185,38 @@ class M24_Login {
 		if ( ! is_email( $email ) ) {
 			return new WP_Error( 'm24_login_bad_email', 'Bitte eine gültige E-Mail-Adresse angeben.', array( 'status' => 400 ) );
 		}
+		self::maybe_send_login_link( $email );
+		return $neutral;
+	}
 
-		// Rate-Limit pro E-Mail UND pro IP (bei Überschreitung ebenfalls neutrale Antwort).
+	/**
+	 * Einheitlicher, immer-aktiver Login-Link-Versand (gemeinsame Strecke für das passwordless-Modal UND
+	 * den G2a-Header-Login für Nicht-Händler). Rate-limitiert pro E-Mail UND IP; sendet NUR, wenn ein Konto
+	 * existiert (Enumeration-Schutz: kein Konto → still no-op). Admin nur auf der Allowlist. Link zeigt auf
+	 * /m24-login/{token} → M24_Login::handle_verify (Rewrite immer registriert). @return bool true = gesendet.
+	 */
+	public static function maybe_send_login_link( string $email ): bool {
+		$email = strtolower( sanitize_email( $email ) );
+		if ( ! is_email( $email ) ) { return false; }
+
 		if ( ! self::rate_ok( 'e', md5( $email ) ) || ! self::rate_ok( 'i', self::ip_key() ) ) {
 			self::log( 'request:rate_limited' );
-			return $neutral;
+			return false;
 		}
 
 		$user = get_user_by( 'email', $email );
-		if ( $user ) {
-			$is_admin = user_can( $user, 'manage_options' );
-			$ttl      = $is_admin ? self::TTL_ADMIN : self::TTL;
-			// Admin nur, wenn auf der Allowlist — sonst gar keinen Token ausstellen (neutral bleibt).
-			if ( ! $is_admin || self::admin_allowed( $email ) ) {
-				$raw = M24_B2B::issue_token( $email, self::PURPOSE, (int) $user->ID, $ttl ); // invalidiert alte offene Tokens
-				self::send_login_mail( $email, $raw );
-				self::log( 'request:sent', (int) $user->ID );
-			} else {
-				self::log( 'request:admin_not_allowed', (int) $user->ID );
-			}
-		} else {
-			self::log( 'request:no_user' );
+		if ( ! $user ) { self::log( 'request:no_user' ); return false; }
+
+		$is_admin = user_can( $user, 'manage_options' );
+		if ( $is_admin && ! self::admin_allowed( $email ) ) {
+			self::log( 'request:admin_not_allowed', (int) $user->ID );
+			return false;
 		}
-		return $neutral;
+		$ttl = $is_admin ? self::TTL_ADMIN : self::TTL;
+		$raw = M24_B2B::issue_token( $email, self::PURPOSE, (int) $user->ID, $ttl ); // invalidiert alte offene Tokens
+		self::send_login_mail( $email, $raw );
+		self::log( 'request:sent', (int) $user->ID );
+		return true;
 	}
 
 	/** Rate-Limit: max 3 / 15 min UND max 10 / Tag je Key. true = erlaubt (Zähler erhöht). */

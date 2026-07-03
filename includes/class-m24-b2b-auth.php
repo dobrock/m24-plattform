@@ -700,6 +700,11 @@ class M24_B2B_Auth {
             if ( $user && self::user_is_haendler( $user ) ) {
                 $raw = M24_B2B::issue_token( $email, 'login', (int) $user->ID );
                 self::send_magic_mail( $email, $raw, 'login', null, (int) $user->ID ); // Empfänger-Sprache
+            } elseif ( $user && class_exists( 'M24_Login' ) ) {
+                // Nicht-Händler (z. B. per Anfrage-Modal registrierter Kunde): einheitliche, immer-aktive
+                // M24_Login-Strecke → Link /m24-login/{token} → M24_Login::handle_verify → /meine-garage/.
+                // Gleicher Verify-Endpunkt wie der Registrierungs-Magic-Link; funktioniert ohne D-UI-Flag.
+                M24_Login::maybe_send_login_link( $email );
             }
         }
         // Anti-Enumeration: immer dieselbe Antwort.
