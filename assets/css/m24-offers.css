@@ -101,3 +101,44 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-widerruf{margin-top:8px}
 .m24off-cfoot{text-align:center;font-size:12px;color:#9aa3b0;padding:16px 0}
 .m24off-cfoot a{color:#1f74c4;text-decoration:none}
+
+/* ── Kunden-Ansicht Design A (Hero-Siegel, Timeline-Streifen, Positions-Karten, Accordions, Gate) ── */
+.m24off-hero{position:relative;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);border-radius:14px;padding:18px 18px 20px;margin:6px 0 14px;overflow:hidden}
+.m24off-hero-logo{height:26px;width:auto;display:block;margin:0 0 12px auto;filter:brightness(0) invert(1)}
+.m24off-seal{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.m24off-seal-no{color:#fff;font-weight:800;font-size:20px}
+.m24off-seal-days{display:inline-block;background:#9a6b25;color:#fff;font-weight:700;font-size:13px;border-radius:999px;padding:5px 14px}
+.m24off-stamp{position:absolute;top:16px;right:16px;border:2px solid rgba(255,255,255,.7);color:#fff;font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:8px;transform:rotate(6deg)}
+.m24off-stamp.is-bezahlt{border-color:#7bd39a;color:#d6f5e2}
+.m24off-stamp.is-abgelaufen{border-color:#f3a3a3;color:#ffe0e0}
+.m24off-tl{display:flex;gap:6px;margin:0 0 16px}
+.m24off-tl-seg{flex:1;text-align:center;font-size:11px;font-weight:600;color:#9aa3b0;background:#eef0f2;border-radius:7px;padding:9px 4px}
+.m24off-tl-seg.is-done{background:#e6f4ec;color:#1a7f37}
+.m24off-tl-seg.is-active{background:#9a6b25;color:#fff}
+.m24off-tl-seg.is-exp{background:#fdeaea;color:#c8102e}
+.m24off-pos{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #eef0f2;border-radius:10px;margin:0 0 8px;text-decoration:none;color:inherit;background:#fff}
+.m24off-pos.is-link:hover{border-color:#1f74c4;box-shadow:0 2px 8px rgba(31,116,196,.10)}
+.m24off-pos-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.m24off-pos-title{font-weight:700;font-size:14.5px;color:#14161a}
+.m24off-pos.is-link .m24off-pos-title{color:#1f74c4}
+.m24off-pos-race{font-size:11.5px;color:#9a6b25;font-weight:600}
+.m24off-pos-qty{color:#5a6474;font-size:13px;white-space:nowrap}
+.m24off-pos-line{font-weight:700;white-space:nowrap}
+.m24off-cextra .m24off-pos-title{font-weight:400;color:#5a6474}
+.m24off-binding{font-size:13px;color:#3a424e;background:#f6efe4;border-left:3px solid #9a6b25;border-radius:0 8px 8px 0;padding:12px 14px;margin:0 0 14px;line-height:1.5}
+.m24off-acc{background:#fff;border:1px solid #eef0f2;border-radius:10px;margin:0 0 10px;overflow:hidden}
+.m24off-acc>summary{cursor:pointer;padding:14px 16px;font-weight:700;font-size:14px;list-style:none}
+.m24off-acc>summary::-webkit-details-marker{display:none}
+.m24off-acc>summary::after{content:'▾';float:right;color:#9aa3b0}
+.m24off-acc[open]>summary::after{content:'▴'}
+.m24off-acc-body{padding:0 16px 14px;font-size:12.5px;color:#5a6474;line-height:1.6}
+.m24off-acc-body p{margin:0 0 8px}
+.m24off-acc-body a{color:#1f74c4}
+.m24off-gate .m24off-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#3a424e;cursor:pointer;margin:0 0 14px}
+.m24off-gate .m24off-check input{flex:0 0 auto;width:22px;height:22px;margin:1px 0 0;accent-color:#9a6b25}
+.m24off-btn-blue[disabled]{opacity:.5;cursor:not-allowed}
+.m24off-paybox{margin-top:14px;background:#f7f9fb;border:1px solid #e3e9f0;border-radius:10px;padding:14px}
+.m24off-paybox h3{font-size:14px;margin:0 0 10px}
+.m24off-copy{cursor:pointer;user-select:all}
+.m24off-copyhint{font-style:normal;font-size:11px;color:#1f74c4;margin-left:6px}
+.m24off-copy.is-copied .m24off-copyhint{color:#1a7f37}

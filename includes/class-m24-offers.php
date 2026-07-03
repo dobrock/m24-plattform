@@ -240,12 +240,19 @@ class M24_Offers {
 			return new WP_Error( 'm24off_bad', 'Mindestens eine Position und eine gültige Kunden-E-Mail nötig.', array( 'status' => 400 ) );
 		}
 		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
+		$modes    = self::tax_modes();
+		if ( ! isset( $modes[ $tax_mode ] ) ) {
+			return new WP_Error( 'm24off_tax', 'Bitte einen gültigen Steuerfall wählen.', array( 'status' => 400 ) );
+		}
+		// OSS (B2C-EU): Satz ist Pflicht, 0–27 %. Andere Modi haben einen festen Satz (rate_for) → Eingabe ignoriert.
 		$tax_rate = (float) ( $p['tax_rate'] ?? 0 );
+		if ( 'b2c_eu_oss' === $tax_mode && ( $tax_rate < 0 || $tax_rate > 27 ) ) {
+			return new WP_Error( 'm24off_oss', 'Bitte einen gültigen OSS-USt-Satz (0–27 %) angeben.', array( 'status' => 400 ) );
+		}
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$totals   = self::compute_totals( $items, $extras, $tax_mode, $tax_rate );
-		$modes    = self::tax_modes();
-		$tax_note = isset( $modes[ $tax_mode ] ) ? $modes[ $tax_mode ]['note'] : '';
+		$tax_note = $modes[ $tax_mode ]['note'];
 
 		$account_id = self::account_for_email( $customer['email'] );
 		$token      = bin2hex( random_bytes( 16 ) );
@@ -310,15 +317,48 @@ class M24_Offers {
 		foreach ( $items as $it ) {
 			$title = sanitize_text_field( (string) ( $it['title'] ?? '' ) );
 			if ( '' === $title ) { continue; }
+			$teil_id = (int) ( $it['teil_id'] ?? 0 );
+			$meta    = self::teil_offer_meta( $teil_id ); // url|null / race / race_note / used (aus dem Teil geerbt)
 			$out[] = array(
-				'teil_id'    => (int) ( $it['teil_id'] ?? 0 ),
+				'teil_id'    => $teil_id,
 				'title'      => $title,
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
 				'st25a'      => ! empty( $it['st25a'] ),
 				'custom'     => ! empty( $it['custom'] ), // Sonderanfertigung (§ 312g Abs. 2 – kein Widerruf)
+				'url'        => $meta['url'],       // Artikel-Permalink (string) oder null (Freitext/gelöscht) → nicht klickbar
+				'race'       => $meta['race'],      // Rennsport-Flag geerbt
+				'race_note'  => $meta['race_note'], // exakter Wortlaut aus dem Artikel (1:1)
+				'used'       => $meta['used'],      // Gebrauchtteil-Quelle
 			);
+		}
+		return $out;
+	}
+
+	/**
+	 * Item-Daten aus dem verknüpften Teil erben: Permalink, Rennsport-Hinweis (Flag + exakter Wortlaut wie
+	 * das Detail-Template), Gebraucht-Erkennung. Ohne gültige Teil-ID → url=null, race/used=false.
+	 * @return array{url:?string,race:bool,race_note:string,used:bool}
+	 */
+	private static function teil_offer_meta( int $pid ): array {
+		$out = array( 'url' => null, 'race' => false, 'race_note' => '', 'used' => false );
+		if ( $pid <= 0 || 'm24_teil' !== get_post_type( $pid ) ) { return $out; }
+
+		if ( 'publish' === get_post_status( $pid ) ) {
+			$url = (string) get_permalink( $pid );
+			if ( '' !== $url ) { $out['url'] = $url; }
+		}
+		$typ = get_post_meta( $pid, '_m24_typ', true ) ?: 'gebraucht';
+		$out['used'] = ( 'gebraucht' === $typ ); // Gebraucht-Quelle
+
+		// Rennsport-Hinweis 1:1 wie catalog-template-detail: Flag ODER typ='neu' → Standardtext, außer ein
+		// eigener _m24_hinweis ist gesetzt (dann exakt dieser Wortlaut).
+		$flag = (bool) (int) get_post_meta( $pid, '_m24_rennsport_hinweis', true );
+		if ( $flag || 'neu' === $typ ) {
+			$hinweis = trim( (string) get_post_meta( $pid, '_m24_hinweis', true ) );
+			if ( '' === $hinweis && function_exists( 'm24_rennsport_hinweis' ) ) { $hinweis = (string) m24_rennsport_hinweis(); }
+			if ( '' !== $hinweis ) { $out['race'] = true; $out['race_note'] = $hinweis; }
 		}
 		return $out;
 	}
@@ -434,6 +474,8 @@ class M24_Offers {
 				'src_modell' => (string) ( $src['src_modell'] ?? '' ), 'src_pid' => (string) ( $src['src_pid'] ?? '' ),
 				'src_art_nr' => (string) ( $it['art_nr'] ?? '' ), 'src_variant' => '', 'src_lang' => $lang,
 				'st25a' => ! empty( $it['st25a'] ),
+				'permalink' => ( ! empty( $it['url'] ) ? (string) $it['url'] : null ),
+				'race' => ! empty( $it['race'] ), 'used' => ! empty( $it['used'] ),
 			);
 		}
 		foreach ( $extras as $ex ) {

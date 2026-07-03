@@ -109,7 +109,7 @@ class M24_Offers_Render {
 						<option value="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $m['label'] ); ?></option>
 					<?php endforeach; ?>
 				</select>
-				<label class="m24off-f" data-oss hidden><span>OSS-Satz % (Zielland)</span><input type="number" step="0.1" data-tax-rate placeholder="z. B. 20"></label>
+				<label class="m24off-f" data-oss hidden><span>USt-Satz (%) — Pflicht bei OSS, 0–27</span><input type="number" step="0.1" min="0" max="27" data-tax-rate placeholder="z. B. 20"></label>
 				<p class="m24off-taxnote" data-tax-note></p>
 			</section>
 
@@ -175,89 +175,134 @@ class M24_Offers_Render {
 		echo self::head( 'Ihr Angebot ' . $o->offer_no ); // phpcs:ignore WordPress.Security.EscapeOutput
 		?>
 		</head><body class="m24off-cust">
+		<?php
+		$logo     = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
+		$has_used = self::has_used( $items );
+		$stamp    = 'offen' === $status ? 'Gültig' : ( 'bezahlt' === $status ? 'Bezahlt ✓' : 'Abgelaufen' );
+		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
+		// Timeline-Stufenklassen.
+		$s2 = 'bezahlt' === $status ? 'is-done' : ( 'abgelaufen' === $status ? 'is-exp' : 'is-active' );
+		$s3 = 'bezahlt' === $status ? 'is-done' : '';
+		?>
 		<div class="m24off-wrap">
-			<header class="m24off-chead">
-				<div class="m24off-cno">Angebot <?php echo esc_html( $o->offer_no ); ?></div>
-				<?php if ( 'offen' === $status ) : ?>
-					<div class="m24off-countdown">noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></div>
-				<?php elseif ( 'bezahlt' === $status ) : ?>
-					<div class="m24off-countdown is-paid">Bezahlt ✓</div>
-				<?php else : ?>
-					<div class="m24off-countdown is-exp">Abgelaufen</div>
-				<?php endif; ?>
+			<!-- A: Verlaufs-Header + Messing-Siegel -->
+			<header class="m24off-hero">
+				<img class="m24off-hero-logo" src="<?php echo $logo; ?>" alt="MOTORSPORT24">
+				<div class="m24off-seal">
+					<div class="m24off-seal-no">Angebot <?php echo esc_html( $o->offer_no ); ?></div>
+					<?php if ( 'offen' === $status ) : ?><div class="m24off-seal-days">noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></div><?php endif; ?>
+					<div class="m24off-stamp is-<?php echo esc_attr( $status ); ?>"><?php echo esc_html( $stamp ); ?></div>
+				</div>
 			</header>
 
-			<!-- Timeline -->
-			<ol class="m24off-timeline" data-status="<?php echo esc_attr( $status ); ?>">
-				<li class="is-done">Angebot erhalten</li>
-				<li class="<?php echo 'bezahlt' === $status ? 'is-done' : ( 'abgelaufen' === $status ? 'is-exp' : 'is-current' ); ?>"><?php echo 'bezahlt' === $status ? 'Zahlung eingegangen' : 'Gültig · Zahlung offen'; ?></li>
-				<li class="<?php echo 'bezahlt' === $status ? 'is-done' : ''; ?>">Bezahlt</li>
-				<li>Versand</li>
-			</ol>
+			<!-- Segmentierte Timeline -->
+			<div class="m24off-tl">
+				<span class="m24off-tl-seg is-done">Angebot</span>
+				<span class="m24off-tl-seg <?php echo esc_attr( $s2 ); ?>">Zahlung offen</span>
+				<span class="m24off-tl-seg <?php echo esc_attr( $s3 ); ?>">Bezahlt</span>
+				<span class="m24off-tl-seg">Versand</span>
+			</div>
 
+			<!-- Positionen als Karten -->
 			<section class="m24off-card">
 				<h2>Positionen</h2>
-				<?php foreach ( $items as $it ) : $line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] ); ?>
-					<div class="m24off-crow">
-						<div class="m24off-cinfo"><span class="m24off-ctitle"><?php echo esc_html( $it['title'] ); ?></span><?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?><?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a"><?php echo esc_html( self::st25a_line() ); ?></span><?php endif; ?><?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – vom Widerruf ausgenommen (§ 312g Abs. 2 BGB)</span><?php endif; ?></div>
-						<div class="m24off-cqty">×<?php echo (int) $it['qty']; ?></div>
-						<div class="m24off-cline"><?php echo esc_html( self::fmt( $line ) ); ?></div>
-					</div>
+				<?php foreach ( $items as $it ) :
+					$line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
+					$url  = ! empty( $it['url'] ) ? (string) $it['url'] : '';
+					$tag  = '' !== $url ? 'a' : 'div';
+					$att  = '' !== $url ? ' href="' . esc_url( $url ) . '" target="_blank" rel="noopener"' : '';
+					?>
+					<<?php echo $tag; ?> class="m24off-pos<?php echo '' !== $url ? ' is-link' : ''; ?>"<?php echo $att; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+						<div class="m24off-pos-main">
+							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
+							<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a"><?php echo esc_html( self::st25a_line() ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
+						</div>
+						<div class="m24off-pos-qty">× <?php echo (int) $it['qty']; ?></div>
+						<div class="m24off-pos-line"><?php echo esc_html( self::fmt( $line ) ); ?></div>
+					</<?php echo $tag; ?>>
 				<?php endforeach; ?>
 				<?php foreach ( $extras as $ex ) : if ( empty( $ex['on'] ) ) { continue; } ?>
-					<div class="m24off-crow m24off-cextra"><div class="m24off-cinfo"><span class="m24off-ctitle"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-cqty"></div><div class="m24off-cline"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
+					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
 				<?php if ( $o->delivery_time ) : ?><p class="m24off-note">Lieferzeit: <?php echo esc_html( $o->delivery_time ); ?></p><?php endif; ?>
 				<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong><?php echo esc_html( self::fmt( (float) $o->subtotal_net ) ); ?></strong></div>
-				<?php if ( (float) $o->tax_amount > 0 ) : ?><div class="m24off-sumline"><span><?php echo esc_html( 'USt ' . rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' ) . ' %' ); ?></span><strong><?php echo esc_html( self::fmt( (float) $o->tax_amount ) ); ?></strong></div><?php endif; ?>
+				<?php if ( (float) $o->tax_amount > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( (float) $o->tax_amount ) ); ?></strong></div><?php endif; ?>
 				<div class="m24off-sumline m24off-total"><span>Gesamt</span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
-				<?php if ( $o->tax_note ) : ?><p class="m24off-note"><?php echo esc_html( $o->tax_note ); ?></p><?php endif; ?>
+				<?php if ( $o->tax_note && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $o->tax_note ); ?></p><?php endif; ?>
 			</section>
 
+			<!-- E: Bindungssatz -->
+			<p class="m24off-binding"><?php echo esc_html( self::bindungssatz() ); ?></p>
+
+			<!-- C: Rechts-Accordions -->
+			<?php if ( $is_b2c ) : ?>
+			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
+			<?php endif; ?>
+			<details class="m24off-acc"><summary>Gewährleistung &amp; Steuer</summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
+
 			<?php if ( 'offen' === $status ) : ?>
-			<section class="m24off-card m24off-pay">
-				<h2>Zahlung</h2>
-				<div class="m24off-payrow"><span>Betrag</span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
-				<div class="m24off-payrow"><span>Empfänger</span><strong><?php echo esc_html( $bank['inhaber'] ); ?></strong></div>
-				<div class="m24off-payrow"><span>IBAN</span><strong><?php echo esc_html( $bank['iban'] ); ?></strong></div>
-				<div class="m24off-payrow"><span>BIC</span><strong><?php echo esc_html( $bank['bic'] ); ?></strong></div>
-				<div class="m24off-payrow"><span>Verwendungszweck</span><strong><?php echo esc_html( $o->offer_no ); ?></strong></div>
+			<!-- B/D: Checkbox-Gate → Zahlungs-Box (Bankdaten erst nach Klick im DOM) -->
+			<section class="m24off-card m24off-gate">
+				<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used ) ); ?></span></label>
+				<button type="button" class="m24off-btn m24off-btn-blue" data-pay disabled>Angebot bezahlen</button>
+				<div class="m24off-paybox" data-paybox hidden></div>
 			</section>
 			<?php endif; ?>
 
-			<section class="m24off-legal">
-				<p><?php echo esc_html( self::contract_clause( self::date_de( $vu ) ) ); ?></p>
-				<p><strong>Anbieter:</strong> <?php echo esc_html( self::company_line() ); ?><br>
-				<strong>Gesamtpreis:</strong> <?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?> (inkl. etwaiger Steuern und ausgewiesener Nebenkosten wie Verpackung/Versand/Zollabwicklung)<?php if ( $o->delivery_time ) : ?><br><strong>Lieferzeit:</strong> <?php echo esc_html( $o->delivery_time ); ?><?php endif; ?></p>
-				<?php if ( $is_b2c ) : ?><div class="m24off-widerruf"><?php echo self::widerruf_html( $items ); // phpcs:ignore WordPress.Security.EscapeOutput — intern esc_* ?></div><?php endif; ?>
-				<p class="m24off-links"><?php $sep = ''; foreach ( self::legal_links() as $lbl => $lurl ) { echo $sep . '<a href="' . esc_url( $lurl ) . '" target="_blank" rel="noopener">' . esc_html( $lbl ) . '</a>'; $sep = ' · '; } // phpcs:ignore WordPress.Security.EscapeOutput ?></p>
-			</section>
 			<?php if ( current_user_can( 'manage_options' ) && 'offen' === $status ) : ?>
-			<!-- Manueller Fallback-Schalter (nur Operator sichtbar): bezahlt setzen, falls Desk-Sync ausbleibt. -->
 			<div class="m24off-card" style="text-align:center;">
 				<button type="button" class="m24off-btn m24off-btn-ghost" data-mark-paid>Als bezahlt markieren (manuell)</button>
 				<p class="m24off-status" data-paid-status role="status"></p>
 			</div>
-			<script>
-			(function(){
-				var b=document.querySelector('[data-mark-paid]'); if(!b) return;
-				var st=document.querySelector('[data-paid-status]');
-				b.addEventListener('click',function(){
-					b.disabled=true;
-					fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/mark-paid' ) ); ?>',{
-						method:'POST',credentials:'same-origin',
-						headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},
-						body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})
-					}).then(function(r){return r.json();}).then(function(d){
-						if(d&&d.ok){ st.textContent='Als bezahlt markiert — Seite neu laden.'; st.className='m24off-status is-ok'; setTimeout(function(){location.reload();},900); }
-						else { b.disabled=false; st.textContent=(d&&d.message)||'Fehler.'; st.className='m24off-status is-error'; }
-					}).catch(function(){ b.disabled=false; st.textContent='Fehler.'; st.className='m24off-status is-error'; });
-				});
-			})();
-			</script>
 			<?php endif; ?>
-			<footer class="m24off-cfoot">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de">www.motorsport24.de</a></footer>
+
+			<footer class="m24off-cfoot"><?php echo esc_html( self::company_line() ); ?> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></footer>
 		</div>
+		<script>
+		(function(){
+			// B: Checkbox-Gate + Reveal (Bankdaten erst nach Klick in den DOM injizieren).
+			var chk=document.querySelector('[data-gate]'), pay=document.querySelector('[data-pay]'), box=document.querySelector('[data-paybox]');
+			var BANK=<?php echo wp_json_encode( array(
+				'inhaber' => $bank['inhaber'], 'iban' => $bank['iban'], 'bic' => $bank['bic'],
+				'zweck'   => (string) $o->offer_no, 'betrag' => self::fmt( (float) $o->total_gross ),
+			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
+			function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+			if(chk&&pay){ chk.addEventListener('change',function(){ pay.disabled=!chk.checked; }); }
+			if(pay&&box){ pay.addEventListener('click',function(){
+				if(pay.disabled) return;
+				box.innerHTML='<h3>Zahlung per Überweisung</h3>'
+					+row('Betrag',BANK.betrag,false)
+					+row('Empfänger',BANK.inhaber,false)
+					+row('IBAN',BANK.iban,true)
+					+row('BIC',BANK.bic,false)
+					+row('Verwendungszweck',BANK.zweck,true);
+				box.hidden=false; pay.style.display='none';
+				box.scrollIntoView({behavior:'smooth',block:'nearest'});
+			}); }
+			function row(label,val,copy){
+				return '<div class="m24off-payrow"><span>'+esc(label)+'</span><strong'+(copy?' class="m24off-copy" data-copy="'+esc(val)+'" role="button" tabindex="0" title="Antippen zum Kopieren"':'')+'>'+esc(val)+(copy?' <em class="m24off-copyhint">kopieren</em>':'')+'</strong></div>';
+			}
+			document.addEventListener('click',function(e){
+				var c=e.target.closest?e.target.closest('[data-copy]'):null; if(!c) return;
+				var v=c.getAttribute('data-copy');
+				var done=function(){ var h=c.querySelector('.m24off-copyhint'); if(h){h.textContent='Kopiert ✓';} c.classList.add('is-copied'); };
+				if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(done); }
+				else { var t=document.createElement('textarea'); t.value=v; document.body.appendChild(t); t.select(); try{document.execCommand('copy');}catch(x){} document.body.removeChild(t); done(); }
+			});
+			// Operator-Fallback „bezahlt markieren".
+			var mb=document.querySelector('[data-mark-paid]');
+			if(mb){ var mst=document.querySelector('[data-paid-status]');
+				mb.addEventListener('click',function(){ mb.disabled=true;
+					fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/mark-paid' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})})
+					.then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ mst.textContent='Als bezahlt markiert — Seite neu laden.'; mst.className='m24off-status is-ok'; setTimeout(function(){location.reload();},900); } else { mb.disabled=false; mst.textContent=(d&&d.message)||'Fehler.'; mst.className='m24off-status is-error'; } })
+					.catch(function(){ mb.disabled=false; mst.textContent='Fehler.'; mst.className='m24off-status is-error'; });
+				});
+			}
+		})();
+		</script>
 		</body></html>
 		<?php
 		exit;
@@ -276,12 +321,17 @@ class M24_Offers_Render {
 		return apply_filters( 'm24_offer_company_line', 'MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin' );
 	}
 	private static function legal_links(): array {
+		// Live verifizierte Slugs (200): /widerruf/ (NICHT /widerrufsrecht/ — 404), /agb/, /impressum/, /datenschutz/.
 		return apply_filters( 'm24_offer_legal_links', array(
 			'Impressum'   => 'https://www.motorsport24.de/impressum/',
 			'AGB'         => 'https://www.motorsport24.de/agb/',
 			'Datenschutz' => 'https://www.motorsport24.de/datenschutz/',
-			'Widerruf'    => 'https://www.motorsport24.de/widerrufsrecht/',
+			'Widerruf'    => 'https://www.motorsport24.de/widerruf/',
 		) );
+	}
+	private static function widerruf_url(): string {
+		$l = self::legal_links();
+		return isset( $l['Widerruf'] ) ? (string) $l['Widerruf'] : 'https://www.motorsport24.de/widerruf/';
 	}
 	/** §145/§146-Vertragsklausel (alle Angebote). $vu = Gültig-bis (formatiert). */
 	private static function contract_clause( string $vu ): string {
@@ -314,6 +364,52 @@ class M24_Offers_Render {
 		foreach ( $items as $it ) { if ( ! empty( $it['custom'] ) ) { return true; } }
 		return false;
 	}
+	private static function has_used( array $items ): bool {
+		foreach ( $items as $it ) { if ( ! empty( $it['used'] ) ) { return true; } }
+		return false;
+	}
+	/** Bindungssatz (alle, ohne Paragraphen — die stehen in den Accordions/Belehrung). */
+	private static function bindungssatz(): string {
+		return 'Verbindliches Angebot – mit fristgerechtem Zahlungseingang gilt es als angenommen und der Kaufvertrag kommt zustande.';
+	}
+	/** Accordion „Widerrufsrecht (Verbraucher)" — nur B2C. Link → /widerruf/ + Muster-Widerrufsformular. */
+	private static function widerruf_accordion( array $items ): string {
+		$custom = array();
+		foreach ( $items as $it ) { if ( ! empty( $it['custom'] ) ) { $custom[] = (string) $it['title']; } }
+		$h  = '<p>Als Verbraucher haben Sie das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Frist beginnt mit dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben.</p>';
+		$h .= '<p>Vollständige <a href="' . esc_url( self::widerruf_url() ) . '" target="_blank" rel="noopener">Widerrufsbelehrung &amp; Muster-Widerrufsformular</a>.</p>';
+		if ( ! empty( $custom ) ) {
+			$h .= '<p><strong>Ausschluss (§ 312g Abs. 2 BGB):</strong> Kein Widerrufsrecht bei nach Kundenspezifikation angefertigten oder eindeutig auf persönliche Bedürfnisse zugeschnittenen Waren – betrifft: ' . esc_html( implode( ', ', $custom ) ) . '.</p>';
+		}
+		return $h;
+	}
+	/** Accordion „Gewährleistung & Steuer" — modusabhängig. */
+	private static function gewaehr_accordion( bool $is_b2c, bool $has_used ): string {
+		$h = '';
+		if ( ! $is_b2c ) {
+			$h .= '<p><strong>Gewährleistung.</strong> Verkauf im Rahmen eines Handelsgeschäfts unter Ausschluss der Sachmängelhaftung. Ausgenommen sind Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
+		} elseif ( $has_used ) {
+			$h .= '<p><strong>Gewährleistung (gebrauchte Ware).</strong> Es handelt sich um gebrauchte Ware. Die Verjährungsfrist für Mängelansprüche wird auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
+		}
+		$h .= '<p>' . esc_html( self::st25a_line() ) . ' (bei entsprechend gekennzeichneten Positionen).</p>';
+		$h .= '<p><strong>Anbieter:</strong> ' . esc_html( self::company_line() ) . '</p>';
+		$links = array(); $ll = self::legal_links();
+		foreach ( array( 'Impressum', 'AGB', 'Datenschutz' ) as $k ) {
+			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( $k ) . '</a>'; }
+		}
+		$h .= '<p>' . implode( ' · ', $links ) . '</p>';
+		return $h;
+	}
+	/** Gate-Checkbox-Text (trägt die gesonderte Vereinbarung bei B2C + Gebrauchtware). */
+	private static function checkbox_text( bool $is_b2c, bool $has_used ): string {
+		if ( $is_b2c && $has_used ) {
+			return 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen. Bei gebrauchten Artikeln stimme ich der Verkürzung der Verjährung für Mängelansprüche auf ein Jahr ausdrücklich und gesondert zu.';
+		}
+		if ( $is_b2c ) {
+			return 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen.';
+		}
+		return 'Ich habe die Zahlungs- und Gewährleistungsbedingungen gelesen.';
+	}
 
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
 
@@ -329,11 +425,17 @@ class M24_Offers_Render {
 
 		$rows = '';
 		foreach ( $items as $it ) {
-			$line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
-			$rows .= '<tr><td style="padding:6px 0;">' . esc_html( $it['title'] ) . ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
+			$line  = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
+			$url   = ! empty( $it['url'] ) ? (string) $it['url'] : '';
+			$title = '' !== $url
+				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $it['title'] ) . '</a>'
+				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
+			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
+				. ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
+				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">' . esc_html( $it['race_note'] ) . '</span>' : '' )
 				. ( ! empty( $it['st25a'] ) ? '<br><span style="color:#8a929c;font-size:11px;">' . esc_html( self::st25a_line() ) . '</span>' : '' )
-				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – vom Widerruf ausgenommen (§ 312g Abs. 2 BGB)</span>' : '' )
-				. '</td><td style="text-align:center;">×' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
+				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
+				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
 		}
 		foreach ( $extras as $ex ) {
 			if ( empty( $ex['on'] ) ) { continue; }
@@ -344,21 +446,26 @@ class M24_Offers_Render {
 		$inner .= '<p style="margin:0 0 14px;">anbei Ihr verbindliches Angebot <strong>' . esc_html( $o->offer_no ) . '</strong>' . ( $vu ? ', gültig bis <strong>' . esc_html( $vu ) . '</strong>' : '' ) . '.</p>';
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
 			. '<tr><td colspan="2" style="padding-top:10px;border-top:1px solid #e6e9ee;">Zwischensumme (netto)</td><td style="text-align:right;padding-top:10px;border-top:1px solid #e6e9ee;">' . esc_html( self::fmt( (float) $o->subtotal_net ) ) . '</td></tr>';
+		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		if ( (float) $o->tax_amount > 0 ) {
-			$inner .= '<tr><td colspan="2">USt</td><td style="text-align:right;">' . esc_html( self::fmt( (float) $o->tax_amount ) ) . '</td></tr>';
+			$inner .= '<tr><td colspan="2">USt ' . esc_html( $rate_str ) . ' %</td><td style="text-align:right;">' . esc_html( self::fmt( (float) $o->tax_amount ) ) . '</td></tr>';
 		}
 		$inner .= '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">Gesamt</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">Lieferzeit: ' . esc_html( $o->delivery_time ) . '</p>'; }
-		if ( $o->tax_note ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
+		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
+		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
 		$inner .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">Angebot ansehen &amp; bezahlen</a></p>';
-		$inner .= '<p style="margin:16px 0 4px;font-size:12px;color:#5a6474;line-height:1.6;">' . esc_html( self::contract_clause( $vu ) ) . '</p>';
+		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
+		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz() ) . '</p>';
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>Anbieter:</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>Gesamtpreis:</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' (inkl. etwaiger Steuern und ausgewiesener Nebenkosten)'
 			. ( $o->delivery_time ? '<br><strong>Lieferzeit:</strong> ' . esc_html( $o->delivery_time ) : '' ) . '</p>';
-		// B2C: vollständige Widerrufsbelehrung + Musterformular + § 312g Abs. 2.
+		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
 		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
-			$inner .= '<div style="margin:14px 0 0;font-size:11.5px;color:#7a8290;line-height:1.6;">' . self::widerruf_html( $items ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput — intern esc_*
+			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '
+				. '<a href="' . esc_url( self::widerruf_url() ) . '" target="_blank" style="color:#1f74c4;">Widerrufsbelehrung &amp; Muster-Widerrufsformular</a>.'
+				. ( self::has_custom( $items ) ? ' Für Sonderanfertigungen besteht kein Widerrufsrecht (§ 312g Abs. 2 BGB).' : '' ) . '</p>';
 		}
 		// Pflicht-Links.
 		$links = array();

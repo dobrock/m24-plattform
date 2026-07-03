@@ -170,6 +170,10 @@
 		if (!items.length) { st.textContent = 'Bitte mindestens eine Position hinzufügen.'; st.className = 'm24off-status is-error'; return; }
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cust.email)) { st.textContent = 'Bitte eine gültige Kunden-E-Mail angeben.'; st.className = 'm24off-status is-error'; return; }
 		if (!taxMode) { st.textContent = 'Bitte den Steuerfall manuell wählen.'; st.className = 'm24off-status is-error'; return; }
+		if (taxMode === 'b2c_eu_oss') {
+			var rEl = $('[data-tax-rate]'); var rv = rEl && rEl.value.trim();
+			if (rv === '' || !(taxRate >= 0 && taxRate <= 27)) { st.textContent = 'Bitte einen USt-Satz (0–27 %) angeben.'; st.className = 'm24off-status is-error'; return; }
+		}
 		var btn = $('[data-action="send"]'); btn.disabled = true;
 		st.textContent = 'Wird gesendet …'; st.className = 'm24off-status';
 		fetch(cfg.rest + '/send', {
