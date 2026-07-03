@@ -135,7 +135,8 @@ class M24_Offers {
 		$net = 0.0; $st25a = 0.0;
 		foreach ( $items as $it ) {
 			$line = (float) ( $it['unit_price'] ?? 0 ) * max( 1, (int) ( $it['qty'] ?? 1 ) );
-			if ( ! empty( $it['st25a'] ) ) { $st25a += $line; } else { $net += $line; }
+			$is25 = ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ); // st25a = Abwärtskompat Alt-Angebote
+			if ( $is25 ) { $st25a += $line; } else { $net += $line; }
 		}
 		foreach ( $extras as $ex ) {
 			if ( ! empty( $ex['on'] ) ) { $net += (float) ( $ex['amount'] ?? 0 ); }
@@ -205,7 +206,7 @@ class M24_Offers {
 				'title'  => get_the_title( $p ),
 				'art_nr' => (string) get_post_meta( $p->ID, '_m24_artikelnummer', true ),
 				'price'  => ( null !== $price ) ? $price : null,
-				'st25a'  => self::is_st25a( (int) $p->ID ),
+				'tax25a' => self::is_tax25a( (int) $p->ID ),
 				'thumb'  => (string) get_the_post_thumbnail_url( $p->ID, 'thumbnail' ),
 			);
 		}
@@ -221,9 +222,11 @@ class M24_Offers {
 		return null;
 	}
 
-	/** §25a differenzbesteuert? Filterbar; Default aus Teil-Meta _m24_differenzbesteuert. */
-	private static function is_st25a( int $pid ): bool {
-		return (bool) apply_filters( 'm24_offer_teil_st25a', (bool) get_post_meta( $pid, '_m24_differenzbesteuert', true ), $pid );
+	/** §25a differenzbesteuert? Auto aus dem ECHTEN Steuermodus _m24_mwst_modus='paragraf25a' (nicht das
+	 * veraltete _m24_differenzbesteuert). Filterbar. */
+	private static function is_tax25a( int $pid ): bool {
+		$is = ( 'paragraf25a' === (string) get_post_meta( $pid, '_m24_mwst_modus', true ) );
+		return (bool) apply_filters( 'm24_offer_teil_tax25a', $is, $pid );
 	}
 
 	/** Angebot anlegen + versenden. */
@@ -318,14 +321,19 @@ class M24_Offers {
 			$title = sanitize_text_field( (string) ( $it['title'] ?? '' ) );
 			if ( '' === $title ) { continue; }
 			$teil_id = (int) ( $it['teil_id'] ?? 0 );
-			$meta    = self::teil_offer_meta( $teil_id ); // url|null / race / race_note / used (aus dem Teil geerbt)
+			$meta    = self::teil_offer_meta( $teil_id ); // url|null / race / race_note / used / tax25a (aus dem Teil geerbt)
+			// §25a: Operator-Auswahl im Modal ist maßgeblich (kann die Auto-Erkennung übersteuern). Nur wenn der
+			// Payload gar kein §25a-Feld trägt (Alt-Angebot/Re-Quote) → geerbte Auto-Erkennung.
+			if ( array_key_exists( 'tax25a', $it ) )      { $tax25a = ! empty( $it['tax25a'] ); }
+			elseif ( array_key_exists( 'st25a', $it ) )   { $tax25a = ! empty( $it['st25a'] ); } // Abwärtskompat
+			else                                          { $tax25a = (bool) $meta['tax25a']; }
 			$out[] = array(
 				'teil_id'    => $teil_id,
 				'title'      => $title,
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
-				'st25a'      => ! empty( $it['st25a'] ),
+				'tax25a'     => $tax25a,            // Differenzbesteuerung (unabhängig von used)
 				'custom'     => ! empty( $it['custom'] ), // Sonderanfertigung (§ 312g Abs. 2 – kein Widerruf)
 				'url'        => $meta['url'],       // Artikel-Permalink (string) oder null (Freitext/gelöscht) → nicht klickbar
 				'race'       => $meta['race'],      // Rennsport-Flag geerbt
@@ -342,7 +350,7 @@ class M24_Offers {
 	 * @return array{url:?string,race:bool,race_note:string,used:bool}
 	 */
 	private static function teil_offer_meta( int $pid ): array {
-		$out = array( 'url' => null, 'race' => false, 'race_note' => '', 'used' => false );
+		$out = array( 'url' => null, 'race' => false, 'race_note' => '', 'used' => false, 'tax25a' => false );
 		if ( $pid <= 0 || 'm24_teil' !== get_post_type( $pid ) ) { return $out; }
 
 		if ( 'publish' === get_post_status( $pid ) ) {
@@ -350,7 +358,8 @@ class M24_Offers {
 			if ( '' !== $url ) { $out['url'] = $url; }
 		}
 		$typ = get_post_meta( $pid, '_m24_typ', true ) ?: 'gebraucht';
-		$out['used'] = ( 'gebraucht' === $typ ); // Gebraucht-Quelle
+		$out['used']   = ( 'gebraucht' === $typ ); // Gebraucht-Quelle (unabhängig von §25a)
+		$out['tax25a'] = self::is_tax25a( $pid );  // Differenzbesteuerung (unabhängig von used)
 
 		// Rennsport-Hinweis 1:1 wie catalog-template-detail: Flag ODER typ='neu' → Standardtext, außer ein
 		// eigener _m24_hinweis ist gesetzt (dann exakt dieser Wortlaut).
@@ -473,7 +482,7 @@ class M24_Offers {
 				'src_url' => (string) ( $src['src_url'] ?? '' ), 'src_pillar' => (string) ( $src['src_pillar'] ?? '' ),
 				'src_modell' => (string) ( $src['src_modell'] ?? '' ), 'src_pid' => (string) ( $src['src_pid'] ?? '' ),
 				'src_art_nr' => (string) ( $it['art_nr'] ?? '' ), 'src_variant' => '', 'src_lang' => $lang,
-				'st25a' => ! empty( $it['st25a'] ),
+				'tax25a' => ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ),
 				'permalink' => ( ! empty( $it['url'] ) ? (string) $it['url'] : null ),
 				'race' => ! empty( $it['race'] ), 'used' => ! empty( $it['used'] ),
 			);

@@ -8,7 +8,7 @@
 	var cfg = window.M24Offers || {};
 	if (!cfg.rest) { return; }
 	var $ = function (s, r) { return (r || document).querySelector(s); };
-	var items = [];   // {teil_id,title,art_nr,qty,unit_price,st25a}
+	var items = [];   // {teil_id,title,art_nr,qty,unit_price,tax25a}
 	var extras = (cfg.presets || []).map(function (p) { return { label: p.label, amount: parseFloat(p.amount) || 0, on: false }; });
 	var taxMode = '', taxRate = 0;
 	var modell = (cfg.src && cfg.src.src_modell) || '';
@@ -23,7 +23,7 @@
 			row.className = 'm24off-item';
 			row.innerHTML = '<div class="m24off-item-main"><span class="m24off-item-title">' + esc(it.title) + '</span>'
 				+ (it.art_nr ? '<span class="m24off-item-art">Art.-Nr.: ' + esc(it.art_nr) + '</span>' : '')
-				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.st25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label>'
+				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.tax25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label>'
 				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.custom ? ' checked' : '') + ' data-i="' + i + '" data-custom> Sonderanfertigung (kein Widerruf)</label></div>'
 				+ '<div class="m24off-item-nums"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty class="m24off-qty">'
 				+ '<input type="number" step="0.01" value="' + it.unit_price + '" data-i="' + i + '" data-price class="m24off-price"> €'
@@ -42,7 +42,7 @@
 	});
 	document.addEventListener('change', function (e) {
 		var t = e.target;
-		if (t.matches('[data-25a]')) { items[+t.getAttribute('data-i')].st25a = t.checked; recalc(); }
+		if (t.matches('[data-25a]')) { items[+t.getAttribute('data-i')].tax25a = t.checked; recalc(); }
 		else if (t.matches('[data-custom]')) { items[+t.getAttribute('data-i')].custom = t.checked; }
 		else if (t.matches('[data-extra-on]')) { extras[+t.getAttribute('data-i')].on = t.checked; recalc(); }
 		else if (t.matches('[data-extra-amt]')) { extras[+t.getAttribute('data-i')].amount = parseFloat(t.value) || 0; recalc(); }
@@ -96,7 +96,7 @@
 	/* ── Summen ── */
 	function recalc() {
 		var net = 0, st25a = 0;
-		items.forEach(function (it) { var l = (it.unit_price || 0) * Math.max(1, it.qty || 1); if (it.st25a) { st25a += l; } else { net += l; } });
+		items.forEach(function (it) { var l = (it.unit_price || 0) * Math.max(1, it.qty || 1); if (it.tax25a) { st25a += l; } else { net += l; } });
 		extras.forEach(function (ex) { if (ex.on) { net += ex.amount || 0; } });
 		var r = rate(), tax = Math.round(net * r) / 100;
 		$('[data-sum-net]').textContent = eur(net + st25a);
@@ -127,10 +127,10 @@
 					row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pick-ph"></span>')
 						+ '<div class="m24off-pick-info"><span>' + esc(it.title) + '</span>'
 						+ (it.art_nr ? '<small>Art.-Nr.: ' + esc(it.art_nr) + '</small>' : '')
-						+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.st25a ? ' · §25a' : '') + '</small></div>'
+						+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.tax25a ? ' · §25a' : '') + '</small></div>'
 						+ '<button type="button" class="m24off-pick-add" data-pick '
 						+ 'data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-art="' + esc(it.art_nr || '') + '" '
-						+ 'data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.st25a ? 1 : 0) + '">+</button>';
+						+ 'data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
 					list.appendChild(row);
 				});
 				if (!arr.length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; }
@@ -143,7 +143,7 @@
 			art_nr: btn.getAttribute('data-art') || '',
 			qty: 1,
 			unit_price: parseFloat(btn.getAttribute('data-price')) || 0,
-			st25a: btn.getAttribute('data-25a') === '1',
+			tax25a: btn.getAttribute('data-25a') === '1',
 			custom: false
 		});
 		renderItems();

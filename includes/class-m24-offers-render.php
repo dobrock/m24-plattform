@@ -217,7 +217,7 @@ class M24_Offers_Render {
 							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
 							<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
-							<?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a"><?php echo esc_html( self::st25a_line() ); ?></span><?php endif; ?>
+							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
 						</div>
 						<div class="m24off-pos-qty">× <?php echo (int) $it['qty']; ?></div>
@@ -228,9 +228,25 @@ class M24_Offers_Render {
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
 				<?php if ( $o->delivery_time ) : ?><p class="m24off-note">Lieferzeit: <?php echo esc_html( $o->delivery_time ); ?></p><?php endif; ?>
-				<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong><?php echo esc_html( self::fmt( (float) $o->subtotal_net ) ); ?></strong></div>
-				<?php if ( (float) $o->tax_amount > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( (float) $o->tax_amount ) ); ?></strong></div><?php endif; ?>
+				<?php
+				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
+				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
+				$X = $bd['net']; $Y = $bd['tax']; $Z = $bd['st25a'];
+				$only_25a   = ( $Z > 0.001 && $X <= 0.001 );
+				$only_regel = ( $Z <= 0.001 );
+				?>
+				<?php if ( $only_25a ) : ?>
+					<div class="m24off-sumline"><span>Differenzbesteuert (§ 25a)</span><strong><?php echo esc_html( self::fmt( $Z ) ); ?></strong></div>
+				<?php elseif ( $only_regel ) : ?>
+					<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong><?php echo esc_html( self::fmt( $X ) ); ?></strong></div>
+					<?php if ( $Y > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( $Y ) ); ?></strong></div><?php endif; ?>
+				<?php else : ?>
+					<div class="m24off-sumline"><span>Regelbesteuerte Artikel (netto)</span><strong><?php echo esc_html( self::fmt( $X ) ); ?></strong></div>
+					<?php if ( $Y > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( $Y ) ); ?></strong></div><?php endif; ?>
+					<div class="m24off-sumline"><span>Differenzbesteuert (§ 25a)</span><strong><?php echo esc_html( self::fmt( $Z ) ); ?></strong></div>
+				<?php endif; ?>
 				<div class="m24off-sumline m24off-total"><span>Gesamt</span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
+				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote() ); ?></p><?php endif; ?>
 				<?php if ( $o->tax_note && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $o->tax_note ); ?></p><?php endif; ?>
 			</section>
 
@@ -340,6 +356,21 @@ class M24_Offers_Render {
 	private static function st25a_line(): string {
 		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird nicht gesondert ausgewiesen.';
 	}
+	/** Dezente Positions-Zeile bei §25a. */
+	private static function tax25a_pos_line(): string {
+		return '§ 25a – Umsatzsteuer nicht gesondert ausgewiesen.';
+	}
+	/** Einmalige Fußnote unter dem Summenblock, wenn ≥ 1 §25a-Position. */
+	private static function tax25a_footnote(): string {
+		return '§ 25a: Differenzbesteuerung – Umsatzsteuer wird nicht gesondert ausgewiesen.';
+	}
+	private static function has_tax25a( array $items ): bool {
+		foreach ( $items as $it ) { if ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ) { return true; } }
+		return false;
+	}
+	private static function is_tax25a_item( array $it ): bool {
+		return ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ); // st25a = Abwärtskompat
+	}
 	/** Vollständige B2C-Widerrufsbelehrung (Art. 246a EGBGB) + Muster-Widerrufsformular + § 312g Abs. 2. */
 	private static function widerruf_html( array $items ): string {
 		$custom = array();
@@ -435,7 +466,7 @@ class M24_Offers_Render {
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
 				. ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
 				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#93762f;font-size:11.5px;">🇩🇪 ' . esc_html( $it['race_note'] ) . '</span>' : '' )
-				. ( ! empty( $it['st25a'] ) ? '<br><span style="color:#8a929c;font-size:11px;">' . esc_html( self::st25a_line() ) . '</span>' : '' )
+				. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
 				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
 				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
 		}
@@ -446,13 +477,29 @@ class M24_Offers_Render {
 
 		$inner  = '<p style="margin:0 0 14px;">Guten Tag' . ( ! empty( $cust['name'] ) ? ' ' . esc_html( $cust['name'] ) : '' ) . ',</p>';
 		$inner .= '<p style="margin:0 0 14px;">anbei Ihr verbindliches Angebot <strong>' . esc_html( $o->offer_no ) . '</strong>' . ( $vu ? ', gültig bis <strong>' . esc_html( $vu ) . '</strong>' : '' ) . '.</p>';
-		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
-			. '<tr><td colspan="2" style="padding-top:10px;border-top:1px solid #e6e9ee;">Zwischensumme (netto)</td><td style="text-align:right;padding-top:10px;border-top:1px solid #e6e9ee;">' . esc_html( self::fmt( (float) $o->subtotal_net ) ) . '</td></tr>';
+		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
-		if ( (float) $o->tax_amount > 0 ) {
-			$inner .= '<tr><td colspan="2">USt ' . esc_html( $rate_str ) . ' %</td><td style="text-align:right;">' . esc_html( self::fmt( (float) $o->tax_amount ) ) . '</td></tr>';
+		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
+		$X = $bd['net']; $Y = $bd['tax']; $Z = $bd['st25a'];
+		$top = ' style="padding-top:10px;border-top:1px solid #e6e9ee;"';
+		$srow = static function ( $label, $amt, $first ) use ( $top ) {
+			$t = $first ? $top : '';
+			return '<tr><td colspan="2"' . $t . '>' . esc_html( $label ) . '</td><td style="text-align:right;' . ( $first ? 'padding-top:10px;border-top:1px solid #e6e9ee;' : '' ) . '">' . esc_html( self::fmt( (float) $amt ) ) . '</td></tr>';
+		};
+		$sum = '';
+		if ( $Z > 0.001 && $X <= 0.001 ) {
+			$sum .= $srow( 'Differenzbesteuert (§ 25a)', $Z, true );
+		} elseif ( $Z <= 0.001 ) {
+			$sum .= $srow( 'Zwischensumme (netto)', $X, true );
+			if ( $Y > 0 ) { $sum .= $srow( 'USt ' . $rate_str . ' %', $Y, false ); }
+		} else {
+			$sum .= $srow( 'Regelbesteuerte Artikel (netto)', $X, true );
+			if ( $Y > 0 ) { $sum .= $srow( 'USt ' . $rate_str . ' %', $Y, false ); }
+			$sum .= $srow( 'Differenzbesteuert (§ 25a)', $Z, false );
 		}
-		$inner .= '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">Gesamt</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
+		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
+			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">Gesamt</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
+		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">Lieferzeit: ' . esc_html( $o->delivery_time ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
