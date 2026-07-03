@@ -137,6 +137,12 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Fehlerprotokoll: tägliche Critical-Digest-Mail an den Admin (Default AUS).
+        register_setting( 'm24_plattform_group', 'm24_error_digest', [
+            'type'              => 'boolean',
+            'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+            'default'           => 0,
+        ] );
         foreach ( array( 'm24_offer_preset_verpackung' => 25, 'm24_offer_preset_versand' => 49, 'm24_offer_preset_zoll' => 75 ) as $opt => $def ) {
             register_setting( 'm24_plattform_group', $opt, [
                 'type'              => 'number',
@@ -702,6 +708,18 @@ class M24_Settings {
                                 <?php echo esc_html__( 'Verpackung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_verpackung" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_verpackung', 25 ) ); ?>" />
                                 <?php echo esc_html__( 'Versand', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_versand" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_versand', 49 ) ); ?>" />
                                 <?php echo esc_html__( 'Zollabwicklung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_zoll" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_zoll', 75 ) ); ?>" />
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( 'Fehler-Digest (täglich)', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_error_digest" value="1" <?php checked( (bool) get_option( 'm24_error_digest', 0 ), true ); ?> />
+                                <?php echo esc_html__( 'Tägliche Zusammenfassung neuer kritischer Fehler per E-Mail an den Admin', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default aus. Das Fehlerprotokoll (Menü „Fehlerprotokoll") sammelt unabhängig davon alle Fehler; PII wird maskiert, Auto-Prune > 90 Tage / > 5.000 Zeilen.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>

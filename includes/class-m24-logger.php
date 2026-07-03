@@ -38,6 +38,10 @@ class M24_Logger {
 
     public static function error( $context, $message, $payload = null ) {
         self::write( self::LEVEL_ERROR, $context, $message, $payload );
+        // Ins zentrale Fehlerprotokoll spiegeln (deckt Brevo/Desk/Magic-Link/Updater-::error automatisch ab).
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( (string) $context, 'error', (string) $message, is_array( $payload ) ? $payload : ( null !== $payload ? array( 'payload' => $payload ) : array() ) );
+        }
     }
 
     /**

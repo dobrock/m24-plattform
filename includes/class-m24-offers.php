@@ -464,6 +464,11 @@ class M24_Offers {
 			$wpdb->update( self::table(), array( 'desk_order_id' => $desk_id ), array( 'id' => $offer_id ) );
 		}
 		self::log( $ok ? 'desk_push:ok' : 'desk_push:failed', $offer_id, (string) $o->offer_no );
+		if ( ! $ok && class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'desk_push', 'error', 'Desk-Push /api/orders fehlgeschlagen', array(
+				'offer_no' => (string) $o->offer_no, 'status' => is_array( $res ) ? (int) ( $res['status'] ?? 0 ) : 0,
+			) );
+		}
 	}
 
 	/** Desk-Payload „Pfad B" (Schema wie inquiries-m24-push): customer + items (name/qty/vk/src_*) + offer. */

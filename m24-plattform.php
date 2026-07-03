@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.240
+ * Version:           0.11.241
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '012' );
+define( 'M24_PLATTFORM_DB_VERSION',  '013' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -127,6 +127,8 @@ add_filter( 'wp_mail_from_name', function ( $name ) {
 
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-database.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-logger.php';
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-error-log.php'; // Zentrales Fehlerprotokoll (Admin, PII-maskiert)
+M24_Error_Log::init(); // früh: Shutdown-/Error-Handler so bald wie möglich registrieren
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-cache.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-rest-client.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-taxonomie.php'; // Fahrzeug-Alert: Tag-Landkarte + Rollup (rein)
