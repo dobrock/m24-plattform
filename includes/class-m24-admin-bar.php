@@ -75,12 +75,17 @@ class M24_Admin_Bar {
 		?>
 <script id="m24-tr-adminbar-js">
 (function(){
-	var li=document.getElementById('wp-admin-bar-m24-translate-edit'); if(!li) return;
-	if(/^\/en(\/|$)/.test(location.pathname)){
-		var u=new URL(location.href); u.searchParams.delete('language_edit'); u.searchParams.set('language_edit','1');
-		var a=li.querySelector('a.ab-item'); if(a) a.href=u.toString();
-		li.classList.remove('m24-tr-hidden'); li.style.display='';
-	} else { li.parentNode && li.parentNode.removeChild(li); }
+	// Admin-Bar rendert auf wp_footer Prio 1000 → dieses Inline-JS läuft davor. Erst nach DOMContentLoaded
+	// ausführen, sonst ist getElementById(...) null und der Knoten wird nie eingeblendet.
+	function run(){
+		var li=document.getElementById('wp-admin-bar-m24-translate-edit'); if(!li) return;
+		if(/^\/en(\/|$)/.test(location.pathname)){
+			var u=new URL(location.href); u.searchParams.delete('language_edit'); u.searchParams.set('language_edit','1');
+			var a=li.querySelector('a.ab-item'); if(a) a.href=u.toString();
+			li.classList.remove('m24-tr-hidden'); li.style.display='';
+		} else { li.parentNode && li.parentNode.removeChild(li); }
+	}
+	if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}else{run();}
 })();
 </script>
 		<?php
