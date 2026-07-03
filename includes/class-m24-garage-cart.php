@@ -140,8 +140,9 @@ class M24_Garage_Cart {
 			. '<link rel="stylesheet" href="' . $css_url . '">'
 			. '<style>'
 			. 'html,body{margin:0}body{background:#fafafa;font-family:\'Saira\',Arial,Helvetica,sans-serif;color:#14161a}'
-			. '.m24sa-bar{background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);padding:16px 24px;text-align:right}'
-			. '.m24sa-bar img{height:30px;width:auto;display:inline-block;vertical-align:middle;border:0}'
+			. '.m24sa-bar{background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)}' // Blau-Band full-width
+			. '.m24sa-bar-inner{max-width:900px;margin:0 auto;padding:14px 16px;text-align:right}' // zentrierter Content-Container wie .m24sa-wrap
+			. '.m24sa-bar img{width:180px;height:60px;object-fit:contain;display:inline-block;vertical-align:middle;border:0}' // wie Site-Header tdb-logo-img, weiße Variante auf Blau'
 			. '.m24sa-wrap{max-width:900px;margin:0 auto;padding:24px 16px}'
 			. '.m24sa-foot{max-width:900px;margin:24px auto 40px;padding:18px 16px 0;border-top:1px solid #e6e9ee;text-align:center;font-size:12px;line-height:1.6;color:#9aa3b0}'
 			. '.m24sa-foot a{color:#1f74c4;text-decoration:none}'
@@ -155,7 +156,7 @@ class M24_Garage_Cart {
 			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}'
 			. '}'
 			. '</style></head><body>'
-			. '<div class="m24sa-bar"><img src="' . $logo . '" alt="MOTORSPORT24"></div>'
+			. '<div class="m24sa-bar"><div class="m24sa-bar-inner"><img src="' . $logo . '" alt="MOTORSPORT24"></div></div>'
 			. '<div class="m24sa-wrap">' . $inner . '</div>'
 			. '<div class="m24sa-foot">'
 			. '<div style="color:#7e8794">Classic &amp; Race Cars and Parts Sales since 2006</div>'
