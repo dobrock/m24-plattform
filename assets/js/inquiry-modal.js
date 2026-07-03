@@ -145,6 +145,8 @@
 			name: val('name'), email: val('email'), kundentyp: val('kundentyp'),
 			lieferland: land, nachricht: val('nachricht'),
 			consent: field('consent') && field('consent').checked ? '1' : '',
+			il_optin: field('il_optin') && field('il_optin').checked ? '1' : '',
+			register: field('register') && field('register').checked ? '1' : '',
 			website_confirm: val('website_confirm'),
 			inquiry_source: 'product_inquiry',
 			items_json: JSON.stringify([currentItem])

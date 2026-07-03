@@ -118,9 +118,21 @@ class M24_Inquiry_Submit {
 
 		// Registrieren (optional, nur Gäste): passwordloses Konto anlegen + Magic-Link schicken (unabhängig
 		// vom Header-UI-Flag). Nie den Anfrage-Erfolg blockieren, falls die Anlage scheitert.
+		// TEMP-TRACING Gast-Register: zeigt genau, ob der Flag ankommt und ob die Anlage durchläuft.
+		if ( class_exists( 'M24_Logger' ) ) {
+			M24_Logger::info( 'register', 'inquiry-received', array(
+				'register'  => ! empty( $params['register'] ) ? 1 : 0,
+				'il_optin'  => ! empty( $params['il_optin'] ) ? 1 : 0,
+				'logged_in' => is_user_logged_in() ? 1 : 0,
+				'has_email' => '' !== (string) $result['email'] ? 1 : 0,
+			) );
+		}
 		if ( ! empty( $params['register'] ) && ! is_user_logged_in() && class_exists( 'M24_Login' ) ) {
 			// Newsletter-Opt-in (il_optin) → Konto-Präferenz übernehmen (Brevo-DOI läuft separat über register_interessent).
-			M24_Login::create_account_and_send_link( (string) $result['email'], $name, ! empty( $params['il_optin'] ) );
+			$reg_ok = M24_Login::create_account_and_send_link( (string) $result['email'], $name, ! empty( $params['il_optin'] ) );
+			if ( class_exists( 'M24_Logger' ) ) {
+				M24_Logger::info( 'register', $reg_ok ? 'account-created+mail-queued' : 'account-create-FAILED', array() );
+			}
 		}
 
 		return new WP_REST_Response( array( 'ok' => true ), 200 );
