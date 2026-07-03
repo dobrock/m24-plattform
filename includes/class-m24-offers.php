@@ -45,6 +45,8 @@ class M24_Offers {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_customer' ), 6 );
 		// Operator-Link in die interne „Neue Anfrage"-Mail einhängen.
 		add_filter( 'm24_inquiry_operator_links', array( __CLASS__, 'operator_mail_link' ), 10, 2 );
+		// Phase 2: Desk-Push beim Senden (no-op ohne M24_DESK_API_TOKEN-Konstante).
+		add_action( 'm24_offer_sent', array( __CLASS__, 'push_to_desk' ) );
 	}
 
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
@@ -108,6 +110,14 @@ class M24_Offers {
 		) );
 		register_rest_route( self::NS, '/offers/send', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_send' ),
+		) );
+		// Phase 2: „bezahlt"-Rücksync vom Desk (Auth via Service-Token-Header, konstantezeit-Vergleich).
+		register_rest_route( self::NS, '/offers/desk/paid', array(
+			'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'handle_desk_paid' ),
+		) );
+		// Manueller Fallback-Schalter (Operator markiert bezahlt, falls der Desk-Sync ausbleibt).
+		register_rest_route( self::NS, '/offers/mark-paid', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_mark_paid' ),
 		) );
 	}
 
@@ -321,6 +331,127 @@ class M24_Offers {
 
 	private static function log( string $step, int $id = 0, string $no = '' ) {
 		if ( class_exists( 'M24_Logger' ) ) { M24_Logger::info( 'offers', $step, array( 'id' => $id, 'no' => $no ) ); }
+	}
+
+	/* ── Phase 2: Desk-Push (POST /api/orders) ──────────────────────────── */
+
+	/** Auftrag beim Senden ans M24-Desk pushen. NUR wenn M24_DESK_API_TOKEN (wp-config) gesetzt — kein DB-
+	 * Fallback; sonst no-op + Log (Kontext offers/desk_push). Reuse des bewährten M24_Rest_Client. */
+	public static function push_to_desk( $offer_id ) {
+		$offer_id = (int) $offer_id;
+		$o = self::get_by_id( $offer_id );
+		if ( ! $o ) { return; }
+		$has_token = defined( 'M24_DESK_API_TOKEN' ) && '' !== (string) M24_DESK_API_TOKEN;
+		if ( ! $has_token || ! class_exists( 'M24_Rest_Client' ) ) {
+			self::log( 'desk_push:skipped_no_token', $offer_id, (string) $o->offer_no );
+			return;
+		}
+		$res = M24_Rest_Client::push_order( self::build_desk_payload( $o ) );
+		$ok  = is_array( $res ) && ! empty( $res['ok'] );
+		$desk_id = '';
+		if ( is_array( $res ) && isset( $res['body'] ) ) {
+			$b = is_array( $res['body'] ) ? $res['body'] : json_decode( (string) $res['body'], true );
+			if ( is_array( $b ) ) { $desk_id = (string) ( $b['order_id'] ?? $b['id'] ?? $b['desk_order_id'] ?? '' ); }
+		}
+		if ( '' !== $desk_id ) {
+			global $wpdb;
+			$wpdb->update( self::table(), array( 'desk_order_id' => $desk_id ), array( 'id' => $offer_id ) );
+		}
+		self::log( $ok ? 'desk_push:ok' : 'desk_push:failed', $offer_id, (string) $o->offer_no );
+	}
+
+	/** Desk-Payload „Pfad B" (Schema wie inquiries-m24-push): customer + items (name/qty/vk/src_*) + offer. */
+	private static function build_desk_payload( $o ): array {
+		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
+		$items  = json_decode( (string) $o->items_json, true ) ?: array();
+		$extras = json_decode( (string) $o->extras_json, true ) ?: array();
+		$src    = json_decode( (string) $o->src_json, true ) ?: array();
+		$lang   = '' !== (string) ( $src['src_lang'] ?? '' ) ? (string) $src['src_lang'] : 'de';
+
+		$mapped = array();
+		foreach ( $items as $it ) {
+			$mapped[] = array(
+				'name' => (string) $it['title'], 'qty' => max( 1, (int) $it['qty'] ), 'ek' => 0,
+				'vk' => (float) $it['unit_price'],
+				'src_url' => (string) ( $src['src_url'] ?? '' ), 'src_pillar' => (string) ( $src['src_pillar'] ?? '' ),
+				'src_modell' => (string) ( $src['src_modell'] ?? '' ), 'src_pid' => (string) ( $src['src_pid'] ?? '' ),
+				'src_art_nr' => (string) ( $it['art_nr'] ?? '' ), 'src_variant' => '', 'src_lang' => $lang,
+				'st25a' => ! empty( $it['st25a'] ),
+			);
+		}
+		foreach ( $extras as $ex ) {
+			if ( empty( $ex['on'] ) ) { continue; }
+			$mapped[] = array( 'name' => (string) $ex['label'], 'qty' => 1, 'ek' => 0, 'vk' => (float) $ex['amount'], 'src_pillar' => 'service', 'src_lang' => $lang );
+		}
+		return array(
+			'source'              => 'wordpress_plugin',
+			'inquiry_source'      => 'wordpress_plugin_offer',
+			'subj'                => 'Angebot ' . (string) $o->offer_no,
+			'sender_email'        => (string) ( $cust['email'] ?? '' ),
+			'sender_lang'         => $lang,
+			'country'             => (string) ( $cust['land'] ?? '' ),
+			'inquiry_source_meta' => (object) array(
+				'src_url' => (string) ( $src['src_url'] ?? '' ), 'src_pillar' => (string) ( $src['src_pillar'] ?? '' ),
+				'src_modell' => (string) ( $src['src_modell'] ?? '' ), 'src_pid' => (string) ( $src['src_pid'] ?? '' ), 'src_lang' => $lang,
+			),
+			'customer'            => (object) array(
+				'name' => (string) ( $cust['name'] ?? '' ), 'email' => (string) ( $cust['email'] ?? '' ),
+				'kundentyp' => (string) ( $cust['kundentyp'] ?? 'b2c' ), 'firma' => (string) ( $cust['firma'] ?? '' ), 'land' => (string) ( $cust['land'] ?? '' ),
+			),
+			'items'               => $mapped,
+			'offer'               => (object) array(
+				'offer_no' => (string) $o->offer_no, 'token' => (string) $o->token,
+				'subtotal_net' => (float) $o->subtotal_net, 'tax_amount' => (float) $o->tax_amount, 'total_gross' => (float) $o->total_gross,
+				'tax_mode' => (string) $o->tax_mode, 'tax_rate' => (float) $o->tax_rate, 'tax_note' => (string) $o->tax_note,
+				'currency' => (string) $o->currency, 'valid_until' => (string) $o->valid_until, 'delivery_time' => (string) $o->delivery_time,
+			),
+		);
+	}
+
+	/* ── Phase 2: „bezahlt"-Rücksync + manueller Fallback ───────────────── */
+
+	public static function mark_paid( int $offer_id, string $source ): bool {
+		global $wpdb;
+		$o = self::get_by_id( $offer_id );
+		if ( ! $o || 'bezahlt' === $o->status ) { return false; }
+		$wpdb->update( self::table(), array( 'status' => 'bezahlt', 'paid_at' => current_time( 'mysql', true ) ), array( 'id' => $offer_id ) );
+		self::log( 'paid:' . $source, $offer_id, (string) $o->offer_no );
+		do_action( 'm24_offer_paid', $offer_id, $source );
+		return true;
+	}
+
+	/** Inbound-Webhook vom Desk: Service-Token-Header konstantezeit gegen M24_DESK_API_TOKEN prüfen. */
+	public static function handle_desk_paid( WP_REST_Request $req ) {
+		$tok = defined( 'M24_DESK_API_TOKEN' ) ? (string) M24_DESK_API_TOKEN : '';
+		$hdr = (string) ( $req->get_header( 'X-M24-Token' ) ?: $req->get_header( 'X-Service-Token' ) );
+		if ( '' === $tok || '' === $hdr || ! hash_equals( $tok, $hdr ) ) {
+			self::log( 'desk_paid:unauthorized' );
+			return new WP_Error( 'm24off_auth', 'Nicht autorisiert.', array( 'status' => 401 ) );
+		}
+		$p = $req->get_json_params();
+		global $wpdb;
+		$o = null;
+		if ( ! empty( $p['desk_order_id'] ) ) {
+			$o = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE desk_order_id = %s LIMIT 1', sanitize_text_field( (string) $p['desk_order_id'] ) ) );
+		}
+		if ( ! $o && ! empty( $p['token'] ) ) { $o = self::get_by_token( (string) $p['token'] ); }
+		if ( ! $o && ! empty( $p['offer_no'] ) ) {
+			$o = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE offer_no = %s LIMIT 1', sanitize_text_field( (string) $p['offer_no'] ) ) );
+		}
+		if ( ! $o ) { return new WP_Error( 'm24off_nf', 'Angebot nicht gefunden.', array( 'status' => 404 ) ); }
+		if ( ! array_key_exists( 'paid', $p ) || ! empty( $p['paid'] ) ) { self::mark_paid( (int) $o->id, 'desk' ); }
+		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/** Manueller Fallback-Schalter (Operator): markiert ein Angebot bezahlt. */
+	public static function handle_mark_paid( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		$o = self::get_by_token( (string) $req->get_param( 'token' ) );
+		if ( ! $o ) { return new WP_Error( 'm24off_nf', 'Angebot nicht gefunden.', array( 'status' => 404 ) ); }
+		self::mark_paid( (int) $o->id, 'manual' );
+		return rest_ensure_response( array( 'ok' => true, 'message' => 'Als bezahlt markiert.' ) );
 	}
 
 	/* ── URLs ───────────────────────────────────────────────────────────── */

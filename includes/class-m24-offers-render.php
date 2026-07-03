@@ -219,6 +219,30 @@ class M24_Offers_Render {
 				<p><strong>Verbindliches Angebot (§ 145 BGB)</strong>, gültig bis <?php echo esc_html( self::date_de( $vu ) ); ?>. Der Vertrag kommt mit fristgerechtem Zahlungseingang zustande.</p>
 				<?php if ( $is_b2c ) : ?><p class="m24off-widerruf">Widerrufsbelehrung: Als Verbraucher haben Sie das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beginnt mit Vertragsschluss. Zur Ausübung senden Sie eine eindeutige Erklärung an MOTORSPORT24 GmbH, Scharfe Lanke 109–131, 13595 Berlin bzw. service@motorsport24.de.</p><?php endif; ?>
 			</section>
+			<?php if ( current_user_can( 'manage_options' ) && 'offen' === $status ) : ?>
+			<!-- Manueller Fallback-Schalter (nur Operator sichtbar): bezahlt setzen, falls Desk-Sync ausbleibt. -->
+			<div class="m24off-card" style="text-align:center;">
+				<button type="button" class="m24off-btn m24off-btn-ghost" data-mark-paid>Als bezahlt markieren (manuell)</button>
+				<p class="m24off-status" data-paid-status role="status"></p>
+			</div>
+			<script>
+			(function(){
+				var b=document.querySelector('[data-mark-paid]'); if(!b) return;
+				var st=document.querySelector('[data-paid-status]');
+				b.addEventListener('click',function(){
+					b.disabled=true;
+					fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/mark-paid' ) ); ?>',{
+						method:'POST',credentials:'same-origin',
+						headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},
+						body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})
+					}).then(function(r){return r.json();}).then(function(d){
+						if(d&&d.ok){ st.textContent='Als bezahlt markiert — Seite neu laden.'; st.className='m24off-status is-ok'; setTimeout(function(){location.reload();},900); }
+						else { b.disabled=false; st.textContent=(d&&d.message)||'Fehler.'; st.className='m24off-status is-error'; }
+					}).catch(function(){ b.disabled=false; st.textContent='Fehler.'; st.className='m24off-status is-error'; });
+				});
+			})();
+			</script>
+			<?php endif; ?>
 			<footer class="m24off-cfoot">MOTORSPORT24 GmbH · <a href="https://www.motorsport24.de">www.motorsport24.de</a></footer>
 		</div>
 		</body></html>
