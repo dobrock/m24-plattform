@@ -63,13 +63,13 @@
 		wrap.setAttribute('role', 'navigation');
 		wrap.setAttribute('aria-label', 'Sprache');
 		wrap.setAttribute('data-m24langsw-ctx', ctx);
-		wrap.appendChild(lnk('de', cfg.de, 'DE', '🇩🇪 Deutsch'));
+		wrap.appendChild(lnk('de', cfg.de, 'DE', 'Deutsch'));
 		var sep = document.createElement('span');
 		sep.className = 'm24langsw-sep';
 		sep.setAttribute('aria-hidden', 'true');
 		sep.textContent = '·';
 		wrap.appendChild(sep);
-		wrap.appendChild(lnk('en', cfg.en, 'EN', '🇬🇧 English'));
+		wrap.appendChild(lnk('en', cfg.en, 'EN', 'English'));
 		return wrap;
 	}
 
