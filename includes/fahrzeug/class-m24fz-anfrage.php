@@ -286,25 +286,31 @@ class M24FZ_Anfrage {
 		} else {
 			$attr = self::il_attributes( (int) $context_id );
 		}
-		$title = get_the_title( $context_id );
-		$url   = get_permalink( $context_id );
-		$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
+		// Interne Operator-Benachrichtigung „Interessentenliste-Eintrag (Marketing-Opt-in)" — Default AUS
+		// (wird nicht gebraucht). Re-aktivierbar via Filter m24fz_interessent_admin_notify → true bzw. Option
+		// m24fz_interessent_notify_enabled. Die Kunden-DOI-Bestätigungsmail (do_action unten) bleibt unberührt.
+		$notify_on = apply_filters( 'm24fz_interessent_admin_notify', (bool) (int) get_option( 'm24fz_interessent_notify_enabled', 0 ) );
+		if ( $notify_on ) {
+			$title = get_the_title( $context_id );
+			$url   = get_permalink( $context_id );
+			$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
 
-		$body  = "Neuer Interessentenlisten-Eintrag (Marketing-Opt-in)\n\n";
-		$body .= "Auslösendes Inserat/Teil: {$title}\n{$url}\nID: {$context_id}\n\n";
-		$body .= "Name: {$name}\nE-Mail: {$mail}\n";
-		if ( '' !== $kundentyp ) { $body .= "Kundentyp: {$kundentyp}\n"; }
-		if ( '' !== $tel )       { $body .= "Telefon/WhatsApp: {$tel}\n"; }
-		$body .= "\nMODELLE: " . ( $attr['modelle'] ? implode( ', ', (array) $attr['modelle'] ) : '—' ) . "\n";
-		$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
-		$brevo_ready = class_exists( 'M24_Brevo_Client' ) ? M24_Brevo_Client::is_configured() : ( '' !== (string) get_option( 'm24_brevo_api_key', '' ) );
-		$body .= "\nListe-ID 3 + DOI: plugin-managed (Brevo Phase 2 — " . ( $brevo_ready ? 'API-Key gesetzt, DOI-Mail läuft' : 'API-Key noch nicht gesetzt' ) . ").\n";
+			$body  = "Neuer Interessentenlisten-Eintrag (Marketing-Opt-in)\n\n";
+			$body .= "Auslösendes Inserat/Teil: {$title}\n{$url}\nID: {$context_id}\n\n";
+			$body .= "Name: {$name}\nE-Mail: {$mail}\n";
+			if ( '' !== $kundentyp ) { $body .= "Kundentyp: {$kundentyp}\n"; }
+			if ( '' !== $tel )       { $body .= "Telefon/WhatsApp: {$tel}\n"; }
+			$body .= "\nMODELLE: " . ( $attr['modelle'] ? implode( ', ', (array) $attr['modelle'] ) : '—' ) . "\n";
+			$body .= "KATEGORIEN: " . ( $attr['kategorien'] ? implode( ', ', (array) $attr['kategorien'] ) : '—' ) . "\n";
+			$brevo_ready = class_exists( 'M24_Brevo_Client' ) ? M24_Brevo_Client::is_configured() : ( '' !== (string) get_option( 'm24_brevo_api_key', '' ) );
+			$body .= "\nListe-ID 3 + DOI: plugin-managed (Brevo Phase 2 — " . ( $brevo_ready ? 'API-Key gesetzt, DOI-Mail läuft' : 'API-Key noch nicht gesetzt' ) . ").\n";
 
-		$headers = array(
-			'From: ' . self::from_header( $name, self::from_email() ),
-			'Reply-To: ' . $name . ' <' . $mail . '>',
-		);
-		wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
+			$headers = array(
+				'From: ' . self::from_header( $name, self::from_email() ),
+				'Reply-To: ' . $name . ' <' . $mail . '>',
+			);
+			wp_mail( $to, 'Interessentenliste-Eintrag: ' . $title, $body, $headers );
+		}
 
 		// Hook für die plugin-managed DOI-Pipeline (Liste-ID 3; NAME + KUNDENTYP + Attribute MODELLE/KATEGORIEN).
 		do_action( 'm24fz_interessent_submitted', $context_id, array(
