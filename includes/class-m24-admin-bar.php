@@ -21,7 +21,22 @@ class M24_Admin_Bar {
 	}
 
 	public static function nodes( $bar ) {
-		if ( is_admin() || ! is_user_logged_in() || ! is_singular() ) { return; }
+		if ( is_admin() || ! is_user_logged_in() ) { return; }
+
+		// ── „🌐 Übersetzung bearbeiten" — auf JEDER GTranslate-Sprachseite (auch Archive/Startseite), nur
+		// Redakteure/Admins (edit_posts → NICHT eingeloggte B2B-Kunden). Öffnet den In-Context-Editor.
+		if ( self::is_translated() && current_user_can( 'edit_posts' ) ) {
+			$bar->add_node( array(
+				'id'    => 'm24-translate-edit',
+				// notranslate → GTranslate übersetzt das Label nicht selbst.
+				'title' => '<span class="notranslate">🌐 Übersetzung bearbeiten</span>',
+				'href'  => self::language_edit_url(),
+				'meta'  => array( 'class' => 'm24-adminbar-edit', 'target' => '_blank', 'rel' => 'noopener' ),
+			) );
+		}
+
+		// ── „✎ M24 bearbeiten" — nur singular, mit edit_post-Rechten (bestehende Logik).
+		if ( ! is_singular() ) { return; }
 		$id = (int) get_queried_object_id();
 		if ( $id <= 0 ) { return; }
 		$pt = (string) get_post_type( $id );
@@ -41,27 +56,28 @@ class M24_Admin_Bar {
 
 		$bar->add_node( array(
 			'id'    => 'm24-edit',
-			'title' => '✎ M24 bearbeiten',
+			// notranslate → auf /en/ bleibt „M24 bearbeiten" unübersetzt (sonst „Edit M24").
+			'title' => '<span class="notranslate">✎ M24 bearbeiten</span>',
 			'href'  => $url,
 			'meta'  => array( 'class' => 'm24-adminbar-edit' ),
 		) );
-
-		// Bonus: GTranslate-/en/-Seite → „Übersetzung bearbeiten" (aktuelle URL + ?language_edit=1).
-		if ( self::is_en_url() ) {
-			$cur = ( is_ssl() ? 'https://' : 'http://' ) . ( isset( $_SERVER['HTTP_HOST'] ) ? wp_unslash( $_SERVER['HTTP_HOST'] ) : '' ) . ( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '' );
-			$bar->add_node( array(
-				'id'    => 'm24-translate-edit',
-				'title' => '🌐 Übersetzung bearbeiten',
-				'href'  => esc_url_raw( add_query_arg( 'language_edit', '1', $cur ) ),
-				'meta'  => array( 'class' => 'm24-adminbar-edit' ),
-			) );
-		}
 	}
 
-	/** Aktuelle URL ist eine /en/-GTranslate-Seite? */
-	private static function is_en_url(): bool {
-		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
-		return (bool) preg_match( '#^/en/#', $uri );
+	/** Aktuelle Anfrage ist eine GTranslate-Sprachseite (Pfad-Präfix, erweiterbar via m24_translate_langs). */
+	private static function is_translated(): bool {
+		$path  = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH );
+		$langs = (array) apply_filters( 'm24_translate_langs', array( 'en' ) );
+		if ( empty( $langs ) ) { return false; }
+		return (bool) preg_match( '#^/(' . implode( '|', array_map( 'preg_quote', $langs ) ) . ')(/|$)#', $path );
+	}
+
+	/** Aktuelle URL (Host + Pfad + Query) mit language_edit=1 — evtl. vorhandener Param wird ersetzt. */
+	private static function language_edit_url(): string {
+		$host = isset( $_SERVER['HTTP_HOST'] ) ? (string) wp_unslash( $_SERVER['HTTP_HOST'] ) : '';
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+		$url  = ( is_ssl() ? 'https://' : 'http://' ) . $host . $uri;
+		$url  = remove_query_arg( 'language_edit', $url );
+		return esc_url_raw( add_query_arg( 'language_edit', '1', $url ) );
 	}
 
 	/** Dezentes Highlight, damit der M24-Knoten klar erkennbar ist. */
