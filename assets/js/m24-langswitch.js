@@ -6,6 +6,21 @@
 (function () {
 	'use strict';
 	var cfg = window.M24Lang || {};
+	// DE/EN-Ziel-URLs IMMER client-seitig aus der AKTUELLEN URL ableiten (cache-immun): das server-
+	// gerenderte M24Lang kann in gecachten /en/-Seiten veralten (falsches /en/ bzw. /en/en/, aktive
+	// Sprache falsch). Führendes /en/ zuerst strippen → kanonischer DE-Basis-Pfad; EN = /en/ + Basis.
+	// DE-Link = Basis (ohne /en/), EN-Link = /en/ + Basis (nie /en/en/). Query + Hash bleiben erhalten.
+	(function () {
+		var path = location.pathname || '/';
+		var isEn = /^\/en(\/|$)/.test(path);
+		var base = isEn ? (path.replace(/^\/en/, '') || '/') : path;
+		var enPath = isEn ? path : '/en' + (base === '/' ? '/' : base);
+		var origin = location.origin || (location.protocol + '//' + location.host);
+		var tail = (location.search || '') + (location.hash || '');
+		cfg.active = isEn ? 'en' : 'de';
+		cfg.de = origin + base + tail;
+		cfg.en = origin + enPath + tail;
+	})();
 	if (!cfg.de || !cfg.en) { return; }
 	if (document.querySelector('.m24langsw')) { return; }
 
