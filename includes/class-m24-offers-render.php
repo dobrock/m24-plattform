@@ -199,7 +199,7 @@ class M24_Offers_Render {
 				<h2>Positionen</h2>
 				<?php foreach ( $items as $it ) : $line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] ); ?>
 					<div class="m24off-crow">
-						<div class="m24off-cinfo"><span class="m24off-ctitle"><?php echo esc_html( $it['title'] ); ?></span><?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?><?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a">§25a – differenzbesteuert, keine ausweisbare USt</span><?php endif; ?></div>
+						<div class="m24off-cinfo"><span class="m24off-ctitle"><?php echo esc_html( $it['title'] ); ?></span><?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?><?php if ( ! empty( $it['st25a'] ) ) : ?><span class="m24off-c25a"><?php echo esc_html( self::st25a_line() ); ?></span><?php endif; ?><?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – vom Widerruf ausgenommen (§ 312g Abs. 2 BGB)</span><?php endif; ?></div>
 						<div class="m24off-cqty">×<?php echo (int) $it['qty']; ?></div>
 						<div class="m24off-cline"><?php echo esc_html( self::fmt( $line ) ); ?></div>
 					</div>
@@ -226,8 +226,11 @@ class M24_Offers_Render {
 			<?php endif; ?>
 
 			<section class="m24off-legal">
-				<p><strong>Verbindliches Angebot (§ 145 BGB)</strong>, gültig bis <?php echo esc_html( self::date_de( $vu ) ); ?>. Der Vertrag kommt mit fristgerechtem Zahlungseingang zustande.</p>
-				<?php if ( $is_b2c ) : ?><p class="m24off-widerruf">Widerrufsbelehrung: Als Verbraucher haben Sie das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beginnt mit Vertragsschluss. Zur Ausübung senden Sie eine eindeutige Erklärung an MOTORSPORT24 GmbH, Scharfe Lanke 109–131, 13595 Berlin bzw. service@motorsport24.de.</p><?php endif; ?>
+				<p><?php echo esc_html( self::contract_clause( self::date_de( $vu ) ) ); ?></p>
+				<p><strong>Anbieter:</strong> <?php echo esc_html( self::company_line() ); ?><br>
+				<strong>Gesamtpreis:</strong> <?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?> (inkl. etwaiger Steuern und ausgewiesener Nebenkosten wie Verpackung/Versand/Zollabwicklung)<?php if ( $o->delivery_time ) : ?><br><strong>Lieferzeit:</strong> <?php echo esc_html( $o->delivery_time ); ?><?php endif; ?></p>
+				<?php if ( $is_b2c ) : ?><div class="m24off-widerruf"><?php echo self::widerruf_html( $items ); // phpcs:ignore WordPress.Security.EscapeOutput — intern esc_* ?></div><?php endif; ?>
+				<p class="m24off-links"><?php $sep = ''; foreach ( self::legal_links() as $lbl => $lurl ) { echo $sep . '<a href="' . esc_url( $lurl ) . '" target="_blank" rel="noopener">' . esc_html( $lbl ) . '</a>'; $sep = ' · '; } // phpcs:ignore WordPress.Security.EscapeOutput ?></p>
 			</section>
 			<?php if ( current_user_can( 'manage_options' ) && 'offen' === $status ) : ?>
 			<!-- Manueller Fallback-Schalter (nur Operator sichtbar): bezahlt setzen, falls Desk-Sync ausbleibt. -->
@@ -267,6 +270,51 @@ class M24_Offers_Render {
 		) );
 	}
 
+	/* ── Rechtstexte (geteilt zwischen Kunden-Ansicht + Mail) ───────────── */
+
+	private static function company_line(): string {
+		return apply_filters( 'm24_offer_company_line', 'MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin' );
+	}
+	private static function legal_links(): array {
+		return apply_filters( 'm24_offer_legal_links', array(
+			'Impressum'   => 'https://www.motorsport24.de/impressum/',
+			'AGB'         => 'https://www.motorsport24.de/agb/',
+			'Datenschutz' => 'https://www.motorsport24.de/datenschutz/',
+			'Widerruf'    => 'https://www.motorsport24.de/widerrufsrecht/',
+		) );
+	}
+	/** §145/§146-Vertragsklausel (alle Angebote). $vu = Gültig-bis (formatiert). */
+	private static function contract_clause( string $vu ): string {
+		return 'Dieses Angebot ist verbindlich (§ 145 BGB) und gültig bis ' . $vu . '. Ein Kaufvertrag kommt zustande, wenn der vollständige Rechnungsbetrag innerhalb dieser Frist auf unserem Geschäftskonto eingeht (Annahme durch Zahlung). Geht die Zahlung nicht fristgerecht ein, erlischt das Angebot (§ 146 BGB).';
+	}
+	private static function st25a_line(): string {
+		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird nicht gesondert ausgewiesen.';
+	}
+	/** Vollständige B2C-Widerrufsbelehrung (Art. 246a EGBGB) + Muster-Widerrufsformular + § 312g Abs. 2. */
+	private static function widerruf_html( array $items ): string {
+		$custom = array();
+		foreach ( $items as $it ) { if ( ! empty( $it['custom'] ) ) { $custom[] = (string) $it['title']; } }
+		$h  = '<h3 style="font-size:14px;margin:14px 0 6px;">Widerrufsbelehrung</h3>';
+		$h .= '<p><strong>Widerrufsrecht.</strong> Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat. Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (MOTORSPORT24 GmbH, Scharfe Lanke 109–131, 13595 Berlin, E-Mail service@motorsport24.de) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist. Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>';
+		$h .= '<p><strong>Folgen des Widerrufs.</strong> Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart. Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist. Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden. Sie tragen die unmittelbaren Kosten der Rücksendung der Waren. Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist.</p>';
+		$h .= '<h4 style="font-size:13px;margin:12px 0 4px;">Muster-Widerrufsformular</h4>';
+		$h .= '<p>(Wenn Sie den Vertrag widerrufen wollen, füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>';
+		$h .= '<p>An MOTORSPORT24 GmbH, Scharfe Lanke 109–131, 13595 Berlin, E-Mail service@motorsport24.de:<br>'
+			. '— Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*):<br>'
+			. '— Bestellt am (*)/erhalten am (*):<br>— Name des/der Verbraucher(s):<br>— Anschrift des/der Verbraucher(s):<br>'
+			. '— Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier):<br>— Datum:<br>(*) Unzutreffendes streichen.</p>';
+		if ( ! empty( $custom ) ) {
+			$h .= '<p><strong>Ausschluss des Widerrufsrechts (§ 312g Abs. 2 BGB).</strong> Das Widerrufsrecht besteht nicht bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind. Dies betrifft folgende Position(en): ' . esc_html( implode( ', ', $custom ) ) . '.</p>';
+		} else {
+			$h .= '<p><strong>Ausschluss des Widerrufsrechts (§ 312g Abs. 2 BGB).</strong> Bei nach Kundenspezifikation angefertigten oder eindeutig auf persönliche Bedürfnisse zugeschnittenen Waren besteht kein Widerrufsrecht.</p>';
+		}
+		return $h;
+	}
+	private static function has_custom( array $items ): bool {
+		foreach ( $items as $it ) { if ( ! empty( $it['custom'] ) ) { return true; } }
+		return false;
+	}
+
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
 
 	public static function mail( int $offer_id ) {
@@ -283,7 +331,8 @@ class M24_Offers_Render {
 		foreach ( $items as $it ) {
 			$line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
 			$rows .= '<tr><td style="padding:6px 0;">' . esc_html( $it['title'] ) . ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
-				. ( ! empty( $it['st25a'] ) ? '<br><span style="color:#8a929c;font-size:11px;">§25a differenzbesteuert</span>' : '' )
+				. ( ! empty( $it['st25a'] ) ? '<br><span style="color:#8a929c;font-size:11px;">' . esc_html( self::st25a_line() ) . '</span>' : '' )
+				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – vom Widerruf ausgenommen (§ 312g Abs. 2 BGB)</span>' : '' )
 				. '</td><td style="text-align:center;">×' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
 		}
 		foreach ( $extras as $ex ) {
@@ -302,7 +351,19 @@ class M24_Offers_Render {
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">Lieferzeit: ' . esc_html( $o->delivery_time ) . '</p>'; }
 		if ( $o->tax_note ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
 		$inner .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">Angebot ansehen &amp; bezahlen</a></p>';
-		$inner .= '<p style="margin:0 0 4px;font-size:12px;color:#8a929c;">Verbindliches Angebot (§ 145 BGB). Der Vertrag kommt mit fristgerechtem Zahlungseingang zustande.</p>';
+		$inner .= '<p style="margin:16px 0 4px;font-size:12px;color:#5a6474;line-height:1.6;">' . esc_html( self::contract_clause( $vu ) ) . '</p>';
+		// Pflichtangaben.
+		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>Anbieter:</strong> ' . esc_html( self::company_line() )
+			. '<br><strong>Gesamtpreis:</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' (inkl. etwaiger Steuern und ausgewiesener Nebenkosten)'
+			. ( $o->delivery_time ? '<br><strong>Lieferzeit:</strong> ' . esc_html( $o->delivery_time ) : '' ) . '</p>';
+		// B2C: vollständige Widerrufsbelehrung + Musterformular + § 312g Abs. 2.
+		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
+			$inner .= '<div style="margin:14px 0 0;font-size:11.5px;color:#7a8290;line-height:1.6;">' . self::widerruf_html( $items ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput — intern esc_*
+		}
+		// Pflicht-Links.
+		$links = array();
+		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( $lbl ) . '</a>'; }
+		$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;">' . implode( ' &middot; ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput — Links escaped
 		if ( (int) $o->account_id <= 0 ) {
 			$inner .= '<p style="margin:14px 0 0;font-size:13px;">Wir haben Ihnen zusätzlich einen Link zur <strong>Konto-Anlage</strong> geschickt — nach Bestätigung liegt dieses Angebot jederzeit in Ihrer MOTORSPORT24-Garage bereit.</p>';
 		}

@@ -23,7 +23,8 @@
 			row.className = 'm24off-item';
 			row.innerHTML = '<div class="m24off-item-main"><span class="m24off-item-title">' + esc(it.title) + '</span>'
 				+ (it.art_nr ? '<span class="m24off-item-art">Art.-Nr.: ' + esc(it.art_nr) + '</span>' : '')
-				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.st25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label></div>'
+				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.st25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label>'
+				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.custom ? ' checked' : '') + ' data-i="' + i + '" data-custom> Sonderanfertigung (kein Widerruf)</label></div>'
 				+ '<div class="m24off-item-nums"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty class="m24off-qty">'
 				+ '<input type="number" step="0.01" value="' + it.unit_price + '" data-i="' + i + '" data-price class="m24off-price"> €'
 				+ '<button type="button" class="m24off-item-x" data-i="' + i + '" data-rm aria-label="Entfernen">&times;</button></div>';
@@ -42,6 +43,7 @@
 	document.addEventListener('change', function (e) {
 		var t = e.target;
 		if (t.matches('[data-25a]')) { items[+t.getAttribute('data-i')].st25a = t.checked; recalc(); }
+		else if (t.matches('[data-custom]')) { items[+t.getAttribute('data-i')].custom = t.checked; }
 		else if (t.matches('[data-extra-on]')) { extras[+t.getAttribute('data-i')].on = t.checked; recalc(); }
 		else if (t.matches('[data-extra-amt]')) { extras[+t.getAttribute('data-i')].amount = parseFloat(t.value) || 0; recalc(); }
 		else if (t.matches('[data-tax-mode]')) { setTaxMode(t.value); }
@@ -141,7 +143,8 @@
 			art_nr: btn.getAttribute('data-art') || '',
 			qty: 1,
 			unit_price: parseFloat(btn.getAttribute('data-price')) || 0,
-			st25a: btn.getAttribute('data-25a') === '1'
+			st25a: btn.getAttribute('data-25a') === '1',
+			custom: false
 		});
 		renderItems();
 	}

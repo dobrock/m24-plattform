@@ -120,7 +120,7 @@ class M24_Offers {
 	public static function tax_modes(): array {
 		return array(
 			'b2b_eu_net'    => array( 'label' => 'B2B EU → netto (Reverse Charge, keine USt)', 'rate' => 0.0, 'note' => 'Innergemeinschaftliche Lieferung – Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge), keine deutsche USt.' ),
-			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Ausfuhrlieferung in ein Drittland – netto; Einfuhrumsatzsteuer/Zoll trägt der Empfänger (Zollabwicklung separat ausgewiesen).' ),
+			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Nettopreis (Ausfuhrlieferung). Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben im Bestimmungsland trägt der Käufer.' ),
 			'b2b_de_19'     => array( 'label' => 'B2B Deutschland → + 19 % MwSt (brutto)', 'rate' => 19.0, 'note' => 'zzgl. 19 % gesetzlicher MwSt.' ),
 			'b2c_eu_oss'    => array( 'label' => 'Privat B2C EU → OSS-Satz Zielland (manuell)', 'rate' => null, 'note' => 'One-Stop-Shop: USt-Satz des Bestimmungslandes.' ),
 		);
@@ -317,6 +317,7 @@ class M24_Offers {
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
 				'st25a'      => ! empty( $it['st25a'] ),
+				'custom'     => ! empty( $it['custom'] ), // Sonderanfertigung (§ 312g Abs. 2 – kein Widerruf)
 			);
 		}
 		return $out;
