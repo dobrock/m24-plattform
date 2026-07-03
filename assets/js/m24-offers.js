@@ -117,7 +117,9 @@
 			.then(function (r) { return r.json(); })
 			.then(function (d) {
 				var list = $('[data-picker-list]'); list.innerHTML = '';
-				(d.items || []).forEach(function (it) {
+				// Trefferliste robust aus response.items lesen (Fallback: bare Array bzw. data.items).
+				var arr = Array.isArray(d) ? d : ((d && (d.items || (d.data && d.data.items))) || []);
+				arr.forEach(function (it) {
 					var row = document.createElement('div');
 					row.className = 'm24off-pick';
 					row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pick-ph"></span>')
@@ -129,7 +131,7 @@
 						+ 'data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.st25a ? 1 : 0) + '">+</button>';
 					list.appendChild(row);
 				});
-				if (!(d.items || []).length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; }
+				if (!arr.length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; }
 			});
 	}
 	function addFromPick(btn) {
