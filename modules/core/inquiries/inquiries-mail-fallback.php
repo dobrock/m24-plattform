@@ -182,18 +182,26 @@ class M24_Inquiries_Mail_Fallback {
         $subject = self::build_subject( $data, $reason );
         $body    = self::build_html_body( $data, $reason );
         $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+        // Display-Name für Mail-Header säubern: NICHT selbst in "…" quoten — sonst quotet PHPMailer (via
+        // wp_mail) den bereits gequoteten Namen erneut und escaped die Anführungszeichen → \"Name\". Statt-
+        // dessen die Header-Breaker (", \, ,, <, >) entfernen und den blanken Namen übergeben; PHPMailer
+        // quotet RFC-5322-konform selbst, falls nötig. wp_unslash entfernt evtl. Slash-Artefakte.
+        $clean_name = static function ( $n ) {
+            $n = trim( wp_unslash( (string) $n ) );
+            $n = str_replace( array( '"', '\\', ',', '<', '>' ), ' ', $n );
+            return trim( (string) preg_replace( '/\s+/', ' ', $n ) );
+        };
         // Produktanfrage: From-Name = Kundenname, System-Absenderadresse (wp_mail_from) beibehalten.
         if ( self::REASON_PRODUCT === $reason ) {
-            $from_name = trim( $data['vorname'] . ' ' . $data['nachname'] );
+            $from_name = $clean_name( $data['vorname'] . ' ' . $data['nachname'] );
             $from_name = '' !== $from_name ? $from_name : 'MOTORSPORT24';
-            $from_name = '"' . str_replace( '"', '', $from_name ) . '"'; // RFC: Name quoten (Komma-sicher)
             $host = preg_replace( '#^www\.#i', '', (string) wp_parse_url( network_home_url(), PHP_URL_HOST ) );
             $system_from = apply_filters( 'wp_mail_from', 'wordpress@' . $host );
             $headers[]   = 'From: ' . $from_name . ' <' . $system_from . '>';
         }
         if ( '' !== $data['email'] && is_email( $data['email'] ) ) {
-            $rn = trim( $data['vorname'] . ' ' . $data['nachname'] );
-            $headers[] = 'Reply-To: ' . ( '' !== $rn ? sprintf( '"%s" <%s>', $rn, $data['email'] ) : $data['email'] );
+            $rn = $clean_name( $data['vorname'] . ' ' . $data['nachname'] );
+            $headers[] = 'Reply-To: ' . ( '' !== $rn ? $rn . ' <' . $data['email'] . '>' : $data['email'] );
         }
         return (bool) wp_mail( $to, $subject, $body, $headers );
     }
