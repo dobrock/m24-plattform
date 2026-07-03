@@ -77,7 +77,7 @@ class M24_B2B_Header_Login {
 			$base    = '' !== $fn ? $fn : ( '' !== trim( (string) $u->display_name ) ? (string) $u->display_name : (string) $u->user_email );
 			$initial = function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $base, 0, 1 ) ) : strtoupper( substr( $base, 0, 1 ) );
 			$garage  = class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' );
-			$settings = add_query_arg( 'm24tab', 'notify', $garage );
+			$settings = add_query_arg( 'tab', 'benachrichtigungen', $garage ); // Deep-Link → Benachrichtigungen-Tab
 			$logout  = wp_logout_url( home_url( '/' ) );
 			$items   = '<a class="m24hl-item" href="' . esc_url( $garage ) . '">' . esc_html( $en ? 'My garage' : 'Meine Garage' ) . '</a>'
 				. '<a class="m24hl-item" href="' . esc_url( $settings ) . '">' . esc_html( $en ? 'E-mail settings' : 'E-Mail-Einstellungen' ) . '</a>';

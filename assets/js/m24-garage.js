@@ -80,9 +80,12 @@
 			var btn = e.target.closest('[data-m24gc-tab]');
 			if (btn) { activate(btn.getAttribute('data-m24gc-tab')); }
 		});
-		// Deep-Link aus Alert-Mail „Benachrichtigungen verwalten": ?m24tab=notify öffnet den Tab.
-		var m = location.search.match(/[?&]m24tab=([a-z]+)/);
-		if (m) { activate(m[1]); }
+		// Deep-Link zum Tab: ?m24tab=notify (Alert-Mails, back-compat) ODER ?tab=<key> / #<key>
+		// (Konto-Dropdown „E-Mail-Einstellungen" → ?tab=benachrichtigungen). Alias benachrichtigungen → notify.
+		var mp  = location.search.match(/[?&](?:m24tab|tab)=([a-z]+)/i);
+		var key = mp ? mp[1].toLowerCase() : (location.hash ? location.hash.slice(1).toLowerCase() : '');
+		if (key === 'benachrichtigungen') { key = 'notify'; }
+		if (key) { activate(key); }
 	})();
 
 	/* ── Zähler (Schwebe-FAB + jeder Header-Slot mit [data-m24-garage-count]) ── */

@@ -271,7 +271,7 @@ class M24_Login {
 			'isAdmin'    => $logged && user_can( $u, 'manage_options' ),
 			'initial'    => $first,
 			'garageUrl'  => esc_url_raw( self::garage_url() ),
-			'settingsUrl'=> esc_url_raw( add_query_arg( 'm24tab', 'notify', self::garage_url() ) ),
+			'settingsUrl'=> esc_url_raw( add_query_arg( 'tab', 'benachrichtigungen', self::garage_url() ) ), // Deep-Link → Benachrichtigungen-Tab
 			'adminUrl'   => esc_url_raw( admin_url() ),
 			'logoutUrl'  => esc_url_raw( wp_logout_url( home_url( '/' ) ) ),
 			'autoOpen'   => isset( $_GET['m24_login'] ), // phpcs:ignore WordPress.Security.NonceVerification
