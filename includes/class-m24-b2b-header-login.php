@@ -68,9 +68,9 @@ class M24_B2B_Header_Login {
 
 		echo '<div id="m24-b2b-login" hidden>';
 		if ( ! $logged ) {
-			// Ausgeloggt: dezenter Outline-Chip „Anmelden" (+ Personen-Punkt), Ziel = sichere /haendler-login/-Strecke.
+			// Ausgeloggt: dezenter Outline-Chip „Login" (+ Personen-Punkt), Ziel = sichere /haendler-login/-Strecke.
 			echo '<div class="m24hl-acct"><a class="m24hl-chip" href="' . esc_url( home_url( '/haendler-login/' ) ) . '">'
-				. '<span class="m24hl-chip-i" aria-hidden="true">●</span><span class="m24hl-chip-t">' . esc_html( $en ? 'Sign in' : 'Anmelden' ) . '</span></a></div>';
+				. '<span class="m24hl-chip-i" aria-hidden="true">●</span><span class="m24hl-chip-t">Login</span></a></div>';
 		} else {
 			$u       = wp_get_current_user();
 			$fn      = trim( (string) get_user_meta( $u->ID, 'first_name', true ) );

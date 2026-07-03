@@ -322,7 +322,7 @@ class M24_I18n {
                 'reg_err'       => 'Bitte fülle alle Pflichtfelder korrekt aus (inkl. gültiger USt-IdNr. bei EU-Ländern) und stimme Datenschutz & AGB zu.',
                 'req'           => '*',
                 // Login
-                'login_h1'      => 'Händler-Login',
+                'login_h1'      => 'Login',
                 'login_sub'     => 'Gib deine E-Mail ein — wir schicken dir einen Login-Link. Kein Passwort nötig.',
                 'submit_login'  => 'Login-Link anfordern',
                 'login_ok_title'=> 'Check deine Mails',
@@ -382,7 +382,7 @@ class M24_I18n {
                 'reg_ok_text'   => 'We have sent you an email. Please confirm your registration via the link inside (valid for 15 minutes).',
                 'reg_err'       => 'Please complete all required fields correctly (incl. a valid VAT ID for EU countries) and accept the Privacy Policy & Terms.',
                 'req'           => '*',
-                'login_h1'      => 'Dealer login',
+                'login_h1'      => 'Login',
                 'login_sub'     => 'Enter your email — we will send you a login link. No password required.',
                 'submit_login'  => 'Request login link',
                 'login_ok_title'=> 'Check your inbox',

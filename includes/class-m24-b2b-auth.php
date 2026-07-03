@@ -84,10 +84,14 @@ class M24_B2B_Auth {
         $defs = array(
             self::OPT_REG_PAGE   => array( 'Händler-Registrierung', 'haendler-registrierung', '[m24_haendler_registrierung]' ),
             self::OPT_REG2_PAGE  => array( 'Händler-Registrierung (Variante)', 'haendler-registrierung-2', '[m24_haendler_registrierung_2]' ),
-            self::OPT_LOGIN_PAGE => array( 'Händler-Login', 'haendler-login', '[m24_haendler_login]' ),
+            self::OPT_LOGIN_PAGE => array( 'Login', 'haendler-login', '[m24_haendler_login]' ),
         );
         foreach ( $defs as $opt => $d ) {
             $id = (int) get_option( $opt, 0 );
+            // Einmalige Titel-Korrektur: Login-Seite von „Händler-Login" → „Login" (H1/Breadcrumb), Slug bleibt.
+            if ( self::OPT_LOGIN_PAGE === $opt && $id && 'Händler-Login' === get_the_title( $id ) ) {
+                wp_update_post( array( 'ID' => $id, 'post_title' => 'Login' ) );
+            }
             if ( ! ( $id && 'page' === get_post_type( $id ) && 'trash' !== get_post_status( $id ) ) ) {
                 $new = wp_insert_post( array(
                     'post_status'  => 'publish',
@@ -502,7 +506,7 @@ class M24_B2B_Auth {
         ob_start();
         echo self::form_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '<div class="m24b2b"><div class="m24b2b-card">';
-        echo M24_I18n::lang_switcher( $lg ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // In-Card DE/EN-Switcher hier bewusst entfernt — Sprache steht bereits in der Top-Navi (redundant).
 
         if ( isset( $_GET['gesendet'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
             echo '<div class="m24b2b-ok">' . esc_html( $t( 'login_ok_title' ) ) . '</div>';
