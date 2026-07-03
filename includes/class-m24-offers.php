@@ -424,6 +424,32 @@ class M24_Offers {
 		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE id = %d LIMIT 1', $id ) );
 	}
 
+	/**
+	 * Bestellhistorie eines Kontos: bezahlte/versandte Angebote (rein WP-seitig, KEIN Desk-Call).
+	 * @return array<int,array{offer_no:string,total:float,date:string,count:int,status:string}>
+	 */
+	public static function orders_for_account( int $account_id ): array {
+		if ( $account_id <= 0 ) { return array(); }
+		global $wpdb;
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT offer_no, total_gross, status, created_at, paid_at, items_json FROM ' . self::table()
+			. " WHERE account_id = %d AND status IN ('bezahlt','versandt') ORDER BY COALESCE(paid_at, created_at) DESC LIMIT 100",
+			$account_id
+		) );
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$items = json_decode( (string) $r->items_json, true );
+			$out[] = array(
+				'offer_no' => (string) $r->offer_no,
+				'total'    => (float) $r->total_gross,
+				'date'     => (string) ( $r->paid_at ?: $r->created_at ),
+				'count'    => is_array( $items ) ? count( $items ) : 0,
+				'status'   => (string) $r->status,
+			);
+		}
+		return $out;
+	}
+
 	/* ── 5-Tage-Ablauf (Cron, ohne Stunden) ─────────────────────────────── */
 
 	public static function expire_due() {

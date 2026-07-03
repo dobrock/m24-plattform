@@ -478,6 +478,27 @@ class M24_Account {
 							</div>
 						<?php endif; ?>
 					</section>
+
+					<!-- 8) Bestellhistorie (Quelle: m24_offers bezahlt/versandt, rein WP-seitig) -->
+					<section class="m24acc-card">
+						<h3 class="m24acc-h">Bestellhistorie</h3>
+						<?php $orders = class_exists( 'M24_Offers' ) ? M24_Offers::orders_for_account( $acc ) : array(); ?>
+						<?php if ( empty( $orders ) ) : ?>
+							<p class="m24acc-note">Noch keine Bestellungen.</p>
+						<?php else : foreach ( $orders as $ord ) :
+							$obadge = 'versandt' === $ord['status'] ? array( 'Versandt', '#1f74c4' ) : array( 'Bezahlt', '#1a7f37' );
+							$odate  = $ord['date'] ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( $ord['date'] ) ) : gmdate( 'd.m.Y', strtotime( $ord['date'] ) ) ) : '';
+							?>
+							<div class="m24acc-order">
+								<div class="m24acc-order-head">
+									<span class="m24acc-order-no">Bestell-Nr. <?php echo esc_html( $ord['offer_no'] ); ?></span>
+									<span class="m24acc-order-badge" style="background:<?php echo esc_attr( $obadge[1] ); ?>;"><?php echo esc_html( $obadge[0] ); ?></span>
+								</div>
+								<div class="m24acc-order-meta"><?php echo esc_html( number_format( $ord['total'], 2, ',', '.' ) ); ?> €<?php if ( $odate ) : ?> · <?php echo esc_html( $odate ); ?><?php endif; ?> · <?php echo (int) $ord['count']; ?> Position<?php echo 1 === (int) $ord['count'] ? '' : 'en'; ?></div>
+								<span class="m24acc-order-inv" title="Die Rechnungs-Auslieferung folgt mit M24-Desk" aria-disabled="true">⬇ Rechnung herunterladen <em>(folgt mit M24-Desk)</em></span>
+							</div>
+						<?php endforeach; endif; ?>
+					</section>
 				</div>
 			</div>
 
