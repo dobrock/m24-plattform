@@ -178,26 +178,29 @@ class M24_Offers_Render {
 		<?php
 		$logo     = esc_url( apply_filters( 'm24fz_mail_logo_url', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2023/09/Logo-MOTORSPORT24.de_.gif' ) );
 		$has_used = self::has_used( $items );
-		$stamp    = 'offen' === $status ? 'Gültig' : ( 'bezahlt' === $status ? 'Bezahlt ✓' : 'Abgelaufen' );
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		// Timeline-Stufenklassen.
 		$s2 = 'bezahlt' === $status ? 'is-done' : ( 'abgelaufen' === $status ? 'is-exp' : 'is-active' );
 		$s3 = 'bezahlt' === $status ? 'is-done' : '';
 		?>
 		<div class="m24off-wrap">
-			<!-- A: Verlaufs-Header + Messing-Siegel -->
+			<!-- A: Blau-Verlauf-Header (einheitlich mit Mail + Garage-Share); kein Messing -->
 			<header class="m24off-hero">
 				<img class="m24off-hero-logo" src="<?php echo $logo; ?>" alt="MOTORSPORT24">
-				<div class="m24off-seal">
-					<div class="m24off-seal-no">Angebot <?php echo esc_html( $o->offer_no ); ?></div>
-					<?php if ( 'offen' === $status ) : ?><div class="m24off-seal-days">noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></div><?php endif; ?>
-					<div class="m24off-stamp is-<?php echo esc_attr( $status ); ?>"><?php echo esc_html( $stamp ); ?></div>
-				</div>
+				<div class="m24off-hero-eyebrow">Verbindliches Kaufangebot</div>
+				<h1 class="m24off-hero-title">Angebot <?php echo esc_html( $o->offer_no ); ?></h1>
+				<?php if ( 'offen' === $status ) : ?>
+					<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></span>
+				<?php elseif ( 'bezahlt' === $status ) : ?>
+					<span class="m24off-chip">Bezahlt ✓</span>
+				<?php else : ?>
+					<span class="m24off-chip">Abgelaufen</span>
+				<?php endif; ?>
 			</header>
 
 			<!-- Segmentierte Timeline -->
 			<div class="m24off-tl">
-				<span class="m24off-tl-seg is-done">Angebot</span>
+				<span class="m24off-tl-seg is-done">Erhalten</span>
 				<span class="m24off-tl-seg <?php echo esc_attr( $s2 ); ?>">Zahlung offen</span>
 				<span class="m24off-tl-seg <?php echo esc_attr( $s3 ); ?>">Bezahlt</span>
 				<span class="m24off-tl-seg">Versand</span>
@@ -215,7 +218,7 @@ class M24_Offers_Render {
 					<<?php echo $tag; ?> class="m24off-pos<?php echo '' !== $url ? ' is-link' : ''; ?>"<?php echo $att; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
 						<div class="m24off-pos-main">
 							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
-							<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24off-cart">Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
 							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
@@ -464,7 +467,9 @@ class M24_Offers_Render {
 				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $it['title'] ) . '</a>'
 				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
-				. ( ! empty( $it['art_nr'] ) ? '<br><span style="color:#8a929c;font-size:12px;">Art.-Nr.: ' . esc_html( $it['art_nr'] ) . '</span>' : '' )
+				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'
+					. ( ! empty( $it['art_nr'] ) ? 'Art.-Nr.: ' . esc_html( $it['art_nr'] ) : '' )
+					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . 'gebraucht' : '' ) . '</span>' : '' )
 				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#93762f;font-size:11.5px;">🇩🇪 ' . esc_html( $it['race_note'] ) . '</span>' : '' )
 				. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
 				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )

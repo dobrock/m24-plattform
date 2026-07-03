@@ -105,16 +105,15 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 /* ── Kunden-Ansicht Design A (Hero-Siegel, Timeline-Streifen, Positions-Karten, Accordions, Gate) ── */
 .m24off-hero{position:relative;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);border-radius:14px;padding:18px 18px 20px;margin:6px 0 14px;overflow:hidden}
 .m24off-hero-logo{height:26px;width:auto;display:block;margin:0 0 12px auto;filter:brightness(0) invert(1)}
-.m24off-seal{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.m24off-seal-no{color:#fff;font-weight:800;font-size:20px}
-.m24off-seal-days{display:inline-block;background:#9a6b25;color:#fff;font-weight:700;font-size:13px;border-radius:999px;padding:5px 14px}
-.m24off-stamp{position:absolute;top:16px;right:16px;border:2px solid rgba(255,255,255,.7);color:#fff;font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:8px;transform:rotate(6deg)}
-.m24off-stamp.is-bezahlt{border-color:#7bd39a;color:#d6f5e2}
-.m24off-stamp.is-abgelaufen{border-color:#f3a3a3;color:#ffe0e0}
+.m24off-hero-eyebrow{color:rgba(255,255,255,.85);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px}
+.m24off-hero-title{color:#fff;font-size:22px;font-weight:800;margin:0 0 12px}
+.m24off-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.32);color:#fff;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600}
+.m24off-chip-ico{flex:0 0 auto}
 .m24off-tl{display:flex;gap:6px;margin:0 0 16px}
 .m24off-tl-seg{flex:1;text-align:center;font-size:11px;font-weight:600;color:#9aa3b0;background:#eef0f2;border-radius:7px;padding:9px 4px}
 .m24off-tl-seg.is-done{background:#e6f4ec;color:#1a7f37}
-.m24off-tl-seg.is-active{background:#9a6b25;color:#fff}
+.m24off-tl-seg.is-active{background:#1f74c4;color:#fff}
+.m24off-usedchip{display:inline-block;font-size:11px;color:#5a6472;background:#eef0f3;border-radius:6px;padding:2px 7px}
 .m24off-tl-seg.is-exp{background:#fdeaea;color:#c8102e}
 .m24off-pos{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #eef0f2;border-radius:10px;margin:0 0 8px;text-decoration:none;color:inherit;background:#fff}
 .m24off-pos.is-link:hover{border-color:#1f74c4;box-shadow:0 2px 8px rgba(31,116,196,.10)}
