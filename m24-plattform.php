@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.247
+ * Version:           0.11.248
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -146,6 +146,8 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angeb
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
 M24_Preis_Altlink::init();
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-unsub.php'; // §7-UWG 1-Klick-Opt-out für Fahrzeug-Alerts (signierter Token)
+M24_Alert_Unsub::init();
 require_once M24_PLATTFORM_DIR . 'includes/lang/class-m24-lang-endpoint.php'; // /sprache/?to=de|en (Mail-Footer-Sprachumschalter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b.php';          // B2B/Händler-Auth: Rolle, Preis-Gate, Magic-Link-Token
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-auth.php';     // B2B: Registrierung + Magic-Link-Login + Confirm

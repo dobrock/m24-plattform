@@ -110,8 +110,9 @@ class M24_Garage_Alerts {
 		self::log( 'dispatch:summary', $pid, 0, $type, array( 'sent' => $sent, 'would' => $would, 'skip' => $skip, 'flag' => self::enabled() ? 'on' : 'off' ) );
 	}
 
-	/** Baut [subject, html] der Alert-Mail (echtes Template) — geteilt von send() + Vorschau. */
-	private static function build_mail( int $pid, string $type, array $data ): array {
+	/** Baut [subject, html] der Alert-Mail (echtes Template) — geteilt von send() + Vorschau. $email = Empfänger
+	 *  für den signierten §7-1-Klick-Abmelde-Link im Footer. */
+	private static function build_mail( int $pid, string $type, array $data, string $email = '' ): array {
 		$title = get_the_title( $pid );
 		$url   = (string) get_permalink( $pid );
 		$manage = class_exists( 'M24_Garage_Cart' ) ? add_query_arg( 'm24tab', 'notify', M24_Garage_Cart::page_url() ) : home_url( '/' );
@@ -135,6 +136,10 @@ class M24_Garage_Alerts {
 
 		// Kanonische Basis-Vorlage (blauer Header + weißes Logo); Opt-out-Link im Footer (§7 UWG).
 		$manage_link = '<a href="' . esc_url( $manage ) . '" style="color:#1f74c4;text-decoration:underline;">Benachrichtigungen verwalten</a>';
+		// §7-UWG: signierter 1-Klick-Abmelde-Link (kein Login) für den Empfänger.
+		if ( '' !== $email && class_exists( 'M24_Alert_Unsub' ) ) {
+			$manage_link .= ' &middot; <a href="' . esc_url( M24_Alert_Unsub::url( $email ) ) . '" style="color:#9aa3b0;text-decoration:underline;">Fahrzeug-Alerts abbestellen</a>';
+		}
 		$html = function_exists( 'm24_mail_shell' )
 			? m24_mail_shell( $head, $body, array( 'footer_extra' => $manage_link ) )
 			: '<h1>' . esc_html( $head ) . '</h1>' . $body; // Fallback (Template nicht geladen)
@@ -143,14 +148,15 @@ class M24_Garage_Alerts {
 
 	/** @return bool wp_mail-Ergebnis (Brevo-Sender via m24fz_mail_from_email wie B2B/IL/Garage). */
 	private static function send( string $email, int $pid, string $type, array $data ): bool {
-		list( $subject, $html ) = self::build_mail( $pid, $type, $data );
-		// Opt-in-Benachrichtigung → List-Unsubscribe (Verwaltungslink + mailto). §7-konform.
-		$manage = class_exists( 'M24_Garage_Cart' ) ? add_query_arg( 'm24tab', 'notify', M24_Garage_Cart::page_url() ) : home_url( '/' );
+		list( $subject, $html ) = self::build_mail( $pid, $type, $data, $email );
+		// §7-konform: signierter 1-Klick-Unsubscribe (RFC 8058 One-Click) + mailto-Fallback.
+		$unsub   = class_exists( 'M24_Alert_Unsub' ) ? M24_Alert_Unsub::url( $email ) : ( class_exists( 'M24_Garage_Cart' ) ? add_query_arg( 'm24tab', 'notify', M24_Garage_Cart::page_url() ) : home_url( '/' ) );
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
 			'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
-			'List-Unsubscribe: <' . esc_url_raw( $manage ) . '>, <mailto:info@motorsport24.de?subject=Abmelden>',
+			'List-Unsubscribe: <' . esc_url_raw( $unsub ) . '>, <mailto:info@motorsport24.de?subject=Abmelden>',
+			'List-Unsubscribe-Post: List-Unsubscribe=One-Click',
 		);
 		$err = '';
 		$catch = function ( $e ) use ( &$err ) { if ( is_wp_error( $e ) ) { $err = $e->get_error_message(); } };
@@ -171,7 +177,7 @@ class M24_Garage_Alerts {
 		$q   = get_posts( array( 'post_type' => 'm24_fahrzeug', 'post_status' => 'publish', 'numberposts' => 1, 'fields' => 'ids' ) );
 		$pid = ! empty( $q ) ? (int) $q[0] : 0;
 		$data = ( 'price' === $type ) ? array( 'old' => 129000, 'new' => 119000 ) : array( 'to' => 'verkauft' );
-		list( $subject, $html ) = self::build_mail( $pid, $type, $data );
+		list( $subject, $html ) = self::build_mail( $pid, $type, $data, $to );
 		$headers = array(
 			'Content-Type: text/html; charset=UTF-8',
 			'From: ' . self::from_header(),
