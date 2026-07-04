@@ -1231,6 +1231,7 @@ class M24_Garage_Cart {
 				<button type="button" class="m24gc-tab<?php echo $def_parts ? '' : ' is-active'; ?>" role="tab"<?php echo $def_parts ? '' : ' aria-selected="true"'; ?> data-m24gc-tab="vehicles">Geparkte Fahrzeuge <span class="m24gc-tab-badge" data-m24gc-badge="vehicles"<?php echo 0 === $veh_count ? ' hidden' : ''; ?>><?php echo (int) $veh_count; ?></span></button>
 				<button type="button" class="m24gc-tab<?php echo $def_parts ? ' is-active' : ''; ?>" role="tab"<?php echo $def_parts ? ' aria-selected="true"' : ''; ?> data-m24gc-tab="parts">Teile-Merkzettel <span class="m24gc-tab-badge" data-m24gc-badge="parts"<?php echo 0 === $count ? ' hidden' : ''; ?>><?php echo (int) $count; ?></span></button>
 				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="notify">Benachrichtigungen</button>
+				<button type="button" class="m24gc-tab" role="tab" data-m24gc-tab="offers">Meine Angebote</button>
 			</nav>
 
 			<!-- TAB: Geparkte Fahrzeuge — volle Breite, eine Karte je Fahrzeug -->
@@ -1337,6 +1338,34 @@ class M24_Garage_Cart {
 				// data-Attribute → bestehende m24-garage.js-Verdrahtung (Delegation) greift unverändert.
 				echo class_exists( 'M24_Account' ) ? M24_Account::render_panel( $acc ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — intern esc_*
 				?>
+			</section>
+
+			<!-- TAB: Meine Angebote — ALLE Angebote des eingeloggten Kunden (serverseitig auf Konto/E-Mail gefiltert) -->
+			<section class="m24gc-panel" role="tabpanel" data-m24gc-panel="offers" hidden>
+				<?php
+				$my_email = ( $u ? (string) $u->user_email : '' );
+				$my_offers = class_exists( 'M24_Offers' ) ? M24_Offers::all_for_account( $acc, $my_email ) : array();
+				if ( empty( $my_offers ) ) : ?>
+					<div class="m24gc-emptybox">
+						<div class="m24gc-emptybox-t">Noch keine Angebote</div>
+						<p class="m24gc-emptybox-s">Sobald wir dir ein Angebot senden, findest du es hier — mit Status und Direktlink zur Angebotsansicht.</p>
+					</div>
+				<?php else : ?>
+					<div class="m24gc-offerlist">
+						<?php foreach ( $my_offers as $of ) :
+							$obmap = array( 'entwurf' => array( 'Entwurf', '#8a929c' ), 'offen' => array( 'Offen', '#1f74c4' ), 'bezahlt' => array( 'Bezahlt', '#1a7f37' ), 'versandt' => array( 'Versandt', '#1f74c4' ), 'abgelaufen' => array( 'Abgelaufen', '#c8102e' ) );
+							$ob   = $obmap[ $of['status'] ] ?? array( ucfirst( (string) $of['status'] ), '#8a929c' );
+							$odt  = $of['date'] ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( $of['date'] ) ) : gmdate( 'd.m.Y', strtotime( $of['date'] ) ) ) : '';
+							?>
+							<a class="m24gc-offerrow" href="<?php echo esc_url( M24_Offers::view_url( $of['token'] ) ); ?>" target="_blank" rel="noopener">
+								<span class="m24gc-offer-date"><?php echo esc_html( $odt ); ?></span>
+								<span class="m24gc-offer-no">Nr. <?php echo esc_html( $of['offer_no'] ); ?></span>
+								<span class="m24gc-offer-total"><?php echo esc_html( number_format( (float) $of['total'], 2, ',', '.' ) ); ?> &euro;</span>
+								<span class="m24gc-offer-badge" style="background:<?php echo esc_attr( $ob[1] ); ?>;"><?php echo esc_html( $ob[0] ); ?></span>
+							</a>
+						<?php endforeach; ?>
+					</div>
+				<?php endif; ?>
 			</section>
 		</div>
 		<?php

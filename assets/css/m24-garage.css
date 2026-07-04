@@ -310,3 +310,13 @@
 .m24gc-btn-outline-blue[aria-expanded="true"]:hover{background:#1f74c4;color:#fff}
 .m24gc-pdf-textlink{display:block;text-align:center;margin-top:12px;color:#5a6474;font-size:13px;text-decoration:underline;font-family:'Saira',Arial,sans-serif}
 .m24gc-pdf-textlink:hover{color:#1f74c4}
+
+/* ── Tab „Meine Angebote" ── */
+.m24gc-offerlist{display:flex;flex-direction:column;gap:10px}
+.m24gc-offerrow{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:14px;background:#fff;border:1px solid #eef0f2;border-radius:10px;padding:12px 16px;text-decoration:none;color:#14161a}
+.m24gc-offerrow:hover{border-color:#1f74c4;box-shadow:0 2px 8px rgba(31,116,196,.10)}
+.m24gc-offer-date{font-size:13px;color:#8a929c;white-space:nowrap}
+.m24gc-offer-no{font-weight:700;font-size:14px}
+.m24gc-offer-total{font-weight:700;white-space:nowrap}
+.m24gc-offer-badge{color:#fff;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap}
+@media(max-width:560px){.m24gc-offerrow{grid-template-columns:1fr auto;grid-template-areas:"no total" "date badge";row-gap:4px}.m24gc-offer-no{grid-area:no}.m24gc-offer-total{grid-area:total;text-align:right}.m24gc-offer-date{grid-area:date}.m24gc-offer-badge{grid-area:badge;justify-self:end}}

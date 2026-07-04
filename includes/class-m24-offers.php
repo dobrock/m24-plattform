@@ -425,6 +425,41 @@ class M24_Offers {
 	}
 
 	/**
+	 * ALLE Angebote eines Kontos (jeder Status), neu→alt. Streng auf die eigene Konto-ID gefiltert; zusätzlich
+	 * Gast-Angebote (account_id=0) mit exakt der eigenen E-Mail im customer_json (kein Fremdzugriff — es wird
+	 * ausschließlich die E-Mail des eingeloggten Nutzers verwendet). @return array<int,array{...,token:string}>
+	 */
+	public static function all_for_account( int $account_id, string $email = '' ): array {
+		if ( $account_id <= 0 ) { return array(); }
+		global $wpdb;
+		$t     = self::table();
+		$email = strtolower( trim( $email ) );
+		if ( '' !== $email && is_email( $email ) ) {
+			$like = '%' . $wpdb->esc_like( '"email":"' . $email . '"' ) . '%';
+			$rows = $wpdb->get_results( $wpdb->prepare(
+				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE account_id = %d OR ( account_id = 0 AND customer_json LIKE %s ) ORDER BY created_at DESC, id DESC LIMIT 200",
+				$account_id, $like
+			) );
+		} else {
+			$rows = $wpdb->get_results( $wpdb->prepare(
+				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE account_id = %d ORDER BY created_at DESC, id DESC LIMIT 200",
+				$account_id
+			) );
+		}
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$out[] = array(
+				'offer_no' => (string) $r->offer_no,
+				'token'    => (string) $r->token,
+				'total'    => (float) $r->total_gross,
+				'status'   => (string) $r->status,
+				'date'     => (string) ( $r->created_at ?: $r->paid_at ),
+			);
+		}
+		return $out;
+	}
+
+	/**
 	 * Bestellhistorie eines Kontos: bezahlte/versandte Angebote (rein WP-seitig, KEIN Desk-Call).
 	 * @return array<int,array{offer_no:string,total:float,date:string,count:int,status:string}>
 	 */
