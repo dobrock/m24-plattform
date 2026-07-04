@@ -137,6 +137,12 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // [preis]-Altlink-Filter: tote „Online bestellen"-Buttons auf Alt-Shops entfernen (Default AN).
+        register_setting( 'm24_plattform_group', 'm24_preis_altlink_filter', [
+            'type'              => 'boolean',
+            'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+            'default'           => 1,
+        ] );
         // Fehlerprotokoll: tägliche Critical-Digest-Mail an den Admin (Default AUS).
         register_setting( 'm24_plattform_group', 'm24_error_digest', [
             'type'              => 'boolean',
@@ -708,6 +714,18 @@ class M24_Settings {
                                 <?php echo esc_html__( 'Verpackung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_verpackung" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_verpackung', 25 ) ); ?>" />
                                 <?php echo esc_html__( 'Versand', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_versand" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_versand', 49 ) ); ?>" />
                                 <?php echo esc_html__( 'Zollabwicklung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_zoll" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_zoll', 75 ) ); ?>" />
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__( '[preis]-Altlink-Filter', 'm24-plattform' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="m24_preis_altlink_filter" value="1" <?php checked( (bool) get_option( 'm24_preis_altlink_filter', 1 ), true ); ?> />
+                                <?php echo esc_html__( 'Tote „Online bestellen"-Buttons auf Alt-Shops (bmwm3shop.de, e30shop.de) aus dem Inhalt entfernen', 'm24-plattform' ); ?>
+                            </label>
+                            <p class="description">
+                                <?php echo esc_html__( 'Default an. Greift am the_content (nach Shortcode-Expansion) und strippt nur Alt-Domain-Anker mit „Online bestellen"; „Senden Sie uns eine Nachricht" bleibt. Domains erweiterbar via Filter m24_preis_altlink_domains.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>
