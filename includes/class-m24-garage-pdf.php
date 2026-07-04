@@ -19,19 +19,31 @@ class M24_Garage_PDF {
 	const ACTION = 'm24_garage_pdf';
 	const NONCE  = 'm24_garage_pdf';
 
+	const QV = 'm24_garage_pdf'; // Frontend-Endpoint (umgeht wp-admin-Sperren für Nicht-Admin-Rollen)
+
 	public static function init() {
 		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle' ) );
-		add_action( 'admin_post_nopriv_' . self::ACTION, array( __CLASS__, 'handle' ) ); // nur mit gültigem Token (geteilte Ansicht)
+		add_action( 'admin_post_nopriv_' . self::ACTION, array( __CLASS__, 'handle' ) ); // Share-Token (geteilte Ansicht, ohne Login)
+		// Owner-/Vehicle-Downloads laufen über einen FRONTEND-Endpoint statt admin-post.php: die Nicht-Admin-Rolle
+		// „M24 Händler" wird auf wp-admin nach Home umgeleitet (externe Security/mu-Plugin/tagDiv), BEVOR handle()
+		// läuft. template_redirect (Prio 0) greift auf dem Front-End vor solchen Redirects. handle() bleibt gleich.
+		add_action( 'template_redirect', array( __CLASS__, 'frontend_handle' ), 0 );
 	}
 
-	/** Download-URL für den eingeloggten Eigentümer (nonce-geschützt). */
+	/** Frontend-Endpoint: ?m24_garage_pdf=1[&pid=][&expose=vehicle]&_wpnonce=… → handle() (Login+Nonce darin). */
+	public static function frontend_handle() {
+		if ( empty( $_GET[ self::QV ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification — Nonce prüft handle()
+		self::handle();
+	}
+
+	/** Download-URL für den eingeloggten Eigentümer (nonce-geschützt, Frontend-Endpoint). */
 	public static function owner_url(): string {
-		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION ), self::NONCE );
+		return wp_nonce_url( add_query_arg( self::QV, '1', home_url( '/' ) ), self::NONCE );
 	}
 
-	/** Einzel-Fahrzeug-Exposé (scoped auf eine post_id) — gleiche Dompdf-Maschinerie, nonce-gated. */
+	/** Einzel-Fahrzeug-Exposé (scoped auf eine post_id) — gleiche Dompdf-Maschinerie, nonce-gated, Frontend-Endpoint. */
 	public static function vehicle_url( int $pid ): string {
-		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&pid=' . $pid ), self::NONCE );
+		return wp_nonce_url( add_query_arg( array( self::QV => '1', 'pid' => $pid ), home_url( '/' ) ), self::NONCE );
 	}
 
 	/** Download-URL für die geteilte Read-only-Ansicht (token-gated, ohne Login). */
@@ -455,7 +467,7 @@ class M24_Garage_PDF {
 
 	/** Nonce-URL für das Fahrzeug-Exposé (gleiches Muster wie owner_url, scoped auf ein Fahrzeug). */
 	public static function vehicle_expose_url( int $pid ): string {
-		return wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&expose=vehicle&pid=' . $pid ), self::NONCE );
+		return wp_nonce_url( add_query_arg( array( self::QV => '1', 'expose' => 'vehicle', 'pid' => $pid ), home_url( '/' ) ), self::NONCE );
 	}
 
 	/** Ein Attachment als data:-URI (large → Original). '' wenn nicht lesbar. */
