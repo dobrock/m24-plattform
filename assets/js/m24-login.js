@@ -53,6 +53,13 @@
 		lastFocus = document.activeElement;
 		modal.hidden = false;
 		document.body.classList.add('m24lg-noscroll');
+		// Formular aus einem vorherigen „gesendet"-Zustand zurücksetzen (Felder/Button/Intro wieder zeigen).
+		var _fld = modal.querySelector('.m24lg-field'), _sub = modal.querySelector('.m24lg-sub'),
+			_sb = modal.querySelector('[data-m24lg-submit]'), _st = modal.querySelector('[data-m24lg-status]');
+		if (_fld) { _fld.style.display = ''; }
+		if (_sub) { _sub.style.display = ''; }
+		if (_sb) { _sb.style.display = ''; }
+		if (_st) { _st.textContent = ''; _st.className = 'm24lg-status'; }
 		var f = modal.querySelector('[data-m24lg-email]');
 		if (f) { setTimeout(function () { f.focus(); }, 30); }
 		document.addEventListener('keydown', onKey);
@@ -126,8 +133,13 @@
 			.then(function (res) {
 				if (submit) { submit.disabled = false; }
 				if (res.ok && res.d && res.d.ok) {
-					setStatus(res.d.message || 'Wenn ein Konto zu dieser Adresse existiert, haben wir dir einen Login-Link geschickt. Prüfe dein Postfach.', 'ok');
+					// Nur die Bestätigung zeigen — E-Mail-Feld + Button + Intro ausblenden (keine erneute Eingabe).
+					var field = modal.querySelector('.m24lg-field'), sub = modal.querySelector('.m24lg-sub');
+					if (field) { field.style.display = 'none'; }
+					if (sub) { sub.style.display = 'none'; }
+					if (submit) { submit.style.display = 'none'; }
 					if (emailEl) { emailEl.value = ''; }
+					setStatus('Wir haben dir einen Login-Link geschickt. Öffne ihn, um dich einzuloggen.', 'ok');
 				} else {
 					setStatus((res.d && res.d.message) || 'Aktion fehlgeschlagen. Bitte später erneut.', 'error');
 				}
