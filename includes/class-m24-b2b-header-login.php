@@ -45,9 +45,13 @@ class M24_B2B_Header_Login {
 		return class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de';
 	}
 
-	/** Ausgeloggt: Login-Chip (+ JS/CSS) IMMER laden. Eingeloggt: nur bei aktivem Feature ohne D-UI-Ersatz. */
+	/**
+	 * Chip IMMER anzeigen: ausgeloggt = Login-Chip (→ /haendler-login/), eingeloggt = Konto-Chip (Avatar +
+	 * „Mein Konto"-Dropdown). Ein „D-UI"-Header-Ersatz existiert nicht → superseded() darf hier NICHTS mehr
+	 * unterdrücken (sonst verschwindet eingeloggt der Chip komplett).
+	 */
 	private static function skip(): bool {
-		return is_user_logged_in() && ( ! self::enabled() || self::superseded() );
+		return false;
 	}
 
 	public static function assets() {
@@ -106,7 +110,7 @@ class M24_B2B_Header_Login {
 		}
 		echo '<style id="m24-b2b-login-css">'
 			. '.m24hl-acct{position:relative;display:inline-flex;align-items:center;font-family:\'Saira\',Arial,sans-serif}'
-			. '.m24hl-acct--inhdr{margin:0 8px 0 0!important;align-self:center!important}' // rechts eingekürzt (Abstand Pill↔DE ≈ DE↔EN)
+			. '.m24hl-acct--inhdr{margin:0 16px 0 0!important;align-self:center!important}' // Abstand Pill↔DE ≈ DE↔EN
 			. '.m24hl-acct--float{position:fixed!important;top:10px;right:14px;z-index:99999}'
 			// Ausgeloggt: Outline-Chip
 			. '.m24hl-chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:999px;padding:6px 14px;font:600 13px/1 \'Saira\',Arial,sans-serif;text-decoration:none;white-space:nowrap}'

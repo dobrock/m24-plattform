@@ -262,10 +262,10 @@ class M24_I18n {
             $abbr  = strtoupper( $l );
             $inner = $svg . '<span>' . esc_html( $abbr ) . '</span>';
             if ( $l === $current ) {
-                $row .= '<span class="m24-flag active" title="' . esc_attr( $label ) . '">' . $inner . '</span>';
+                $row .= '<span class="m24-flag active">' . $inner . '</span>'; // kein title/tooltip („Deutsch/English")
             } else {
                 $url  = esc_url( add_query_arg( 'lang', $l ) );
-                $row .= '<a class="m24-flag" href="' . $url . '" title="' . esc_attr( $label ) . '" aria-label="' . esc_attr( $label ) . '">' . $inner . '</a>';
+                $row .= '<a class="m24-flag" href="' . $url . '" aria-label="' . esc_attr( $label ) . '">' . $inner . '</a>'; // kein title-Tooltip
             }
         }
         return $row . '</div>';
@@ -284,7 +284,7 @@ class M24_I18n {
             $checked = ( $l === $current ) ? ' checked' : '';
             $on      = ( $l === $current ) ? ' active' : '';
             $inner   = $svg . '<span>' . esc_html( strtoupper( $l ) ) . '</span>';
-            $out    .= '<label class="m24-flag' . $on . '" title="' . esc_attr( $label ) . '">'
+            $out    .= '<label class="m24-flag' . $on . '" aria-label="' . esc_attr( $label ) . '">' // kein title-Tooltip
                 . '<input type="radio" name="' . esc_attr( $name ) . '" value="' . esc_attr( $l ) . '"' . $checked . '>'
                 . $inner . '</label>';
         }
