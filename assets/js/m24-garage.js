@@ -126,32 +126,6 @@
 		if (txt) { txt.textContent = inGarage ? 'In meiner Garage' : 'In meine Garage'; }
 	}
 
-	/* ── Gast-Merkliste (localStorage) → beim Login in die Konto-Garage adoptieren ──
-	 * GKEY: Fahrzeug-post_ids aus ♡-Klicks ohne Login. PKEY: bestehender Gast-Teile-Store (inquiries-sidebar).
-	 * Adoption postet je post_id an /add (Server löst den Typ auf, dedupt per Unique-Key), danach beide Stores
-	 * leeren → idempotent (erneutes Login dupliziert nichts). Bestehende Konto-Merkliste bleibt unangetastet. */
-	var GKEY = 'm24_guest_garage';
-	var PKEY = 'm24_sidebar_items';
-	function gRead(key) { try { var r = window.localStorage.getItem(key); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; } }
-	function gWrite(key, arr) { try { window.localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {} }
-
-	function adoptGuestStores() {
-		var ids = gRead(GKEY).map(function (v) { return parseInt(v, 10); }).filter(function (v) { return v > 0; });
-		gRead(PKEY).forEach(function (it) { var pid = parseInt(it && it.src_pid, 10); if (pid > 0) { ids.push(pid); } });
-		var unique = ids.filter(function (v, i, a) { return a.indexOf(v) === i; });
-		if (!unique.length) { return; }
-		var seq = Promise.resolve(), last = -1;
-		unique.forEach(function (id) {
-			seq = seq.then(function () { return post('/add', { post_id: id }).then(function (res) { if (res && res.ok && res.data && res.data.ok && typeof res.data.count === 'number') { last = res.data.count; } }).catch(function () {}); });
-		});
-		seq.then(function () {
-			try { window.localStorage.removeItem(GKEY); window.localStorage.removeItem(PKEY); } catch (e) {}
-			if (last >= 0) { updateCount(last); }
-			// Auf der Garage-Seite neu laden, damit die adoptierten Positionen gerendert werden.
-			if (document.querySelector('[data-m24gc-page]')) { location.reload(); }
-		});
-	}
-
 	if (cfg.loggedIn) {
 		// Initialzustand aus dem Cart-State: welche post_ids liegen bereits in der Garage?
 		var toggleBtns = Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle'));
@@ -198,29 +172,9 @@
 				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
 			});
 		}, true); // <-- Capture-Phase: läuft VOR dem Modal-Listener auf document
-
-		adoptGuestStores(); // Gast-Merkliste aus localStorage in die Konto-Garage übernehmen (idempotent)
-	} else {
-		// Gast (nicht eingeloggt): ♡ merkt lokal (add/remove) statt DOI-Dialog; Adoption erfolgt beim Login.
-		var gpre = gRead(GKEY);
-		Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle')).forEach(function (b) {
-			var id = parseInt(b.getAttribute('data-garage-id') || '0', 10);
-			if (id && gpre.indexOf(id) > -1) { setGarageBtn(b, true); }
-		});
-		document.addEventListener('click', function (e) {
-			var btn = e.target.closest ? e.target.closest('.m24-garage-open') : null;
-			if (!btn) { return; }
-			e.preventDefault();
-			e.stopImmediatePropagation(); // Gast-DOI-Dialog nicht öffnen
-			var id = parseInt(btn.getAttribute('data-garage-id') || '0', 10);
-			if (!id) { return; }
-			var arr = gRead(GKEY), at = arr.indexOf(id), nowIn;
-			if (at > -1) { arr.splice(at, 1); nowIn = false; } else { arr.push(id); nowIn = true; }
-			gWrite(GKEY, arr);
-			if (btn.classList.contains('m24-garage-toggle')) { setGarageBtn(btn, nowIn); }
-			toast(nowIn ? 'Für später gemerkt — beim Login landet es in deiner Garage.' : 'Aus der Merkliste entfernt.');
-		}, true);
 	}
+	// Gast (nicht eingeloggt): kein anonymer localStorage-Pfad mehr — der „In meine Garage"-Dialog (Registrierung)
+	// übernimmt. Registrierung ist erforderlich; keine Adoption beim Login.
 
 	/* ── Garage-Seite: Menge ± / Entfernen ── */
 	var page = document.querySelector('[data-m24gc-page]');
