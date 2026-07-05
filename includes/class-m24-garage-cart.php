@@ -884,6 +884,7 @@ class M24_Garage_Cart {
 		$attach  = filter_var( $req->get_param( 'attach_pdf' ), FILTER_VALIDATE_BOOLEAN );
 
 		// A) Frischen Snapshot am neuen Token (wie share-rotate) → gemailter Link = Abbild zum Sendezeitpunkt.
+		$had_prev  = ( '' !== self::share_token_existing( $acc ) ); // vor dem Rotate: hatte der Kunde schon mal geteilt?
 		$token     = self::share_token_rotate( $acc );
 		self::write_snapshot( $acc, $token );
 		$share_url = self::share_url( $token );
@@ -904,16 +905,20 @@ class M24_Garage_Cart {
 			}
 		}
 
-		// C) Mail über die kanonische Basis-Vorlage (blauer Header + weißes Logo).
-		$subject   = 'Ihre Teile-Auswahl – MOTORSPORT24';
-		$btn       = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zur Teile-Übersicht</a></p>';
+		// C) Mail über die kanonische Basis-Vorlage (blauer Header + weißes Logo). KOMPLETT Du-Stil.
+		$subject     = 'MOTORSPORT24-Teile-Auswahl';
+		$owner       = get_userdata( $acc );
+		$owner_email = $owner ? (string) $owner->user_email : '';
 		$snap_time   = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', current_time( 'timestamp' ) ) : gmdate( 'd.m.Y, H:i', current_time( 'timestamp' ) );
+		$verb        = $had_prev ? 'aktualisiert' : 'erstellt';
 		$gno         = self::garage_no( $acc, false );
-		$contact_url = add_query_arg( 'angebot', 'start', $share_url ) . '#m24-angebot'; // öffnet das Angebots-Modal (→ 1E-Flow)
-		$inner       = '<p style="margin:0 0 14px;">Hallo,</p>'
-			. '<p style="margin:0 0 14px;">hier ist Deine persönliche MOTORSPORT24-Teile-Auswahl vom ' . esc_html( $snap_time ) . ' Uhr.</p>'
-			. ( '' !== $gno ? '<p style="margin:0 0 14px;color:#5a6474;">Garagen-Nr. <strong>' . esc_html( $gno ) . '</strong></p>' : '' )
-			. '<p style="margin:0 0 14px;">Dieser Link ist drei Monate gültig.</p>';
+		$contact_url = add_query_arg( 'angebot', 'start', $share_url ) . '#m24-kontakt'; // öffnet/fokussiert das Kontaktformular
+		$btn_style   = 'display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;';
+		$btn         = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="' . $btn_style . '">Zur Teile-Übersicht</a></p>';
+
+		$inner  = '<p style="margin:0 0 14px;">Hallo,</p>'
+			. '<p style="margin:0 0 14px;">hier ist die persönliche MOTORSPORT24-Teile-Auswahl' . ( '' !== $owner_email ? ' vom Benutzer ' . esc_html( $owner_email ) : '' ) . ', ' . esc_html( $verb ) . ' am ' . esc_html( $snap_time ) . ' Uhr.</p>'
+			. '<p style="margin:0 0 14px;">Der Link' . ( '' !== $gno ? ' zur Garagen-Nummer <strong>' . esc_html( $gno ) . '</strong>' : '' ) . ' ist drei Monate gültig.</p>';
 		if ( '' !== $message ) {
 			$inner .= '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . nl2br( esc_html( $message ) ) . '</p>';
 		}
@@ -921,13 +926,13 @@ class M24_Garage_Cart {
 		if ( ! empty( $attachments ) ) {
 			$inner .= '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.</p>';
 		}
-		// Angebots-Absatz: Kontaktformular überträgt die Garage (Snapshot/Token) → derselbe Entwurf-Flow wie Paket 1E.
+		// Angebots-Absatz: „Zum Kontaktformular" als zentrierter Action-Button (öffnet das Kontaktformular in der Garage).
 		$inner .= '<div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e6e9ee;">'
 			. '<p style="margin:0 0 10px;">Möchtest Du daraus ein verbindliches Kaufangebot machen? Melde Dich einfach bei uns — wir ergänzen Verpackung, Versand und (falls nötig) die Zollabwicklung und senden Dir ein verbindliches Angebot zurück. Deine Auswahl übernehmen wir dabei automatisch, Du musst nichts erneut eingeben.</p>'
-			. '<p style="margin:0;"><a href="' . esc_url( $contact_url ) . '" style="color:#1f74c4;font-weight:600;text-decoration:underline;">→ Zum Kontaktformular</a></p></div>';
+			. '<p style="margin:18px 0 0;text-align:center;"><a href="' . esc_url( $contact_url ) . '" style="' . $btn_style . '">Zum Kontaktformular</a></p></div>';
 		$html = function_exists( 'm24_mail_shell' )
-			? m24_mail_shell( 'Ihre Teile-Auswahl', $inner )
-			: '<h1>Ihre Teile-Auswahl</h1>' . $inner;
+			? m24_mail_shell( 'MOTORSPORT24-Teile-Auswahl', $inner )
+			: '<h1>MOTORSPORT24-Teile-Auswahl</h1>' . $inner;
 
 		$host      = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
 		if ( '' === $host ) { $host = 'motorsport24.de'; }
