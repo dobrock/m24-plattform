@@ -34,6 +34,10 @@ class M24_Garage_Cart {
 	const META_TOKEN    = 'm24_garage_share_token'; // usermeta: aktueller Roh-Token (Vorhandensein = aktiv)
 	const META_CREATED  = 'm24_garage_share_created';
 
+	// Paket 4: Garagen-Nummer PRO KUNDE (usermeta, stabil über Re-Shares). Auto ab G-1000, manuell überschreibbar.
+	const META_GARAGE_NO = '_m24_garage_no';   // usermeta: fortlaufende Nummer (int, ohne „G-")
+	const GARAGE_NO_SEQ  = 'm24_garage_no_seq'; // Option: zuletzt vergebener Zähler (Start 999 → erste Vergabe = 1000)
+
 	/** Setzt sich auf true, während plugin-EIGENE (A-/Legacy-)Redirects feuern → guard_share_redirect lässt sie durch. */
 	private static $allow_redirect = false;
 
@@ -73,6 +77,15 @@ class M24_Garage_Cart {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_owner_to_token' ), 1 );
 		// Share-View als theme-unabhängiges Standalone-Dokument rendern (tagDiv-Mobile-Content-Pipeline umgehen).
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_standalone_share' ), 5 );
+		// Paket 4: Garagen-Nr. am Kundenprofil (anzeigen + manuell editierbar) + Lookup-Seite im Backend.
+		add_action( 'show_user_profile', array( __CLASS__, 'profile_garage_no_field' ) );
+		add_action( 'edit_user_profile', array( __CLASS__, 'profile_garage_no_field' ) );
+		add_action( 'personal_options_update', array( __CLASS__, 'profile_garage_no_save' ) );
+		add_action( 'edit_user_profile_update', array( __CLASS__, 'profile_garage_no_save' ) );
+		add_action( 'admin_menu', array( __CLASS__, 'admin_menu_garages' ), 40 );
+		// Paket 1E: Angebots-Anfrage aus der geteilten Garage (Gast per Token-Capability + eingeloggter Eigentümer).
+		add_action( 'admin_post_nopriv_m24_garage_offer_request', array( __CLASS__, 'handle_offer_request' ) );
+		add_action( 'admin_post_m24_garage_offer_request', array( __CLASS__, 'handle_offer_request' ) );
 	}
 
 	/**
@@ -130,6 +143,61 @@ class M24_Garage_Cart {
 		$og .= '<meta name="twitter:description" content="' . esc_attr( $og_desc ) . '">';
 		$og .= '<meta name="twitter:image" content="' . esc_url( $og_img ) . '">';
 
+		// Paket 1C/1D: Angebots-Anfrage — Checkbox + Button + selbst-enthaltenes Modal (Absenden per admin-post).
+		$has_parts = ( $snap && ! empty( $snap['items'] ) );
+		$ap_url    = esc_url( admin_url( 'admin-post.php' ) );
+		$ap_tok    = esc_attr( $token );
+		$ap_status = isset( $_GET['angebot'] ) ? sanitize_key( wp_unslash( $_GET['angebot'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$ds_url    = function_exists( 'm24_datenschutz_url' ) ? esc_url( m24_datenschutz_url() ) : 'https://www.motorsport24.de/datenschutz/';
+		$offer_css = '.m24sa-cta{max-width:900px;margin:18px auto 0;padding:16px;background:#fff;border:1px solid #eef0f2;border-radius:12px}'
+			. '.m24sa-cta label{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:#3a424e;cursor:pointer}'
+			. '.m24sa-cta input{margin-top:2px}'
+			. '.m24sa-btn{display:inline-block;margin-top:12px;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 Saira,Arial,sans-serif;padding:12px 22px;cursor:pointer}'
+			. '.m24sa-flash{max-width:900px;margin:16px auto 0;padding:14px 16px;background:#eafaf0;border:1px solid #bfe6cd;border-radius:10px;color:#1a7f37;font-size:14px}'
+			. '.m24sa-modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}'
+			. '.m24sa-modal[hidden]{display:none}'
+			. '.m24sa-modal-bg{position:absolute;inset:0;background:rgba(10,20,35,.55)}'
+			. '.m24sa-modal-card{position:relative;width:100%;max-width:520px;max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:24px}'
+			. '.m24sa-modal-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:26px;line-height:1;color:#9aa3b0;cursor:pointer}'
+			. '.m24sa-modal h3{margin:0 0 6px;font-size:20px}.m24sa-modal p{margin:0 0 14px;color:#5a6474;font-size:13.5px;line-height:1.5}'
+			. '.m24sa-f{display:block;margin:0 0 11px}.m24sa-f>span{display:block;font-size:12px;font-weight:600;color:#5a6474;margin:0 0 4px}'
+			. '.m24sa-f input,.m24sa-f textarea{width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1px solid #d3d8de;border-radius:8px;font:400 16px/1.3 Saira,Arial,sans-serif}'
+			. '.m24sa-f textarea{min-height:84px}'
+			. '.m24sa-seg{display:inline-flex;border:1px solid #d3d8de;border-radius:8px;overflow:hidden}.m24sa-seg label{padding:9px 16px;font-size:14px;cursor:pointer;background:#fff}.m24sa-seg input{position:absolute;opacity:0}.m24sa-seg input:checked+span{color:#1f74c4;font-weight:700}'
+			. '.m24sa-consent{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#5a6474;margin:6px 0 14px}.m24sa-consent a{color:#1f74c4}'
+			. '.m24sa-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden}'
+			. '.m24sa-submit{width:100%;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 Saira,Arial,sans-serif;padding:13px;cursor:pointer}';
+		$offer_flash = ( 'ok' === $ap_status ) ? '<div class="m24sa-flash" id="m24-angebot">Danke! Deine Anfrage ist bei uns eingegangen — wir ergänzen Verpackung, Versand und ggf. Zoll und senden Dir ein verbindliches Angebot zurück.</div>' : '';
+		if ( 'dup' === $ap_status ) { $offer_flash = '<div class="m24sa-flash" id="m24-angebot">Wir haben Deine Anfrage bereits erhalten — bitte etwas Geduld.</div>'; }
+		$offer_cta = $has_parts ? (
+			'<div class="m24sa-cta"><label><input type="checkbox" id="m24-opt" checked> Verbindliches Angebot inkl. Verpackung, Versand &amp; ggf. Zollabwicklung (DE) anfragen</label>'
+			. '<button type="button" class="m24sa-btn" id="m24-angebot-open">Angebot anfragen</button></div>'
+		) : '';
+		$offer_modal = $has_parts ? (
+			'<div class="m24sa-modal" id="m24-angebot-modal" hidden><div class="m24sa-modal-bg" data-close></div>'
+			. '<div class="m24sa-modal-card"><button class="m24sa-modal-x" data-close aria-label="Schließen">&times;</button>'
+			. '<h3>Angebot anfragen</h3><p>Wir übernehmen Deine Auswahl automatisch — Du musst nichts erneut eingeben. Nach dem Absenden erstellen wir ein verbindliches Angebot inkl. Nebenkosten.</p>'
+			. '<form method="post" action="' . $ap_url . '">'
+			. '<input type="hidden" name="action" value="m24_garage_offer_request"><input type="hidden" name="garage_token" value="' . $ap_tok . '">'
+			. '<input type="text" name="website" class="m24sa-hp" tabindex="-1" autocomplete="off" aria-hidden="true">'
+			. '<label class="m24sa-f"><span>Name *</span><input type="text" name="name" required></label>'
+			. '<label class="m24sa-f"><span>E-Mail *</span><input type="email" name="email" required></label>'
+			. '<div class="m24sa-f"><span>Kundentyp</span><span class="m24sa-seg">'
+			. '<label><input type="radio" name="kundentyp" value="b2b"><span>Gewerblich (B2B)</span></label>'
+			. '<label><input type="radio" name="kundentyp" value="b2c" checked><span>Privat (B2C)</span></label></span></div>'
+			. '<label class="m24sa-f"><span>Land (ISO, z. B. DE)</span><input type="text" name="land" maxlength="2" value="DE" style="max-width:120px"></label>'
+			. '<label class="m24sa-f"><span>Nachricht (optional)</span><textarea name="nachricht" placeholder="Anmerkungen zu Deiner Anfrage …"></textarea></label>'
+			. '<label class="m24sa-consent"><input type="checkbox" name="consent" value="1" required> Ich willige ein, dass meine Daten zur Bearbeitung meiner Anfrage verarbeitet werden (<a href="' . $ds_url . '" target="_blank" rel="noopener">Datenschutz</a>). *</label>'
+			. '<button type="submit" class="m24sa-submit">Anfrage senden</button>'
+			. '</form></div></div>'
+		) : '';
+		$offer_js = $has_parts ? (
+			'<script>(function(){var o=document.getElementById("m24-angebot-open"),m=document.getElementById("m24-angebot-modal");'
+			. 'if(o&&m){o.addEventListener("click",function(){m.hidden=false;});'
+			. 'm.addEventListener("click",function(e){if(e.target.hasAttribute("data-close"))m.hidden=true;});'
+			. 'document.addEventListener("keydown",function(e){if("Escape"===e.key)m.hidden=true;});}'
+			. 'if(location.hash==="#m24-angebot"){var f=document.getElementById("m24-angebot");if(f)f.scrollIntoView();}})();</script>'
+		) : '';
 		echo '<!doctype html><html lang="de"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>Geteilte Garage – MOTORSPORT24</title>'
@@ -155,19 +223,19 @@ class M24_Garage_Cart {
 			. '.m24gc-shared .m24gc-row{grid-template-columns:72px 1fr auto;grid-template-areas:"thumb title title" "thumb meta meta" "thumb qty line";column-gap:10px}'
 			. '.m24gc-shared .m24gc-row>.m24gc-title{grid-area:title;align-self:start}'
 			. '.m24gc-shared .m24gc-row .m24gc-thumb{grid-area:thumb;width:72px;height:56px}'
-			. '.m24gc-shared .m24gc-row .m24gc-info{grid-area:info;min-width:0}'
+			. '.m24gc-shared .m24gc-row .m24gc-info{grid-area:meta;min-width:0}'
 			. '.m24gc-shared .m24gc-row .m24gc-title{font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
 			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}'
 			. '}'
-			. '</style></head><body>'
+			. $offer_css . '</style></head><body>'
 			. '<div class="m24sa-bar"><div class="m24sa-bar-inner"><img src="' . $logo . '" alt="MOTORSPORT24"></div></div>'
-			. '<div class="m24sa-wrap">' . $inner . '</div>'
+			. '<div class="m24sa-wrap">' . $offer_flash . $inner . $offer_cta . '</div>'
 			. '<div class="m24sa-foot">'
 			. '<div style="color:#7e8794">Classic &amp; Race Cars and Parts Sales since 2006</div>'
 			. '<div style="margin-top:8px">MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin</div>'
 			. '<div style="margin-top:8px"><a href="https://www.motorsport24.de/impressum/">Impressum</a> · <a href="https://www.motorsport24.de/datenschutz/">Datenschutz</a> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></div>'
 			. '</div>'
-			. '</body></html>';
+			. $offer_modal . $offer_js . '</body></html>';
 		exit;
 	}
 
@@ -346,6 +414,117 @@ class M24_Garage_Cart {
 		delete_user_meta( $acc, self::META_CREATED );
 	}
 
+	/* ── Paket 4: Garagen-Nummer pro Kunde (stabil, referenzierbar) ─────────── */
+
+	/** Formatiert „G-1042" für ein Konto. $assign=true vergibt beim ersten Mal die nächste Nummer. */
+	public static function garage_no( int $acc, bool $assign = true ): string {
+		if ( $acc <= 0 ) { return ''; }
+		$n = (int) get_user_meta( $acc, self::META_GARAGE_NO, true );
+		if ( $n <= 0 && $assign ) { $n = self::assign_garage_no( $acc ); }
+		return $n > 0 ? 'G-' . $n : '';
+	}
+	/** Nächste fortlaufende Nummer vergeben (ab 1000) und am Konto festhalten. */
+	private static function assign_garage_no( int $acc ): int {
+		$last = (int) get_option( self::GARAGE_NO_SEQ, 999 );
+		if ( $last < 999 ) { $last = 999; }
+		$n = $last + 1;
+		update_option( self::GARAGE_NO_SEQ, $n, false );
+		update_user_meta( $acc, self::META_GARAGE_NO, $n );
+		return $n;
+	}
+	/** Backend-Override: Nummer manuell setzen (0 = löschen). Zähler ggf. nachziehen, damit Auto nicht kollidiert. */
+	public static function set_garage_no( int $acc, int $n ): void {
+		if ( $acc <= 0 ) { return; }
+		$n = max( 0, $n );
+		if ( 0 === $n ) { delete_user_meta( $acc, self::META_GARAGE_NO ); return; }
+		update_user_meta( $acc, self::META_GARAGE_NO, $n );
+		if ( $n > (int) get_option( self::GARAGE_NO_SEQ, 999 ) ) { update_option( self::GARAGE_NO_SEQ, $n, false ); }
+	}
+	/** Lookup „G-1042" / „1042" → account_id (0 = nicht gefunden). */
+	public static function resolve_garage_no( string $g ): int {
+		$n = (int) preg_replace( '/\D/', '', $g );
+		if ( $n <= 0 ) { return 0; }
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+			self::META_GARAGE_NO, (string) $n
+		) );
+	}
+
+	/* ── Paket 4: Backend (Kundenprofil-Feld + Lookup-Seite) ────────────────── */
+
+	public static function profile_garage_no_field( $user ) {
+		if ( ! current_user_can( 'edit_users' ) && get_current_user_id() !== (int) $user->ID ) { return; }
+		$cur = (int) get_user_meta( (int) $user->ID, self::META_GARAGE_NO, true );
+		$editable = current_user_can( 'edit_users' );
+		?>
+		<h2>MOTORSPORT24 Garage</h2>
+		<table class="form-table" role="presentation"><tr>
+			<th><label for="m24_garage_no">Garagen-Nr.</label></th>
+			<td>
+				<span style="font-weight:600;">G-</span>
+				<input type="number" min="1000" step="1" name="m24_garage_no" id="m24_garage_no" value="<?php echo esc_attr( $cur > 0 ? (string) $cur : '' ); ?>" class="regular-text" style="width:120px;" <?php disabled( ! $editable ); ?>>
+				<?php wp_nonce_field( 'm24_garage_no_save', 'm24_garage_no_nonce' ); ?>
+				<p class="description">Stabiler Kunden-Handle (auto ab G-1000). Leer lassen = automatisch bei nächster geteilter Garage. Überschreiben möglich.</p>
+			</td>
+		</tr></table>
+		<?php
+	}
+
+	public static function profile_garage_no_save( $user_id ) {
+		if ( ! current_user_can( 'edit_users' ) ) { return; }
+		if ( ! isset( $_POST['m24_garage_no_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['m24_garage_no_nonce'] ) ), 'm24_garage_no_save' ) ) { return; }
+		if ( ! isset( $_POST['m24_garage_no'] ) ) { return; }
+		$raw = trim( (string) wp_unslash( $_POST['m24_garage_no'] ) );
+		self::set_garage_no( (int) $user_id, '' === $raw ? 0 : (int) $raw );
+	}
+
+	public static function admin_menu_garages() {
+		add_submenu_page( 'm24-plattform', 'Garagen', 'Garagen', 'manage_options', 'm24-garagen', array( __CLASS__, 'render_garages_page' ) );
+	}
+
+	public static function render_garages_page() {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$q   = isset( $_GET['g'] ) ? sanitize_text_field( wp_unslash( $_GET['g'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$acc = '' !== $q ? self::resolve_garage_no( $q ) : 0;
+		echo '<div class="wrap"><h1>Garagen — Lookup</h1>';
+		echo '<form method="get"><input type="hidden" name="page" value="m24-garagen">';
+		echo '<p>Garagen-Nr. <input type="text" name="g" value="' . esc_attr( $q ) . '" placeholder="G-1042"> <button class="button button-primary">Suchen</button></p></form>';
+		if ( '' !== $q ) {
+			if ( $acc <= 0 ) {
+				echo '<p><strong>Keine Garage zu „' . esc_html( $q ) . '" gefunden.</strong></p>';
+			} else {
+				$u    = get_userdata( $acc );
+				$tok  = self::share_token_existing( $acc );
+				$snap = $tok ? self::read_snapshot( $tok ) : null;
+				echo '<table class="widefat" style="max-width:720px;margin-top:12px;"><tbody>';
+				echo '<tr><th style="width:180px;">Garagen-Nr.</th><td><strong>' . esc_html( self::garage_no( $acc, false ) ) . '</strong></td></tr>';
+				echo '<tr><th>Kunde</th><td>' . esc_html( $u ? $u->display_name : '—' ) . ' · ' . esc_html( $u ? $u->user_email : '' ) . ' (ID ' . (int) $acc . ')</td></tr>';
+				echo '<tr><th>Aktueller Snapshot</th><td>' . ( $snap ? ( (int) count( (array) ( $snap['items'] ?? array() ) ) . ' Teile, Stand ' . esc_html( (string) ( $snap['created_at'] ?? '' ) ) . ' · <a href="' . esc_url( $tok ? self::share_url( $tok ) : '#' ) . '" target="_blank" rel="noopener">öffnen</a>' ) : '— (nicht geteilt)' ) . '</td></tr>';
+				// Zugehörige Angebote/Entwürfe (src_json trägt den Garage-Token).
+				if ( class_exists( 'M24_Offers' ) ) {
+					global $wpdb;
+					$rows = $wpdb->get_results( $wpdb->prepare(
+						'SELECT offer_no, status, token, total_gross, created_at FROM ' . M24_Offers::table()
+						. ' WHERE account_id = %d OR src_json LIKE %s ORDER BY id DESC LIMIT 50',
+						$acc, '%' . $wpdb->esc_like( (string) $tok ) . '%'
+					) );
+					echo '<tr><th>Angebote / Entwürfe</th><td>';
+					if ( empty( $rows ) ) { echo '—'; } else {
+						echo '<ul style="margin:0;">';
+						foreach ( $rows as $r ) {
+							echo '<li>' . esc_html( (string) $r->offer_no ) . ' · ' . esc_html( (string) $r->status ) . ' · ' . esc_html( number_format( (float) $r->total_gross, 2, ',', '.' ) ) . ' € · <a href="' . esc_url( M24_Offers::view_url( (string) $r->token ) ) . '" target="_blank" rel="noopener">Ansicht</a></li>';
+						}
+						echo '</ul>';
+					}
+					echo '</td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+		}
+		echo '</div>';
+	}
+
 	/** Token → account_id (0 = ungültig/widerrufen). */
 	public static function resolve_share_token( string $token ): int {
 		$token = preg_replace( '/[^A-Za-z0-9]/', '', $token );
@@ -404,8 +583,86 @@ class M24_Garage_Cart {
 	 * Bei generate + rotate aufgerufen → frischer Snapshot am (neuen) Token. Reihenfolge = items()
 	 * (sort_order, sobald Migration 009 aktiv). Alte Snapshots des Accounts werden ersetzt.
 	 */
+	/* ── Paket 1E: Angebots-Anfrage aus der geteilten Garage → Angebots-Entwurf ─ */
+
+	public static function handle_offer_request() {
+		// Auth = Besitz eines gültigen Share-Tokens (Capability). Kein wp-Nonce nötig (Gast, Standalone-Seite).
+		$token = isset( $_POST['garage_token'] ) ? preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_POST['garage_token'] ) ) : '';
+		$acc   = self::resolve_share_token( $token );
+		if ( $acc <= 0 ) { self::offer_request_redirect( $token, 'error' ); }
+
+		// Honeypot: befülltes „website"-Feld → still als ok quittieren (kein Entwurf).
+		if ( ! empty( $_POST['website'] ) ) { self::offer_request_redirect( $token, 'ok' ); }
+
+		// Rate-Limit: 1 Anfrage/5 min je IP+Token.
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$rk = 'm24_offerreq_' . md5( $ip . '|' . $token );
+		if ( get_transient( $rk ) ) { self::offer_request_redirect( $token, 'dup' ); }
+		set_transient( $rk, 1, 5 * MINUTE_IN_SECONDS );
+
+		$snap  = self::read_snapshot( $token );
+		$items = ( $snap && ! empty( $snap['items'] ) ) ? (array) $snap['items'] : array();
+		if ( empty( $items ) ) { self::offer_request_redirect( $token, 'empty' ); }
+
+		$message = isset( $_POST['nachricht'] ) ? sanitize_textarea_field( wp_unslash( $_POST['nachricht'] ) ) : '';
+
+		// Eingeloggter Eigentümer der eigenen Garage → Kundendaten aus dem Konto (einfaches Formular, nur Nachricht).
+		if ( is_user_logged_in() && self::current_account_id() === $acc ) {
+			$u        = wp_get_current_user();
+			$customer = array( 'name' => $u->display_name, 'email' => $u->user_email, 'kundentyp' => 'b2c', 'land' => '' );
+		} else {
+			// Gast: volles Feldset + Consent-Pflicht (§ DSGVO wie Anfrage-Modal).
+			if ( empty( $_POST['consent'] ) ) { self::offer_request_redirect( $token, 'consent' ); }
+			$customer = array(
+				'name'      => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
+				'email'     => isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '',
+				'kundentyp' => ( isset( $_POST['kundentyp'] ) && 'b2b' === $_POST['kundentyp'] ) ? 'b2b' : 'b2c',
+				'land'      => isset( $_POST['land'] ) ? strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', (string) wp_unslash( $_POST['land'] ) ), 0, 2 ) ) : '',
+			);
+		}
+		if ( ! class_exists( 'M24_Offers' ) || ! is_email( (string) $customer['email'] ) ) { self::offer_request_redirect( $token, 'error' ); }
+
+		$res = M24_Offers::create_draft( $items, $customer, array(
+			'garage_token' => $token,
+			'garage_no'    => self::garage_no( $acc, false ),
+			'garage_url'   => self::share_url( $token ),
+			'message'      => $message,
+		) );
+		if ( empty( $res['ok'] ) ) { self::offer_request_redirect( $token, 'error' ); }
+
+		self::notify_offer_request( $acc, $customer, $res, $message );
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'offer_request', 'info', 'Angebots-Anfrage aus geteilter Garage', array(
+				'garage_no' => self::garage_no( $acc, false ), 'offer_no' => (string) ( $res['offer_no'] ?? '' ), 'email' => (string) $customer['email'],
+			) );
+		}
+		self::offer_request_redirect( $token, 'ok' );
+	}
+
+	private static function offer_request_redirect( string $token, string $status ): void {
+		$url = ( '' !== $token ) ? self::share_url( $token ) : home_url( '/' );
+		wp_safe_redirect( add_query_arg( 'angebot', $status, $url ) . '#m24-angebot' );
+		exit;
+	}
+
+	private static function notify_offer_request( int $acc, array $customer, array $res, string $message ): void {
+		$gno    = self::garage_no( $acc, false );
+		$offer  = (string) ( $res['offer_no'] ?? '' );
+		$to     = (string) apply_filters( 'm24_offer_request_notify_to', get_option( 'admin_email' ) );
+		$reopen = admin_url( 'admin.php?page=m24-garagen&g=' . rawurlencode( $gno ) );
+		$body   = '<p>Neue Angebots-Anfrage aus einer geteilten Garage.</p><ul>'
+			. '<li>Garagen-Nr.: <strong>' . esc_html( $gno ) . '</strong></li>'
+			. '<li>Angebots-Entwurf: <strong>' . esc_html( $offer ) . '</strong></li>'
+			. '<li>Kunde: ' . esc_html( (string) $customer['name'] ) . ' &lt;' . esc_html( (string) $customer['email'] ) . '&gt; · ' . esc_html( strtoupper( (string) ( $customer['kundentyp'] ?? '' ) ) ) . '</li>'
+			. '</ul>';
+		if ( '' !== $message ) { $body .= '<p><em>Nachricht des Kunden:</em><br>' . nl2br( esc_html( $message ) ) . '</p>'; }
+		$body .= '<p>Im Backend öffnen: <a href="' . esc_url( $reopen ) . '">Garagen-Lookup ' . esc_html( $gno ) . '</a> — dort den Entwurf im Operator öffnen, Lieferzeit/Nebenkosten ergänzen und senden.</p>';
+		wp_mail( $to, 'Angebots-Anfrage ' . $gno . ' · Entwurf ' . $offer, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+	}
+
 	public static function write_snapshot( int $acc, string $token ): void {
 		if ( $acc <= 0 || '' === $token ) { return; }
+		self::garage_no( $acc, true ); // Paket 4: beim Teilen sicherstellen, dass das Konto eine Garagen-Nr. hat
 		global $wpdb;
 		$t     = self::snapshot_table();
 		$parts = array_values( array_filter( self::items( $acc ), static function ( $it ) { return 'm24_fahrzeug' !== $it['post_type']; } ) );
@@ -1713,6 +1970,8 @@ class M24_Garage_Cart {
 				$snap_when = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
 				?>
 				<p class="m24gc-shared-hint">Ein Blick in meine Garage vom <?php echo esc_html( $snap_when ); ?> Uhr.</p>
+					<?php $gno = self::garage_no( $acc, false ); ?>
+					<?php if ( '' !== $gno ) : ?><p class="m24gc-shared-no">Garagen-Nr. <?php echo esc_html( $gno ); ?></p><?php endif; ?>
 			</header>
 
 			<?php if ( empty( $items ) && empty( $vehicles ) ) : ?>

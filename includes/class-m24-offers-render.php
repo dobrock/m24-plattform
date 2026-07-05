@@ -55,6 +55,35 @@ class M24_Offers_Render {
 			'src_lang' => $g( 'lang' ), 'src_url' => esc_url_raw( $g( 'url' ) ),
 		);
 
+		// Paket 1E: ?from=<offer_id> → Positionen/Kunde/Lieferzeit/Steuer + Garagen-Nr. aus dem (Entwurfs-)Angebot laden.
+		$prefill  = null;
+		$garageNo = '';
+		$from     = (int) $g( 'from' );
+		if ( $from > 0 ) {
+			$o = M24_Offers::get_by_id( $from );
+			if ( $o ) {
+				$its  = json_decode( (string) $o->items_json, true );
+				$cj   = json_decode( (string) $o->customer_json, true );
+				$sj   = json_decode( (string) $o->src_json, true );
+				$cj   = is_array( $cj ) ? $cj : array();
+				$sj   = is_array( $sj ) ? $sj : array();
+				$customer = array(
+					'name' => (string) ( $cj['name'] ?? $customer['name'] ),
+					'email' => strtolower( (string) ( $cj['email'] ?? $customer['email'] ) ),
+					'kundentyp' => in_array( ( $cj['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $cj['kundentyp'] : $customer['kundentyp'],
+					'land' => strtoupper( substr( (string) ( $cj['land'] ?? $customer['land'] ), 0, 2 ) ), 'firma' => '',
+				);
+				$garageNo = (string) ( $sj['garage_no'] ?? '' );
+				$prefill  = array(
+					'items'    => is_array( $its ) ? array_values( $its ) : array(),
+					'delivery' => (string) $o->delivery_time,
+					'tax_mode' => (string) $o->tax_mode,
+					'tax_rate' => (float) $o->tax_rate,
+					'offer_id' => $from,
+				);
+			}
+		}
+
 		$cfg = array(
 			'rest'     => esc_url_raw( rest_url( M24_Offers::NS . '/offers' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
@@ -63,6 +92,8 @@ class M24_Offers_Render {
 			'customer' => $customer,
 			'src'      => $src,
 			'validDays'=> M24_Offers::VALID_DAYS,
+			'prefill'  => $prefill,
+			'garageNo' => $garageNo,
 		);
 
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
@@ -71,7 +102,7 @@ class M24_Offers_Render {
 		?>
 		</head><body class="m24off-op">
 		<div class="m24off-wrap">
-			<header class="m24off-top"><span class="m24off-badge">Neues Angebot</span><span class="m24off-modell" data-modell><?php echo esc_html( $src['src_modell'] ); ?></span></header>
+			<header class="m24off-top"><span class="m24off-badge"><?php echo $prefill ? 'Angebots-Entwurf' : 'Neues Angebot'; ?></span><?php if ( '' !== $garageNo ) : ?><span class="m24off-badge" style="background:#9a6b25;">Garagen-Nr. <?php echo esc_html( $garageNo ); ?></span><?php endif; ?><span class="m24off-modell" data-modell><?php echo esc_html( $src['src_modell'] ); ?></span></header>
 
 			<section class="m24off-card">
 				<h2>Kunde</h2>

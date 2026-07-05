@@ -63,12 +63,13 @@ class M24_Offers {
 		$src  = json_decode( (string) $o->src_json, true ) ?: array();
 		$args = array_filter( array(
 			self::QV_NEW => 1,
+			'from' => (int) $o->id, // Paket 1E: lädt Positionen/Lieferzeit/Steuer + Garagen-Nr. aus dem Angebot
 			'email' => (string) ( $cust['email'] ?? '' ), 'name' => (string) ( $cust['name'] ?? '' ),
 			'kundentyp' => (string) ( $cust['kundentyp'] ?? '' ), 'land' => (string) ( $cust['land'] ?? '' ),
 			'modell' => (string) ( $src['src_modell'] ?? '' ), 'pid' => (string) ( $src['src_pid'] ?? '' ),
 			'pillar' => (string) ( $src['src_pillar'] ?? '' ), 'lang' => (string) ( $src['src_lang'] ?? '' ),
 			'url' => (string) ( $src['src_url'] ?? '' ),
-		), static function ( $v ) { return '' !== $v && null !== $v; } );
+		), static function ( $v ) { return '' !== $v && null !== $v && 0 !== $v; } );
 		return add_query_arg( $args, home_url( '/' ) ); // add_query_arg kodiert die Werte selbst
 	}
 
@@ -486,6 +487,70 @@ class M24_Offers {
 	}
 
 	/* ── 5-Tage-Ablauf (Cron, ohne Stunden) ─────────────────────────────── */
+
+	/**
+	 * Paket 1E: Angebots-ENTWURF aus einer geteilten Garage anlegen (Kunde fragt an; Daniel ergänzt Lieferzeit/
+	 * Nebenkosten + sendet). $snap_items = Garage-Snapshot-Shape (article_id/title/art_nr/qty/price_gross).
+	 * @return array{ok:bool,offer_no?:string,offer_id?:int,token?:string,error?:string}
+	 */
+	public static function create_draft( array $snap_items, array $customer, array $meta = array() ): array {
+		global $wpdb;
+		$mapped = array();
+		foreach ( $snap_items as $it ) {
+			$it    = (array) $it;
+			$title = sanitize_text_field( (string) ( $it['title'] ?? '' ) );
+			if ( '' === $title ) { continue; }
+			$mapped[] = array(
+				'teil_id'    => (int) ( $it['article_id'] ?? 0 ),
+				'title'      => $title,
+				'art_nr'     => (string) ( $it['art_nr'] ?? '' ),
+				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
+				'unit_price' => ( isset( $it['price_gross'] ) && null !== $it['price_gross'] ) ? round( (float) $it['price_gross'], 2 ) : 0.0,
+			);
+		}
+		$items = self::clean_items( $mapped ); // erbt url/race/used/tax25a aus dem verknüpften Teil
+		$cust  = self::clean_customer( $customer );
+		if ( empty( $items ) || ! is_email( $cust['email'] ) ) {
+			return array( 'ok' => false, 'error' => 'Ungültige Anfrage (Positionen/E-Mail).' );
+		}
+		$tax_mode = ( 'b2b' === $cust['kundentyp'] ) ? 'b2b_de_19' : 'b2c_eu_oss'; // Default; Daniel finalisiert beim Senden
+		$totals   = self::compute_totals( $items, array(), $tax_mode, 0.0 );
+		$token    = bin2hex( random_bytes( 16 ) );
+		$offer_no = self::next_number();
+		$account  = self::account_for_email( $cust['email'] );
+		$src = array(
+			'src_url'    => esc_url_raw( (string) ( $meta['garage_url'] ?? '' ) ),
+			'src_pillar' => 'garage_share',
+			'src_modell' => '', // echtes Modell unbekannt bei Garage-Anfrage (Picker-Filter nicht verfälschen)
+			'src_pid'    => sanitize_text_field( (string) ( $meta['garage_token'] ?? '' ) ),
+			'src_lang'   => '',
+			'garage_no'  => sanitize_text_field( (string) ( $meta['garage_no'] ?? '' ) ), // referenzierbar im Operator
+			'message'    => sanitize_textarea_field( (string) ( $meta['message'] ?? '' ) ),
+		);
+		$wpdb->insert( self::table(), array(
+			'offer_no'     => $offer_no,
+			'token'        => $token,
+			'account_id'   => $account,
+			'status'       => 'entwurf', // Entwurf — Daniel ergänzt + sendet (bestehender 5-Tage-Ablauf beim Senden)
+			'customer_json'=> wp_json_encode( $cust ),
+			'items_json'   => wp_json_encode( $items ),
+			'extras_json'  => wp_json_encode( array() ),
+			'delivery_time'=> '',
+			'tax_mode'     => $tax_mode,
+			'tax_rate'     => self::rate_for( $tax_mode, 0.0 ),
+			'tax_note'     => self::tax_modes()[ $tax_mode ]['note'],
+			'subtotal_net' => $totals['net'] + $totals['st25a'],
+			'tax_amount'   => $totals['tax'],
+			'total_gross'  => $totals['total'],
+			'currency'     => 'EUR',
+			'valid_until'  => null,
+			'src_json'     => wp_json_encode( $src ),
+			'sent_at'      => null,
+		) );
+		$offer_id = (int) $wpdb->insert_id;
+		self::log( 'draft_request', $offer_id, $offer_no );
+		return array( 'ok' => true, 'offer_no' => $offer_no, 'offer_id' => $offer_id, 'token' => $token );
+	}
 
 	public static function expire_due() {
 		global $wpdb;

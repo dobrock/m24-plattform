@@ -197,6 +197,24 @@
 		}).catch(function () { btn.disabled = false; st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
 	}
 
+	// Paket 1E: Entwurf aus geteilter Garage vorbefüllen (Positionen/Mengen/Preise + Lieferzeit + Steuerfall).
+	if (cfg.prefill && cfg.prefill.items && cfg.prefill.items.length) {
+		items = cfg.prefill.items.map(function (it) {
+			return {
+				teil_id: parseInt(it.teil_id, 10) || 0,
+				title: it.title || '',
+				art_nr: it.art_nr || '',
+				qty: parseInt(it.qty, 10) || 1,
+				unit_price: parseFloat(it.unit_price) || 0,
+				tax25a: !!it.tax25a,
+				custom: !!it.custom
+			};
+		});
+		var dEl = $('[data-delivery]'); if (dEl && cfg.prefill.delivery) { dEl.value = cfg.prefill.delivery; }
+		if (cfg.prefill.tax_mode) { var sEl = $('[data-tax-mode]'); if (sEl) { sEl.value = cfg.prefill.tax_mode; setTaxMode(cfg.prefill.tax_mode); } }
+		var rEl = $('[data-tax-rate]'); if (rEl && cfg.prefill.tax_rate) { rEl.value = cfg.prefill.tax_rate; }
+	}
+
 	renderItems();
 	renderExtras();
 })();
