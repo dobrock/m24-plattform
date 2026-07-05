@@ -155,7 +155,10 @@ class M24_Offers_Render {
 			<section class="m24off-card">
 				<h2><span class="m24off-step">2</span>Positionen <span class="m24off-h-hint">aus Garage/Anfrage vorbefüllt · Menge/Preis editierbar · × entfernen</span></h2>
 				<div class="m24off-items" data-items></div>
-				<button type="button" class="m24off-add" data-add-pos>+ Teil suchen &amp; hinzufügen</button>
+				<div class="m24off-addrow">
+					<button type="button" class="m24off-add" data-add-pos>+ Teil suchen &amp; hinzufügen</button>
+					<button type="button" class="m24off-add m24off-add-free" data-add-free>+ Freie Position (Bezeichnung + Betrag)</button>
+				</div>
 			</section>
 
 			<section class="m24off-card">

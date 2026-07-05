@@ -163,3 +163,10 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-paybox .m24off-payrow:last-child{border-bottom:0}
 .m24off-paybox .m24off-payrow>span{color:#5a6474;flex:0 0 auto}
 .m24off-paybox .m24off-payrow>strong{font-weight:700;text-align:right;margin-left:auto}
+
+/* Freie Position (Bezeichnung + Betrag) */
+.m24off-addrow{display:flex;flex-direction:column;gap:8px}
+.m24off-add-free{border-style:dashed;border-color:#c9ced6;color:#5a6474;background:#fafbfc}
+.m24off-add-free:hover{border-color:#1f74c4;color:#1f74c4;background:#f2f7fc}
+.m24off-freetitle{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d3d8de;border-radius:8px;font:600 14px/1.2 'Saira',Arial,sans-serif;color:#14161a}
+.m24off-freetitle:focus{outline:none;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.14)}

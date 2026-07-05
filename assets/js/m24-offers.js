@@ -21,7 +21,10 @@
 		items.forEach(function (it, i) {
 			var row = document.createElement('div');
 			row.className = 'm24off-item';
-			row.innerHTML = '<div class="m24off-item-main"><span class="m24off-item-title">' + esc(it.title) + '</span>'
+			row.innerHTML = '<div class="m24off-item-main">'
+				+ (it.free
+					? '<input type="text" class="m24off-freetitle" value="' + esc(it.title) + '" data-i="' + i + '" data-title placeholder="Bezeichnung der Position">'
+					: '<span class="m24off-item-title">' + esc(it.title) + '</span>')
 				+ (it.art_nr ? '<span class="m24off-item-art">Art.-Nr.: ' + esc(it.art_nr) + '</span>' : '')
 				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.tax25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label>'
 				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.custom ? ' checked' : '') + ' data-i="' + i + '" data-custom> Sonderanfertigung (kein Widerruf)</label></div>'
@@ -38,6 +41,7 @@
 		var t = e.target;
 		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); recalc(); }
 		else if (t.matches('[data-price]')) { items[+t.getAttribute('data-i')].unit_price = parseFloat(t.value) || 0; recalc(); }
+		else if (t.matches('[data-title]')) { items[+t.getAttribute('data-i')].title = t.value; }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; recalc(); }
 	});
 	document.addEventListener('change', function (e) {
@@ -52,6 +56,7 @@
 		var t = e.target;
 		if (t.matches('[data-rm]')) { items.splice(+t.getAttribute('data-i'), 1); renderItems(); }
 		else if (t.matches('[data-add-pos]')) { openPicker(); }
+		else if (t.matches('[data-add-free]')) { items.push({ teil_id: 0, title: '', art_nr: '', qty: 1, unit_price: 0, tax25a: false, custom: false, free: true }); renderItems(); }
 		else if (t.matches('[data-kt]')) { segKT(t); }
 		else if (t.matches('[data-picker-close]')) { $('[data-picker]').hidden = true; }
 		else if (t.matches('[data-cat]')) { setCat(t); }
@@ -142,7 +147,9 @@
 			title: btn.getAttribute('data-title') || '',
 			art_nr: btn.getAttribute('data-art') || '',
 			qty: 1,
-			unit_price: parseFloat(btn.getAttribute('data-price')) || 0,
+			// Artikelpreis ist BRUTTO (inkl. 19 %); unit_price ist die NETTO-Basis (compute_totals rechnet die
+			// USt je Steuermodus oben drauf) → aus dem Artikel Netto = Brutto / 1,19 übernehmen.
+			unit_price: Math.round(((parseFloat(btn.getAttribute('data-price')) || 0) / 1.19) * 100) / 100,
 			tax25a: btn.getAttribute('data-25a') === '1',
 			custom: false
 		});
