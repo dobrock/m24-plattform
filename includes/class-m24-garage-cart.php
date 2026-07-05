@@ -1135,8 +1135,8 @@ class M24_Garage_Cart {
 		return $contact;
 	}
 
-	/** Garage-Positionen → Item-Shape der bestehenden Push-Strecke. Paket C: src_url/src_pillar/src_pid
-	 *  ENTFERNT (Push defaultet sie; Anfrage-Render zeigt keine URL-/Pillar-/PID-Zeile mehr) — src_art_nr (Teilenummer) BLEIBT. */
+	/** Garage-Positionen → Item-Shape der bestehenden Push-Strecke. Paket C: src_url BLEIBT (eigene Zeile,
+	 *  volle Breite im Anfrage-Render), src_pillar/src_pid ENTFERNT (Push defaultet sie), src_art_nr (Teilenummer) BLEIBT. */
 	private static function inquiry_items( array $items ): array {
 		$out = array();
 		foreach ( $items as $it ) {
@@ -1145,6 +1145,7 @@ class M24_Garage_Cart {
 				'art'        => (string) $it['title'],
 				'qty'        => (int) $it['qty'],
 				'price'      => $price,
+				'src_url'    => (string) $it['url'],
 				'src_art_nr' => (string) $it['artnr'],
 			);
 		}

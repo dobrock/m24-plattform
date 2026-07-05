@@ -239,8 +239,10 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 			}
 			$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">' . $meta . '</td></tr>';
 			if ( $p_link !== '' ) {
-				$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:13px;line-height:18px;white-space:nowrap;">'
-					. '<a href="' . esc_url( $p_link ) . '" style="color:' . $BLAU . ';text-decoration:none;white-space:nowrap;">' . esc_html( m24_truncate_link( $p_link ) ) . '</a>'
+				// src_url als eigene Zeile über die volle Breite (kein schmaler Umbruch): kein nowrap, vollständige
+				// URL, lange Links brechen innerhalb der Zeile um (word-break) statt abgeschnitten/einzeilig zu bleiben.
+				$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:13px;line-height:18px;word-break:break-all;">'
+					. '<a href="' . esc_url( $p_link ) . '" style="color:' . $BLAU . ';text-decoration:none;word-break:break-all;">' . esc_html( $p_link ) . '</a>'
 					. '</td></tr>';
 			}
 			if ( $p_art !== '' ) {
