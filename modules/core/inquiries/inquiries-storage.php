@@ -32,6 +32,9 @@ class M24_Inquiries_Storage {
 
         // Admin-Liste: eigene Source-Spalte
         add_filter( 'manage_' . self::CPT_SLUG . '_posts_columns',        [ __CLASS__, 'admin_columns' ], 99 ); // 99: NACH wpSEO → dessen Spalten fallen weg
+        // wpSEO hängt seine Spalten (Titel/Beschreibung/Robots/Redirect/Views) an manage_edit-{cpt}_columns,
+        // das NACH _posts_columns läuft → dort ebenfalls das kuratierte Set erzwingen.
+        add_filter( 'manage_edit-' . self::CPT_SLUG . '_columns',          [ __CLASS__, 'admin_columns' ], 99 );
         add_action( 'manage_' . self::CPT_SLUG . '_posts_custom_column',  [ __CLASS__, 'admin_column_content' ], 10, 2 );
         add_filter( 'manage_edit-' . self::CPT_SLUG . '_sortable_columns', [ __CLASS__, 'admin_sortable_columns' ] );
     }
