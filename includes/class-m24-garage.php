@@ -361,18 +361,33 @@ class M24_Garage {
 		$token = sanitize_text_field( wp_unslash( $_GET[ self::QUERY_VAR ] ) ); // phpcs:ignore
 		$store = self::pending_load();
 		$ok    = false;
+		$email = '';
 		if ( isset( $store[ $token ]['email'] ) && ( time() - (int) ( $store[ $token ]['created'] ?? 0 ) ) <= self::TTL ) {
+			$email = sanitize_email( (string) $store[ $token ]['email'] );
 			global $wpdb;
 			$wpdb->update(
 				self::users_table(),
 				array( 'doi_status' => 'confirmed', 'confirmed_at' => current_time( 'mysql' ) ),
-				array( 'email' => sanitize_email( (string) $store[ $token ]['email'] ) )
+				array( 'email' => $email )
 			);
 			$ok = true;
 		}
 		unset( $store[ $token ] );
 		update_option( self::PENDING_OPTION, $store, false );
-		wp_safe_redirect( add_query_arg( 'm24_garage', $ok ? 'confirmed' : 'invalid', home_url( '/' ) ) );
+
+		// Nach erfolgreichem Confirm (Single-Use-Link = Nachweis des E-Mail-Besitzes): vorhandenes WP-Konto einloggen
+		// und in die kontogebundene Garage leiten — statt auf der Startseite zu landen.
+		$garage_url = class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' );
+		if ( $ok && '' !== $email && is_email( $email ) ) {
+			$u = get_user_by( 'email', $email );
+			if ( $u ) {
+				wp_set_current_user( (int) $u->ID );
+				wp_set_auth_cookie( (int) $u->ID, true );
+			}
+			wp_safe_redirect( add_query_arg( 'm24_garage', 'confirmed', $garage_url ) );
+			exit;
+		}
+		wp_safe_redirect( add_query_arg( 'm24_garage', 'invalid', home_url( '/' ) ) );
 		exit;
 	}
 

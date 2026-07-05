@@ -45,8 +45,13 @@ class M24_B2B_Header_Login {
 		return class_exists( 'M24_I18n' ) ? M24_I18n::resolve_lang() : 'de';
 	}
 
+	/** Ausgeloggt: Login-Chip (+ JS/CSS) IMMER laden. Eingeloggt: nur bei aktivem Feature ohne D-UI-Ersatz. */
+	private static function skip(): bool {
+		return is_user_logged_in() && ( ! self::enabled() || self::superseded() );
+	}
+
 	public static function assets() {
-		if ( ! self::enabled() || self::superseded() ) { return; }
+		if ( self::skip() ) { return; }
 		$js = 'assets/js/m24-header-login.js';
 		$jv = file_exists( M24_PLATTFORM_DIR . $js ) ? (string) filemtime( M24_PLATTFORM_DIR . $js ) : M24_PLATTFORM_VERSION;
 		wp_enqueue_script( 'm24-header-login', M24_PLATTFORM_URL . $js, array(), $jv, true );
@@ -59,8 +64,8 @@ class M24_B2B_Header_Login {
 	 * in den Header-Menü-Container hängt. Fallback (Container nicht gefunden): fixiert oben rechts.
 	 */
 	public static function render() {
-		if ( self::$rendered || ! self::enabled() || self::superseded() ) {
-			return; // Guard: nur EINMAL; und nicht neben dem neuen „D"-UI (kein Doppel-Login).
+		if ( self::$rendered || self::skip() ) {
+			return; // nur EINMAL; ausgeloggt IMMER, eingeloggt nur ohne „D"-UI-Ersatz (kein Doppel-Login).
 		}
 		self::$rendered = true;
 		$logged = is_user_logged_in();
@@ -96,7 +101,7 @@ class M24_B2B_Header_Login {
 
 	/** D-Look-Optik (Saira, Outline-Chip ausgeloggt / Messing-Avatar + Dropdown eingeloggt). Self-hosted. */
 	public static function styles() {
-		if ( ! self::enabled() || self::superseded() ) {
+		if ( self::skip() ) {
 			return;
 		}
 		echo '<style id="m24-b2b-login-css">'
