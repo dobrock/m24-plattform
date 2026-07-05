@@ -392,11 +392,13 @@ class M24_Garage_PDF {
 		$css = // NUR content-spezifisches CSS — @page/Frame kommt aus document()/frame_css().
 			// Titelblock IM Content-Fluss (nicht fixed) — beginnt sauber unter der Header-Zone.
 			'.g-head { margin: 0 0 14pt; }'
+			. '.g-head .h-titlerow { width: 100%; border-collapse: collapse; margin: 0; }'
+			. '.g-head .h-titlerow td { padding: 0; vertical-align: bottom; }'
 			. '.g-head .h-title { font-size: 16pt; font-weight: bold; margin: 0; color: #1a1d23; }'
 			. '.g-head .h-title a { color: inherit; text-decoration: none; }'
 			. '.g-head .h-garagelink { font-size: 9.5pt; font-style: italic; margin-top: 2px; }'
-			. '.g-head .h-garagelink a { color: #9aa3b0; text-decoration: none; }' // hellgrau statt blau
-			. '.g-head .h-date { color: #6b7280; font-size: 9pt; margin-top: 3px; }'
+			. '.g-head .h-garagelink a { color: #1f74c4; text-decoration: underline; }' // klickbarer Share-Direktlink
+			. '.g-head .h-date { color: #6b7280; font-size: 9pt; text-align: right; }'
 			. '.tit a { color: inherit; text-decoration: none; }'
 			// Referenz-Tabelle: kein Bild, Kopf hellgrau, Zahlen rechtsbündig, dünne Zeilentrenner (1 Stufe kompakter).
 			. 'table.items { width: 100%; border-collapse: collapse; }'
@@ -417,18 +419,20 @@ class M24_Garage_PDF {
 			. 'table.sum { width: 100%; border-collapse: collapse; margin-top: 12pt; }'
 			. 'table.sum td { padding: 2pt 8pt; }'
 			. 'table.sum .sum-spacer { width: 55%; }'
-			. 'table.sum .sum-sub { background: #f3f4f6; text-align: right; font-size: 9pt; color: #5a6474; white-space: nowrap; }'
-			. 'table.sum .sum-note { background: #f3f4f6; text-align: right; font-size: 8pt; color: #9aa3b0; padding-top: 0; }'
+			. 'table.sum .sum-sub { background: #ffffff; text-align: right; font-size: 9pt; color: #5a6474; white-space: nowrap; }'
+			. 'table.sum .sum-note { background: #ffffff; text-align: right; font-size: 8pt; color: #9aa3b0; padding-top: 0; }'
 			. 'table.sum .sum-first td { padding-top: 8pt; }'
-			. 'table.sum .sum-total { background: #f3f4f6; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; border-top: 1px solid #d1d5db; padding: 6pt 8pt 8pt; }'
+			. 'table.sum .sum-total { background: #ffffff; text-align: right; font-weight: bold; font-size: 12pt; color: #1a1d23; white-space: nowrap; border-top: 1px solid #d1d5db; padding: 6pt 8pt 8pt; }'
 			. '.note { color: #9aa3b0; font-size: 8pt; text-align: right; margin: 6pt 0 0; }';
 
 		// „Zur Teile-Garage" = generierter Share-Direktlink (Fallback: Garage-Seite ohne Token).
 		$link_url = '' !== $share_url ? $share_url : ( class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' ) );
 		$body = '<div class="g-head">'
-			. '<div class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></div>'
-			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div>'
-			. '<div class="h-date">Stand: ' . esc_html( $date ) . '</div></div>';
+			. '<table class="h-titlerow"><tr>'
+			. '<td class="h-title"><a href="' . esc_url( home_url( '/' ) ) . '">Meine Garage</a></td>'
+			. '<td class="h-date">Stand: ' . esc_html( $date ) . '</td>'
+			. '</tr></table>'
+			. '<div class="h-garagelink"><a href="' . esc_url( $link_url ) . '">Zur Teile-Garage</a></div></div>';
 		if ( empty( $items ) ) {
 			// Garage hatte nur Fahrzeuge (nach Teile-Filter nichts übrig) → weder Tabelle noch Summen.
 			$body .= '<p class="empty">Keine Teile in der Garage.</p>';
