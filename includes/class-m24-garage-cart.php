@@ -195,7 +195,8 @@ class M24_Garage_Cart {
 			'<script>(function(){var o=document.getElementById("m24-angebot-open"),m=document.getElementById("m24-angebot-modal");'
 			. 'if(o&&m){o.addEventListener("click",function(){m.hidden=false;});'
 			. 'm.addEventListener("click",function(e){if(e.target.hasAttribute("data-close"))m.hidden=true;});'
-			. 'document.addEventListener("keydown",function(e){if("Escape"===e.key)m.hidden=true;});}'
+			. 'document.addEventListener("keydown",function(e){if("Escape"===e.key)m.hidden=true;});'
+			. 'if(/[?&]angebot=start/.test(location.search))m.hidden=false;}' // Kontaktformular-Link aus der Share-Mail
 			. 'if(location.hash==="#m24-angebot"){var f=document.getElementById("m24-angebot");if(f)f.scrollIntoView();}})();</script>'
 		) : '';
 		echo '<!doctype html><html lang="de"><head><meta charset="utf-8">'
@@ -823,11 +824,12 @@ class M24_Garage_Cart {
 	public static function preview_send_mail( string $to ): bool {
 		if ( ! is_email( $to ) ) { return false; }
 		$share_url = self::page_url();
-		$inner  = '<p style="margin:0 0 14px;">Guten Tag,</p>'
-			. '<p style="margin:0 0 14px;">anbei Ihre persönliche Teile-Auswahl von MOTORSPORT24.</p>'
-			. '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . esc_html( 'Beispiel-Nachricht: Ihre angefragten Teile im Überblick.' ) . '</p>'
+		$inner  = '<p style="margin:0 0 14px;">Hallo,</p>'
+			. '<p style="margin:0 0 14px;">hier ist Deine persönliche MOTORSPORT24-Teile-Auswahl. Dieser Link ist drei Monate gültig.</p>'
 			. '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zur Teile-Übersicht</a></p>'
-			. '<p style="margin:0;color:#5a6474;font-size:13px;">Das vollständige Exposé finden Sie im PDF-Anhang dieser E-Mail.</p>';
+			. '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.</p>'
+			. '<div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e6e9ee;"><p style="margin:0 0 10px;">Möchtest Du daraus ein verbindliches Kaufangebot machen? Melde Dich einfach bei uns — wir ergänzen Verpackung, Versand und (falls nötig) die Zollabwicklung und senden Dir ein verbindliches Angebot zurück. Deine Auswahl übernehmen wir dabei automatisch, Du musst nichts erneut eingeben.</p>'
+			. '<p style="margin:0;"><a href="' . esc_url( add_query_arg( 'angebot', 'start', $share_url ) ) . '" style="color:#1f74c4;font-weight:600;text-decoration:underline;">→ Zum Kontaktformular</a></p></div>';
 		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( 'Ihre Teile-Auswahl', $inner ) : '<h1>Ihre Teile-Auswahl</h1>' . $inner;
 
 		$attachments = array();
@@ -903,15 +905,24 @@ class M24_Garage_Cart {
 		// C) Mail über die kanonische Basis-Vorlage (blauer Header + weißes Logo).
 		$subject   = 'Ihre Teile-Auswahl – MOTORSPORT24';
 		$btn       = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Zur Teile-Übersicht</a></p>';
-		$inner     = '<p style="margin:0 0 14px;">Guten Tag,</p>'
-			. '<p style="margin:0 0 14px;">anbei Ihre persönliche Teile-Auswahl von MOTORSPORT24.</p>';
+		$snap_time   = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', current_time( 'timestamp' ) ) : gmdate( 'd.m.Y, H:i', current_time( 'timestamp' ) );
+		$gno         = self::garage_no( $acc, false );
+		$contact_url = add_query_arg( 'angebot', 'start', $share_url ) . '#m24-angebot'; // öffnet das Angebots-Modal (→ 1E-Flow)
+		$inner       = '<p style="margin:0 0 14px;">Hallo,</p>'
+			. '<p style="margin:0 0 14px;">hier ist Deine persönliche MOTORSPORT24-Teile-Auswahl vom ' . esc_html( $snap_time ) . ' Uhr.</p>'
+			. ( '' !== $gno ? '<p style="margin:0 0 14px;color:#5a6474;">Garagen-Nr. <strong>' . esc_html( $gno ) . '</strong></p>' : '' )
+			. '<p style="margin:0 0 14px;">Dieser Link ist drei Monate gültig.</p>';
 		if ( '' !== $message ) {
 			$inner .= '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . nl2br( esc_html( $message ) ) . '</p>';
 		}
 		$inner .= $btn;
 		if ( ! empty( $attachments ) ) {
-			$inner .= '<p style="margin:0;color:#5a6474;font-size:13px;">Das vollständige Exposé finden Sie im PDF-Anhang dieser E-Mail.</p>';
+			$inner .= '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.</p>';
 		}
+		// Angebots-Absatz: Kontaktformular überträgt die Garage (Snapshot/Token) → derselbe Entwurf-Flow wie Paket 1E.
+		$inner .= '<div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e6e9ee;">'
+			. '<p style="margin:0 0 10px;">Möchtest Du daraus ein verbindliches Kaufangebot machen? Melde Dich einfach bei uns — wir ergänzen Verpackung, Versand und (falls nötig) die Zollabwicklung und senden Dir ein verbindliches Angebot zurück. Deine Auswahl übernehmen wir dabei automatisch, Du musst nichts erneut eingeben.</p>'
+			. '<p style="margin:0;"><a href="' . esc_url( $contact_url ) . '" style="color:#1f74c4;font-weight:600;text-decoration:underline;">→ Zum Kontaktformular</a></p></div>';
 		$html = function_exists( 'm24_mail_shell' )
 			? m24_mail_shell( 'Ihre Teile-Auswahl', $inner )
 			: '<h1>Ihre Teile-Auswahl</h1>' . $inner;
