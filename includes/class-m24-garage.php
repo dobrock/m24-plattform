@@ -142,7 +142,7 @@ class M24_Garage {
 
 		if ( ! is_email( $email ) ) { self::log_step( 'add:gate', 'FAIL:email_invalid' ); return new WP_Error( 'm24g_form', $en ? 'Please enter a valid email.' : 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
 		if ( '' === $vorname )      { self::log_step( 'add:gate', 'FAIL:vorname_missing' ); return new WP_Error( 'm24g_form', $en ? 'Please enter your first name.' : 'Bitte deinen Vornamen angeben.', array( 'status' => 422 ) ); }
-		if ( ! $consent )           { self::log_step( 'add:gate', 'FAIL:consent_missing' ); return new WP_Error( 'm24g_form', $en ? 'Please agree to the sign-up.' : 'Bitte der Anmeldung zustimmen.', array( 'status' => 422 ) ); }
+		// Häkchen = NUR Marketing-Opt-in (kein Gate mehr): $consent steuert nur den Newsletter/IL-Opt-in, blockt nicht.
 
 		$expected_pt = ( 'part' === $type ) ? 'm24_teil' : 'm24_fahrzeug';
 		if ( ! $pid || $expected_pt !== get_post_type( $pid ) ) {
@@ -585,7 +585,7 @@ class M24_Garage {
 			<div class="m24g-box" role="dialog" aria-modal="true" aria-label="In meine Garage">
 				<button type="button" class="m24g-close" aria-label="Schließen">&times;</button>
 				<h3>In meine Garage</h3>
-				<p class="sub">Wir merken dir dieses Fahrzeug/Teil und halten dich auf dem Laufenden.</p>
+				<p class="sub">Park das Fahrzeug in Deiner Garage. Über einen Direktlink kannst Du auch später auf Deine Garage zugreifen oder sie teilen.</p>
 				<form class="m24g-form" novalidate>
 					<input type="hidden" name="item_type" value="">
 					<input type="hidden" name="post_id" value="">
@@ -595,7 +595,7 @@ class M24_Garage {
 					</div>
 					<div class="m24-ci-field"><label class="m24-ci-label">E-Mail <span class="req">*</span></label><input type="email" name="email" class="m24-ci-input" placeholder="deine@email.de" required></div>
 					<input type="hidden" name="lang" value="<?php echo esc_attr( $lang ); ?>"><?php // Seitensprache; Wechsel später via Garage-Einstellungen (G2b) / Mail-Footer ?>
-					<label class="m24g-check"><input type="checkbox" name="consent" value="1" required> Ja, ich möchte zu meinen gemerkten Fahrzeugen/Teilen per E-Mail informiert werden.</label>
+					<label class="m24g-check"><input type="checkbox" name="consent" value="1"> <span class="m24g-check-t">Ja, ich möchte zu meinen gemerkten Fahrzeugen per E-Mail informiert werden.</span></label>
 					<input type="text" name="website" class="m24g-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 					<button type="submit" class="m24g-submit">In meiner Garage parken</button>
 					<p class="m24g-msg" role="status"></p>
@@ -616,7 +616,13 @@ class M24_Garage {
 			var modal=document.getElementById('m24g-modal');if(!modal)return;
 			var form=modal.querySelector('.m24g-form'),msg=modal.querySelector('.m24g-msg');
 			var loginForm=modal.querySelector('.m24g-login-form'),loginMsg=modal.querySelector('.m24g-login-msg'),loginLink=modal.querySelector('.m24g-loginlink');
-			function open(type,id){form.item_type.value=type;form.post_id.value=id;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';var f=form.querySelector('[name=vorname]');if(f)f.focus();}
+			function open(type,id){form.item_type.value=type;form.post_id.value=id;
+				var isPart=(type==='part'||type==='teil');
+				var sub=modal.querySelector('.sub');
+				if(sub){sub.textContent=isPart?'Leg das Teil in Deine Garage – über einen Direktlink kannst Du auch später auf Deine Garage zugreifen oder sie teilen.':'Park das Fahrzeug in Deiner Garage. Über einen Direktlink kannst Du auch später auf Deine Garage zugreifen oder sie teilen.';}
+				var ct=modal.querySelector('.m24g-check-t');
+				if(ct){ct.textContent=isPart?'Ja, ich möchte zu meinen gemerkten Teilen per E-Mail informiert werden.':'Ja, ich möchte zu meinen gemerkten Fahrzeugen per E-Mail informiert werden.';}
+				modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';var f=form.querySelector('[name=vorname]');if(f)f.focus();}
 			function close(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow='';if(msg)msg.textContent='';}
 			document.addEventListener('click',function(e){
 				var t=e.target.closest('.m24-garage-open');
