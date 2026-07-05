@@ -141,7 +141,7 @@ class M24_Offers_Render {
 		<div class="m24off-wrap">
 			<header class="m24off-top"><span class="m24off-badge"><?php echo $prefill ? 'Angebots-Entwurf' : 'Neues Angebot'; ?></span><?php if ( '' !== $garageNo ) : ?><span class="m24off-badge" style="background:#9a6b25;">Garagen-Nr. <?php echo esc_html( $garageNo ); ?></span><?php endif; ?><span class="m24off-modell" data-modell><?php echo esc_html( $src['src_modell'] ); ?></span></header>
 
-			<section class="m24off-card">
+			<section class="m24off-card m24off-acc-card" data-collapsed="<?php echo $prefill ? '1' : '0'; ?>">
 				<h2><span class="m24off-step">1</span>Kunde <span class="m24off-h-hint">aus Anfrage vorbefüllt</span></h2>
 				<label class="m24off-f"><span>Name</span><input type="text" data-c="name" value="<?php echo esc_attr( $customer['name'] ); ?>"></label>
 				<label class="m24off-f"><span>E-Mail</span><input type="email" data-c="email" value="<?php echo esc_attr( $customer['email'] ); ?>"></label>
@@ -152,7 +152,7 @@ class M24_Offers_Render {
 				<label class="m24off-f"><span>Land (ISO)</span><input type="text" data-c="land" maxlength="2" value="<?php echo esc_attr( $customer['land'] ); ?>" placeholder="DE"></label>
 			</section>
 
-			<section class="m24off-card">
+			<section class="m24off-card m24off-acc-card">
 				<h2><span class="m24off-step">2</span>Positionen <span class="m24off-h-hint">aus Garage/Anfrage vorbefüllt · Menge/Preis editierbar · × entfernen</span></h2>
 				<div class="m24off-items" data-items></div>
 				<div class="m24off-addrow">
@@ -161,18 +161,18 @@ class M24_Offers_Render {
 				</div>
 			</section>
 
-			<section class="m24off-card">
+			<section class="m24off-card m24off-acc-card">
 				<h2><span class="m24off-step">3</span>Nebenkosten <span class="m24off-h-hint">Häkchen setzen, Betrag anpassbar</span></h2>
 				<div class="m24off-extras" data-extras></div>
 			</section>
 
-			<section class="m24off-card">
+			<section class="m24off-card m24off-acc-card">
 				<h2><span class="m24off-step">4</span>Lieferzeit</h2>
 				<label class="m24off-f"><span>Lieferzeit</span><input type="text" data-delivery placeholder="z. B. 2–3 Wochen"></label>
 				<p class="m24off-note">Angebot gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage (automatischer Ablauf).</p>
 			</section>
 
-			<section class="m24off-card">
+			<section class="m24off-card m24off-acc-card">
 				<h2><span class="m24off-step">5</span>Steuer-Modus <span class="m24off-h-hint">manuell wählen, nie automatisch</span></h2>
 				<select data-tax-mode class="m24off-select">
 					<option value="">— Steuerfall wählen —</option>
@@ -184,7 +184,7 @@ class M24_Offers_Render {
 				<p class="m24off-taxnote" data-tax-note></p>
 			</section>
 
-			<section class="m24off-card m24off-sum">
+			<section class="m24off-card m24off-sum m24off-acc-card">
 				<h2><span class="m24off-step">6</span>Summe</h2>
 				<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong data-sum-net>0,00 €</strong></div>
 				<div class="m24off-sumline" data-sum-25a-wrap hidden><span>§25a differenzbesteuert</span><strong data-sum-25a>0,00 €</strong></div>
@@ -197,6 +197,12 @@ class M24_Offers_Render {
 				<button type="button" class="m24off-btn m24off-btn-ghost" data-action="text">Mit Text antworten</button>
 			</div>
 			<p class="m24off-status" data-status role="status"></p>
+		</div>
+
+		<!-- Mobile Sticky-Bar: Live-Summe + Senden immer sichtbar -->
+		<div class="m24off-stickybar">
+			<div class="m24off-stickybar-sum"><span>Gesamt (brutto)</span><strong data-sum-total-bar>0,00 &euro;</strong></div>
+			<button type="button" class="m24off-btn m24off-btn-blue" data-action="send">Angebot senden</button>
 		</div>
 
 		<!-- Teile-Picker (Overlay) -->

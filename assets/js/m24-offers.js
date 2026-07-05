@@ -28,9 +28,10 @@
 				+ (it.art_nr ? '<span class="m24off-item-art">Art.-Nr.: ' + esc(it.art_nr) + '</span>' : '')
 				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.tax25a ? ' checked' : '') + ' data-i="' + i + '" data-25a> §25a</label>'
 				+ '<label class="m24off-item-25a"><input type="checkbox"' + (it.custom ? ' checked' : '') + ' data-i="' + i + '" data-custom> Sonderanfertigung (kein Widerruf)</label></div>'
-				+ '<div class="m24off-item-nums"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty class="m24off-qty">'
-				+ '<input type="number" step="0.01" value="' + it.unit_price + '" data-i="' + i + '" data-price class="m24off-price"> €'
-				+ '<button type="button" class="m24off-item-x" data-i="' + i + '" data-rm aria-label="Entfernen">&times;</button></div>';
+				+ '<div class="m24off-item-nums"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty class="m24off-qty" inputmode="numeric">'
+				+ '<span class="m24off-pricewrap"><input type="number" step="0.01" value="' + it.unit_price + '" data-i="' + i + '" data-price class="m24off-price" inputmode="decimal"> € netto'
+				+ '<span class="m24off-brutto" data-brutto>= ' + eur((it.unit_price || 0) * 1.19) + ' brutto</span></span>'
+				+ '<button type="button" class="m24off-item-x" data-i="' + i + '" data-rm aria-label="Position entfernen">&times;</button></div>';
 			box.appendChild(row);
 		});
 		recalc();
@@ -40,7 +41,7 @@
 	document.addEventListener('input', function (e) {
 		var t = e.target;
 		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); recalc(); }
-		else if (t.matches('[data-price]')) { items[+t.getAttribute('data-i')].unit_price = parseFloat(t.value) || 0; recalc(); }
+		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); items[pi].unit_price = parseFloat(t.value) || 0; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(items[pi].unit_price * 1.19) + ' brutto'; } recalc(); }
 		else if (t.matches('[data-title]')) { items[+t.getAttribute('data-i')].title = t.value; }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; recalc(); }
 	});
@@ -108,7 +109,9 @@
 		var w25 = $('[data-sum-25a-wrap]'); w25.hidden = st25a <= 0; $('[data-sum-25a]').textContent = eur(st25a);
 		var wtax = $('[data-sum-tax-wrap]'); wtax.hidden = tax <= 0; $('[data-sum-tax]').textContent = eur(tax);
 		$('[data-tax-label]').textContent = 'USt ' + (r % 1 ? r.toFixed(1) : r) + ' %';
-		$('[data-sum-total]').textContent = eur(net + tax + st25a);
+		var total = eur(net + tax + st25a);
+		$('[data-sum-total]').textContent = total;
+		var bar = $('[data-sum-total-bar]'); if (bar) { bar.textContent = total; }
 	}
 
 	/* ── Teile-Picker ── */
@@ -224,4 +227,34 @@
 
 	renderItems();
 	renderExtras();
+
+	// Mobile-Accordion: Sektions-Karten (.m24off-acc-card) per h2 ein-/ausklappen. Nur ≤640px aktiv;
+	// Desktop unverändert. Initialzustand aus data-collapsed (z. B. „1 Kunde" eingeklappt, wenn vorbefüllt).
+	(function () {
+		var mq = window.matchMedia('(max-width:640px)');
+		var cards = Array.prototype.slice.call(document.querySelectorAll('.m24off-acc-card'));
+		if (!cards.length) { return; }
+		function wire(card) {
+			var h = card.querySelector('h2');
+			if (!h || h.dataset.accWired) { return; }
+			h.dataset.accWired = '1';
+			h.setAttribute('role', 'button');
+			h.setAttribute('tabindex', '0');
+			h.addEventListener('click', function () { if (mq.matches) { card.classList.toggle('is-collapsed'); } });
+			h.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && mq.matches) { e.preventDefault(); card.classList.toggle('is-collapsed'); } });
+		}
+		function apply() {
+			cards.forEach(function (card) {
+				wire(card);
+				if (mq.matches) {
+					if (card.getAttribute('data-collapsed') === '1' && !card.dataset.accTouched) { card.classList.add('is-collapsed'); }
+				} else {
+					card.classList.remove('is-collapsed'); // Desktop immer offen
+				}
+			});
+		}
+		cards.forEach(function (card) { var h = card.querySelector('h2'); if (h) { h.addEventListener('click', function () { card.dataset.accTouched = '1'; }); } });
+		apply();
+		if (mq.addEventListener) { mq.addEventListener('change', apply); } else if (mq.addListener) { mq.addListener(apply); }
+	})();
 })();

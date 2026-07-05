@@ -170,3 +170,33 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-add-free:hover{border-color:#1f74c4;color:#1f74c4;background:#f2f7fc}
 .m24off-freetitle{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d3d8de;border-radius:8px;font:600 14px/1.2 'Saira',Arial,sans-serif;color:#14161a}
 .m24off-freetitle:focus{outline:none;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.14)}
+
+/* ── Operator mobile-first (iPhone-Angebotserstellung) ── */
+.m24off-pricewrap{display:inline-flex;flex-direction:column;align-items:flex-end;font-size:12px;color:#9aa3b0}
+.m24off-brutto{display:block;font-size:12px;color:#9aa3b0;white-space:nowrap;margin-top:1px}
+.m24off-stickybar{display:none}
+@media(max-width:640px){
+	/* (2) Inputs/Selects ≥16px → kein iOS-Auto-Zoom */
+	.m24off-op input,.m24off-op select,.m24off-op textarea{font-size:16px!important}
+	/* (3) Tap-Ziele ≥44px */
+	.m24off-item-x{min-width:44px;min-height:44px;font-size:26px;line-height:1}
+	.m24off-qty,.m24off-price{min-height:44px}
+	.m24off-item-25a,.m24off-check{min-height:44px;display:flex;align-items:center}
+	.m24off-item-25a input,.m24off-check input,.m24off-extra input[type=checkbox]{width:22px;height:22px}
+	.m24off-segbtn{min-height:44px}
+	.m24off-add{min-height:48px}
+	/* (4) Accordion: Sektions-Karten per h2 ein-/ausklappen */
+	.m24off-acc-card>h2{cursor:pointer;margin-bottom:0}
+	.m24off-acc-card>h2::after{content:'▾';margin-left:auto;color:#9aa3b0;transition:transform .15s}
+	.m24off-acc-card.is-collapsed>h2::after{transform:rotate(-90deg)}
+	.m24off-acc-card:not(.is-collapsed)>h2{margin-bottom:12px}
+	.m24off-acc-card.is-collapsed>*:not(h2){display:none!important}
+	/* (1) Sticky Bottom-Bar: Live-Summe + Senden immer sichtbar; inline-Senden ausblenden */
+	.m24off-wrap{padding-bottom:86px}
+	.m24off-actions .m24off-btn-blue{display:none}
+	.m24off-stickybar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:100050;align-items:center;gap:12px;background:#fff;border-top:1px solid #e3e9f0;box-shadow:0 -4px 16px rgba(10,12,16,.10);padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+	.m24off-stickybar-sum{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+	.m24off-stickybar-sum span{font-size:11px;color:#5a6474}
+	.m24off-stickybar-sum strong{font-size:17px;color:#0e447e;white-space:nowrap}
+	.m24off-stickybar .m24off-btn{flex:1 1 auto;padding:14px;margin:0}
+}
