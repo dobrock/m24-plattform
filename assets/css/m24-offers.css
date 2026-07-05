@@ -104,9 +104,9 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 
 /* ── Kunden-Ansicht Design A (Hero-Siegel, Timeline-Streifen, Positions-Karten, Accordions, Gate) ── */
 .m24off-hero{position:relative;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);border-radius:14px;padding:18px 18px 20px;margin:6px 0 14px;overflow:hidden}
-.m24off-hero-logo{height:26px;width:auto;display:block;margin:0 0 12px auto;filter:brightness(0) invert(1)}
+.m24off-hero-logo{width:170px;height:auto;max-height:54px;object-fit:contain;display:block;margin:0 0 12px auto;filter:brightness(0) invert(1)}
 .m24off-hero-eyebrow{color:rgba(255,255,255,.85);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px}
-.m24off-hero-title{color:#fff;font-size:22px;font-weight:800;margin:0 0 12px}
+.m24off-hero-title{color:#fff;font-size:22px;font-weight:800;margin:0}
 .m24off-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.32);color:#fff;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600}
 .m24off-chip-ico{flex:0 0 auto}
 .m24off-tl{display:flex;gap:6px;margin:0 0 16px}
@@ -154,3 +154,12 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-sum{border:1px solid #1f74c4;box-shadow:0 2px 10px rgba(31,116,196,.10)}
 .m24off-sum .m24off-total{border-top:1px solid #e6e9ee;margin-top:4px;padding-top:10px;font-size:17px}
 .m24off-sum .m24off-total strong{color:#0e447e}
+
+/* Angebot-Feinschliff: Countdown in der Titelzeile rechts, Bankdaten spaltenausgerichtet */
+.m24off-hero-titlerow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.m24off-hero-titlerow .m24off-chip{flex:0 0 auto}
+.m24off-accepted{margin:0 0 12px;color:#1a7f37;font-weight:600;font-size:14px}
+.m24off-paybox .m24off-payrow{display:flex;justify-content:space-between;align-items:baseline;gap:18px;padding:7px 0;font-size:14px;border-bottom:1px solid #eef0f2}
+.m24off-paybox .m24off-payrow:last-child{border-bottom:0}
+.m24off-paybox .m24off-payrow>span{color:#5a6474;flex:0 0 auto}
+.m24off-paybox .m24off-payrow>strong{font-weight:700;text-align:right;margin-left:auto}

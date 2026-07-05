@@ -136,7 +136,8 @@ class M24_Offers {
 	private static function next_number(): string {
 		$year = (int) ( function_exists( 'wp_date' ) ? wp_date( 'Y' ) : gmdate( 'Y' ) );
 		$key  = 'm24_offer_seq_' . $year;
-		$n    = (int) get_option( $key, 0 ) + 1;
+		// Start bei {Jahr}-1000 (wie Garagen-Nr.): Zähler mindestens auf 999 → nächste Nummer = 1000.
+		$n    = max( 999, (int) get_option( $key, 0 ) ) + 1;
 		update_option( $key, $n, false );
 		return sprintf( '%d-%04d', $year, $n );
 	}
@@ -202,6 +203,29 @@ class M24_Offers {
 		register_rest_route( self::NS, '/offers/mark-paid', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_mark_paid' ),
 		) );
+		// „Angebot annehmen" (Kunde, token-basiert): setzt Status offen → angenommen. Public + Nonce + Token.
+		register_rest_route( self::NS, '/offers/accept', array(
+			'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'handle_accept' ),
+		) );
+	}
+
+	public static function handle_accept( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		$o = self::get_by_token( (string) $req->get_param( 'token' ) );
+		if ( ! $o ) { return new WP_Error( 'm24off_nf', 'Angebot nicht gefunden.', array( 'status' => 404 ) ); }
+		// Nur ein offenes Angebot annehmen (idempotent, wenn bereits angenommen). Zahlung bestätigt Daniel im Desk.
+		if ( 'offen' === (string) $o->status ) {
+			global $wpdb;
+			$wpdb->update( self::table(), array( 'status' => 'angenommen' ), array( 'id' => (int) $o->id ) );
+			self::log( 'accepted', (int) $o->id, (string) $o->offer_no );
+			if ( class_exists( 'M24_Error_Log' ) ) {
+				M24_Error_Log::capture( 'offer_accept', 'info', 'Angebot vom Kunden angenommen', array( 'offer_no' => (string) $o->offer_no ) );
+			}
+			do_action( 'm24_offer_accepted', (int) $o->id );
+		}
+		return rest_ensure_response( array( 'ok' => true ) );
 	}
 
 	/** Teile-Picker: nach Modell (m24_fahrzeugkat) + Kategorie + Freitext (Titel + Art.-Nr.). */

@@ -257,14 +257,16 @@ class M24_Offers_Render {
 			<header class="m24off-hero">
 				<img class="m24off-hero-logo" src="<?php echo $logo; ?>" alt="MOTORSPORT24">
 				<div class="m24off-hero-eyebrow">Verbindliches Kaufangebot</div>
-				<h1 class="m24off-hero-title">Angebot <?php echo esc_html( $o->offer_no ); ?></h1>
-				<?php if ( 'offen' === $status ) : ?>
-					<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></span>
-				<?php elseif ( 'bezahlt' === $status ) : ?>
-					<span class="m24off-chip">Bezahlt ✓</span>
-				<?php else : ?>
-					<span class="m24off-chip">Abgelaufen</span>
-				<?php endif; ?>
+				<div class="m24off-hero-titlerow">
+					<h1 class="m24off-hero-title">Angebot <?php echo esc_html( $o->offer_no ); ?></h1>
+					<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
+						<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></span>
+					<?php elseif ( 'bezahlt' === $status ) : ?>
+						<span class="m24off-chip">Bezahlt ✓</span>
+					<?php else : ?>
+						<span class="m24off-chip">Abgelaufen</span>
+					<?php endif; ?>
+				</div>
 			</header>
 
 			<!-- Segmentierte Timeline -->
@@ -331,45 +333,48 @@ class M24_Offers_Render {
 			<?php endif; ?>
 			<details class="m24off-acc"><summary>Gewährleistung &amp; Steuer</summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 
-			<?php if ( 'offen' === $status ) : ?>
-			<!-- B/D: Checkbox-Gate → Zahlungs-Box (Bankdaten erst nach Klick im DOM) -->
+			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
+			<!-- B/D: „Angebot annehmen" → Status angenommen (DB) + Bankdaten (erst nach Klick im DOM) -->
 			<section class="m24off-card m24off-gate">
-				<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used ) ); ?></span></label>
-				<button type="button" class="m24off-btn m24off-btn-blue" data-pay disabled>Angebot bezahlen</button>
-				<div class="m24off-paybox" data-paybox hidden></div>
+				<?php if ( 'offen' === $status ) : ?>
+					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used ) ); ?></span></label>
+					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled>Angebot annehmen</button>
+				<?php else : ?>
+					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
+				<?php endif; ?>
+				<div class="m24off-paybox" data-paybox<?php echo 'angenommen' === $status ? '' : ' hidden'; ?>></div>
 			</section>
-			<?php endif; ?>
-
-			<?php if ( current_user_can( 'manage_options' ) && 'offen' === $status ) : ?>
-			<div class="m24off-card" style="text-align:center;">
-				<button type="button" class="m24off-btn m24off-btn-ghost" data-mark-paid>Als bezahlt markieren (manuell)</button>
-				<p class="m24off-status" data-paid-status role="status"></p>
-			</div>
 			<?php endif; ?>
 
 			<footer class="m24off-cfoot"><?php echo esc_html( self::company_line() ); ?> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></footer>
 		</div>
 		<script>
 		(function(){
-			// B: Checkbox-Gate + Reveal (Bankdaten erst nach Klick in den DOM injizieren).
-			var chk=document.querySelector('[data-gate]'), pay=document.querySelector('[data-pay]'), box=document.querySelector('[data-paybox]');
+			// B: „Angebot annehmen" → Status angenommen (best-effort) + Bankdaten in den DOM injizieren.
+			var chk=document.querySelector('[data-gate]'), acc=document.querySelector('[data-accept]'), box=document.querySelector('[data-paybox]');
 			var BANK=<?php echo wp_json_encode( array(
 				'inhaber' => $bank['inhaber'], 'iban' => $bank['iban'], 'bic' => $bank['bic'],
 				'zweck'   => (string) $o->offer_no, 'betrag' => self::fmt( (float) $o->total_gross ),
 			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
 			function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-			if(chk&&pay){ chk.addEventListener('change',function(){ pay.disabled=!chk.checked; }); }
-			if(pay&&box){ pay.addEventListener('click',function(){
-				if(pay.disabled) return;
+			function renderBank(){
 				box.innerHTML='<h3>Zahlung per Überweisung</h3>'
 					+row('Betrag',BANK.betrag,false)
 					+row('Empfänger',BANK.inhaber,false)
 					+row('IBAN',BANK.iban,true)
 					+row('BIC',BANK.bic,false)
 					+row('Verwendungszweck',BANK.zweck,true);
-				box.hidden=false; pay.style.display='none';
-				box.scrollIntoView({behavior:'smooth',block:'nearest'});
+				box.hidden=false; box.scrollIntoView({behavior:'smooth',block:'nearest'});
+			}
+			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
+			if(acc&&box){ acc.addEventListener('click',function(){
+				if(acc.disabled) return;
+				acc.disabled=true; acc.textContent='Angebot wird angenommen …';
+				var finish=function(){ if(acc.parentNode){acc.style.display='none';} renderBank(); };
+				fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/accept' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})})
+					.then(function(r){return r.json();}).then(finish).catch(finish); // Bankdaten auch bei Fehler zeigen (Annahme ist Signal für Daniel, kein Zahlungs-Gate)
 			}); }
+			if(box && !box.hidden){ renderBank(); } // bereits angenommenes Angebot: Bankdaten direkt anzeigen
 			function row(label,val,copy){
 				return '<div class="m24off-payrow"><span>'+esc(label)+'</span><strong'+(copy?' class="m24off-copy" data-copy="'+esc(val)+'" role="button" tabindex="0" title="Antippen zum Kopieren"':'')+'>'+esc(val)+(copy?' <em class="m24off-copyhint">kopieren</em>':'')+'</strong></div>';
 			}
@@ -380,15 +385,6 @@ class M24_Offers_Render {
 				if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(done); }
 				else { var t=document.createElement('textarea'); t.value=v; document.body.appendChild(t); t.select(); try{document.execCommand('copy');}catch(x){} document.body.removeChild(t); done(); }
 			});
-			// Operator-Fallback „bezahlt markieren".
-			var mb=document.querySelector('[data-mark-paid]');
-			if(mb){ var mst=document.querySelector('[data-paid-status]');
-				mb.addEventListener('click',function(){ mb.disabled=true;
-					fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/mark-paid' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})})
-					.then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ mst.textContent='Als bezahlt markiert — Seite neu laden.'; mst.className='m24off-status is-ok'; setTimeout(function(){location.reload();},900); } else { mb.disabled=false; mst.textContent=(d&&d.message)||'Fehler.'; mst.className='m24off-status is-error'; } })
-					.catch(function(){ mb.disabled=false; mst.textContent='Fehler.'; mst.className='m24off-status is-error'; });
-				});
-			}
 		})();
 		</script>
 		</body></html>
@@ -550,7 +546,7 @@ class M24_Offers_Render {
 		}
 
 		$inner  = '<p style="margin:0 0 14px;">Guten Tag' . ( ! empty( $cust['name'] ) ? ' ' . esc_html( $cust['name'] ) : '' ) . ',</p>';
-		$inner .= '<p style="margin:0 0 14px;">anbei Ihr verbindliches Angebot <strong>' . esc_html( $o->offer_no ) . '</strong>' . ( $vu ? ', gültig bis <strong>' . esc_html( $vu ) . '</strong>' : '' ) . '.</p>';
+		$inner .= '<p style="margin:0 0 14px;">anbei Ihr verbindliches Angebot ' . esc_html( $o->offer_no ) . ( $vu ? ', gültig bis ' . esc_html( $vu ) : '' ) . '.</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
