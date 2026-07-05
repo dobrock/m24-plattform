@@ -38,21 +38,8 @@
 		// INLINE-Styles bis :hover/:focus visuell verborgen ist → cache-immun (unabhängig von evtl.
 		// veraltetem Server-CSS erscheinen Name/Flagge nie inline).
 		a.appendChild(document.createTextNode(label));
-		var tipEl = document.createElement('span');
-		tipEl.className = 'm24langsw-tip';
-		tipEl.setAttribute('aria-hidden', 'true');
-		tipEl.textContent = tip;
-		tipEl.style.cssText = 'position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);'
-			+ 'white-space:nowrap;background:#14161a;color:#fff;font-weight:400;font-size:12px;padding:5px 9px;'
-			+ 'border-radius:6px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s;'
-			+ 'box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2';
-		a.appendChild(tipEl);
-		var show = function () { tipEl.style.opacity = '1'; tipEl.style.visibility = 'visible'; };
-		var hide = function () { tipEl.style.opacity = '0'; tipEl.style.visibility = 'hidden'; };
-		a.addEventListener('mouseenter', show);
-		a.addEventListener('mouseleave', hide);
-		a.addEventListener('focus', show);
-		a.addEventListener('blur', hide);
+		// Kein sichtbares Hover-Tooltip mehr („Deutsch"/„English"). Der Sprachname bleibt als aria-label
+		// (oben gesetzt) für Screenreader erhalten.
 		return a;
 	}
 

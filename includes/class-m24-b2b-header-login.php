@@ -110,7 +110,7 @@ class M24_B2B_Header_Login {
 		}
 		echo '<style id="m24-b2b-login-css">'
 			. '.m24hl-acct{position:relative;display:inline-flex;align-items:center;font-family:\'Saira\',Arial,sans-serif}'
-			. '.m24hl-acct--inhdr{margin:0 16px 0 0!important;align-self:center!important}' // Abstand Pill↔DE ≈ DE↔EN
+			. '.m24hl-acct--inhdr{margin:0 24px 0 0!important;align-self:center!important}' // Abstand Pill↔DE ≈ DE↔EN
 			. '.m24hl-acct--float{position:fixed!important;top:10px;right:14px;z-index:99999}'
 			// Ausgeloggt: Outline-Chip
 			. '.m24hl-chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:999px;padding:6px 14px;font:600 13px/1 \'Saira\',Arial,sans-serif;text-decoration:none;white-space:nowrap}'
