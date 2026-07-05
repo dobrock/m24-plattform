@@ -47,7 +47,7 @@ class M24_Garage_Cart {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 		add_action( 'init', array( __CLASS__, 'register_shortcode' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		add_action( 'wp_footer', array( __CLASS__, 'render_counter' ) );
+		// Roter Garage-FAB (m24gc-fab) entfernt (Alt-Entwicklung) — Einstieg läuft über Header/Login-Menü.
 		// Share-Ansicht = Capability-URL → hart noindex,nofollow (Meta würde von Yoast überstimmt).
 		add_filter( 'wp_robots', array( __CLASS__, 'force_robots' ) );
 		add_filter( 'wpseo_robots', array( __CLASS__, 'yoast_robots_str' ), 99 );

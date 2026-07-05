@@ -172,9 +172,33 @@
 				toast((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.');
 			});
 		}, true); // <-- Capture-Phase: läuft VOR dem Modal-Listener auf document
+	} else {
+		// Gast (nicht eingeloggt): ♡ legt das Item SOFORT in die ephemere localStorage-Garage — nur Toast, KEIN
+		// Modal. Registrierung erfolgt separat am Wert-Moment. (Kehrt 0.11.265 um.)
+		var GKEY = 'm24_guest_garage';
+		function gRead() { try { var r = window.localStorage.getItem(GKEY); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+		function gWrite(a) { try { window.localStorage.setItem(GKEY, JSON.stringify(a)); } catch (e) {} }
+		updateCount(gRead().length);
+		var gpre = gRead();
+		Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle')).forEach(function (b) {
+			var id = parseInt(b.getAttribute('data-garage-id') || '0', 10);
+			if (id && gpre.indexOf(id) > -1) { setGarageBtn(b, true); }
+		});
+		document.addEventListener('click', function (e) {
+			var btn = e.target.closest ? e.target.closest('.m24-garage-open') : null;
+			if (!btn) { return; }
+			e.preventDefault();
+			e.stopImmediatePropagation(); // KEIN „In meine Garage"-Dialog (kein Modal beim Hinzufügen)
+			var id = parseInt(btn.getAttribute('data-garage-id') || '0', 10);
+			if (!id) { return; }
+			var arr = gRead(), at = arr.indexOf(id), nowIn;
+			if (at > -1) { arr.splice(at, 1); nowIn = false; } else { arr.push(id); nowIn = true; }
+			gWrite(arr);
+			updateCount(arr.length);
+			if (btn.classList.contains('m24-garage-toggle')) { setGarageBtn(btn, nowIn); }
+			toast(nowIn ? ((cfg.i18n && cfg.i18n.added) || 'In deine Garage gelegt.') : 'Aus deiner Garage entfernt.');
+		}, true);
 	}
-	// Gast (nicht eingeloggt): kein anonymer localStorage-Pfad mehr — der „In meine Garage"-Dialog (Registrierung)
-	// übernimmt. Registrierung ist erforderlich; keine Adoption beim Login.
 
 	/* ── Garage-Seite: Menge ± / Entfernen ── */
 	var page = document.querySelector('[data-m24gc-page]');

@@ -75,7 +75,7 @@ class M24_B2B_Header_Login {
 		if ( ! $logged ) {
 			// Ausgeloggt: dezenter Outline-Chip „Login" (+ Personen-Punkt), Ziel = sichere /haendler-login/-Strecke.
 			echo '<div class="m24hl-acct"><a class="m24hl-chip" href="' . esc_url( home_url( '/haendler-login/' ) ) . '">'
-				. '<span class="m24hl-chip-i" aria-hidden="true">●</span><span class="m24hl-chip-t">Login</span></a></div>';
+				. '<span class="m24hl-chip-t">Login</span></a></div>';
 		} else {
 			$u       = wp_get_current_user();
 			$fn      = trim( (string) get_user_meta( $u->ID, 'first_name', true ) );
@@ -106,7 +106,7 @@ class M24_B2B_Header_Login {
 		}
 		echo '<style id="m24-b2b-login-css">'
 			. '.m24hl-acct{position:relative;display:inline-flex;align-items:center;font-family:\'Saira\',Arial,sans-serif}'
-			. '.m24hl-acct--inhdr{margin:0 12px 0 0!important;align-self:center!important}'
+			. '.m24hl-acct--inhdr{margin:0 8px 0 0!important;align-self:center!important}' // rechts eingekürzt (Abstand Pill↔DE ≈ DE↔EN)
 			. '.m24hl-acct--float{position:fixed!important;top:10px;right:14px;z-index:99999}'
 			// Ausgeloggt: Outline-Chip
 			. '.m24hl-chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:999px;padding:6px 14px;font:600 13px/1 \'Saira\',Arial,sans-serif;text-decoration:none;white-space:nowrap}'
