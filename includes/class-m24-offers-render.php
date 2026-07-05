@@ -142,7 +142,7 @@ class M24_Offers_Render {
 			<header class="m24off-top"><span class="m24off-badge"><?php echo $prefill ? 'Angebots-Entwurf' : 'Neues Angebot'; ?></span><?php if ( '' !== $garageNo ) : ?><span class="m24off-badge" style="background:#9a6b25;">Garagen-Nr. <?php echo esc_html( $garageNo ); ?></span><?php endif; ?><span class="m24off-modell" data-modell><?php echo esc_html( $src['src_modell'] ); ?></span></header>
 
 			<section class="m24off-card">
-				<h2>Kunde</h2>
+				<h2><span class="m24off-step">1</span>Kunde <span class="m24off-h-hint">aus Anfrage vorbefüllt</span></h2>
 				<label class="m24off-f"><span>Name</span><input type="text" data-c="name" value="<?php echo esc_attr( $customer['name'] ); ?>"></label>
 				<label class="m24off-f"><span>E-Mail</span><input type="email" data-c="email" value="<?php echo esc_attr( $customer['email'] ); ?>"></label>
 				<div class="m24off-seg" data-c-kundentyp>
@@ -153,24 +153,24 @@ class M24_Offers_Render {
 			</section>
 
 			<section class="m24off-card">
-				<h2>Positionen</h2>
+				<h2><span class="m24off-step">2</span>Positionen <span class="m24off-h-hint">aus Garage/Anfrage vorbefüllt · Menge/Preis editierbar · × entfernen</span></h2>
 				<div class="m24off-items" data-items></div>
-				<button type="button" class="m24off-add" data-add-pos>+ Position hinzufügen</button>
+				<button type="button" class="m24off-add" data-add-pos>+ Teil suchen &amp; hinzufügen</button>
 			</section>
 
 			<section class="m24off-card">
-				<h2>Zusatzpositionen</h2>
+				<h2><span class="m24off-step">3</span>Nebenkosten <span class="m24off-h-hint">Häkchen setzen, Betrag anpassbar</span></h2>
 				<div class="m24off-extras" data-extras></div>
 			</section>
 
 			<section class="m24off-card">
-				<h2>Lieferzeit &amp; Gültigkeit</h2>
+				<h2><span class="m24off-step">4</span>Lieferzeit</h2>
 				<label class="m24off-f"><span>Lieferzeit</span><input type="text" data-delivery placeholder="z. B. 2–3 Wochen"></label>
 				<p class="m24off-note">Angebot gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage (automatischer Ablauf).</p>
 			</section>
 
 			<section class="m24off-card">
-				<h2>Steuer (manuell wählen)</h2>
+				<h2><span class="m24off-step">5</span>Steuer-Modus <span class="m24off-h-hint">manuell wählen, nie automatisch</span></h2>
 				<select data-tax-mode class="m24off-select">
 					<option value="">— Steuerfall wählen —</option>
 					<?php foreach ( M24_Offers::tax_modes() as $k => $m ) : ?>
@@ -182,15 +182,16 @@ class M24_Offers_Render {
 			</section>
 
 			<section class="m24off-card m24off-sum">
+				<h2><span class="m24off-step">6</span>Summe</h2>
 				<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong data-sum-net>0,00 €</strong></div>
 				<div class="m24off-sumline" data-sum-25a-wrap hidden><span>§25a differenzbesteuert</span><strong data-sum-25a>0,00 €</strong></div>
 				<div class="m24off-sumline" data-sum-tax-wrap hidden><span data-tax-label>MwSt</span><strong data-sum-tax>0,00 €</strong></div>
-				<div class="m24off-sumline m24off-total"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
+				<div class="m24off-sumline m24off-total"><span>Gesamt (brutto)</span><strong data-sum-total>0,00 €</strong></div>
 			</section>
 
 			<div class="m24off-actions">
-				<button type="button" class="m24off-btn m24off-btn-ghost" data-action="text">Mit Text antworten</button>
 				<button type="button" class="m24off-btn m24off-btn-blue" data-action="send">Als verbindliches Angebot senden</button>
+				<button type="button" class="m24off-btn m24off-btn-ghost" data-action="text">Mit Text antworten</button>
 			</div>
 			<p class="m24off-status" data-status role="status"></p>
 		</div>
