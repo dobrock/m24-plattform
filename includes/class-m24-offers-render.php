@@ -86,7 +86,7 @@ class M24_Offers_Render {
 
 		// ?from_inquiry=<id> → Positionen + Kunde aus einer Sammelanfrage (m24_inquiry) vorbefüllen.
 		$from_inquiry = (int) $g( 'from_inquiry' );
-		if ( null === $prefill && $from_inquiry > 0 && class_exists( 'M24_Inquiries' ) && M24_Inquiries::CPT_SLUG === get_post_type( $from_inquiry ) ) {
+		if ( null === $prefill && $from_inquiry > 0 && class_exists( 'M24_Inquiries_Storage' ) && M24_Inquiries_Storage::CPT_SLUG === get_post_type( $from_inquiry ) ) {
 			$its      = get_post_meta( $from_inquiry, '_m24_items', true );
 			$items_pf = array();
 			if ( is_array( $its ) ) {
