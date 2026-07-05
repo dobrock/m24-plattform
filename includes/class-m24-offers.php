@@ -75,28 +75,53 @@ class M24_Offers {
 
 	public static function render_admin_list() {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
-		global $wpdb;
-		$rows   = $wpdb->get_results( 'SELECT * FROM ' . self::table() . ' ORDER BY id DESC LIMIT 300' );
+		global $wpdb; $t = self::table();
 		$badges = array(
-			'offen'      => array( 'Offen', '#1f74c4' ),
-			'bezahlt'    => array( 'Bezahlt', '#1a7f37' ),
-			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
 			'entwurf'    => array( 'Entwurf', '#8a929c' ),
+			'offen'      => array( 'Offen', '#1f74c4' ),
+			'angenommen' => array( 'Angenommen', '#9a6b25' ),
+			'bezahlt'    => array( 'Bezahlt', '#1a7f37' ),
+			'versandt'   => array( 'Versandt', '#1f74c4' ),
+			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
 		);
+		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$f_st = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : '';            // phpcs:ignore WordPress.Security.NonceVerification
+		$f_s  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';        // phpcs:ignore WordPress.Security.NonceVerification
+
+		$where = array( '1=1' ); $args = array();
+		if ( isset( $badges[ $f_st ] ) ) { $where[] = 'status = %s'; $args[] = $f_st; }
+		if ( '' !== $f_s ) { $like = '%' . $wpdb->esc_like( $f_s ) . '%'; $where[] = '( offer_no LIKE %s OR customer_json LIKE %s )'; $args[] = $like; $args[] = $like; }
+		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
+		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
+
 		echo '<div class="wrap"><h1>Angebote</h1>';
+		// Status-Filter + Suche.
+		echo '<form method="get" style="margin:10px 0;"><input type="hidden" name="page" value="' . esc_attr( $page ) . '">';
+		echo '<select name="st"><option value="">Alle Status</option>';
+		foreach ( $badges as $k => $b ) { echo '<option value="' . esc_attr( $k ) . '"' . selected( $f_st, $k, false ) . '>' . esc_html( $b[0] ) . '</option>'; }
+		echo '</select> ';
+		echo '<input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail" style="min-width:220px;"> ';
+		echo '<button class="button button-primary">Filtern</button>';
+		if ( '' !== $f_st || '' !== $f_s ) { echo ' <a class="button" href="' . esc_url( admin_url( 'admin.php?page=' . $page ) ) . '">Zurücksetzen</a>'; }
+		echo '</form>';
+
 		echo '<table class="widefat striped"><thead><tr>'
-			. '<th>Nr.</th><th>Kunde</th><th>Summe</th><th>Status</th><th>Gültig bis</th><th>Aktionen</th>'
+			. '<th>Nr.</th><th>Kunde</th><th>Garagen-Nr.</th><th>Summe</th><th>Status</th><th>Gültig bis</th><th>Aktionen</th>'
 			. '</tr></thead><tbody>';
 		if ( empty( $rows ) ) {
-			echo '<tr><td colspan="6">Noch keine Angebote.</td></tr>';
+			echo '<tr><td colspan="7">Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</td></tr>';
 		}
 		foreach ( (array) $rows as $o ) {
-			$cust  = json_decode( (string) $o->customer_json, true ) ?: array();
-			$st    = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
-			$vu    = $o->valid_until ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( (string) $o->valid_until ) ) : gmdate( 'd.m.Y', strtotime( (string) $o->valid_until ) ) ) : '—';
+			$cust = json_decode( (string) $o->customer_json, true ) ?: array();
+			$src  = json_decode( (string) $o->src_json, true ) ?: array();
+			$gno  = (string) ( $src['garage_no'] ?? '' );
+			if ( '' === $gno && (int) $o->account_id > 0 && class_exists( 'M24_Garage_Cart' ) ) { $gno = M24_Garage_Cart::garage_no( (int) $o->account_id, false ); }
+			$st   = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
+			$vu   = $o->valid_until ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( (string) $o->valid_until ) ) : gmdate( 'd.m.Y', strtotime( (string) $o->valid_until ) ) ) : '—';
 			echo '<tr>';
 			echo '<td><strong>' . esc_html( $o->offer_no ) . '</strong></td>';
 			echo '<td>' . esc_html( (string) ( $cust['name'] ?? '' ) ) . '<br><span style="color:#888;">' . esc_html( (string) ( $cust['email'] ?? '' ) ) . '</span></td>';
+			echo '<td>' . esc_html( '' !== $gno ? $gno : '—' ) . '</td>';
 			echo '<td style="white-space:nowrap;">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . ' €</td>';
 			echo '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-weight:600;background:' . esc_attr( $st[1] ) . ';">' . esc_html( $st[0] ) . '</span></td>';
 			echo '<td>' . esc_html( $vu ) . '</td>';
