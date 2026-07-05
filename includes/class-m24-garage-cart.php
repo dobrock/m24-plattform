@@ -1833,8 +1833,8 @@ class M24_Garage_Cart {
 		if ( is_admin() ) { return; }
 		$pid = (int) get_option( self::PAGE_OPTION );
 		if ( ! $pid || ! is_page( $pid ) ) { return; }
-		// Full-Width/Sidebar-aus greift für Eigentümer-Ansicht UND für die token-basierte Share-Ansicht.
-		if ( '' === self::current_share_token() && self::current_account_id() <= 0 ) { return; } // nur Gast-Hinweis behält Theme-Chrome
+		// Greift für Eigentümer-, Share- UND ausgeloggte Gast-Ansicht: der Theme-Seitentitel + Breadcrumb „Meine
+		// Garage" würden sonst zusätzlich zum selbst gerenderten Titel erscheinen (Doppel-/Dreifach-Titel).
 		$b = 'body.page-id-' . $pid . ' ';
 
 		// (1) Titel + Breadcrumb ausblenden (filterbar).
