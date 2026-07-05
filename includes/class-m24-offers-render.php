@@ -84,6 +84,43 @@ class M24_Offers_Render {
 			}
 		}
 
+		// ?from_inquiry=<id> → Positionen + Kunde aus einer Sammelanfrage (m24_inquiry) vorbefüllen.
+		$from_inquiry = (int) $g( 'from_inquiry' );
+		if ( null === $prefill && $from_inquiry > 0 && class_exists( 'M24_Inquiries' ) && M24_Inquiries::CPT_SLUG === get_post_type( $from_inquiry ) ) {
+			$its      = get_post_meta( $from_inquiry, '_m24_items', true );
+			$items_pf = array();
+			if ( is_array( $its ) ) {
+				foreach ( $its as $it ) {
+					$title = sanitize_text_field( (string) ( $it['art'] ?? '' ) );
+					if ( '' === $title ) { continue; }
+					$raw = trim( (string) ( $it['price'] ?? '' ) );
+					if ( false !== strpos( $raw, ',' ) && false !== strpos( $raw, '.' ) ) { $raw = str_replace( '.', '', $raw ); $raw = str_replace( ',', '.', $raw ); }
+					elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
+					$raw = preg_replace( '/[^0-9.\-]/', '', $raw );
+					$items_pf[] = array(
+						'teil_id'    => 0,
+						'title'      => $title,
+						'art_nr'     => sanitize_text_field( (string) ( $it['src_art_nr'] ?? '' ) ),
+						'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
+						'unit_price' => is_numeric( $raw ) ? (float) $raw : 0.0,
+						'tax25a'     => false,
+						'custom'     => false,
+					);
+				}
+			}
+			$vor  = (string) get_post_meta( $from_inquiry, '_m24_vorname', true );
+			$nach = (string) get_post_meta( $from_inquiry, '_m24_nachname', true );
+			$biz  = (string) get_post_meta( $from_inquiry, '_m24_biz', true );
+			$customer = array(
+				'name'      => trim( $vor . ' ' . $nach ),
+				'email'     => strtolower( (string) get_post_meta( $from_inquiry, '_m24_email', true ) ),
+				'kundentyp' => ( '1' === $biz ) ? 'b2b' : 'b2c',
+				'land'      => strtoupper( substr( (string) get_post_meta( $from_inquiry, '_m24_land', true ), 0, 2 ) ),
+				'firma'     => (string) get_post_meta( $from_inquiry, '_m24_firma', true ),
+			);
+			$prefill = array( 'items' => $items_pf, 'delivery' => '', 'tax_mode' => '', 'tax_rate' => 0.0, 'inquiry_id' => $from_inquiry );
+		}
+
 		$cfg = array(
 			'rest'     => esc_url_raw( rest_url( M24_Offers::NS . '/offers' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),

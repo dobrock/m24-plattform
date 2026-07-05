@@ -31,7 +31,7 @@ class M24_Inquiries_Storage {
         add_filter( 'display_post_states', [ __CLASS__, 'display_post_states' ], 10, 2 );
 
         // Admin-Liste: eigene Source-Spalte
-        add_filter( 'manage_' . self::CPT_SLUG . '_posts_columns',        [ __CLASS__, 'admin_columns' ] );
+        add_filter( 'manage_' . self::CPT_SLUG . '_posts_columns',        [ __CLASS__, 'admin_columns' ], 99 ); // 99: NACH wpSEO → dessen Spalten fallen weg
         add_action( 'manage_' . self::CPT_SLUG . '_posts_custom_column',  [ __CLASS__, 'admin_column_content' ], 10, 2 );
         add_filter( 'manage_edit-' . self::CPT_SLUG . '_sortable_columns', [ __CLASS__, 'admin_sortable_columns' ] );
     }
@@ -247,78 +247,103 @@ class M24_Inquiries_Storage {
      * Order: Checkbox, Title, Source, Item-Count, Status, Date.
      */
     public static function admin_columns( $columns ) {
+        // Entrümpeln: frisches, kuratiertes Set → wpSEO-/Kommentar-/Autor-Spalten entfallen.
         $new = [];
-        foreach ( $columns as $key => $label ) {
-            $new[ $key ] = $label;
-            // Source + Items direkt nach Title einfügen
-            if ( 'title' === $key ) {
-                $new['m24_source'] = __( 'Quelle', 'm24-plattform' );
-                $new['m24_items']  = __( 'Positionen', 'm24-plattform' );
-            }
-        }
+        if ( isset( $columns['cb'] ) ) { $new['cb'] = $columns['cb']; }
+        $new['m24_kunde']  = __( 'Kunde', 'm24-plattform' );
+        $new['m24_items']  = __( 'Positionen', 'm24-plattform' );
+        $new['m24_betrag'] = __( 'Betrag', 'm24-plattform' );
+        $new['m24_garage'] = __( 'Garagen-Nr.', 'm24-plattform' );
+        $new['date']       = isset( $columns['date'] ) ? $columns['date'] : __( 'Datum', 'm24-plattform' );
+        $new['m24_status'] = __( 'Status', 'm24-plattform' );
+        $new['m24_action'] = __( 'Aktion', 'm24-plattform' );
         return $new;
     }
 
-    /**
-     * Rendert den Inhalt für eigene Admin-Spalten.
-     */
+    /** Rendert den Inhalt der eigenen Admin-Spalten. */
     public static function admin_column_content( $column, $post_id ) {
-        if ( 'm24_source' === $column ) {
-            $source = get_post_meta( $post_id, '_m24_inquiry_source', true );
-            $labels = [
-                M24_Inquiries::SOURCE_CART    => __( 'Sammelanfrage', 'm24-plattform' ),
-                M24_Inquiries::SOURCE_PRODUCT => __( 'Direktanfrage', 'm24-plattform' ),
-                M24_Inquiries::SOURCE_CONTACT => __( 'Kontaktformular', 'm24-plattform' ),
-                M24_Inquiries::SOURCE_BLOG    => __( 'Blog-Anfrage', 'm24-plattform' ),
-            ];
-            $label = isset( $labels[ $source ] ) ? $labels[ $source ] : ( $source ?: '—' );
+        switch ( $column ) {
+            case 'm24_kunde':
+                $vor   = (string) get_post_meta( $post_id, '_m24_vorname', true );
+                $nach  = (string) get_post_meta( $post_id, '_m24_nachname', true );
+                $firma = (string) get_post_meta( $post_id, '_m24_firma', true );
+                $email = (string) get_post_meta( $post_id, '_m24_email', true );
+                $name  = trim( $vor . ' ' . $nach );
+                if ( '' === $name ) { $name = '' !== $firma ? $firma : ( '' !== $email ? $email : '—' ); }
+                $edit  = get_edit_post_link( $post_id );
+                echo '<strong>' . ( $edit ? '<a href="' . esc_url( $edit ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ) ) . '</strong>';
+                if ( '' !== $firma && $firma !== $name ) { echo '<br><span style="color:#666;">' . esc_html( $firma ) . '</span>'; }
+                if ( '' !== $email ) { echo '<br><a href="mailto:' . esc_attr( $email ) . '" style="color:#2271b1;">' . esc_html( $email ) . '</a>'; }
+                break;
 
-            // Tooltip mit den ersten Source-Meta-Hinweisen (cart_session_id-Kürzel etc.)
-            $meta_raw = get_post_meta( $post_id, '_m24_inquiry_source_meta', true );
-            $tooltip  = '';
-            if ( ! empty( $meta_raw ) ) {
-                $meta = json_decode( (string) $meta_raw, true );
-                if ( is_array( $meta ) ) {
-                    $bits = [];
-                    if ( ! empty( $meta['cart_session_id'] ) ) {
-                        $bits[] = 'Session: ' . substr( (string) $meta['cart_session_id'], 0, 8 );
-                    }
-                    if ( isset( $meta['estimated_value_eur'] ) ) {
-                        $bits[] = 'Wert: ' . number_format( (float) $meta['estimated_value_eur'], 2, ',', '.' ) . ' €';
-                    }
-                    if ( ! empty( $meta['src_url'] ) ) {
-                        $bits[] = 'URL: ' . $meta['src_url'];
-                    }
-                    if ( ! empty( $meta['form_url'] ) ) {
-                        $bits[] = 'URL: ' . $meta['form_url'];
-                    }
-                    if ( ! empty( $meta['blog_post_id'] ) ) {
-                        $bits[] = 'Blog-Post: ' . (int) $meta['blog_post_id'];
-                    }
-                    $tooltip = implode( ' · ', $bits );
+            case 'm24_items':
+                echo (int) get_post_meta( $post_id, '_m24_item_count', true );
+                break;
+
+            case 'm24_betrag':
+                echo esc_html( self::inquiry_amount_fmt( $post_id ) );
+                break;
+
+            case 'm24_garage':
+                echo esc_html( self::inquiry_garage_no( $post_id ) );
+                break;
+
+            case 'm24_status':
+                $map = [
+                    M24_Inquiries::STATUS_PENDING     => [ 'Offen', '#8a6d3b', '#fcf8e3' ],
+                    M24_Inquiries::STATUS_SYNCED      => [ 'Synchronisiert', '#1a7f37', '#eafaf0' ],
+                    M24_Inquiries::STATUS_SYNCED_MAIL => [ 'Per Mail', '#1f74c4', '#eaf3fb' ],
+                    M24_Inquiries::STATUS_FAILED      => [ 'Fehlgeschlagen', '#c8102e', '#fdeaea' ],
+                ];
+                $st = (string) get_post_status( $post_id );
+                $b  = $map[ $st ] ?? [ ucfirst( $st ), '#555', '#eee' ];
+                echo '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;color:' . esc_attr( $b[1] ) . ';background:' . esc_attr( $b[2] ) . ';">' . esc_html( $b[0] ) . '</span>';
+                break;
+
+            case 'm24_action':
+                if ( class_exists( 'M24_Offers' ) ) {
+                    $url = add_query_arg( [ M24_Offers::QV_NEW => 1, 'from_inquiry' => (int) $post_id ], home_url( '/' ) );
+                    echo '<a class="button button-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Angebot erstellen &rarr;</a>';
                 }
-            }
-
-            echo esc_html( $label );
-            if ( $tooltip !== '' ) {
-                echo '<br><small style="color:#666;">' . esc_html( $tooltip ) . '</small>';
-            }
-            return;
-        }
-
-        if ( 'm24_items' === $column ) {
-            $count = (int) get_post_meta( $post_id, '_m24_item_count', true );
-            echo esc_html( $count );
-            return;
+                break;
         }
     }
 
-    /**
-     * Source-Spalte sortierbar machen.
-     */
+    /** Betrag: estimated_value_eur (source_meta) → sonst Summe der numerischen Positionspreise × Menge. */
+    private static function inquiry_amount_fmt( $post_id ): string {
+        $meta = json_decode( (string) get_post_meta( $post_id, '_m24_inquiry_source_meta', true ), true );
+        if ( is_array( $meta ) && isset( $meta['estimated_value_eur'] ) && '' !== (string) $meta['estimated_value_eur'] ) {
+            return number_format( (float) $meta['estimated_value_eur'], 2, ',', '.' ) . ' €';
+        }
+        $items = get_post_meta( $post_id, '_m24_items', true );
+        $sum   = 0.0; $any = false;
+        if ( is_array( $items ) ) {
+            foreach ( $items as $it ) {
+                $raw = trim( (string) ( $it['price'] ?? '' ) );
+                if ( '' === $raw ) { continue; }
+                if ( false !== strpos( $raw, ',' ) && false !== strpos( $raw, '.' ) ) { $raw = str_replace( '.', '', $raw ); $raw = str_replace( ',', '.', $raw ); }
+                elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
+                $raw = preg_replace( '/[^0-9.\-]/', '', $raw );
+                if ( is_numeric( $raw ) ) { $sum += (float) $raw * max( 1, (int) ( $it['qty'] ?? 1 ) ); $any = true; }
+            }
+        }
+        return $any ? number_format( $sum, 2, ',', '.' ) . ' €' : '—';
+    }
+
+    /** Garagen-Nr. über die E-Mail → WP-Konto → M24_Garage_Cart::garage_no; sonst „—". */
+    private static function inquiry_garage_no( $post_id ): string {
+        if ( ! class_exists( 'M24_Garage_Cart' ) ) { return '—'; }
+        $email = (string) get_post_meta( $post_id, '_m24_email', true );
+        if ( '' === $email || ! is_email( $email ) ) { return '—'; }
+        $u = get_user_by( 'email', $email );
+        if ( ! $u ) { return '—'; }
+        $gno = M24_Garage_Cart::garage_no( (int) $u->ID, false );
+        return '' !== $gno ? $gno : '—';
+    }
+
+    /** Sortierbare Spalten. */
     public static function admin_sortable_columns( $columns ) {
-        $columns['m24_source'] = '_m24_inquiry_source';
-        $columns['m24_items']  = '_m24_item_count';
+        $columns['m24_items'] = '_m24_item_count';
         return $columns;
     }
 }
