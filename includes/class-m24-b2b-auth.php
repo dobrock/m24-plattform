@@ -82,15 +82,23 @@ class M24_B2B_Auth {
 
     public static function ensure_pages() {
         $defs = array(
-            self::OPT_REG_PAGE   => array( 'Händler-Registrierung', 'haendler-registrierung', '[m24_haendler_registrierung]' ),
-            self::OPT_REG2_PAGE  => array( 'Händler-Registrierung (Variante)', 'haendler-registrierung-2', '[m24_haendler_registrierung_2]' ),
+            self::OPT_REG_PAGE   => array( 'Registrierung', 'haendler-registrierung', '[m24_haendler_registrierung]' ),
+            self::OPT_REG2_PAGE  => array( 'Registrierung (Variante)', 'haendler-registrierung-2', '[m24_haendler_registrierung_2]' ),
             self::OPT_LOGIN_PAGE => array( 'Login', 'haendler-login', '[m24_haendler_login]' ),
+        );
+        // Einmalige Titel-Korrekturen (H1/Breadcrumb neutralisieren, Slug/URL bleibt): „Händler-…" → neutral.
+        $renames = array(
+            self::OPT_LOGIN_PAGE => array( 'Händler-Login' => 'Login' ),
+            self::OPT_REG_PAGE   => array( 'Händler-Registrierung' => 'Registrierung' ),
+            self::OPT_REG2_PAGE  => array( 'Händler-Registrierung (Variante)' => 'Registrierung (Variante)' ),
         );
         foreach ( $defs as $opt => $d ) {
             $id = (int) get_option( $opt, 0 );
-            // Einmalige Titel-Korrektur: Login-Seite von „Händler-Login" → „Login" (H1/Breadcrumb), Slug bleibt.
-            if ( self::OPT_LOGIN_PAGE === $opt && $id && 'Händler-Login' === get_the_title( $id ) ) {
-                wp_update_post( array( 'ID' => $id, 'post_title' => 'Login' ) );
+            if ( $id && isset( $renames[ $opt ] ) ) {
+                $old = get_the_title( $id );
+                if ( isset( $renames[ $opt ][ $old ] ) ) {
+                    wp_update_post( array( 'ID' => $id, 'post_title' => $renames[ $opt ][ $old ] ) );
+                }
             }
             if ( ! ( $id && 'page' === get_post_type( $id ) && 'trash' !== get_post_status( $id ) ) ) {
                 $new = wp_insert_post( array(
