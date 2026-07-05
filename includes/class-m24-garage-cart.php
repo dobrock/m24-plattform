@@ -144,7 +144,8 @@ class M24_Garage_Cart {
 		$og .= '<meta name="twitter:image" content="' . esc_url( $og_img ) . '">';
 
 		// Paket 1C/1D: Angebots-Anfrage — Checkbox + Button + selbst-enthaltenes Modal (Absenden per admin-post).
-		$has_parts = ( $snap && ! empty( $snap['items'] ) );
+		// CTA/Modal nur, wenn Teile vorhanden UND das Angebots-Feature aktiv ist (sonst keine Waisen-Entwürfe).
+		$has_parts = ( $snap && ! empty( $snap['items'] ) ) && class_exists( 'M24_Offers' ) && M24_Offers::enabled();
 		$ap_url    = esc_url( admin_url( 'admin-post.php' ) );
 		$ap_tok    = esc_attr( $token );
 		$ap_status = isset( $_GET['angebot'] ) ? sanitize_key( wp_unslash( $_GET['angebot'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
@@ -591,6 +592,7 @@ class M24_Garage_Cart {
 		$token = isset( $_POST['garage_token'] ) ? preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_POST['garage_token'] ) ) : '';
 		$acc   = self::resolve_share_token( $token );
 		if ( $acc <= 0 ) { self::offer_request_redirect( $token, 'error' ); }
+		if ( ! class_exists( 'M24_Offers' ) || ! M24_Offers::enabled() ) { self::offer_request_redirect( $token, 'off' ); } // Feature aus → kein Entwurf
 
 		// Honeypot: befülltes „website"-Feld → still als ok quittieren (kein Entwurf).
 		if ( ! empty( $_POST['website'] ) ) { self::offer_request_redirect( $token, 'ok' ); }
