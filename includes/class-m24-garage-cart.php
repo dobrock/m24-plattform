@@ -1496,7 +1496,7 @@ class M24_Garage_Cart {
 		if ( $acc <= 0 ) {
 			?>
 			<div class="m24gc-page m24gc-guest">
-				<h2 class="m24gc-h">Meine Garage</h2>
+				<?php // Kein eigener „Meine Garage"-Titel: der Theme-Seitentitel (H1.entry-title) zeigt ihn bereits (genau EINER). ?>
 				<p class="m24gc-empty">Bitte logge dich ein, um deine Garage zu sehen. Du findest den Login-Link über den „In meine Garage"-Dialog auf jeder Fahrzeug- oder Teile-Seite.</p>
 			</div>
 			<?php
@@ -1833,8 +1833,10 @@ class M24_Garage_Cart {
 		if ( is_admin() ) { return; }
 		$pid = (int) get_option( self::PAGE_OPTION );
 		if ( ! $pid || ! is_page( $pid ) ) { return; }
-		// Greift für Eigentümer-, Share- UND ausgeloggte Gast-Ansicht: der Theme-Seitentitel + Breadcrumb „Meine
-		// Garage" würden sonst zusätzlich zum selbst gerenderten Titel erscheinen (Doppel-/Dreifach-Titel).
+		// Full-Width/Sidebar-aus + Titel-Ausblendung nur für Eigentümer-/Share-Ansicht (die den Titel selbst
+		// rendern). Ausgeloggte Gast-Ansicht behält die Theme-Chrome (deren H1.entry-title IST der eine Titel;
+		// die Garage-Komponente rendert dort bewusst KEINEN eigenen Titel).
+		if ( '' === self::current_share_token() && self::current_account_id() <= 0 ) { return; }
 		$b = 'body.page-id-' . $pid . ' ';
 
 		// (1) Titel + Breadcrumb ausblenden (filterbar).
