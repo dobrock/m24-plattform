@@ -281,7 +281,7 @@ class M24_Garage {
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>'
 			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
 
-		self::send_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), 'doi' );
+		self::send_mail( $email, $subject, ( function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => $lang ) ) : self::mail_html( $headline, $inner, $lang ) ), 'doi' );
 	}
 
 	/**
@@ -475,7 +475,7 @@ class M24_Garage {
 			. '<p style="margin:0 0 14px;font-size:12px;word-break:break-all;"><a href="' . esc_url( $url ) . '" style="color:#1f74c4;">' . esc_html( $url ) . '</a></p>'
 			. '<p style="margin:0;color:#9aa3b0;font-size:12px;">' . esc_html( $ignore ) . '</p>';
 
-		self::send_mail( $email, $subject, self::mail_html( $headline, $inner, $lang ), 'login' );
+		self::send_mail( $email, $subject, ( function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => $lang ) ) : self::mail_html( $headline, $inner, $lang ) ), 'login' );
 	}
 
 	/** ?m24login=TOKEN → Token verbrauchen → E-Mail-gebundene Session → Redirect Garage-Seite (G2b). */

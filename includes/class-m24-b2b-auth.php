@@ -838,7 +838,7 @@ class M24_B2B_Auth {
             'From: ' . self::from_header(),
             'Reply-To: MOTORSPORT24 <service@motorsport24.de>',
         );
-        wp_mail( $to, $subject, self::mail_html( $headline, $inner, $lang ), $headers );
+        wp_mail( $to, $subject, ( function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => $lang ) ) : self::mail_html( $headline, $inner, $lang ) ), $headers );
     }
 
     public static function send_approval_mail( int $user_id ): void {
