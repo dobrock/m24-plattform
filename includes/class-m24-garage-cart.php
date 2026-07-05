@@ -1135,24 +1135,16 @@ class M24_Garage_Cart {
 		return $contact;
 	}
 
-	/** Garage-Positionen → Item-Shape der bestehenden Push-Strecke (map_items: art/qty/price/src_*). */
+	/** Garage-Positionen → Item-Shape der bestehenden Push-Strecke. Paket C: src_url/src_pillar/src_pid
+	 *  ENTFERNT (Push defaultet sie; Anfrage-Render zeigt keine URL-/Pillar-/PID-Zeile mehr) — src_art_nr (Teilenummer) BLEIBT. */
 	private static function inquiry_items( array $items ): array {
-		$has_const = class_exists( 'M24_Inquiries' );
 		$out = array();
 		foreach ( $items as $it ) {
-			$price  = ( null !== $it['unit'] ) ? number_format( (float) $it['unit'], 2, '.', '' ) : ''; // leer/nicht-numerisch → Preis auf Anfrage
-			if ( 'm24_fahrzeug' === $it['post_type'] ) {
-				$pillar = $has_const ? M24_Inquiries::PILLAR_FAHRZEUG : 'fahrzeug';
-			} else {
-				$pillar = $has_const ? M24_Inquiries::PILLAR_KATALOG : 'katalog';
-			}
+			$price = ( null !== $it['unit'] ) ? number_format( (float) $it['unit'], 2, '.', '' ) : ''; // leer → Preis auf Anfrage
 			$out[] = array(
 				'art'        => (string) $it['title'],
 				'qty'        => (int) $it['qty'],
 				'price'      => $price,
-				'src_url'    => (string) $it['url'],
-				'src_pillar' => $pillar,
-				'src_pid'    => (string) $it['post_id'],
 				'src_art_nr' => (string) $it['artnr'],
 			);
 		}
