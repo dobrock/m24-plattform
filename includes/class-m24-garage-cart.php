@@ -149,7 +149,11 @@ class M24_Garage_Cart {
 			. '.m24gc-line-net{display:block;font-weight:400;font-size:11px;color:#9aa3b0;margin-top:2px;white-space:nowrap}'
 			. 'a.m24gc-rowlink{text-decoration:none;color:inherit}'
 			. '@media(max-width:480px){'
-			. '.m24gc-shared .m24gc-row{grid-template-columns:72px 1fr auto;grid-template-areas:"thumb info info" "thumb qty line";column-gap:10px}'
+			// Titel-Bug: die Zeile hat .m24gc-title(grid-area:title) + .m24gc-info(grid-area:meta). Die alten Areas
+			// "info" existierten nirgends → Titel/Meta wurden implizit nach unten-rechts platziert + abgeschnitten.
+			// Korrekte Areas: Titel OBEN, danach Meta, dann Menge/Summe.
+			. '.m24gc-shared .m24gc-row{grid-template-columns:72px 1fr auto;grid-template-areas:"thumb title title" "thumb meta meta" "thumb qty line";column-gap:10px}'
+			. '.m24gc-shared .m24gc-row>.m24gc-title{grid-area:title;align-self:start}'
 			. '.m24gc-shared .m24gc-row .m24gc-thumb{grid-area:thumb;width:72px;height:56px}'
 			. '.m24gc-shared .m24gc-row .m24gc-info{grid-area:info;min-width:0}'
 			. '.m24gc-shared .m24gc-row .m24gc-title{font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
@@ -1704,7 +1708,11 @@ class M24_Garage_Cart {
 		<div class="m24gc-page m24gc-dash m24gc-shared">
 			<header class="m24gc-dash-head">
 				<h1 class="m24gc-dash-title">Geteilte Garage</h1>
-				<p class="m24gc-shared-hint">Schreibgeschützte Ansicht — Stand zum Zeitpunkt des Teilens.</p>
+				<?php
+				$snap_ts   = ( $created > 0 ) ? $created : current_time( 'timestamp' );
+				$snap_when = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
+				?>
+				<p class="m24gc-shared-hint">Ein Blick in meine Garage vom <?php echo esc_html( $snap_when ); ?> Uhr.</p>
 			</header>
 
 			<?php if ( empty( $items ) && empty( $vehicles ) ) : ?>
