@@ -47,7 +47,8 @@ class M24_Garage_Cart {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 		add_action( 'init', array( __CLASS__, 'register_shortcode' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		// Roter Garage-FAB (m24gc-fab) entfernt (Alt-Entwicklung) — Einstieg läuft über Header/Login-Menü.
+		// Paket G: Garage-Einstieg = Slide-Tab + Schnellansicht-Panel (ersetzt den roten FAB/Toggle).
+		add_action( 'wp_footer', array( __CLASS__, 'render_garage_tab' ) );
 		// Share-Ansicht = Capability-URL → hart noindex,nofollow (Meta würde von Yoast überstimmt).
 		add_filter( 'wp_robots', array( __CLASS__, 'force_robots' ) );
 		add_filter( 'wpseo_robots', array( __CLASS__, 'yoast_robots_str' ), 99 );
@@ -811,6 +812,13 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_get' ),
 		) );
+		// Paket G: öffentlicher „IDs → Anzeige-Items" für die Gast-Garage (localStorage). Nur veröffentlichte
+		// Katalog-Anzeige-Daten — kein Schreiben, keine PII.
+		register_rest_route( self::NS, '/garage/resolve', array(
+			'methods'             => 'GET',
+			'permission_callback' => '__return_true',
+			'callback'            => array( __CLASS__, 'handle_resolve' ),
+		) );
 		register_rest_route( self::NS, '/garage/cart/add', array(
 			'methods'             => 'POST',
 			'permission_callback' => array( __CLASS__, 'check' ),
@@ -1384,6 +1392,59 @@ class M24_Garage_Cart {
 		return $out;
 	}
 
+	/** Anzeige-Daten EINER Position (id + Menge) — geteilt von items() und der Gast-Auflösung. */
+	public static function item_display( int $pid, int $qty = 1 ): ?array {
+		if ( $pid <= 0 || 'publish' !== get_post_status( $pid ) ) { return null; }
+		$pt = (string) get_post_type( $pid );
+		if ( ! in_array( $pt, self::allowed_types(), true ) ) { return null; }
+		$qty   = max( 1, $qty );
+		$unit  = self::unit_price( $pt, $pid );
+		$line  = ( null !== $unit ) ? $unit * $qty : null;
+		$thumb = get_the_post_thumbnail_url( $pid, 'medium' );
+		return array(
+			'post_id'    => $pid, 'post_type' => $pt, 'qty' => $qty,
+			'title'      => get_the_title( $pid ), 'url' => (string) get_permalink( $pid ),
+			'thumb'      => $thumb ? (string) $thumb : '', 'artnr' => self::artnr( $pt, $pid ),
+			'unit'       => $unit, 'unit_fmt' => ( null !== $unit ) ? self::fmt( $unit ) : null,
+			'line_total' => $line, 'line_fmt' => ( null !== $line ) ? self::fmt( $line ) : null,
+		);
+	}
+
+	/** GET /garage/resolve?ids=1,2,3 → Anzeige-Items für die Gast-Garage (öffentlich, nur Katalog-Daten). */
+	public static function handle_resolve( WP_REST_Request $req ) {
+		$ids = array_slice( array_values( array_unique( array_filter( array_map( 'intval', explode( ',', (string) $req->get_param( 'ids' ) ) ) ) ) ), 0, 60 );
+		$items = array();
+		foreach ( $ids as $pid ) { $d = self::item_display( $pid, 1 ); if ( $d ) { $items[] = $d; } }
+		list( , $grand_fmt, $has_unpriced ) = self::grand_total( $items );
+		return rest_ensure_response( array( 'ok' => true, 'count' => count( $items ), 'items' => $items, 'grand_fmt' => $grand_fmt, 'has_unpriced' => $has_unpriced ) );
+	}
+
+	/** Paket G: Slide-Tab + Schnellansicht-Panel (Gast + eingeloggt). Nicht auf der Garage-Seite/Share-View. */
+	public static function render_garage_tab() {
+		if ( is_admin() || self::is_share_view() ) { return; }
+		$pid = (int) get_option( self::PAGE_OPTION );
+		if ( $pid && is_page( $pid ) ) { return; }
+		?>
+		<div id="m24gt" class="m24gt" hidden data-m24gt>
+			<button type="button" class="m24gt-tab" data-m24gt-open aria-label="Meine Garage öffnen">
+				<span class="m24gt-ico" aria-hidden="true">🏁</span>
+				<span class="m24gt-cnt" data-m24gt-cnt>0</span>
+				<span class="m24gt-lbl">Garage</span>
+			</button>
+			<div class="m24gt-ov" data-m24gt-overlay hidden></div>
+			<aside class="m24gt-panel" data-m24gt-panel role="dialog" aria-modal="true" aria-label="Meine Garage" hidden>
+				<header class="m24gt-ph"><div><b>Meine Garage</b><br><span class="m24gt-sub" data-m24gt-sub>0 Positionen</span></div><button type="button" class="m24gt-x" data-m24gt-close aria-label="Schließen">✕</button></header>
+				<div class="m24gt-items" data-m24gt-items></div>
+				<div class="m24gt-foot">
+					<div class="m24gt-sumrow"><span>Gesamt inkl. 19&nbsp;% MwSt</span><b data-m24gt-sum>0,00&nbsp;€</b></div>
+					<a class="m24gt-btn m24gt-btn-blue" href="<?php echo esc_url( self::page_url() ); ?>">Zur Garage</a>
+					<a class="m24gt-btn m24gt-btn-ghost" href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
+				</div>
+			</aside>
+		</div>
+		<?php
+	}
+
 	/** @return array(float $sum, string $sum_fmt, bool $has_unpriced) */
 	public static function grand_total( array $items ): array {
 		$sum          = 0.0;
@@ -1434,7 +1495,15 @@ class M24_Garage_Cart {
 
 		wp_enqueue_style( 'm24-garage', M24_PLATTFORM_URL . $css, array(), $cv );
 		wp_enqueue_script( 'm24-garage', M24_PLATTFORM_URL . $js, array(), $jv, true );
+		// Paket G: Garage-Panel (Slide-Tab + Schnellansicht) — eigenes Skript, teilt sich M24GarageCart.
+		$pjs = 'assets/js/m24-garage-panel.js';
+		$pjv = file_exists( M24_PLATTFORM_DIR . $pjs ) ? (string) filemtime( M24_PLATTFORM_DIR . $pjs ) : M24_PLATTFORM_VERSION;
+		wp_enqueue_script( 'm24-garage-panel', M24_PLATTFORM_URL . $pjs, array(), $pjv, true );
+		$acc_now = self::current_account_id();
 		wp_localize_script( 'm24-garage', 'M24GarageCart', array(
+			'resolve'  => esc_url_raw( rest_url( self::NS . '/garage/resolve' ) ),
+			'garageNo' => $acc_now > 0 ? self::garage_no( $acc_now, false ) : '',
+			'guestKey' => 'm24_guest_garage',
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),

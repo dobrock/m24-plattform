@@ -96,6 +96,8 @@
 		});
 		var fab = document.querySelector('.m24gc-fab');
 		if (fab) { fab.classList.toggle('is-empty', count <= 0); }
+		// Paket G: Garage-Panel/Tab informieren (Zähler live + Pulse bei Zuwachs).
+		try { document.dispatchEvent(new CustomEvent('m24garage:changed', { detail: { count: count } })); } catch (e) {}
 	}
 
 	/* ── Toast ── */
