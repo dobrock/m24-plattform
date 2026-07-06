@@ -35,6 +35,13 @@ class M24_Offers_Render {
 	private static function tax_order(): array {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
 	}
+	/** Drittland = Land gesetzt und NICHT in der EU (für den Zoll-Auto-Vorschlag). */
+	private static function is_drittland( string $land ): bool {
+		$land = strtoupper( trim( $land ) );
+		if ( '' === $land ) { return false; }
+		$eu = array( 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE' );
+		return ! in_array( $land, $eu, true );
+	}
 
 	/* ── Operator-Modal A1 (Admin, ?m24_offer_new=1) ───────────────────── */
 
@@ -143,6 +150,8 @@ class M24_Offers_Render {
 			'garageNo' => $garageNo,
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
 			'nextNo'   => M24_Offers::peek_number(),
+			// #2: Zoll-Chip automatisch vorschlagen, wenn Kunden-Land ≠ EU (Drittland). Manuell bleibt immer möglich.
+			'custIsDrittland' => self::is_drittland( (string) $customer['land'] ),
 		);
 
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }

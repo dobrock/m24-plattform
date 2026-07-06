@@ -83,6 +83,9 @@
 		inp.addEventListener('keydown', function (e) { if ('Enter' === e.key) { e.preventDefault(); inp.blur(); } else if ('Escape' === e.key) { done = true; renderStdRow(); } });
 	}
 
+	/* ── Zoll-Auto-Vorschlag (#2): bei Drittland-Kunde ODER Steuer-Modus drittland_net den Zoll-Chip aktivieren. ── */
+	function autoSuggestZoll() { for (var i = 0; i < extras.length; i++) { if ('zoll' === extras[i].key && !extras[i].on) { extras[i].on = true; return true; } } return false; }
+
 	/* ── Steuer ── */
 	function setTaxMode(mode) {
 		taxMode = mode;
@@ -90,6 +93,7 @@
 		var oss = $('[data-oss]'); if (oss) { oss.hidden = !(m && m.rate === null); }
 		var tn = $('[data-tax-note]'); if (tn) { tn.textContent = m ? m.note : ''; }
 		$$('[data-tax-seg] [data-txm]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-txm') === mode); });
+		if ('drittland_net' === mode && autoSuggestZoll()) { renderStdRow(); }
 		renderSummary();
 	}
 	function rate() { var m = cfg.taxModes[taxMode]; if (!m) { return 0; } return m.rate === null ? Math.max(0, taxRate) : m.rate; }
@@ -275,6 +279,7 @@
 	}
 
 	setLang('de');
+	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
 	renderItems();
 	renderStdRow();
 	renderSummary();

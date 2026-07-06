@@ -134,11 +134,13 @@
 			var raw; try { raw = window.localStorage.getItem('m24_guest_garage'); } catch (e) { return; }
 			if (!raw) { return; }
 			var arr; try { arr = JSON.parse(raw); } catch (e) { arr = null; }
-			try { window.localStorage.removeItem('m24_guest_garage'); } catch (e) {} // sofort leeren → keine Doppel-Übernahme
-			if (!Array.isArray(arr) || !arr.length) { return; }
-			var i = 0;
+			if (!Array.isArray(arr) || !arr.length) { try { window.localStorage.removeItem('m24_guest_garage'); } catch (e) {} return; }
+			// Erst NACH Erfolg leeren (Datensicherheit > Mengen-Inflation): bei Fehler bleibt die Gast-Garage für
+			// den nächsten Versuch. Der (ID, Variante)-Dedup im Cart verhindert doppelte Positionen bei Doppel-Runs.
+			var i = 0, allOk = true;
 			(function next() {
 				if (i >= arr.length) {
+					if (allOk) { try { window.localStorage.removeItem('m24_guest_garage'); } catch (e) {} }
 					fetch(cfg.rest, { credentials: 'same-origin', headers: headers() }).then(function (r) { return r.json(); })
 						.then(function (d) { if (d && typeof d.count === 'number') { updateCount(d.count); } }).catch(function () {});
 					return;
@@ -148,7 +150,7 @@
 				if (!id) { next(); return; }
 				var body = { post_id: id };
 				if (o && 'object' === typeof o && o.vl) { body.variant_label = o.vl; body.variant_artnr = o.va || ''; if (o.vb) { body.variant_price = o.vb; } }
-				post('/add', body).then(function () { next(); }).catch(function () { next(); });
+				post('/add', body).then(function (res) { if (!(res && res.ok && res.data && res.data.ok)) { allOk = false; } next(); }).catch(function () { allOk = false; next(); });
 			})();
 		})();
 
