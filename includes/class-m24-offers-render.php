@@ -35,6 +35,38 @@ class M24_Offers_Render {
 	private static function tax_order(): array {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
 	}
+	/** Angebotssprache aus src_json.lang (de|en). */
+	private static function offer_lang( $o ): string {
+		$sj = json_decode( (string) $o->src_json, true );
+		return ( is_array( $sj ) && 'en' === ( $sj['lang'] ?? 'de' ) ) ? 'en' : 'de';
+	}
+	/**
+	 * Sichtbare Angebots-Labels (Chrome) DE/EN. #1: RECHTSTEXTE bleiben bewusst DE (Widerruf/Gewährleistung/§-
+	 * Belehrung/Consent) bis zur anwaltlichen EN-Abnahme — hier NUR Bedien-/Struktur-Labels.
+	 */
+	private static function ol( string $lang ): array {
+		$de = array(
+			'hello' => 'Guten Tag', 'intro' => 'anbei Ihr verbindliches Angebot', 'valid' => 'gültig bis',
+			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
+			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
+			'view_pay' => 'Angebot ansehen &amp; bezahlen', 'eyebrow' => 'Verbindliches Kaufangebot', 'offer' => 'Angebot',
+			'items' => 'Positionen', 'accept' => 'Angebot annehmen', 'paid' => 'Bezahlt', 'expired' => 'Abgelaufen',
+			'provider' => 'Anbieter', 'total_price' => 'Gesamtpreis', 'incl_taxes' => '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)',
+			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
+			'your_offer' => 'Ihr Angebot',
+		);
+		$en = array(
+			'hello' => 'Hello', 'intro' => 'please find attached your binding offer', 'valid' => 'valid until',
+			'subtotal' => 'Subtotal (net)', 'vat' => 'VAT', 'margin' => 'Margin scheme (§ 25a)',
+			'std_net' => 'Standard-rated items (net)', 'total' => 'Total', 'delivery' => 'Delivery time',
+			'view_pay' => 'View &amp; pay offer', 'eyebrow' => 'Binding purchase offer', 'offer' => 'Offer',
+			'items' => 'Items', 'accept' => 'Accept offer', 'paid' => 'Paid', 'expired' => 'Expired',
+			'provider' => 'Provider', 'total_price' => 'Total price', 'incl_taxes' => '(incl. any taxes and itemised additional costs)',
+			'variant' => 'Variant', 'artnr' => 'Part no.', 'used' => 'used', 'not_found' => 'This offer could not be found.',
+			'your_offer' => 'Your offer',
+		);
+		return 'en' === $lang ? $en : $de;
+	}
 	/** Drittland = Land gesetzt und NICHT in der EU (für den Zoll-Auto-Vorschlag). */
 	private static function is_drittland( string $land ): bool {
 		$land = strtoupper( trim( $land ) );
@@ -274,7 +306,7 @@ class M24_Offers_Render {
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
 		if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
 		if ( ! $o ) {
-			echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			exit;
 		}
 		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
@@ -282,6 +314,7 @@ class M24_Offers_Render {
 		$extras = json_decode( (string) $o->extras_json, true ) ?: array();
 		$is_b2c = 'b2c' === ( $cust['kundentyp'] ?? 'b2c' );
 		$bank   = self::bank();
+		$L      = self::ol( self::offer_lang( $o ) ); // #1: Chrome-Labels DE/EN (Rechtstexte bleiben DE)
 
 		$days = 0; $vu = (string) $o->valid_until;
 		if ( $vu ) { $days = (int) floor( ( strtotime( $vu . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ); if ( $days < 0 ) { $days = 0; } }
@@ -302,15 +335,15 @@ class M24_Offers_Render {
 			<!-- A: Blau-Verlauf-Header (einheitlich mit Mail + Garage-Share); kein Messing -->
 			<header class="m24off-hero">
 				<img class="m24off-hero-logo" src="<?php echo $logo; ?>" alt="MOTORSPORT24">
-				<div class="m24off-hero-eyebrow">Verbindliches Kaufangebot</div>
+				<div class="m24off-hero-eyebrow"><?php echo esc_html( $L['eyebrow'] ); ?></div>
 				<div class="m24off-hero-titlerow">
-					<h1 class="m24off-hero-title">Angebot <?php echo esc_html( $o->offer_no ); ?></h1>
+					<h1 class="m24off-hero-title"><?php echo esc_html( $L['offer'] ); ?> <?php echo esc_html( $o->offer_no ); ?></h1>
 					<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
-						<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> noch <?php echo (int) $days; ?> Tag<?php echo 1 === $days ? '' : 'e'; ?> · bis <?php echo esc_html( self::date_de( $vu ) ); ?></span>
+						<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> <?php echo 'en' === self::offer_lang( $o ) ? esc_html( (int) $days . ' day' . ( 1 === $days ? '' : 's' ) . ' left · until ' ) : esc_html( 'noch ' . (int) $days . ' Tag' . ( 1 === $days ? '' : 'e' ) . ' · bis ' ); ?><?php echo esc_html( self::date_de( $vu ) ); ?></span>
 					<?php elseif ( 'bezahlt' === $status ) : ?>
-						<span class="m24off-chip">Bezahlt ✓</span>
+						<span class="m24off-chip"><?php echo esc_html( $L['paid'] ); ?> ✓</span>
 					<?php else : ?>
-						<span class="m24off-chip">Abgelaufen</span>
+						<span class="m24off-chip"><?php echo esc_html( $L['expired'] ); ?></span>
 					<?php endif; ?>
 				</div>
 			</header>
@@ -325,7 +358,7 @@ class M24_Offers_Render {
 
 			<!-- Positionen als Karten -->
 			<section class="m24off-card">
-				<h2>Positionen</h2>
+				<h2><?php echo esc_html( $L['items'] ); ?></h2>
 				<?php foreach ( $items as $it ) :
 					$line = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
 					$url  = ! empty( $it['url'] ) ? (string) $it['url'] : '';
@@ -348,7 +381,7 @@ class M24_Offers_Render {
 				<?php foreach ( $extras as $ex ) : if ( empty( $ex['on'] ) ) { continue; } ?>
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
-				<?php if ( $o->delivery_time ) : ?><p class="m24off-note">Lieferzeit: <?php echo esc_html( $o->delivery_time ); ?></p><?php endif; ?>
+				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( $o->delivery_time ); ?></p><?php endif; ?>
 				<?php
 				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
 				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -359,14 +392,14 @@ class M24_Offers_Render {
 				<?php if ( $only_25a ) : ?>
 					<div class="m24off-sumline"><span>Differenzbesteuert (§ 25a)</span><strong><?php echo esc_html( self::fmt( $Z ) ); ?></strong></div>
 				<?php elseif ( $only_regel ) : ?>
-					<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong><?php echo esc_html( self::fmt( $X ) ); ?></strong></div>
+					<div class="m24off-sumline"><span><?php echo esc_html( $L['subtotal'] ); ?></span><strong><?php echo esc_html( self::fmt( $X ) ); ?></strong></div>
 					<?php if ( $Y > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( $Y ) ); ?></strong></div><?php endif; ?>
 				<?php else : ?>
 					<div class="m24off-sumline"><span>Regelbesteuerte Artikel (netto)</span><strong><?php echo esc_html( self::fmt( $X ) ); ?></strong></div>
 					<?php if ( $Y > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( $Y ) ); ?></strong></div><?php endif; ?>
 					<div class="m24off-sumline"><span>Differenzbesteuert (§ 25a)</span><strong><?php echo esc_html( self::fmt( $Z ) ); ?></strong></div>
 				<?php endif; ?>
-				<div class="m24off-sumline m24off-total"><span>Gesamt</span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
+				<div class="m24off-sumline m24off-total"><span><?php echo esc_html( $L['total'] ); ?></span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
 				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote() ); ?></p><?php endif; ?>
 				<?php if ( $o->tax_note && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $o->tax_note ); ?></p><?php endif; ?>
 			</section>
@@ -385,7 +418,7 @@ class M24_Offers_Render {
 			<section class="m24off-card m24off-gate">
 				<?php if ( 'offen' === $status ) : ?>
 					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used ) ); ?></span></label>
-					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled>Angebot annehmen</button>
+					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled><?php echo esc_html( $L['accept'] ); ?></button>
 				<?php else : ?>
 					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
 				<?php endif; ?>
@@ -570,6 +603,7 @@ class M24_Offers_Render {
 		$email  = (string) ( $cust['email'] ?? '' );
 		if ( ! is_email( $email ) ) { return; }
 		$vu = self::date_de( (string) $o->valid_until );
+		$L  = self::ol( self::offer_lang( $o ) ); // #1: Angebotssprache-Labels (Rechtstexte bleiben DE)
 
 		$rows = '';
 		foreach ( $items as $it ) {
@@ -579,10 +613,10 @@ class M24_Offers_Render {
 				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $it['title'] ) . '</a>'
 				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
-				. ( ! empty( $it['variant'] ) ? '<br><span style="color:#1f74c4;font-size:12px;font-weight:600;">Variante: ' . esc_html( $it['variant'] ) . '</span>' : '' )
+				. ( ! empty( $it['variant'] ) ? '<br><span style="color:#1f74c4;font-size:12px;font-weight:600;">' . esc_html( $L['variant'] ) . ': ' . esc_html( $it['variant'] ) . '</span>' : '' )
 				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'
-					. ( ! empty( $it['art_nr'] ) ? 'Art.-Nr.: ' . esc_html( $it['art_nr'] ) : '' )
-					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . 'gebraucht' : '' ) . '</span>' : '' )
+					. ( ! empty( $it['art_nr'] ) ? esc_html( $L['artnr'] ) . ': ' . esc_html( $it['art_nr'] ) : '' )
+					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . esc_html( $L['used'] ) : '' ) . '</span>' : '' )
 				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#93762f;font-size:11.5px;">🇩🇪 ' . esc_html( $it['race_note'] ) . '</span>' : '' )
 				. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
 				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
@@ -593,8 +627,8 @@ class M24_Offers_Render {
 			$rows .= '<tr><td style="padding:6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
 		}
 
-		$inner  = '<p style="margin:0 0 14px;">Guten Tag' . ( ! empty( $cust['name'] ) ? ' ' . esc_html( $cust['name'] ) : '' ) . ',</p>';
-		$inner .= '<p style="margin:0 0 14px;">anbei Ihr verbindliches Angebot ' . esc_html( $o->offer_no ) . ( $vu ? ', gültig bis ' . esc_html( $vu ) : '' ) . '.</p>';
+		$inner  = '<p style="margin:0 0 14px;">' . esc_html( $L['hello'] ) . ( ! empty( $cust['name'] ) ? ' ' . esc_html( $cust['name'] ) : '' ) . ',</p>';
+		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . ' ' . esc_html( $o->offer_no ) . ( $vu ? ', ' . esc_html( $L['valid'] ) . ' ' . esc_html( $vu ) : '' ) . '.</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -606,28 +640,28 @@ class M24_Offers_Render {
 		};
 		$sum = '';
 		if ( $Z > 0.001 && $X <= 0.001 ) {
-			$sum .= $srow( 'Differenzbesteuert (§ 25a)', $Z, true );
+			$sum .= $srow( $L['margin'], $Z, true );
 		} elseif ( $Z <= 0.001 ) {
-			$sum .= $srow( 'Zwischensumme (netto)', $X, true );
-			if ( $Y > 0 ) { $sum .= $srow( 'USt ' . $rate_str . ' %', $Y, false ); }
+			$sum .= $srow( $L['subtotal'], $X, true );
+			if ( $Y > 0 ) { $sum .= $srow( $L['vat'] . ' ' . $rate_str . ' %', $Y, false ); }
 		} else {
-			$sum .= $srow( 'Regelbesteuerte Artikel (netto)', $X, true );
-			if ( $Y > 0 ) { $sum .= $srow( 'USt ' . $rate_str . ' %', $Y, false ); }
-			$sum .= $srow( 'Differenzbesteuert (§ 25a)', $Z, false );
+			$sum .= $srow( $L['std_net'], $X, true );
+			if ( $Y > 0 ) { $sum .= $srow( $L['vat'] . ' ' . $rate_str . ' %', $Y, false ); }
+			$sum .= $srow( $L['margin'], $Z, false );
 		}
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
-			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">Gesamt</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
+			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
-		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">Lieferzeit: ' . esc_html( $o->delivery_time ) . '</p>'; }
+		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( $o->delivery_time ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
-		$inner .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">Angebot ansehen &amp; bezahlen</a></p>';
+		$inner .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
 		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
 		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz() ) . '</p>';
 		// Pflichtangaben.
-		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>Anbieter:</strong> ' . esc_html( self::company_line() )
-			. '<br><strong>Gesamtpreis:</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' (inkl. etwaiger Steuern und ausgewiesener Nebenkosten)'
-			. ( $o->delivery_time ? '<br><strong>Lieferzeit:</strong> ' . esc_html( $o->delivery_time ) : '' ) . '</p>';
+		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
+			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( $L['incl_taxes'] )
+			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( $o->delivery_time ) : '' ) . '</p>';
 		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
 		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
 			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '
@@ -642,7 +676,8 @@ class M24_Offers_Render {
 			$inner .= '<p style="margin:14px 0 0;font-size:13px;">Wir haben Ihnen zusätzlich einen Link zur <strong>Konto-Anlage</strong> geschickt — nach Bestätigung liegt dieses Angebot jederzeit in Ihrer MOTORSPORT24-Garage bereit.</p>';
 		}
 
-		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( 'Ihr Angebot ' . $o->offer_no, $inner, array( 'lang' => 'de' ) ) : $inner;
-		wp_mail( $email, 'Ihr Angebot ' . $o->offer_no . ' — MOTORSPORT24', $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
+		$lang = self::offer_lang( $o );
+		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang ) ) : $inner;
+		wp_mail( $email, $L['your_offer'] . ' ' . $o->offer_no . ' — MOTORSPORT24', $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
 	}
 }
