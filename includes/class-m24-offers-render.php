@@ -50,6 +50,22 @@ class M24_Offers_Render {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
 	}
 	/** Angebotssprache aus src_json.lang (de|en). */
+	/** Kuratierte englische Landesnamen (ISO2 → EN) für die EN-Versandzeile. Fallback im JS = dt. Name. */
+	private static function lands_en(): array {
+		return array(
+			'DE' => 'Germany', 'AT' => 'Austria', 'CH' => 'Switzerland', 'GB' => 'United Kingdom', 'FR' => 'France',
+			'IT' => 'Italy', 'ES' => 'Spain', 'PT' => 'Portugal', 'NL' => 'Netherlands', 'BE' => 'Belgium',
+			'LU' => 'Luxembourg', 'IE' => 'Ireland', 'DK' => 'Denmark', 'SE' => 'Sweden', 'FI' => 'Finland',
+			'NO' => 'Norway', 'PL' => 'Poland', 'CZ' => 'Czechia', 'SK' => 'Slovakia', 'HU' => 'Hungary',
+			'RO' => 'Romania', 'BG' => 'Bulgaria', 'GR' => 'Greece', 'HR' => 'Croatia', 'SI' => 'Slovenia',
+			'EE' => 'Estonia', 'LV' => 'Latvia', 'LT' => 'Lithuania', 'US' => 'United States', 'CA' => 'Canada',
+			'AU' => 'Australia', 'NZ' => 'New Zealand', 'JP' => 'Japan', 'CN' => 'China', 'AE' => 'United Arab Emirates',
+			'SA' => 'Saudi Arabia', 'ZA' => 'South Africa', 'BR' => 'Brazil', 'MX' => 'Mexico', 'TR' => 'Türkiye',
+			'RU' => 'Russia', 'UA' => 'Ukraine', 'IL' => 'Israel', 'IN' => 'India', 'SG' => 'Singapore',
+			'HK' => 'Hong Kong', 'KR' => 'South Korea', 'TW' => 'Taiwan', 'TH' => 'Thailand',
+		);
+	}
+
 	/** v3.1: Positions-Titel je Sprache — EN nur wenn gepflegt, sonst DE (keine Maschinenübersetzung). */
 	private static function item_title( array $it, string $lang ): string {
 		if ( 'en' === $lang && ! empty( $it['title_en'] ) ) { return (string) $it['title_en']; }
@@ -204,6 +220,7 @@ class M24_Offers_Render {
 			'prefill'  => $prefill,
 			'garageNo' => $garageNo,
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
+			'landsEn'  => self::lands_en(), // englische Landesnamen für die EN-Versandzeile ({country})
 			'nextNo'   => M24_Offers::peek_number(),
 			// #2: Zoll-Chip automatisch vorschlagen, wenn Kunden-Land ≠ EU (Drittland). Manuell bleibt immer möglich.
 			'custIsDrittland' => self::is_drittland( (string) $customer['land'] ),
@@ -289,8 +306,9 @@ class M24_Offers_Render {
 					<h2>Angebot <?php echo esc_html( $cfg['nextNo'] ); ?> <span class="m24off-hint2">gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage</span></h2>
 					<div data-sum-rows></div>
 					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
-					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig · §145 BGB</small></button>
+					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig</small></button>
 					<a href="#" class="m24off-alt" data-action="text">Stattdessen mit Text antworten</a>
+					<p class="m24off-legal145">Bindungsfrist gem. § 145 BGB: <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage ab Angebotsdatum.</p>
 					<p class="m24off-status" data-status role="status"></p>
 				</div>
 			</div>

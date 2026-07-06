@@ -713,9 +713,10 @@ class M24_Offers {
 
 	public static function extra_presets(): array {
 		$def = array(
-			array( 'key' => 'verpackung', 'label' => 'Verpackung', 'amount' => (float) get_option( 'm24_offer_preset_verpackung', 25 ) ),
-			array( 'key' => 'versand',    'label' => 'Versand',    'amount' => (float) get_option( 'm24_offer_preset_versand', 49 ) ),
-			array( 'key' => 'zoll',       'label' => 'Zollabwicklung Deutschland', 'amount' => (float) get_option( 'm24_offer_preset_zoll', 75 ) ),
+			array( 'key' => 'verpackung',  'label' => 'Transportsicher verpacken', 'amount' => (float) get_option( 'm24_offer_preset_verpackung', 25 ) ),
+			array( 'key' => 'versand_air',  'label' => 'Versicherter Versand DAP Luftfracht', 'amount' => (float) get_option( 'm24_offer_preset_versand', 49 ) ),
+			array( 'key' => 'versand_sea',  'label' => 'Versicherter Versand DAP Seefracht', 'amount' => (float) get_option( 'm24_offer_preset_versand_sea', 49 ) ),
+			array( 'key' => 'zoll',         'label' => 'Zollabwicklung Deutschland', 'amount' => (float) get_option( 'm24_offer_preset_zoll', 75 ) ),
 		);
 		return apply_filters( 'm24_offer_extra_presets', $def );
 	}

@@ -23,10 +23,15 @@
 	function landName(iso) { iso = (iso || '').toUpperCase(); return LANDS[iso] || iso || ''; }
 
 	/* ── EN-Wörterbuch für Standard-Positionen (KEINE Maschinenübersetzung von Katalogtiteln) ── */
-	var STD_DE = { verpackung: 'Verpackung', versand: 'Versicherter Versand', zoll: 'Zollabwicklung Deutschland' };
-	var STD_EN = { verpackung: 'Packaging', versand: 'Insured shipping', zoll: 'Customs handling Germany' };
-	function stdBase(ex) { return ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label); }
-	function chipLabel(ex) { var base = stdBase(ex); if (ex.key === 'versand') { var ln = landName(customer.land); return base + (ln ? ' ' + ln : ''); } return base; }
+	var STD_DE = { verpackung: 'Transportsicher verpacken', versand_air: 'Versicherter Versand DAP {L} Luftfracht', versand_sea: 'Versicherter Versand DAP {L} Seefracht', zoll: 'Zollabwicklung Deutschland' };
+	var STD_EN = { verpackung: 'Secure transport packaging', versand_air: 'Insured shipping DAP {C} air freight', versand_sea: 'Insured shipping DAP {C} sea freight', zoll: 'Customs handling Germany' };
+	var LANDS_EN = cfg.landsEn || {};
+	function landNameEn(iso) { iso = (iso || '').toUpperCase(); return LANDS_EN[iso] || landName(iso); }
+	function chipLabel(ex) {
+		var base = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
+		base = base.replace('{L}', landName(customer.land) || '').replace('{C}', landNameEn(customer.land) || ''); // {Empfängerland} live
+		return base.replace(/\s{2,}/g, ' ').trim();
+	}
 	/** Anzeige-Titel je Sprache: Katalog = title_en falls vorhanden, sonst DE; Freitext = title_en/title_de. */
 	function itemTitle(it) {
 		if ('en' === offerLang) { return (it.title_en && String(it.title_en).trim()) ? it.title_en : (it.free ? (it.title_de != null ? it.title_de : (it.title || '')) : (it.title || '')); }
@@ -177,9 +182,15 @@
 		var t2 = $('[data-sum-total-bar]'); if (t2) { t2.textContent = tot; }
 	}
 
-	var salTouched = false;
-	function salSuggest() { var vn = (customer.name || '').trim().split(/\s+/)[0] || ''; return ('en' === offerLang ? 'Hello ' : 'Hallo ') + vn + ','; }
-	function salApply(force) { var el = $('[data-salutation]'); if (!el) { return; } if (force || (!salTouched && '' === el.value.trim())) { el.value = salSuggest(); salTouched = false; } }
+	var salTouched = false, salAuto = '';
+	function salSuggestFor(lang) { var vn = (customer.name || '').trim().split(/\s+/)[0] || ''; return ('en' === lang ? 'Hello' : 'Hallo') + (vn ? ' ' + vn : '') + ','; } // Fallback ohne Vorname: „Hallo," / „Hello,"
+	function salSuggest() { return salSuggestFor(offerLang); }
+	function salApply(force) {
+		var el = $('[data-salutation]'); if (!el) { return; }
+		var v = (el.value || '').trim();
+		// Auto-Vorschlag folgt dem Sprach-/Kundenwechsel — aber NUR, solange er nicht manuell geändert wurde.
+		if (force || '' === v || v === salAuto || v === salSuggestFor('de') || v === salSuggestFor('en')) { el.value = salSuggest(); salAuto = el.value; }
+	}
 
 	/* ── Angebotssprache (Kopf + Konditionen synchron) ── */
 	function setLang(l) {
