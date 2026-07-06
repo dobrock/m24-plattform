@@ -298,29 +298,30 @@ class M24_Offers_Render {
 		<!-- B: Kunden-Schnellanlage (Modal) -->
 		<div class="m24off-cxmodal" data-cxmodal hidden>
 			<div class="m24off-cxbox">
-				<div class="m24off-cxhead"><b>Kunde suchen oder anlegen</b><button type="button" class="m24off-cxx" data-cx-close aria-label="Schließen">✕</button></div>
+				<div class="m24off-cxhead"><b data-cx-title>Kunde suchen oder anlegen</b><button type="button" class="m24off-cxx" data-cx-close aria-label="Schließen">✕</button></div>
 				<div class="m24off-cxbody">
 					<input type="search" data-cx-q placeholder="Name, E-Mail oder Firma …" class="m24off-cxsearch" autocomplete="off">
 					<div class="m24off-cxresults" data-cx-results></div>
-					<div class="m24off-cxsep">oder neu anlegen</div>
+					<div class="m24off-cxsep" data-cx-sep>oder neu anlegen</div>
 					<div class="m24off-seg" data-cx-kt>
 						<button type="button" class="m24off-segbtn is-on" data-cxkt="b2c">Privat (B2C)</button>
 						<button type="button" class="m24off-segbtn" data-cxkt="b2b">Geschäftskunde (B2B)</button>
 					</div>
-					<div class="m24off-cxgrid">
-						<label class="m24off-f m24off-cx-wide m24off-cx-b2b" hidden><span>Firmenname</span><input type="text" data-cx="firmenname"></label>
-						<label class="m24off-f"><span>Vorname *</span><input type="text" data-cx="vorname"></label>
-						<label class="m24off-f"><span>Nachname *</span><input type="text" data-cx="nachname"></label>
-						<label class="m24off-f m24off-cx-wide"><span>Straße &amp; Hausnummer *</span><input type="text" data-cx="strasse"></label>
+					<div class="m24off-cxgrid" data-cx-grid>
+						<label class="m24off-f m24off-cx-wide m24off-cx-b2b"><span>Firmenname</span><input type="text" data-cx="firmenname"></label>
+						<label class="m24off-f"><span>Vorname</span><input type="text" data-cx="vorname"></label>
+						<label class="m24off-f"><span>Nachname</span><input type="text" data-cx="nachname"></label>
+						<label class="m24off-f m24off-cx-wide"><span>Straße &amp; Hausnummer</span><input type="text" data-cx="strasse"></label>
 						<label class="m24off-f"><span>Adresszusatz</span><input type="text" data-cx="adresszusatz"></label>
-						<label class="m24off-f"><span>PLZ *</span><input type="text" data-cx="plz"></label>
-						<label class="m24off-f"><span>Ort *</span><input type="text" data-cx="ort"></label>
-						<label class="m24off-f"><span>Land *</span><input type="text" data-cx="land" maxlength="2" placeholder="DE"></label>
+						<label class="m24off-f"><span>PLZ</span><input type="text" data-cx="plz"></label>
+						<label class="m24off-f"><span>Ort</span><input type="text" data-cx="ort"></label>
+						<label class="m24off-f"><span>Land</span><input type="text" data-cx="land" list="m24off-cx-lands" placeholder="Deutschland" autocomplete="off"></label>
 						<label class="m24off-f"><span>Telefon</span><input type="text" data-cx="telefon"></label>
-						<label class="m24off-f"><span>E-Mail *</span><input type="email" data-cx="email"></label>
-						<label class="m24off-f m24off-cx-b2b" hidden><span>USt-IdNr.</span><span class="m24off-cx-vatrow"><input type="text" data-cx="ustid"><button type="button" class="m24off-cx-vatbtn" data-cx-vatcheck>Prüfen</button></span></label>
-						<label class="m24off-f m24off-cx-b2b" hidden><span>EORI</span><input type="text" data-cx="eori"></label>
+						<label class="m24off-f"><span>E-Mail *</span><input type="email" data-cx="email" required></label>
+						<label class="m24off-f m24off-cx-wide m24off-cx-b2b"><span>USt-IdNr.</span><input type="text" data-cx="ustid"><button type="button" class="m24off-cx-vatbtn" data-cx-vatcheck>USt-IdNr. prüfen</button></label>
+						<label class="m24off-f m24off-cx-b2b"><span>EORI</span><input type="text" data-cx="eori"></label>
 					</div>
+					<datalist id="m24off-cx-lands"><option value="Deutschland"></option><option value="England"></option><option value="Österreich"></option><option value="Schweiz"></option><option value="Frankreich"></option><option value="Italien"></option><option value="Spanien"></option><option value="Niederlande"></option><option value="Belgien"></option><option value="Luxemburg"></option><option value="Polen"></option><option value="Tschechien"></option><option value="Dänemark"></option><option value="Schweden"></option><option value="USA"></option></datalist>
 					<p class="m24off-cxstatus" data-cx-status role="status"></p>
 					<button type="button" class="m24off-btn m24off-btn-blue" data-cx-create>Kunde anlegen &amp; übernehmen</button>
 				</div>

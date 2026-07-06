@@ -275,7 +275,7 @@
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
-		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); var ed = $('[data-kunde-edit]'); if (ed) { ed.hidden = !ed.hidden; } return; }
+		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); cxOpen({ id: customer.id || 0, name: customer.name, email: customer.email, kundentyp: customer.kundentyp, land: customer.land }); return; }
 		if ((el = t.closest('[data-kt]'))) { segKT(el); return; }
 		if ((el = t.closest('[data-cust-search]'))) { e.preventDefault(); cxOpen(); return; }
 		if ((el = t.closest('[data-cx-close]')) || t.matches('[data-cxmodal]')) { cxClose(); return; }
@@ -304,12 +304,14 @@
 		if (cfg.prefill.note) { var ne = $('[data-note]'); if (ne) { ne.value = cfg.prefill.note; } }
 	}
 
-	/* ── B: Kunden-Schnellanlage (Modal) ── */
+	/* ── B: Kunden-Schnellanlage / -Bearbeitung (Modal) ── */
 	var CX_EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
-	function cxIsDrittland(land) { land = (land || '').toUpperCase(); return '' !== land && CX_EU.indexOf(land) < 0; }
-	var cxKt = 'b2c', cxT;
+	var CX_LAND = { 'UK':'GB','GB':'GB','GROSSBRITANNIEN':'GB','GROẞBRITANNIEN':'GB','VEREINIGTES KÖNIGREICH':'GB','VEREINIGTES KOENIGREICH':'GB','UNITED KINGDOM':'GB','ENGLAND':'GB','GREAT BRITAIN':'GB','BRITAIN':'GB','DEUTSCHLAND':'DE','GERMANY':'DE','ÖSTERREICH':'AT','OESTERREICH':'AT','AUSTRIA':'AT','SCHWEIZ':'CH','SWITZERLAND':'CH','FRANKREICH':'FR','FRANCE':'FR','ITALIEN':'IT','ITALY':'IT','SPANIEN':'ES','SPAIN':'ES','NIEDERLANDE':'NL','NETHERLANDS':'NL','BELGIEN':'BE','BELGIUM':'BE','LUXEMBURG':'LU','POLEN':'PL','POLAND':'PL','TSCHECHIEN':'CZ','DÄNEMARK':'DK','DAENEMARK':'DK','SCHWEDEN':'SE','USA':'US','UNITED STATES':'US','VEREINIGTE STAATEN':'US' };
+	function cxLandToIso(v) { v = (v || '').trim().toUpperCase().replace(/\s+/g, ' '); if (!v) { return ''; } if (CX_LAND[v]) { return CX_LAND[v]; } return v.replace(/[^A-Z]/g, '').slice(0, 2); }
+	function cxIsDrittland(land) { var iso = cxLandToIso(land); return '' !== iso && CX_EU.indexOf(iso) < 0; } // GB/England seit Brexit = Drittland
+	var cxKt = 'b2c', cxT, cxEditId = 0;
 	function applyCustomer(c) {
-		customer = { name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || '').toUpperCase() };
+		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: cxLandToIso(c.land) };
 		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = customer.name || '—'; }
 		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + ' · ' + (customer.land || '—'); }
 		var av = $('[data-cust-chip-av]'); if (av) { var pp = (customer.name || '').trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
@@ -319,11 +321,36 @@
 		salApply(false);
 		cfg.custIsDrittland = cxIsDrittland(customer.land);
 		if (cfg.custIsDrittland && autoSuggestZoll()) { renderStdRow(); }
-		renderStdRow(); renderSummary(); // Versand-Label trägt das (evtl. neue) Land
+		renderStdRow(); renderSummary();
 	}
-	function cxOpen() { var m = $('[data-cxmodal]'); if (!m) { return; } m.hidden = false; var q = $('[data-cx-q]'); if (q) { q.value = ''; q.focus(); } var r = $('[data-cx-results]'); if (r) { r.innerHTML = ''; } }
+	function cxTitle(t, b) { var e = $('[data-cx-title]'); if (e) { e.textContent = t; } var bt = $('[data-cx-create]'); if (bt) { bt.textContent = b; } }
+	function cxSetKt(kt) {
+		cxKt = ('b2b' === kt) ? 'b2b' : 'b2c';
+		$$('[data-cx-kt] .m24off-segbtn').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-cxkt') === cxKt); });
+		var grid = $('[data-cx-grid]'); if (grid) { grid.classList.toggle('is-b2b', 'b2b' === cxKt); } // steuert Sichtbarkeit + Fade
+		if ('b2b' !== cxKt) { ['firmenname', 'ustid', 'eori'].forEach(function (k) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = ''; } }); } // B2C: keine USt-ID an den Datensatz
+	}
+	function cxReset() { $$('[data-cx]').forEach(function (el) { el.value = ''; }); cxEditId = 0; cxSetKt('b2c'); var st = $('[data-cx-status]'); if (st) { st.textContent = ''; st.className = 'm24off-cxstatus'; } }
+	function cxLoadForEdit(c) {
+		cxReset();
+		cxEditId = c.id || 0;
+		var set = function (k, v) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = v || ''; } };
+		var vn = c.vorname || '', nn = c.nachname || '';
+		if ('' === vn && '' === nn && c.name) { var pp = String(c.name).trim().split(/\s+/); vn = pp.shift() || ''; nn = pp.join(' '); }
+		set('firmenname', c.firmenname || c.firma); set('vorname', vn); set('nachname', nn);
+		set('strasse', c.strasse); set('adresszusatz', c.adresszusatz); set('plz', c.plz); set('ort', c.ort);
+		set('land', c.land); set('telefon', c.telefon); set('email', c.email); set('ustid', c.ustid); set('eori', c.eori);
+		cxSetKt(c.kundentyp);
+		cxTitle(cxEditId ? 'Kunde bearbeiten' : 'Kunde suchen oder anlegen', cxEditId ? 'Aktualisieren & übernehmen' : 'Kunde anlegen & übernehmen');
+	}
+	function cxOpen(editC) {
+		var m = $('[data-cxmodal]'); if (!m) { return; }
+		if (editC) { cxLoadForEdit(editC); } else { cxReset(); cxTitle('Kunde suchen oder anlegen', 'Kunde anlegen & übernehmen'); }
+		m.hidden = false;
+		var q = $('[data-cx-q]'); if (q) { q.value = ''; if (!editC) { q.focus(); } }
+		var r = $('[data-cx-results]'); if (r) { r.innerHTML = ''; }
+	}
 	function cxClose() { var m = $('[data-cxmodal]'); if (m) { m.hidden = true; } }
-	function cxSetKt(kt) { cxKt = ('b2b' === kt) ? 'b2b' : 'b2c'; $$('[data-cx-kt] .m24off-segbtn').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-cxkt') === cxKt); }); $$('.m24off-cx-b2b').forEach(function (el) { el.hidden = ('b2b' !== cxKt); }); }
 	function cxSearch() {
 		var q = ($('[data-cx-q]') || {}).value || ''; var r = $('[data-cx-results]'); if (!r) { return; }
 		if (q.trim().length < 2) { r.innerHTML = ''; return; }
@@ -334,7 +361,7 @@
 				items.forEach(function (c) {
 					var row = document.createElement('button'); row.type = 'button'; row.className = 'm24off-cxres';
 					row.innerHTML = '<b>' + esc(c.name || c.email) + '</b><small>' + esc(c.email) + (c.firma ? ' · ' + esc(c.firma) : '') + ' · ' + ('b2b' === c.kundentyp ? 'B2B' : 'B2C') + (c.land ? ' · ' + esc(c.land) : '') + '</small>';
-					row.addEventListener('click', function () { applyCustomer(c); cxClose(); });
+					row.addEventListener('click', function () { cxLoadForEdit(c); }); // #4: Treffer in die Felder laden (Edit-Modus)
 					r.appendChild(row);
 				});
 			}).catch(function () {});
@@ -342,16 +369,15 @@
 	function cxCreate() {
 		var st = $('[data-cx-status]');
 		var g = function (k) { var el = $('[data-cx="' + k + '"]'); return el ? el.value.trim() : ''; };
-		if (!g('vorname') || !g('nachname')) { if (st) { st.textContent = 'Vor- und Nachname sind Pflicht.'; st.className = 'm24off-cxstatus is-error'; } return; }
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g('email'))) { if (st) { st.textContent = 'Bitte eine gültige E-Mail angeben.'; st.className = 'm24off-cxstatus is-error'; } return; }
-		var payload = { kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: g('land'), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') };
-		var btn = $('[data-cx-create]'); if (btn) { btn.disabled = true; } if (st) { st.textContent = 'Wird angelegt …'; st.className = 'm24off-cxstatus'; }
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g('email'))) { if (st) { st.textContent = 'Bitte eine gültige E-Mail angeben (Pflicht).'; st.className = 'm24off-cxstatus is-error'; } return; }
+		var payload = { id: cxEditId || 0, kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: cxLandToIso(g('land')), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') };
+		var btn = $('[data-cx-create]'); if (btn) { btn.disabled = true; } if (st) { st.textContent = cxEditId ? 'Wird aktualisiert …' : 'Wird angelegt …'; st.className = 'm24off-cxstatus'; }
 		fetch(cfg.rest + '/customer-create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(payload) })
 			.then(function (x) { return x.json(); }).then(function (d) {
 				if (btn) { btn.disabled = false; }
-				if (d && d.ok && d.customer) { applyCustomer(d.customer); if (st) { st.textContent = d.customer.existed ? 'Bestehender Kunde übernommen.' : 'Kunde angelegt & übernommen.'; st.className = 'm24off-cxstatus is-ok'; } setTimeout(cxClose, 600); }
-				else if (st) { st.textContent = (d && (d.message || d.error)) || 'Anlage fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; }
-			}).catch(function () { if (btn) { btn.disabled = false; } if (st) { st.textContent = 'Anlage fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; } });
+				if (d && d.ok && d.customer) { applyCustomer(d.customer); if (st) { st.textContent = cxEditId ? 'Kunde aktualisiert & übernommen.' : (d.customer.existed ? 'Bestehender Kunde übernommen.' : 'Kunde angelegt & übernommen.'); st.className = 'm24off-cxstatus is-ok'; } setTimeout(cxClose, 600); }
+				else if (st) { st.textContent = (d && (d.message || d.error)) || 'Speichern fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; }
+			}).catch(function () { if (btn) { btn.disabled = false; } if (st) { st.textContent = 'Speichern fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; } });
 	}
 	function cxVatCheck() { var el = $('[data-cx="ustid"]'), st = $('[data-cx-status]'); if (!el || !st) { return; } var v = el.value.replace(/\s/g, '').toUpperCase(); var ok = /^[A-Z]{2}[0-9A-Z]{2,12}$/.test(v); st.textContent = ok ? ('USt-IdNr. ' + v + ' — Format gültig (Live-VIES-Prüfung folgt).') : 'USt-IdNr.-Format unplausibel (z. B. DE123456789).'; st.className = 'm24off-cxstatus ' + (ok ? 'is-ok' : 'is-error'); }
 
