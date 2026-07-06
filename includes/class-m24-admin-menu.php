@@ -44,6 +44,7 @@ class M24_Admin_Menu {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'reorganize' ), 9999 );
 		add_action( 'admin_head', array( __CLASS__, 'separator_css' ) );
+		add_action( 'admin_footer', array( __CLASS__, 'separator_neutralize_js' ) );
 	}
 
 	public static function reorganize() {
@@ -76,11 +77,12 @@ class M24_Admin_Menu {
 
 		if ( empty( $submenu[ self::DACH ] ) ) { return; }
 
-		// 4) „Händler" → „Kunden" (Slug m24-haendler unverändert).
+		// 4) „Händler" → „Kundenkonten" (Slug m24-haendler unverändert). NICHT „Kunden", sonst Dopplung mit dem
+		//    Sektions-Trenner „── Kunden ──".
 		foreach ( $submenu[ self::DACH ] as &$it ) {
 			if ( isset( $it[2] ) && 'm24-haendler' === $it[2] ) {
-				$it[0] = 'Kunden';
-				if ( isset( $it[3] ) ) { $it[3] = 'Kunden'; }
+				$it[0] = 'Kundenkonten';
+				if ( isset( $it[3] ) ) { $it[3] = 'Kundenkonten'; }
 			}
 		}
 		unset( $it );
@@ -115,9 +117,18 @@ class M24_Admin_Menu {
 	public static function separator_css() {
 		if ( ! is_admin() ) { return; }
 		echo '<style id="m24-menu-sep-css">'
-			. '#adminmenu .wp-submenu a[href*="page=m24-sep-"]{pointer-events:none;cursor:default}'
-			. '#adminmenu .wp-submenu a[href*="page=m24-sep-"] .m24-mnsep{display:block;text-transform:uppercase;font-size:10px;letter-spacing:.09em;font-weight:700;color:#8a92a6;opacity:.85;margin-top:6px}'
-			. '#adminmenu .wp-submenu li:first-child a[href*="page=m24-sep-"] .m24-mnsep{margin-top:0}'
+			. '#adminmenu .wp-submenu a[href*="m24-sep-"],#adminmenu .wp-submenu li.m24-mnsep-li>a{pointer-events:none!important;cursor:default!important;background:transparent!important}'
+			. '#adminmenu .wp-submenu a[href*="m24-sep-"] .m24-mnsep,#adminmenu .wp-submenu li.m24-mnsep-li .m24-mnsep{display:block;text-transform:uppercase;font-size:10px;letter-spacing:.09em;font-weight:700;color:#8a92a6;opacity:.85;margin-top:6px}'
+			. '#adminmenu .wp-submenu li:first-child .m24-mnsep{margin-top:0}'
 			. '</style>';
+	}
+
+	/** Sicherheitsgurt: Trenner-Links im gerenderten Menü wirklich neutralisieren (href weg → nicht fokussierbar/
+	 *  klickbar), unabhängig von CSS. Läuft im Footer, wenn das #adminmenu-DOM steht. */
+	public static function separator_neutralize_js() {
+		if ( ! is_admin() ) { return; }
+		echo '<script>(function(){var a=document.querySelectorAll(\'#adminmenu .wp-submenu a[href*="m24-sep-"]\');'
+			. 'for(var i=0;i<a.length;i++){var el=a[i];el.removeAttribute("href");el.setAttribute("tabindex","-1");el.setAttribute("aria-hidden","true");'
+			. 'el.style.pointerEvents="none";el.style.cursor="default";if(el.parentNode&&el.parentNode.classList){el.parentNode.classList.add("m24-mnsep-li");}}})();</script>';
 	}
 }
