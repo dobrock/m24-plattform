@@ -82,8 +82,11 @@
 		var cg = $('[data-m24gt-cta-garage]'), ci = $('[data-m24gt-cta-inquire]');
 		if (nudge) { nudge.hidden = false; }
 		if (loginA) { loginA.href = lg; }
-		if (cg) { cg.href = lg; }
-		if (ci) { ci.href = lg; }
+		// „Zur Garage" → Gast-Garage-Seite (rendert die localStorage-Items); „Angebot anfragen" → dieselbe Seite
+		// mit direkt geöffnetem Kontaktformular. Nur der Nudge-Link führt zum Login/Registrieren.
+		var pu = cfg.pageUrl || lg;
+		if (cg) { cg.href = pu; }
+		if (ci) { ci.href = pu + (pu.indexOf('?') > -1 ? '&' : '?') + 'angebot=start#m24-kontakt'; }
 
 		// #4: anonymer 7-Tage-Share — Link ohne Konto erzeugen (nur IDs/Varianten/Mengen, keine PII).
 		var shareBtn = $('[data-m24gt-share]'), shareBox = $('[data-m24gt-sharebox]'), shareUrl = $('[data-m24gt-shareurl]'), copyBtn = $('[data-m24gt-copy]');

@@ -248,6 +248,65 @@
 			if (btn.classList.contains('m24-garage-toggle')) { setGarageBtn(btn, nowIn); }
 			toast(nowIn ? ((cfg.i18n && cfg.i18n.added) || 'In deine Garage gelegt.') : 'Aus deiner Garage entfernt.');
 		}, true);
+
+		/* ── Gast-Garage-Seite (Option A): localStorage-Items + Summe + „Angebot anfragen"-Formular ── */
+		var gpage = document.querySelector('[data-m24gc-guestpage]');
+		if (gpage) {
+			var gItemsEl = gpage.querySelector('[data-m24gc-guest-items]');
+			var gFoot = gpage.querySelector('[data-m24gc-guest-foot]');
+			var gSumEl = gpage.querySelector('[data-m24gc-guest-sum]');
+			var gForm = gpage.querySelector('#m24-kontakt');
+			var gPayload = gpage.querySelector('[data-m24gc-guest-payload]');
+			function gFillPayload() { if (gPayload) { gPayload.value = JSON.stringify(gRead()); } }
+			function gRenderPage() {
+				var arr = gRead();
+				gFillPayload();
+				if (!arr.length) {
+					if (gItemsEl) { gItemsEl.innerHTML = '<p class="m24gc-empty">Deine Garage ist noch leer. Füge Teile über „In meine Garage" hinzu.</p>'; }
+					if (gFoot) { gFoot.hidden = true; }
+					return;
+				}
+				var ids = arr.map(function (o) { return o.id; });
+				fetch(cfg.resolve + '?ids=' + ids.join(','), { credentials: 'same-origin' })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						var base = {}; ((d && d.items) || []).forEach(function (it) { base[it.post_id] = it; });
+						if (gItemsEl) { gItemsEl.innerHTML = ''; }
+						arr.forEach(function (o) {
+							var b = base[o.id]; if (!b) { return; }
+							var row = document.createElement('a'); row.className = 'm24gc-guest-it'; row.href = b.url || '#';
+							if (b.thumb) { var im = document.createElement('img'); im.src = b.thumb; im.alt = ''; row.appendChild(im); }
+							else { var ph = document.createElement('span'); ph.className = 'ph'; row.appendChild(ph); }
+							var meta = [];
+							if (o.vl) { meta.push('Variante: ' + o.vl); }
+							var artnr = o.va || b.artnr || ''; if (artnr) { meta.push('Art.-Nr. ' + artnr); }
+							meta.push('×' + (o.q || 1));
+							var ti = document.createElement('span'); ti.className = 'ti';
+							var t = document.createElement('span'); t.className = 't'; t.textContent = b.title || '';
+							var m = document.createElement('span'); m.className = 'm'; m.textContent = meta.join(' · ');
+							ti.appendChild(t); ti.appendChild(m); row.appendChild(ti);
+							var p = document.createElement('span'); p.className = 'p'; p.textContent = b.line_fmt || b.unit_fmt || 'auf Anfrage'; row.appendChild(p);
+							if (gItemsEl) { gItemsEl.appendChild(row); }
+						});
+						if (gSumEl && d && d.grand_fmt) { gSumEl.textContent = d.grand_fmt; }
+						if (gFoot) { gFoot.hidden = false; }
+					}).catch(function () {});
+			}
+			function gRevealForm() {
+				if (!gForm) { return; }
+				gFillPayload();
+				gForm.removeAttribute('data-collapsed');
+				try { gForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { gForm.scrollIntoView(); }
+				var fld = gForm.querySelector('input[name=name],select[name=lieferland]');
+				if (fld) { setTimeout(function () { fld.focus(); }, 320); }
+			}
+			var gInquireBtn = gpage.querySelector('[data-m24gc-guest-inquire]');
+			if (gInquireBtn) { gInquireBtn.addEventListener('click', gRevealForm); }
+			if (gForm) { gForm.addEventListener('submit', gFillPayload); }
+			if (/[?&]angebot=start/.test(location.search) || '#m24-kontakt' === location.hash) { setTimeout(gRevealForm, 120); }
+			gRenderPage();
+			document.addEventListener('m24garage:changed', gRenderPage);
+		}
 	}
 
 	/* ── Garage-Seite: Menge ± / Entfernen ── */

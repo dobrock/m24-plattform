@@ -87,6 +87,9 @@ class M24_Garage_Cart {
 		// Paket 1E: Angebots-Anfrage aus der geteilten Garage (Gast per Token-Capability + eingeloggter Eigentümer).
 		add_action( 'admin_post_nopriv_m24_garage_offer_request', array( __CLASS__, 'handle_offer_request' ) );
 		add_action( 'admin_post_m24_garage_offer_request', array( __CLASS__, 'handle_offer_request' ) );
+		// Gast-Garage (localStorage) → Anfrage in die Inbox (Option A): eigenes Feldset + Items aus dem Payload.
+		add_action( 'admin_post_nopriv_m24_guest_inquiry', array( __CLASS__, 'handle_guest_inquiry' ) );
+		add_action( 'admin_post_m24_guest_inquiry', array( __CLASS__, 'handle_guest_inquiry' ) );
 	}
 
 	/**
@@ -652,6 +655,79 @@ class M24_Garage_Cart {
 			) );
 		}
 		self::offer_request_redirect( $token, 'ok' );
+	}
+
+	/** Gast-Garage (localStorage-Payload) → Anfrage in die Inbox. Öffentlich, honeypot- + rate-limit-geschützt. */
+	public static function handle_guest_inquiry() {
+		if ( ! class_exists( 'M24_Inquiries_Storage' ) ) { self::guest_inquiry_redirect( 'error' ); }
+		if ( ! empty( $_POST['website'] ) ) { self::guest_inquiry_redirect( 'ok' ); } // Honeypot → still ok
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$rk = 'm24_guestinq_' . md5( $ip );
+		if ( get_transient( $rk ) ) { self::guest_inquiry_redirect( 'dup' ); }
+		set_transient( $rk, 1, 5 * MINUTE_IN_SECONDS );
+
+		if ( empty( $_POST['consent'] ) ) { self::guest_inquiry_redirect( 'consent' ); }
+
+		// Positionen aus dem clientseitigen Payload (ids/varianten/mengen) gegen den Katalog auflösen.
+		$raw   = isset( $_POST['guest_items'] ) ? json_decode( (string) wp_unslash( $_POST['guest_items'] ), true ) : array(); // phpcs:ignore WordPress.Security
+		$items = array();
+		foreach ( (array) $raw as $r ) {
+			$r  = (array) $r;
+			$d  = self::item_display( (int) ( $r['id'] ?? 0 ), max( 1, (int) ( $r['q'] ?? 1 ) ) );
+			if ( ! $d ) { continue; }
+			$vl    = sanitize_text_field( (string) ( $r['vl'] ?? '' ) );
+			$va    = sanitize_text_field( (string) ( $r['va'] ?? '' ) );
+			$vbraw = (string) ( $r['vb'] ?? '' );
+			$vb    = ( '' !== $vbraw ) ? (float) str_replace( array( '.', ',' ), array( '', '.' ), $vbraw ) : 0.0;
+			$unit  = ( $vb > 0 ) ? $vb : ( null !== $d['unit'] ? (float) $d['unit'] : null );
+			$items[] = array(
+				'art'         => (string) $d['title'],
+				'qty'         => (int) $d['qty'],
+				'price'       => ( null !== $unit ) ? number_format( $unit, 2, '.', '' ) : '',
+				'src_url'     => (string) $d['url'],
+				'src_art_nr'  => ( '' !== $va ) ? $va : (string) $d['artnr'],
+				'src_variant' => $vl,
+			);
+			if ( count( $items ) >= 60 ) { break; }
+		}
+		if ( empty( $items ) ) { self::guest_inquiry_redirect( 'empty' ); }
+
+		$kt      = isset( $_POST['kundentyp'] ) ? sanitize_text_field( wp_unslash( $_POST['kundentyp'] ) ) : '';
+		$is_b2b  = in_array( $kt, array( 'Geschäftskunde', 'b2b', 'gewerblich' ), true );
+		$name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		$email   = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+		if ( ! is_email( $email ) ) { self::guest_inquiry_redirect( 'error' ); }
+		$land    = isset( $_POST['lieferland'] ) ? strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', (string) wp_unslash( $_POST['lieferland'] ) ), 0, 2 ) ) : '';
+		$message = isset( $_POST['nachricht'] ) ? sanitize_textarea_field( wp_unslash( $_POST['nachricht'] ) ) : '';
+		$pn      = preg_split( '/\s+/', trim( $name ), 2 );
+
+		$post_id = M24_Inquiries_Storage::insert_inquiry( array(
+			'email'               => $email,
+			'vorname'             => (string) ( $pn[0] ?? '' ),
+			'nachname'            => (string) ( $pn[1] ?? '' ),
+			'firma'               => '',
+			'tel'                 => '',
+			'land'                => ( '' !== $land ) ? $land : 'DE',
+			'uid'                 => '',
+			'biz'                 => $is_b2b ? '1' : '0',
+			'notes'               => $message,
+			'inquiry_source'      => ( class_exists( 'M24_Inquiries' ) && defined( 'M24_Inquiries::SOURCE_CART' ) ) ? M24_Inquiries::SOURCE_CART : 'cart',
+			'inquiry_source_meta' => array( 'origin' => 'guest_garage' ),
+			'items'               => $items,
+		) );
+
+		if ( ! empty( $_POST['register'] ) && class_exists( 'M24_Login' ) && method_exists( 'M24_Login', 'create_account_and_send_link' ) ) {
+			M24_Login::create_account_and_send_link( $email, $name ); // localStorage-Garage übernimmt m24-garage.js nach Login (adopt)
+		}
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'guest_inquiry', 'info', 'Anfrage aus Gast-Garage', array( 'email' => $email, 'items' => count( $items ) ) );
+		}
+		self::guest_inquiry_redirect( is_wp_error( $post_id ) ? 'error' : 'ok' );
+	}
+
+	private static function guest_inquiry_redirect( string $status ): void {
+		wp_safe_redirect( add_query_arg( 'anfrage', $status, self::page_url() ) . '#m24-kontakt' );
+		exit;
 	}
 
 	/** Teile aus einem Garage-Snapshot in den Warenkorb eines Kontos übernehmen (dedupe nach ID). */
@@ -1573,10 +1649,47 @@ class M24_Garage_Cart {
 		ob_start();
 
 		if ( $acc <= 0 ) {
+			// Gast: localStorage-Garage clientseitig rendern (m24-garage.js via /garage/resolve) + eingebettetes
+			// Kontaktformular (Option A). KEIN „bitte einloggen".
+			$ap_url    = esc_url( admin_url( 'admin-post.php' ) );
+			$login_url = esc_url( class_exists( 'M24_B2B_Auth' ) && method_exists( 'M24_B2B_Auth', 'login_url' ) ? M24_B2B_Auth::login_url() : home_url( '/haendler-login/' ) );
+			$consent   = function_exists( 'm24_consent_text' ) ? sprintf( m24_consent_text(), '<a href="' . esc_url( function_exists( 'm24_datenschutz_url' ) ? m24_datenschutz_url() : '' ) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' ) : 'Ich willige in die Verarbeitung meiner Daten ein. *';
+			$countries = function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' );
+			$copts     = '';
+			foreach ( $countries as $iso => $label ) { $copts .= '<option value="' . esc_attr( $iso ) . '"' . ( 'DE' === $iso ? ' selected' : '' ) . '>' . esc_html( $label ) . '</option>'; }
+			$st    = isset( $_GET['anfrage'] ) ? sanitize_key( wp_unslash( $_GET['anfrage'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+			$flash = '';
+			if ( 'ok' === $st )        { $flash = '<div class="m24gc-flash is-ok">Danke! Deine Anfrage ist bei uns eingegangen — wir melden uns mit einem verbindlichen Angebot.</div>'; }
+			elseif ( 'dup' === $st )   { $flash = '<div class="m24gc-flash">Wir haben deine Anfrage bereits erhalten — bitte etwas Geduld.</div>'; }
+			elseif ( in_array( $st, array( 'consent', 'empty', 'error' ), true ) ) { $flash = '<div class="m24gc-flash is-err">Bitte prüfe deine Eingaben (Zustimmung, Positionen und E-Mail).</div>'; }
 			?>
-			<div class="m24gc-page m24gc-guest">
-				<?php // Kein eigener „Meine Garage"-Titel: der Theme-Seitentitel (H1.entry-title) zeigt ihn bereits (genau EINER). ?>
-				<p class="m24gc-empty">Bitte logge dich ein, um deine Garage zu sehen. Du findest den Login-Link über den „In meine Garage"-Dialog auf jeder Fahrzeug- oder Teile-Seite.</p>
+			<div class="m24gc-page m24gc-guest" data-m24gc-guestpage>
+				<?php echo $flash; // phpcs:ignore WordPress.Security.EscapeOutput — statischer Text ?>
+				<div class="m24gc-guest-items" data-m24gc-guest-items><p class="m24gc-empty" data-m24gc-guest-loading>Lade deine Garage …</p></div>
+				<div class="m24gc-guest-foot" data-m24gc-guest-foot hidden>
+					<div class="m24gc-guest-sumrow"><span>Gesamt inkl. 19&nbsp;% MwSt</span><strong data-m24gc-guest-sum>0,00&nbsp;€</strong></div>
+					<p class="m24gc-guest-nudge">Deine Garage ist <b>temporär</b> auf diesem Gerät gespeichert. <a href="<?php echo $login_url; ?>">Einloggen / registrieren</a>, um sie dauerhaft zu sichern.</p>
+					<div style="text-align:center;margin:14px 0 0;"><button type="button" class="m24sa-btn" data-m24gc-guest-inquire>Angebot anfragen</button></div>
+				</div>
+				<section class="m24sa-form" id="m24-kontakt" data-collapsed>
+					<h2 class="m24sa-form-h">Angebot anfragen</h2>
+					<p class="m24sa-form-sub">Wir übernehmen deine Auswahl automatisch — du musst nichts erneut eingeben. Nach dem Absenden melden wir uns mit einem verbindlichen Angebot inkl. Verpackung, Versand und (falls nötig) Zollabwicklung.</p>
+					<form method="post" action="<?php echo $ap_url; ?>">
+						<input type="hidden" name="action" value="m24_guest_inquiry">
+						<input type="hidden" name="guest_items" value="" data-m24gc-guest-payload>
+						<input type="text" name="website" class="m24sa-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+						<div class="m24sa-f"><span>Kundenart</span><span class="m24sa-seg">
+							<label><input type="radio" name="kundentyp" value="Privat" checked><span>Privat</span></label>
+							<label><input type="radio" name="kundentyp" value="Geschäftskunde"><span>Geschäftskunde</span></label></span></div>
+						<label class="m24sa-f"><span>Lieferland *</span><select name="lieferland" required><?php echo $copts; // phpcs:ignore WordPress.Security.EscapeOutput ?></select></label>
+						<label class="m24sa-f"><span>Name *</span><input type="text" name="name" required autocomplete="name"></label>
+						<label class="m24sa-f"><span>E-Mail *</span><input type="email" name="email" required autocomplete="email"></label>
+						<label class="m24sa-f"><span>Nachricht (optional)</span><textarea name="nachricht" placeholder="Anmerkungen zu deiner Anfrage …"></textarea></label>
+						<label class="m24sa-consent"><input type="checkbox" name="consent" value="1" required> <span><?php echo $consent; // phpcs:ignore WordPress.Security.EscapeOutput ?></span></label>
+						<label class="m24sa-consent"><input type="checkbox" name="register" value="1"> <span>Kostenloses MOTORSPORT24-Kundenkonto anlegen und meine Garage übernehmen.</span></label>
+						<button type="submit" class="m24sa-submit">Anfrage senden</button>
+					</form>
+				</section>
 			</div>
 			<?php
 			return (string) ob_get_clean();
