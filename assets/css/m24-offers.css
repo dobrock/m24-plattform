@@ -280,3 +280,6 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
   .m24off-v2 .m24off-op input,.m24off-v2 input,.m24off-v2 select{font-size:16px}
   .m24off-v2 .m24off-qty2 button,.m24off-v2 .m24off-posx{min-width:44px;min-height:44px}
 }
+
+/* v3/E: Bankdaten-Box strikt versteckt bis „Angebot annehmen" (gegen Theme-CSS, das [hidden] überschreibt) */
+.m24off-paybox[hidden]{display:none!important}

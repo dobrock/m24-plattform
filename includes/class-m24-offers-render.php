@@ -60,17 +60,19 @@ class M24_Offers_Render {
 	 */
 	private static function ol( string $lang ): array {
 		$de = array(
-			'hello' => 'Guten Tag', 'intro' => 'anbei Ihr verbindliches Angebot', 'valid' => 'gültig bis',
+			'hello' => 'Hallo', 'intro' => 'anbei dein verbindliches Angebot', 'valid' => 'gültig bis',
+			'valid_line' => 'Gültig bis %1$s — noch %2$d Tag%3$s', 'cta_sub' => 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt',
 			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
 			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
 			'view_pay' => 'Angebot ansehen &amp; bezahlen', 'eyebrow' => 'Verbindliches Kaufangebot', 'offer' => 'Angebot',
 			'items' => 'Positionen', 'accept' => 'Angebot annehmen', 'paid' => 'Bezahlt', 'expired' => 'Abgelaufen',
 			'provider' => 'Anbieter', 'total_price' => 'Gesamtpreis', 'incl_taxes' => '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)',
 			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
-			'your_offer' => 'Ihr Angebot',
+			'your_offer' => 'Dein Angebot',
 		);
 		$en = array(
 			'hello' => 'Hello', 'intro' => 'please find attached your binding offer', 'valid' => 'valid until',
+			'valid_line' => 'Valid until %1$s — %2$d day%3$s left', 'cta_sub' => 'Online: review the offer → accept → bank details are shown',
 			'subtotal' => 'Subtotal (net)', 'vat' => 'VAT', 'margin' => 'Margin scheme (§ 25a)',
 			'std_net' => 'Standard-rated items (net)', 'total' => 'Total', 'delivery' => 'Delivery time',
 			'view_pay' => 'View &amp; pay offer', 'eyebrow' => 'Binding purchase offer', 'offer' => 'Offer',
@@ -629,6 +631,12 @@ class M24_Offers_Render {
 		if ( ! is_email( $email ) ) { return; }
 		$vu = self::date_de( (string) $o->valid_until );
 		$L  = self::ol( self::offer_lang( $o ) ); // #1: Angebotssprache-Labels (Rechtstexte bleiben DE)
+		$sj   = json_decode( (string) $o->src_json, true ) ?: array();
+		$sal  = trim( (string) ( $sj['salutation'] ?? '' ) );
+		$note = (string) ( $sj['note'] ?? '' );
+		$mlang  = self::offer_lang( $o );
+		$mdays  = $o->valid_until ? max( 0, (int) ceil( ( strtotime( (string) $o->valid_until . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ) ) : 0;
+		$mplural = ( 1 === $mdays ) ? '' : ( 'de' === $mlang ? 'e' : 's' );
 
 		$rows = '';
 		foreach ( $items as $it ) {
@@ -652,8 +660,10 @@ class M24_Offers_Render {
 			$rows .= '<tr><td style="padding:6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
 		}
 
-		$inner  = '<p style="margin:0 0 14px;">' . esc_html( $L['hello'] ) . ( ! empty( $cust['name'] ) ? ' ' . esc_html( $cust['name'] ) : '' ) . ',</p>';
-		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . ' ' . esc_html( $o->offer_no ) . ( $vu ? ', ' . esc_html( $L['valid'] ) . ' ' . esc_html( $vu ) : '' ) . '.</p>';
+		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( sprintf( $L['valid_line'], $vu, $mdays, $mplural ) ) . '</p>' : '';
+		$greet  = '' !== $sal ? $sal : ( $L['hello'] . ( ! empty( $cust['name'] ) ? ' ' . $cust['name'] : '' ) . ',' );
+		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
+		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . ' ' . esc_html( $o->offer_no ) . '.</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -680,7 +690,9 @@ class M24_Offers_Render {
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( $o->delivery_time ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
-		$inner .= '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
+		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
+		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
+		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
 		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
 		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz() ) . '</p>';
 		// Pflichtangaben.
@@ -703,6 +715,7 @@ class M24_Offers_Render {
 
 		$lang = self::offer_lang( $o );
 		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang ) ) : $inner;
-		wp_mail( $email, $L['your_offer'] . ' ' . $o->offer_no . ' — MOTORSPORT24', $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
+		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
+		wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
 	}
 }
