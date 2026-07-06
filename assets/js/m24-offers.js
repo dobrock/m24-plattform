@@ -92,7 +92,7 @@
 		var m = cfg.taxModes[mode];
 		var oss = $('[data-oss]'); if (oss) { oss.hidden = !(m && m.rate === null); }
 		var tn = $('[data-tax-note]'); if (tn) { tn.textContent = m ? m.note : ''; }
-		$$('[data-tax-seg] [data-txm]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-txm') === mode); });
+		var sel = $('[data-tax-mode]'); if (sel && sel.value !== mode) { sel.value = mode; } // Dropdown synchron halten (Prefill/Init)
 		if ('drittland_net' === mode && autoSuggestZoll()) { renderStdRow(); }
 		renderSummary();
 	}
@@ -122,11 +122,16 @@
 		var t2 = $('[data-sum-total-bar]'); if (t2) { t2.textContent = tot; }
 	}
 
+	var salTouched = false;
+	function salSuggest() { var vn = (customer.name || '').trim().split(/\s+/)[0] || ''; return ('en' === offerLang ? 'Hello ' : 'Hallo ') + vn + ','; }
+	function salApply(force) { var el = $('[data-salutation]'); if (!el) { return; } if (force || (!salTouched && '' === el.value.trim())) { el.value = salSuggest(); salTouched = false; } }
+
 	/* ── Angebotssprache (Kopf + Konditionen synchron) ── */
 	function setLang(l) {
 		offerLang = ('en' === l) ? 'en' : 'de';
 		$$('[data-langsw] [data-lang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-lang') === offerLang); });
 		$$('[data-langseg] [data-olang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-olang') === offerLang); });
+		salApply(false);
 	}
 
 	/* ── Teile-Picker ── */
@@ -216,6 +221,7 @@
 				customer: cust, items: items, extras: extras,
 				tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
 				delivery_time: ($('[data-delivery]') || {}).value || '',
+				salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
 				inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
 				src: cfg.src || {}
 			})
@@ -238,8 +244,10 @@
 		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); items[pi].unit_price = parseFloat(t.value) || 0; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(items[pi].unit_price * 1.19) + ' brutto'; } renderSummary(); }
 		else if (t.matches('[data-title]')) { items[+t.getAttribute('data-i')].title = t.value; }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
-		else if (t.matches('[data-picker-q]')) { clearTimeout(searchT); searchT = setTimeout(searchParts, 250); }
+		else if (t.matches('[data-salutation]')) { salTouched = true; }
+			else if (t.matches('[data-picker-q]')) { clearTimeout(searchT); searchT = setTimeout(searchParts, 250); }
 	});
+	document.addEventListener('change', function (e) { if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); } });
 	document.addEventListener('click', function (e) {
 		var t = e.target, el;
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
@@ -253,7 +261,7 @@
 		if ((el = t.closest('[data-picker-close]'))) { var p = $('[data-picker]'); if (p) { p.hidden = true; } return; }
 		if ((el = t.closest('[data-cat]'))) { setCat(el); return; }
 		if ((el = t.closest('[data-picker-modellchg]'))) { var m = prompt('Modell-Slug (z. B. z4-gt3):', modell); if (m !== null) { modell = m.trim(); var pm = $('[data-picker-modell]'); if (pm) { pm.textContent = modell; } searchParts(); } return; }
-		if ((el = t.closest('[data-txm]'))) { setTaxMode(el.getAttribute('data-txm')); return; }
+		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
 		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); var ed = $('[data-kunde-edit]'); if (ed) { ed.hidden = !ed.hidden; } return; }
@@ -276,9 +284,12 @@
 		var dEl = $('[data-delivery]'); if (dEl && cfg.prefill.delivery) { dEl.value = cfg.prefill.delivery; }
 		if (cfg.prefill.tax_mode) { setTaxMode(cfg.prefill.tax_mode); }
 		if (cfg.prefill.tax_rate) { taxRate = parseFloat(cfg.prefill.tax_rate) || 0; var rr = $('[data-tax-rate]'); if (rr) { rr.value = cfg.prefill.tax_rate; } }
+		if (cfg.prefill.salutation) { var se = $('[data-salutation]'); if (se) { se.value = cfg.prefill.salutation; salTouched = true; } }
+		if (cfg.prefill.note) { var ne = $('[data-note]'); if (ne) { ne.value = cfg.prefill.note; } }
 	}
 
 	setLang('de');
+	salApply(false);
 	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
 	renderItems();
 	renderStdRow();

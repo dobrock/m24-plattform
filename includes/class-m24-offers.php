@@ -376,6 +376,10 @@ class M24_Offers {
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$src['lang'] = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de'; // Angebotssprache (Mail/Kunden-Ansicht/PDF)
+		// v3: Anschreiben-Felder + globale Lieferzeit im src_json (Zeilenumbrüche im Freitext erhalten).
+		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
+		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
+		$src['delivery']   = isset( $p['delivery_time'] ) ? sanitize_text_field( (string) $p['delivery_time'] ) : '';
 		$totals   = self::compute_totals( $items, $extras, $tax_mode, $tax_rate );
 		$tax_note = $modes[ $tax_mode ]['note'];
 

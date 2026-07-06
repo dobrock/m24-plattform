@@ -31,6 +31,20 @@ class M24_Offers_Render {
 		$m = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS', 'drittland_net' => 'Drittland · netto' );
 		return $m[ $k ] ?? $k;
 	}
+	/** v3: Klartext-Label je Steuer-Modus für das Dropdown (statt Segment-Bubbles). */
+	private static function tax_dropdown_label( string $k ): string {
+		$m = array(
+			'b2b_de_19'     => 'Brutto — 19 % MwSt. (DE)',
+			'b2b_eu_net'    => 'EU B2B — netto (Reverse Charge)',
+			'b2c_eu_oss'    => 'EU B2C — OSS',
+			'drittland_net' => 'Drittland — netto + Ausfuhr',
+		);
+		return $m[ $k ] ?? $k;
+	}
+	/** v3: globale Lieferzeit-Optionen (ein Feld fürs ganze Angebot). */
+	private static function delivery_options(): array {
+		return array( '', 'Am Lager', '1–2 Wochen', '3–4 Wochen', '4–6 Wochen', '5–7 Wochen', '6–8 Wochen', '8–12 Wochen' );
+	}
 	/** Feste Reihenfolge der Steuer-Segmente (DE zuerst). */
 	private static function tax_order(): array {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
@@ -123,11 +137,13 @@ class M24_Offers_Render {
 				);
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
 				$prefill  = array(
-					'items'    => is_array( $its ) ? array_values( $its ) : array(),
-					'delivery' => (string) $o->delivery_time,
-					'tax_mode' => (string) $o->tax_mode,
-					'tax_rate' => (float) $o->tax_rate,
-					'offer_id' => $from,
+					'items'      => is_array( $its ) ? array_values( $its ) : array(),
+					'delivery'   => (string) $o->delivery_time,
+					'tax_mode'   => (string) $o->tax_mode,
+					'tax_rate'   => (float) $o->tax_rate,
+					'salutation' => (string) ( $sj['salutation'] ?? '' ), // v3: Anschreiben aus src_json
+					'note'       => (string) ( $sj['note'] ?? '' ),
+					'offer_id'   => $from,
 				);
 			}
 		}
@@ -237,17 +253,26 @@ class M24_Offers_Render {
 				<div class="m24off-card">
 					<h2>Konditionen</h2>
 					<div class="m24off-two">
-						<div class="m24off-fld"><label>Lieferzeit</label><input type="text" data-delivery placeholder="z. B. ca. 2–3 Wochen"></div>
+						<div class="m24off-fld"><label>Lieferzeit (gilt fürs ganze Angebot)</label>
+							<select data-delivery><?php foreach ( self::delivery_options() as $opt ) : ?><option value="<?php echo esc_attr( $opt ); ?>"><?php echo esc_html( '' === $opt ? '—' : $opt ); ?></option><?php endforeach; ?></select>
+						</div>
 						<div class="m24off-fld"><label>Angebotssprache</label>
 							<div class="m24off-seg2" data-langseg><span class="on" data-olang="de">Deutsch</span><span data-olang="en">English</span></div></div>
 					</div>
 					<div class="m24off-fld" style="margin-top:14px"><label>Steuer — manuell wählen</label>
-						<div class="m24off-seg2" data-tax-seg>
-							<?php foreach ( self::tax_order() as $k ) : $m = M24_Offers::tax_modes()[ $k ] ?? array( 'note' => '' ); ?><span data-txm="<?php echo esc_attr( $k ); ?>" title="<?php echo esc_attr( $m['note'] ); ?>"><?php echo esc_html( self::tax_short( $k ) ); ?></span><?php endforeach; ?>
-						</div>
+						<select data-tax-mode>
+							<option value="">— Steuerfall wählen —</option>
+							<?php foreach ( self::tax_order() as $k ) : ?><option value="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( self::tax_dropdown_label( $k ) ); ?></option><?php endforeach; ?>
+						</select>
 						<div class="m24off-fld" data-oss hidden style="margin-top:10px"><label>USt-Satz (%) — Pflicht bei OSS, 0–27</label><input type="number" step="0.1" min="0" max="27" data-tax-rate placeholder="z. B. 20"></div>
 						<p class="m24off-taxnote" data-tax-note></p>
 					</div>
+				</div>
+
+				<div class="m24off-card">
+					<h2>Anschreiben</h2>
+					<div class="m24off-fld"><label>Anrede <a href="#" class="m24off-reset" data-salutation-reset>zurücksetzen</a></label><input type="text" data-salutation placeholder="Hallo {Vorname},"></div>
+					<div class="m24off-fld" style="margin-top:12px"><label>Freitext (erscheint in der Mail unter der Summe)</label><textarea data-note rows="4" placeholder="Optionaler Freitext an den Kunden …"></textarea></div>
 				</div>
 			</div>
 
