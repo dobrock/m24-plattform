@@ -63,7 +63,7 @@ if ( ! function_exists( 'm24_mail_shell' ) ) {
 			// Footer (identisch zur IL-Referenz)
 			. '<tr><td style="padding:18px 28px;border-top:1px solid #e6e9ee;text-align:center;' . $stack . 'font-size:11px;line-height:1.6;color:#9aa3b0;">'
 			. ( '' !== $foot_extra ? '<div style="margin-bottom:12px;">' . $foot_extra . '</div>' : '' )
-			. '<div style="color:#7e8794;font-size:11.5px;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
+			. '<div style="color:#7e8794;font-size:11.5px;font-style:normal;">Classic &amp; Race Cars and Parts Sales since 2006</div>'
 			. '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
 			. '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
 			. '<div style="margin-top:10px;">'

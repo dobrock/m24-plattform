@@ -21,7 +21,7 @@ class M24_Offers {
 	const QV_NEW      = 'm24_offer_new';   // Operator-Modal (Admin) ?m24_offer_new=1&…context
 	const QV_VIEW     = 'm24_angebot';     // Kunden-Ansicht ?m24_angebot={token}
 	const CRON        = 'm24_offers_expire';
-	const VALID_DAYS  = 5;
+	const VALID_DAYS  = 7; // v3: Angebots-Gültigkeit 7 Tage (Countdown in Liste/Mail/Kunden-Ansicht zieht daraus)
 
 	public static function enabled(): bool {
 		return (bool) (int) get_option( self::FLAG, 0 );
