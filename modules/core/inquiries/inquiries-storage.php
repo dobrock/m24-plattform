@@ -371,7 +371,13 @@ class M24_Inquiries_Storage {
         $f = isset( $_GET['f'] ) ? sanitize_key( wp_unslash( $_GET['f'] ) ) : 'offen';          // phpcs:ignore WordPress.Security.NonceVerification
         $s = isset( $_GET['s'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['s'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 
-        $q = new WP_Query( [ 'post_type' => self::CPT_SLUG, 'post_status' => 'any', 'posts_per_page' => 300, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => true ] );
+        // Die Anfrage-CPT nutzt eigene Post-Status mit exclude_from_search=true (pending_api_push, synced, …).
+        // WP_Query 'any' ÜBERSPRINGT genau diese → Inbox bliebe leer. Darum die Status explizit auflisten.
+        $stati = array( 'publish', 'pending', 'draft', 'private' );
+        if ( class_exists( 'M24_Inquiries' ) ) {
+            $stati = array_merge( $stati, array( M24_Inquiries::STATUS_PENDING, M24_Inquiries::STATUS_SYNCED, M24_Inquiries::STATUS_SYNCED_MAIL, M24_Inquiries::STATUS_FAILED ) );
+        }
+        $q = new WP_Query( [ 'post_type' => self::CPT_SLUG, 'post_status' => $stati, 'posts_per_page' => 300, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => true ] );
         $cards = array(); $offen_n = 0;
         foreach ( $q->posts as $p ) {
             $answered = (string) get_post_meta( $p->ID, '_m24_answered_offer_no', true );

@@ -70,13 +70,17 @@
 		var kat = document.createElement('span'); kat.className = 'm24off-std'; kat.setAttribute('data-add-pos', ''); kat.textContent = '+ Teil aus Katalog suchen'; box.appendChild(kat);
 	}
 	function editExtraAmount(i, spanEl) {
-		var ex = extras[i]; if (!ex) { return; }
+		var ex = extras[i]; if (!ex || !spanEl) { return; }
 		var inp = document.createElement('input');
-		inp.type = 'number'; inp.step = '0.01'; inp.value = ex.amount; inp.className = 'm24off-std-amtinput';
-		spanEl.replaceWith(inp); inp.focus(); inp.select();
-		function commit() { ex.amount = parseFloat(inp.value) || 0; renderStdRow(); renderSummary(); }
+		// text + inputmode=decimal statt type=number: zuverlässiges select(), ≥16px ohne iOS-Zoom, kein Spinner.
+		inp.type = 'text'; inp.inputMode = 'decimal'; inp.className = 'm24off-std-amtinput';
+		inp.value = String(ex.amount).replace('.', ',');
+		spanEl.replaceWith(inp);
+		inp.focus(); try { inp.select(); } catch (e) {}
+		var done = false;
+		function commit() { if (done) { return; } done = true; ex.amount = parseFloat(String(inp.value).replace(/\./g, '').replace(',', '.')) || 0; renderStdRow(); renderSummary(); }
 		inp.addEventListener('blur', commit);
-		inp.addEventListener('keydown', function (e) { if ('Enter' === e.key) { e.preventDefault(); inp.blur(); } });
+		inp.addEventListener('keydown', function (e) { if ('Enter' === e.key) { e.preventDefault(); inp.blur(); } else if ('Escape' === e.key) { done = true; renderStdRow(); } });
 	}
 
 	/* ── Steuer ── */

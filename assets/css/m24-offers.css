@@ -241,7 +241,8 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-std{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1.5px dashed var(--b1);color:var(--b2);border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;background:#f6faff}
 .m24off-v2 .m24off-std.added{border-style:solid;background:#fff}
 .m24off-v2 .m24off-std-amt,.m24off-v2 .m24off-std-amt-pre{font-weight:800}
-.m24off-v2 .m24off-std-amtinput{width:88px;height:30px;border:1.5px solid var(--b1);border-radius:7px;text-align:right;font:700 13px 'Saira',sans-serif;padding:0 8px}
+.m24off-v2 .m24off-std-amtinput{width:96px;height:38px;border:1.5px solid var(--b1);border-radius:7px;text-align:right;font:700 16px 'Saira',sans-serif;padding:0 8px}
+.m24off-v2 .m24off-std-amt{text-decoration:underline dotted;text-underline-offset:2px;cursor:text} /* Betrag als klickbar kenntlich */
 .m24off-v2 .m24off-std.zoll{border-color:var(--brass);color:var(--brass);background:#fdf9f3}
 .m24off-v2 .m24off-stdnote{font-size:12px;color:var(--mut);margin-top:8px;line-height:1.5}
 .m24off-v2 .m24off-two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
