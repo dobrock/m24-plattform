@@ -450,3 +450,8 @@
         animation: none;
     }
 }
+
+/* Vorübergehend AUSGEBLENDET (bis zur Garage-Einstieg-Entscheidung): der rote Toggle-Kreis wird
+   nicht angezeigt. Panel/Markup bleibt unangetastet — Basis für „Entwurf 1". Nur diese eine Regel
+   entfernen, um den Toggle wieder einzublenden. */
+.m24-sidebar__toggle{display:none!important}
