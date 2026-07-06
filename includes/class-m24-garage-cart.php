@@ -1490,9 +1490,9 @@ class M24_Garage_Cart {
 
 	public static function assets() {
 		if ( is_admin() ) { return; }
-		// Site-weit für eingeloggte Accounts (Zähler + Button-Add); für Gäste nur auf der Garage-Seite.
-		$on_garage = is_page() && (int) get_queried_object_id() === (int) get_option( self::PAGE_OPTION );
-		if ( self::current_account_id() <= 0 && ! $on_garage ) { return; }
+		// Site-weit für ALLE (Gäste + eingeloggt): ♡-Capture (.m24-garage-open), Slide-Tab/Panel und die
+		// localStorage-Gast-Garage müssen auf JEDER Frontend-Seite laufen — sonst öffnet auf Teileseiten das
+		// alte No-Account-Modal statt des Gast-Adds (Paket G, ab 0.11.267/286/288). Kein Gäste-Gate mehr.
 
 		$css = 'assets/css/m24-garage.css';
 		$js  = 'assets/js/m24-garage.js';
