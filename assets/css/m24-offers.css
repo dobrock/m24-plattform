@@ -326,3 +326,14 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-cxstatus.is-ok{color:#1a7f37}.m24off-cxstatus.is-error{color:#c8102e}
 .m24off-cxbody .m24off-btn{width:100%}
 @media(max-width:560px){.m24off-cxgrid{grid-template-columns:1fr}}
+
+/* ── v3.1: Positionen Drag&Drop + EN + Standard-Positions-Zeilen ── */
+.m24off-v2 .m24off-drag{flex:0 0 auto;cursor:grab;color:#9aa3b0;font-size:18px;line-height:1;padding:0 6px 0 0;user-select:none;touch-action:none;align-self:center}
+.m24off-v2 .m24off-drag:active{cursor:grabbing}
+.m24off-v2 .m24off-drag.is-static{cursor:default;opacity:.3;touch-action:auto}
+.m24off-v2 .m24off-pos.is-dragging{opacity:.45}
+.m24off-v2 .m24off-dropline{height:3px;background:linear-gradient(90deg,#1f74c4,#0e447e);border-radius:2px;margin:2px 0}
+.m24off-v2 .m24off-enmiss{color:#b45309;font-weight:600}
+.m24off-v2 .m24off-pt-en{margin-top:6px;border-color:#1f74c4}
+.m24off-v2 .m24off-pos-std{background:#f7f9fc}
+.m24off-v2 .m24off-ph-std{display:grid;place-items:center;color:#9a6b25;font-weight:800}

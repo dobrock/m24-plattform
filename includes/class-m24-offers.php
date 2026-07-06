@@ -318,6 +318,7 @@ class M24_Offers {
 			return array(
 				'id'     => (int) $p->ID,
 				'title'  => get_the_title( $p ),
+				'title_en' => (string) get_post_meta( $p->ID, '_m24_titel_en', true ), // v3.1: EN-Titel falls gepflegt, sonst „EN fehlt"
 				'art_nr' => (string) get_post_meta( $p->ID, '_m24_artikelnummer', true ),
 				'bmw'    => (string) get_post_meta( $p->ID, '_m24_bmw_teilenummer', true ),
 				'price'  => ( null !== $price ) ? $price : null,
@@ -641,6 +642,8 @@ class M24_Offers {
 			$out[] = array(
 				'teil_id'    => $teil_id,
 				'title'      => $title,
+				'title_de'   => sanitize_text_field( (string) ( $it['title_de'] ?? $title ) ), // v3.1: DE-Titel (Freitext)
+				'title_en'   => sanitize_text_field( (string) ( $it['title_en'] ?? '' ) ),      // v3.1: EN-Titel (Katalog/Freitext)
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
 				'variant'    => sanitize_text_field( (string) ( $it['variant'] ?? '' ) ), // #6: Varianten-Name im Angebot
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
@@ -688,7 +691,7 @@ class M24_Offers {
 		foreach ( $extras as $ex ) {
 			$label = sanitize_text_field( (string) ( $ex['label'] ?? '' ) );
 			if ( '' === $label ) { continue; }
-			$out[] = array( 'label' => $label, 'amount' => round( (float) ( $ex['amount'] ?? 0 ), 2 ), 'on' => ! empty( $ex['on'] ) );
+			$out[] = array( 'key' => sanitize_key( (string) ( $ex['key'] ?? '' ) ), 'label' => $label, 'amount' => round( (float) ( $ex['amount'] ?? 0 ), 2 ), 'on' => ! empty( $ex['on'] ) );
 		}
 		return $out;
 	}

@@ -50,6 +50,11 @@ class M24_Offers_Render {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
 	}
 	/** Angebotssprache aus src_json.lang (de|en). */
+	/** v3.1: Positions-Titel je Sprache — EN nur wenn gepflegt, sonst DE (keine Maschinenübersetzung). */
+	private static function item_title( array $it, string $lang ): string {
+		if ( 'en' === $lang && ! empty( $it['title_en'] ) ) { return (string) $it['title_en']; }
+		return (string) ( $it['title'] ?? '' );
+	}
 	private static function offer_lang( $o ): string {
 		$sj = json_decode( (string) $o->src_json, true );
 		return ( is_array( $sj ) && 'en' === ( $sj['lang'] ?? 'de' ) ) ? 'en' : 'de';
@@ -246,8 +251,9 @@ class M24_Offers_Render {
 				</div>
 
 				<div class="m24off-card">
-					<h2>Positionen <span class="m24off-hint2">Preise aus den Artikeln — anpassbar</span></h2>
+					<h2>Positionen <span class="m24off-hint2">Preise aus den Artikeln — anpassbar · ⠿ ziehen zum Sortieren</span></h2>
 					<div data-items></div>
+					<div data-extra-rows></div>
 					<div class="m24off-stdrow" data-stdrow></div>
 					<p class="m24off-stdnote">„Versicherter Versand" trägt automatisch das Lieferland des Kunden. „Zollabwicklung Deutschland" wird nur bei Drittland-Kunden vorgeschlagen (manuell immer hinzufügbar). Alle Beträge sind nach dem Hinzufügen per Klick editierbar.</p>
 				</div>
@@ -427,7 +433,7 @@ class M24_Offers_Render {
 					?>
 					<<?php echo $tag; ?> class="m24off-pos<?php echo '' !== $url ? ' is-link' : ''; ?>"<?php echo $att; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
 						<div class="m24off-pos-main">
-							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
+							<span class="m24off-pos-title"><?php echo esc_html( self::item_title( $it, self::offer_lang( $o ) ) ); ?></span>
 							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant">Variante: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
@@ -681,8 +687,8 @@ class M24_Offers_Render {
 			$line  = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
 			$url   = ! empty( $it['url'] ) ? (string) $it['url'] : '';
 			$title = '' !== $url
-				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $it['title'] ) . '</a>'
-				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
+				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( self::item_title( $it, $mlang ) ) . '</a>'
+				: '<span style="font-weight:600;">' . esc_html( self::item_title( $it, $mlang ) ) . '</span>';
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
 				. ( ! empty( $it['variant'] ) ? '<br><span style="color:#1f74c4;font-size:12px;font-weight:600;">' . esc_html( $L['variant'] ) . ': ' . esc_html( $it['variant'] ) . '</span>' : '' )
 				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'

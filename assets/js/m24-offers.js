@@ -22,21 +22,37 @@
 	var LANDS = cfg.lands || {};
 	function landName(iso) { iso = (iso || '').toUpperCase(); return LANDS[iso] || iso || ''; }
 
-	/* ── Positionen (Karten + Stepper) ── */
+	/* ── EN-Wörterbuch für Standard-Positionen (KEINE Maschinenübersetzung von Katalogtiteln) ── */
+	var STD_DE = { verpackung: 'Verpackung', versand: 'Versicherter Versand', zoll: 'Zollabwicklung Deutschland' };
+	var STD_EN = { verpackung: 'Packaging', versand: 'Insured shipping', zoll: 'Customs handling Germany' };
+	function stdBase(ex) { return ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label); }
+	function chipLabel(ex) { var base = stdBase(ex); if (ex.key === 'versand') { var ln = landName(customer.land); return base + (ln ? ' ' + ln : ''); } return base; }
+	/** Anzeige-Titel je Sprache: Katalog = title_en falls vorhanden, sonst DE; Freitext = title_en/title_de. */
+	function itemTitle(it) {
+		if ('en' === offerLang) { return (it.title_en && String(it.title_en).trim()) ? it.title_en : (it.free ? (it.title_de != null ? it.title_de : (it.title || '')) : (it.title || '')); }
+		return it.free ? (it.title_de != null ? it.title_de : (it.title || '')) : (it.title || '');
+	}
+
+	/* ── Positionen (Karten + Stepper + Drag-Handle + EN) ── */
 	function renderItems() {
 		var box = $('[data-items]'); if (!box) { return; }
 		box.innerHTML = '';
 		if (!items.length) { box.innerHTML = '<p class="m24off-empty2">Noch keine Positionen — über die Chips unten hinzufügen.</p>'; }
 		items.forEach(function (it, i) {
 			var row = document.createElement('div');
-			row.className = 'm24off-pos';
-			var titleHtml = it.free
-				? '<input type="text" class="m24off-pt-in" value="' + esc(it.title) + '" data-i="' + i + '" data-title placeholder="Bezeichnung der Position">'
-				: '<div class="m24off-pt">' + esc(it.title) + '</div>';
+			row.className = 'm24off-pos'; row.setAttribute('data-i', i);
+			var titleHtml;
+			if (it.free) {
+				titleHtml = '<input type="text" class="m24off-pt-in" value="' + esc(it.title_de != null ? it.title_de : (it.title || '')) + '" data-i="' + i + '" data-title placeholder="Bezeichnung (DE)">';
+				if ('en' === offerLang) { titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en placeholder="Bezeichnung (EN) — selbst übersetzen">'; }
+			} else {
+				titleHtml = '<div class="m24off-pt">' + esc(itemTitle(it)) + '</div>';
+				if ('en' === offerLang && !(it.title_en && String(it.title_en).trim())) { titleHtml += '<div class="m24off-pa m24off-enmiss">EN-Titel fehlt</div>'; }
+			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
-			row.innerHTML =
-				(it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pos-ph"></span>')
+			row.innerHTML = '<span class="m24off-drag" data-drag title="Ziehen zum Sortieren" aria-label="Sortieren">⠿</span>'
+				+ (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pos-ph"></span>')
 				+ '<div class="m24off-pos-main">' + titleHtml + metaHtml + varHtml + '</div>'
 				+ '<div class="m24off-qty2"><button type="button" data-i="' + i + '" data-qdec aria-label="weniger">−</button>'
 				+ '<input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric">'
@@ -46,42 +62,81 @@
 				+ '<button type="button" class="m24off-posx" data-i="' + i + '" data-rm aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
 		});
+		renderExtraRows();
 		renderSummary();
 	}
 
-	/* ── Standard-Positionen als Chips (Nebenkosten + Freitext + Katalog) ── */
-	function chipLabel(ex) {
-		if (ex.key === 'versand') { var ln = landName(customer.land); return 'Versicherter Versand' + (ln ? ' ' + ln : ''); }
-		return ex.label;
+	/* ── Aktive Standard-Positionen als Zeilen mit editierbarem Preis (#3) ── */
+	function renderExtraRows() {
+		var box = $('[data-extra-rows]'); if (!box) { return; }
+		box.innerHTML = '';
+		extras.forEach(function (ex, i) {
+			if (!ex.on) { return; }
+			var row = document.createElement('div');
+			row.className = 'm24off-pos m24off-pos-std';
+			row.innerHTML = '<span class="m24off-drag is-static" aria-hidden="true">⠿</span>'
+				+ '<span class="m24off-pos-ph m24off-ph-std">€</span>'
+				+ '<div class="m24off-pos-main"><div class="m24off-pt">' + esc(chipLabel(ex)) + '</div><div class="m24off-pa">Standard-Position</div></div>'
+				+ '<div class="m24off-qty2"></div>'
+				+ '<div class="m24off-pprice"><input type="number" step="0.01" value="' + ex.amount + '" data-extra-price="' + i + '" inputmode="decimal"><div class="m24off-bru2">netto</div></div>'
+				+ '<button type="button" class="m24off-posx" data-extra-toggle="' + i + '" aria-label="Position entfernen">✕</button>';
+			box.appendChild(row);
+		});
 	}
+
+	/* ── „+ hinzufügen"-Chips: nur INAKTIVE Std + Freitext + Katalog ── */
 	function renderStdRow() {
 		var box = $('[data-stdrow]'); if (!box) { return; }
 		box.innerHTML = '';
 		extras.forEach(function (ex, i) {
+			if (ex.on) { return; }
 			var s = document.createElement('span');
-			s.className = 'm24off-std' + (ex.on ? ' added' : '') + ('zoll' === ex.key ? ' zoll' : '');
+			s.className = 'm24off-std' + ('zoll' === ex.key ? ' zoll' : '');
 			s.setAttribute('data-extra-toggle', i);
-			s.innerHTML = ex.on
-				? '✓ ' + esc(chipLabel(ex)) + ' <span class="m24off-std-amt" data-extra-amt="' + i + '" title="Betrag ändern">' + eur(ex.amount) + '</span>'
-				: '+ ' + esc(chipLabel(ex)) + ' <span class="m24off-std-amt-pre">' + eur(ex.amount) + '</span>';
+			s.innerHTML = '+ ' + esc(chipLabel(ex)) + ' <span class="m24off-std-amt-pre">' + eur(ex.amount) + '</span>';
 			box.appendChild(s);
 		});
 		var free = document.createElement('span'); free.className = 'm24off-std'; free.setAttribute('data-add-free', ''); free.textContent = '+ Freie Position …'; box.appendChild(free);
 		var kat = document.createElement('span'); kat.className = 'm24off-std'; kat.setAttribute('data-add-pos', ''); kat.textContent = '+ Teil aus Katalog suchen'; box.appendChild(kat);
 	}
-	function editExtraAmount(i, spanEl) {
-		var ex = extras[i]; if (!ex || !spanEl) { return; }
-		var inp = document.createElement('input');
-		// text + inputmode=decimal statt type=number: zuverlässiges select(), ≥16px ohne iOS-Zoom, kein Spinner.
-		inp.type = 'text'; inp.inputMode = 'decimal'; inp.className = 'm24off-std-amtinput';
-		inp.value = String(ex.amount).replace('.', ',');
-		spanEl.replaceWith(inp);
-		inp.focus(); try { inp.select(); } catch (e) {}
-		var done = false;
-		function commit() { if (done) { return; } done = true; ex.amount = parseFloat(String(inp.value).replace(/\./g, '').replace(',', '.')) || 0; renderStdRow(); renderSummary(); }
-		inp.addEventListener('blur', commit);
-		inp.addEventListener('keydown', function (e) { if ('Enter' === e.key) { e.preventDefault(); inp.blur(); } else if ('Escape' === e.key) { done = true; renderStdRow(); } });
+	function renderExtras() { renderStdRow(); renderExtraRows(); }
+
+	/* ── Drag & Drop der Positionen (vanilla, pointer-basiert → Maus + Touch) ── */
+	var dragFrom = -1, dropLine = null;
+	function dropLineEl() { if (!dropLine) { dropLine = document.createElement('div'); dropLine.className = 'm24off-dropline'; } return dropLine; }
+	function onDragMove(e) {
+		if (dragFrom < 0) { return; }
+		var box = $('[data-items]'); if (!box) { return; }
+		var rows = $$('.m24off-pos', box), target = rows.length, k;
+		for (k = 0; k < rows.length; k++) { var r = rows[k].getBoundingClientRect(); if (e.clientY < r.top + r.height / 2) { target = k; break; } }
+		var line = dropLineEl();
+		if (target >= rows.length) { box.appendChild(line); } else { box.insertBefore(line, rows[target]); }
+		box._dropTarget = target;
+		e.preventDefault();
 	}
+	function onDragEnd() {
+		document.removeEventListener('pointermove', onDragMove);
+		document.removeEventListener('pointerup', onDragEnd);
+		if (dropLine && dropLine.parentNode) { dropLine.parentNode.removeChild(dropLine); }
+		var box = $('[data-items]');
+		if (dragFrom >= 0 && box && typeof box._dropTarget === 'number') {
+			var to = box._dropTarget; if (to > dragFrom) { to--; }
+			if (to !== dragFrom && to >= 0 && to <= items.length) { var moved = items.splice(dragFrom, 1)[0]; items.splice(to, 0, moved); }
+		}
+		dragFrom = -1; if (box) { box._dropTarget = null; }
+		renderItems();
+	}
+	document.addEventListener('pointerdown', function (e) {
+		var h = e.target.closest ? e.target.closest('[data-drag]') : null;
+		if (!h || h.classList.contains('is-static')) { return; }
+		var row = h.closest('.m24off-pos'); if (!row) { return; }
+		dragFrom = +row.getAttribute('data-i');
+		if (isNaN(dragFrom)) { dragFrom = -1; return; }
+		row.classList.add('is-dragging');
+		document.addEventListener('pointermove', onDragMove);
+		document.addEventListener('pointerup', onDragEnd);
+		e.preventDefault();
+	});
 
 	/* ── Zoll-Auto-Vorschlag (#2): bei Drittland-Kunde ODER Steuer-Modus drittland_net den Zoll-Chip aktivieren. ── */
 	function autoSuggestZoll() { for (var i = 0; i < extras.length; i++) { if ('zoll' === extras[i].key && !extras[i].on) { extras[i].on = true; return true; } } return false; }
@@ -132,6 +187,7 @@
 		$$('[data-langsw] [data-lang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-lang') === offerLang); });
 		$$('[data-langseg] [data-olang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-olang') === offerLang); });
 		salApply(false);
+		renderItems(); renderStdRow(); // #2: EN-Titel/Freitext-EN-Felder + EN-Chip-Labels
 	}
 
 	/* ── Teile-Picker ── */
@@ -169,7 +225,7 @@
 							+ '<div class="m24off-pick-info"><span>' + esc(it.title) + '</span>'
 							+ (sub ? '<small>' + sub + '</small>' : '')
 							+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.tax25a ? ' · §25a' : '') + '</small></div>'
-							+ '<button type="button" class="m24off-pick-add" data-pick data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-art="' + esc(it.art_nr || '') + '" data-thumb="' + esc(it.thumb || '') + '" data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
+							+ '<button type="button" class="m24off-pick-add" data-pick data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-title-en="' + esc(it.title_en || '') + '" data-art="' + esc(it.art_nr || '') + '" data-thumb="' + esc(it.thumb || '') + '" data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
 						list.appendChild(row);
 					});
 			});
@@ -177,7 +233,7 @@
 	function addFromPick(btn) {
 		items.push({
 			teil_id: parseInt(btn.getAttribute('data-id'), 10) || 0,
-			title: btn.getAttribute('data-title') || '',
+			title: btn.getAttribute('data-title') || '', title_en: btn.getAttribute('data-title-en') || '',
 			art_nr: btn.getAttribute('data-art') || '',
 			thumb: btn.getAttribute('data-thumb') || '',
 			qty: 1,
@@ -228,7 +284,8 @@
 			method: 'POST', credentials: 'same-origin',
 			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
 			body: JSON.stringify({
-				customer: cust, items: items, extras: extras,
+				customer: cust, items: items,
+				extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on }; }), // Label in Angebotssprache einfrieren
 				tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
 				delivery_time: ($('[data-delivery]') || {}).value || '',
 				salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
@@ -252,7 +309,9 @@
 		var t = e.target;
 		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); renderSummary(); }
 		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); items[pi].unit_price = parseFloat(t.value) || 0; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(items[pi].unit_price * 1.19) + ' brutto'; } renderSummary(); }
-		else if (t.matches('[data-title]')) { items[+t.getAttribute('data-i')].title = t.value; }
+		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
+			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
+			else if (t.matches('[data-extra-price]')) { extras[+t.getAttribute('data-extra-price')].amount = parseFloat(String(t.value).replace(',', '.')) || 0; renderSummary(); }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
 			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
@@ -264,9 +323,8 @@
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); return; }
-		if ((el = t.closest('[data-extra-amt]'))) { editExtraAmount(+el.getAttribute('data-extra-amt'), el); return; }
-		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; renderStdRow(); renderSummary(); return; }
-		if ((el = t.closest('[data-add-free]'))) { items.push({ teil_id: 0, title: '', art_nr: '', qty: 1, unit_price: 0, tax25a: false, custom: false, free: true }); renderItems(); return; }
+		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
+		if ((el = t.closest('[data-add-free]'))) { items.push({ teil_id: 0, title: '', title_de: '', title_en: '', art_nr: '', qty: 1, unit_price: 0, tax25a: false, custom: false, free: true }); renderItems(); return; }
 		if ((el = t.closest('[data-add-pos]'))) { openPicker(); return; }
 		if ((el = t.closest('[data-pick]'))) { addFromPick(el); return; }
 		if ((el = t.closest('[data-picker-close]'))) { var p = $('[data-picker]'); if (p) { p.hidden = true; } return; }
@@ -290,7 +348,7 @@
 		items = cfg.prefill.items.map(function (it) {
 			return {
 				teil_id: parseInt(it.teil_id, 10) || 0,
-				title: it.title || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
+				title: it.title || '', title_de: (it.title_de != null ? it.title_de : (it.title || '')), title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
 				variant: it.variant || '',
 				qty: parseInt(it.qty, 10) || 1,
 				unit_price: parseFloat(it.unit_price) || 0,
