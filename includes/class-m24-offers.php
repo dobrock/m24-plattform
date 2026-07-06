@@ -80,7 +80,7 @@ class M24_Offers {
 			'entwurf'    => array( 'Entwurf', '#8a929c' ),
 			'offen'      => array( 'Offen', '#1f74c4' ),
 			'angenommen' => array( 'Angenommen', '#9a6b25' ),
-			'bezahlt'    => array( 'Bezahlt', '#1a7f37' ),
+			'bezahlt'    => array( 'Bezahlt/Bestätigt', '#1a7f37' ),
 			'versandt'   => array( 'Versandt', '#1f74c4' ),
 			'storniert'  => array( 'Storniert', '#6b7280' ),
 			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
@@ -92,7 +92,7 @@ class M24_Offers {
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'reactivate' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'reactivate', 'paid' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
 				if ( 'delete' === $do ) {
@@ -103,7 +103,11 @@ class M24_Offers {
 					$wpdb->update( $t, array( 'status' => 'storniert' ), array( 'id' => $id ) );
 					self::log( 'cancelled', $id, $no );
 					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
-				} else {
+				} elseif ( 'paid' === $do ) {
+						self::mark_paid( $id, 'manual' );
+						self::log( 'paid_manual', $id, $no );
+						$notice = 'Angebot ' . $no . ' als bezahlt/bestätigt markiert.';
+					} else {
 					$wpdb->update( $t, array( 'status' => 'entwurf' ), array( 'id' => $id ) );
 					self::log( 'reactivated', $id, $no );
 					$notice = 'Angebot ' . $no . ' reaktiviert (Entwurf).';
@@ -119,53 +123,40 @@ class M24_Offers {
 		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
 
-		echo '<div class="wrap"><h1>Angebote</h1>';
+				echo '<div class="wrap m24offl"><h1 class="wp-heading-inline">Angebote</h1> <a href="' . esc_url( add_query_arg( array( self::QV_NEW => 1 ), home_url( '/' ) ) ) . '" target="_blank" rel="noopener" class="page-title-action" style="background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:0;">+ Neues Angebot</a><hr class="wp-header-end">';
 		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
-		// Status-Filter + Suche.
-		echo '<form method="get" style="margin:10px 0;"><input type="hidden" name="page" value="' . esc_attr( $page ) . '">';
-		echo '<select name="st"><option value="">Alle Status</option>';
-		foreach ( $badges as $k => $b ) { echo '<option value="' . esc_attr( $k ) . '"' . selected( $f_st, $k, false ) . '>' . esc_html( $b[0] ) . '</option>'; }
-		echo '</select> ';
-		echo '<input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail" style="min-width:220px;"> ';
-		echo '<button class="button button-primary">Filtern</button>';
-		if ( '' !== $f_st || '' !== $f_s ) { echo ' <a class="button" href="' . esc_url( admin_url( 'admin.php?page=' . $page ) ) . '">Zurücksetzen</a>'; }
-		echo '</form>';
-
-		echo '<table class="widefat striped"><thead><tr>'
-			. '<th>Nr.</th><th>Kunde</th><th>Garagen-Nr.</th><th>Summe</th><th>Status</th><th>Gültig bis</th><th>Aktionen</th>'
-			. '</tr></thead><tbody>';
-		if ( empty( $rows ) ) {
-			echo '<tr><td colspan="7">Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</td></tr>';
-		}
+		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS', 'drittland_net' => 'Drittland · netto' );
+		echo '<style>.m24offl .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}.m24offl .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}.m24offl .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}.m24offl .srch{margin-left:auto;display:flex;gap:6px}.m24offl .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}.m24offl .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;max-width:1000px;padding:16px 18px}.m24offl .crow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.m24offl .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}.m24offl .who b{font-size:15px}.m24offl .who div{color:#6b7280;font-size:12.5px}.m24offl .meta{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}.m24offl .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#9a6b25;font-size:15px}.m24offl .tx{color:#6b7280;font-size:12px}.m24offl .sum{font-weight:800;font-size:16px}.m24offl .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;color:#fff}.m24offl .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24offl .foot a{text-decoration:none}@media(max-width:700px){.m24offl .meta{width:100%;margin-left:58px}}</style>';
+		$base = admin_url( 'admin.php?page=' . $page );
+		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
+		echo '<div class="flt">' . $chip( '', 'Alle' );
+		foreach ( array( 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
+		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
+		if ( empty( $rows ) ) { echo '<p>Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</p></div>'; return; }
 		foreach ( (array) $rows as $o ) {
 			$cust = json_decode( (string) $o->customer_json, true ) ?: array();
-			$src  = json_decode( (string) $o->src_json, true ) ?: array();
-			$gno  = (string) ( $src['garage_no'] ?? '' );
-			if ( '' === $gno && (int) $o->account_id > 0 && class_exists( 'M24_Garage_Cart' ) ) { $gno = M24_Garage_Cart::garage_no( (int) $o->account_id, false ); }
-			$st   = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
-			$vu   = $o->valid_until ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', strtotime( (string) $o->valid_until ) ) : gmdate( 'd.m.Y', strtotime( (string) $o->valid_until ) ) ) : '—';
-			echo '<tr>';
-			echo '<td><strong>' . esc_html( $o->offer_no ) . '</strong></td>';
-			echo '<td>' . esc_html( (string) ( $cust['name'] ?? '' ) ) . '<br><span style="color:#888;">' . esc_html( (string) ( $cust['email'] ?? '' ) ) . '</span></td>';
-			echo '<td>' . esc_html( '' !== $gno ? $gno : '—' ) . '</td>';
-			echo '<td style="white-space:nowrap;">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . ' €</td>';
-			echo '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-weight:600;background:' . esc_attr( $st[1] ) . ';">' . esc_html( $st[0] ) . '</span></td>';
-			echo '<td>' . esc_html( $vu ) . '</td>';
-			$act_base = admin_url( 'admin.php?page=' . $page );
-			$u_storno = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'storno', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
-			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
-			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
-			echo '<td><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a> &middot; <a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
-			if ( 'storniert' === (string) $o->status ) {
-				echo ' &middot; <a href="' . esc_url( $u_react ) . '">Reaktivieren</a>';
-			} else {
-				echo ' &middot; <a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>';
-			}
-			echo ' &middot; <a href="' . esc_url( $u_del ) . '" style="color:#a00;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' unwiderruflich löschen?\');">Löschen</a>';
-			echo '</td>';
-			echo '</tr>';
+			$name = trim( (string) ( $cust['name'] ?? '' ) ); if ( '' === $name ) { $name = (string) ( $cust['email'] ?? '—' ); }
+			$ini  = ''; foreach ( array_slice( array_values( array_filter( explode( ' ', $name ) ) ), 0, 2 ) as $w ) { $ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
+			if ( '' === $ini ) { $ini = 'K'; }
+			$stb   = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
+			$items = json_decode( (string) $o->items_json, true ); $items = is_array( $items ) ? $items : array();
+			$vu_ts = $o->valid_until ? strtotime( (string) $o->valid_until . ' 23:59:59' ) : 0;
+			$days  = $vu_ts ? (int) ceil( ( $vu_ts - time() ) / DAY_IN_SECONDS ) : 0;
+			$badge = $stb[0];
+			if ( 'offen' === $o->status && $days > 0 ) { $badge .= ' · noch ' . $days . ' Tag' . ( 1 === $days ? '' : 'e' ); }
+			$txl   = $tax_lbl[ (string) $o->tax_mode ] ?? '';
+			$u_storno = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'storno', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$cnt = count( $items );
+			echo '<div class="card"><div class="crow"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $name ) . '</b><div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div></div><div class="meta"><span class="no">' . esc_html( (string) $o->offer_no ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sum">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . '&nbsp;€</span></div></div>';
+			echo '<div class="foot"><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+			if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
+			if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
+			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
 		}
-		echo '</tbody></table></div>';
+		echo '</div>';
 	}
 
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
