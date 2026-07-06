@@ -57,6 +57,9 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 
 /* Teile-Picker (Overlay) */
 .m24off-picker{position:fixed;inset:0;background:#fff;z-index:100080;display:flex;flex-direction:column;padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
+/* KRITISCH: display:flex überschreibt sonst das [hidden]-Attribut → Overlay läge dauerhaft über dem Editor
+   und schluckt alle Klicks („+"/„✕" tot, Layout zerwürfelt). Explizit ausblenden, solange geschlossen. */
+.m24off-picker[hidden]{display:none!important}
 .m24off-picker-head{display:flex;gap:10px;align-items:center}
 .m24off-picker-head input{flex:1;height:46px;padding:0 12px;border:1px solid #d3d8de;border-radius:8px;font-size:16px}
 .m24off-picker-x{border:0;background:none;font-size:28px;line-height:1;color:#9aa3b0;cursor:pointer}
