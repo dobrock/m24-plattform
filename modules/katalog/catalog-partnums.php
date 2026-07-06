@@ -50,9 +50,13 @@ class M24_Catalog_Partnums {
 		if ( 'm24_teil' !== get_post_type( $post_id ) ) { return 0; }
 		$p       = get_post( $post_id );
 		$content = $p ? (string) $p->post_content : '';
+		// Die eigentliche Beschreibung liegt im Meta _m24_beschreibung_de (nicht in post_content) — der
+		// entscheidende Fix: 8331770 steht NUR in der Beschreibung. _en defensiv mitlesen.
+		$desc_de = (string) get_post_meta( $post_id, '_m24_beschreibung_de', true );
+		$desc_en = (string) get_post_meta( $post_id, '_m24_beschreibung_en', true );
 		$hinweis = (string) get_post_meta( $post_id, '_m24_hinweis', true );
 		$bmw     = (string) get_post_meta( $post_id, '_m24_bmw_teilenummer', true );
-		$nums    = self::extract_from( $content, $hinweis, $bmw );
+		$nums    = self::extract_from( $content, $desc_de, $desc_en, $hinweis, $bmw );
 		if ( empty( $nums ) ) {
 			delete_post_meta( $post_id, self::META );
 			return 0;

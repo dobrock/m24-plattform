@@ -304,7 +304,7 @@ class M24_Offers_Render {
 		<!-- Teile-Picker (Overlay) -->
 		<div class="m24off-picker" data-picker hidden>
 			<div class="m24off-picker-head">
-				<input type="search" data-picker-q placeholder="Teil suchen (Name / Art.-Nr.)">
+				<input type="search" data-picker-q placeholder="Name / Art.-Nr. / BMW-Teilenr.">
 				<button type="button" class="m24off-picker-x" data-picker-close aria-label="Schließen">&times;</button>
 			</div>
 			<div class="m24off-chips" data-picker-cats>
