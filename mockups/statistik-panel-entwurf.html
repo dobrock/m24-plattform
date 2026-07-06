@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M24 — Statistik-Panel (Entwurf)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap');
+:root{
+  --brass:#9a6b25; --blue1:#1f74c4; --blue2:#0e447e;
+  --bg:#eef0f2; --card:#fff; --line:#e8e8ec; --txt:#1d2327; --mut:#787f87;
+  --up:#1a7f37; --up-bg:#e6f4ea; --down:#b3261e; --down-bg:#fbeae9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Saira',sans-serif;background:var(--bg);color:var(--txt);padding:28px 32px}
+.demo-note{font-size:12px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase;margin-bottom:18px}
+.demo-note b{color:var(--blue2)}
+
+/* Szene: links Listen-Platzhalter, rechts das echte Panel */
+.scene{display:grid;grid-template-columns:1fr 380px;gap:22px;max-width:1180px;align-items:start}
+.listghost{display:flex;flex-direction:column;gap:12px}
+.listghost .g{background:#fff;border:1px solid var(--line);border-radius:14px;height:96px;opacity:.55;display:flex;align-items:center;padding:0 18px;gap:14px}
+.listghost .g .a{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--blue1),var(--blue2));opacity:.5}
+.listghost .g .l{height:12px;width:40%;background:#e3e6ea;border-radius:6px}
+
+/* ── STAT PANEL ── */
+.panel{position:sticky;top:20px}
+.panel h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:10px}
+.period{display:flex;gap:4px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px}
+.period button{flex:1;border:0;background:transparent;border-radius:7px;padding:7px 4px;font:600 12.5px 'Saira';color:var(--mut);cursor:pointer}
+.period button.on{background:linear-gradient(135deg,var(--blue1),var(--blue2));color:#fff}
+.period button:hover:not(.on){background:#f2f5f8}
+.range{font-size:11.5px;color:var(--mut);margin:-6px 0 14px;text-align:center}
+
+/* Kacheln */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.tile.wide{grid-column:1/-1}
+.tile .k{font-size:11px;color:var(--mut);font-weight:600;letter-spacing:.02em;margin-bottom:6px}
+.tile .v{font-size:23px;font-weight:800;line-height:1;letter-spacing:-.01em}
+.tile .v small{font-size:14px;font-weight:700;color:var(--mut)}
+.trend{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 8px;margin-top:8px}
+.trend.up{background:var(--up-bg);color:var(--up)}
+.trend.down{background:var(--down-bg);color:var(--down)}
+.trend.flat{background:#eef0f2;color:var(--mut)}
+.tile .sub{font-size:10.5px;color:var(--mut);margin-top:6px}
+
+/* Highlight-Kachel Auftragssumme (Messing-Mikroakzent) */
+.tile.money{background:linear-gradient(135deg,var(--blue1),var(--blue2));border-color:transparent;color:#fff}
+.tile.money .k{color:rgba(255,255,255,.8)}
+.tile.money .v{color:#fff}
+.tile.money .trend.up{background:rgba(255,255,255,.18);color:#fff}
+.tile.money .sub{color:rgba(255,255,255,.75)}
+
+/* Mini-Funnel */
+.funnel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px}
+.funnel .k{font-size:11px;color:var(--mut);font-weight:600;margin-bottom:10px}
+.frow{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px}
+.frow .bar{height:22px;border-radius:6px;background:linear-gradient(135deg,var(--blue1),var(--blue2))}
+.frow .lab{width:96px;color:var(--txt);font-weight:600}
+.frow .num{margin-left:auto;font-weight:700}
+.frow.b2 .bar{opacity:.8}
+.frow.b3 .bar{background:var(--brass)}
+.foot{font-size:10.5px;color:var(--mut);text-align:center;margin-top:12px}
+
+.variants{max-width:1180px;margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vbox{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:16px 18px;font-size:13px;line-height:1.55}
+.vbox h4{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--blue2);margin-bottom:8px}
+.vbox b{color:var(--brass)}
+</style>
+</head>
+<body>
+
+<div class="demo-note">Entwurf · <b>Statistik-Panel</b> für die rechte Spalte — hier im Kontext der Angebote-Seite. Zeitraum-Buttons sind klickbar (Demo-Zahlen).</div>
+
+<div class="scene">
+  <div class="listghost">
+    <div class="g"><div class="a"></div><div class="l"></div></div>
+    <div class="g"><div class="a"></div><div class="l"></div></div>
+    <div class="g"><div class="a"></div><div class="l"></div></div>
+    <div class="g"><div class="a"></div><div class="l"></div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Statistik</h2>
+    <div class="period">
+      <button onclick="setP('w',this)">Woche</button>
+      <button class="on" onclick="setP('m',this)">Monat</button>
+      <button onclick="setP('q',this)">Quartal</button>
+      <button onclick="setP('j',this)">Jahr</button>
+    </div>
+    <div class="range" id="range">Juli 2026 · vs. Juni 2026</div>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="k">Anfragen eingegangen</div>
+        <div class="v" id="v_anf">42</div>
+        <span class="trend up" id="t_anf">▲ 18 %</span>
+      </div>
+      <div class="tile">
+        <div class="k">Angebote verschickt</div>
+        <div class="v" id="v_ver">31</div>
+        <span class="trend up" id="t_ver">▲ 9 %</span>
+      </div>
+      <div class="tile">
+        <div class="k">Angebote angenommen</div>
+        <div class="v" id="v_ang">19</div>
+        <span class="trend down" id="t_ang">▼ 4 %</span>
+        <div class="sub" id="s_quote">Annahmequote 61 %</div>
+      </div>
+      <div class="tile">
+        <div class="k">Angebotssumme</div>
+        <div class="v" id="v_asum">84,2<small> Tsd €</small></div>
+        <span class="trend up" id="t_asum">▲ 12 %</span>
+      </div>
+      <div class="tile money wide">
+        <div class="k">Auftragssumme (angenommen)</div>
+        <div class="v" id="v_osum">51,8<small> Tsd €</small></div>
+        <span class="trend up" id="t_osum">▲ 15 %</span>
+        <div class="sub">Ø Auftragswert 2.726 € · vs. Vormonat +6 %</div>
+      </div>
+    </div>
+
+    <div class="funnel">
+      <div class="k">Trichter (dieser Zeitraum)</div>
+      <div class="frow b1"><span class="lab">Anfragen</span><div class="bar" style="width:150px"></div><span class="num">42</span></div>
+      <div class="frow b2"><span class="lab">Angebote</span><div class="bar" style="width:110px"></div><span class="num">31</span></div>
+      <div class="frow b3"><span class="lab">Aufträge</span><div class="bar" style="width:68px"></div><span class="num">19</span></div>
+    </div>
+
+    <div class="foot">Trend jeweils vs. vorheriger Zeitraum gleicher Länge</div>
+  </div>
+</div>
+
+<div class="variants">
+  <div class="vbox">
+    <h4>Kontext Angebote-Seite</h4>
+    Zeigt alle fünf Kacheln + Trichter. Kernblick: <b>Auftragssumme</b> (angenommene/bezahlte Angebote) als Messing-freie Blau-Highlight-Kachel, weil das die Zahl ist, die zählt. Annahmequote als Subline unter „angenommen".
+  </div>
+  <div class="vbox">
+    <h4>Kontext Anfragen-Seite</h4>
+    Reduziert: <b>Anfragen eingegangen</b> (Trend), <b>→ in Angebote gewandelt</b> (Conversion), <b>offen/unbeantwortet</b>. Der Trichter ist hier identisch nutzbar — eine gemeinsame Komponente, die je Seite andere Kacheln einblendet.
+  </div>
+</div>
+
+<script>
+var data = {
+  w: {range:'KW 27 · vs. KW 26', anf:11,anf_t:'▲ 22 %',anf_u:1, ver:8,ver_t:'▲ 14 %',ver_u:1, ang:5,ang_t:'▲ 25 %',ang_u:1, quote:'Annahmequote 63 %', asum:'21,4',asum_t:'▲ 8 %',asum_u:1, osum:'13,1',osum_t:'▲ 19 %',osum_u:1},
+  m: {range:'Juli 2026 · vs. Juni 2026', anf:42,anf_t:'▲ 18 %',anf_u:1, ver:31,ver_t:'▲ 9 %',ver_u:1, ang:19,ang_t:'▼ 4 %',ang_u:0, quote:'Annahmequote 61 %', asum:'84,2',asum_t:'▲ 12 %',asum_u:1, osum:'51,8',osum_t:'▲ 15 %',osum_u:1},
+  q: {range:'Q3 2026 · vs. Q2 2026', anf:128,anf_t:'▲ 11 %',anf_u:1, ver:97,ver_t:'▲ 7 %',ver_u:1, ang:58,ang_t:'▲ 3 %',ang_u:1, quote:'Annahmequote 60 %', asum:'248',asum_t:'▲ 9 %',asum_u:1, osum:'151',osum_t:'▲ 6 %',osum_u:1},
+  j: {range:'2026 · vs. 2025', anf:503,anf_t:'▲ 27 %',anf_u:1, ver:388,ver_t:'▲ 21 %',ver_u:1, ang:236,ang_t:'▲ 24 %',ang_u:1, quote:'Annahmequote 61 %', asum:'1,02',asum_t:'▲ 23 %',asum_u:1, osum:'0,63',osum_t:'▲ 25 %',osum_u:1}
+};
+function tset(id,val,trendId,ttxt,up){
+  document.getElementById(id).innerHTML = val;
+  var el=document.getElementById(trendId); el.textContent=ttxt; el.className='trend '+(up?'up':'down');
+}
+function setP(p,btn){
+  document.querySelectorAll('.period button').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  var d=data[p];
+  document.getElementById('range').textContent=d.range;
+  document.getElementById('v_anf').textContent=d.anf; var e=document.getElementById('t_anf'); e.textContent=d.anf_t; e.className='trend '+(d.anf_u?'up':'down');
+  document.getElementById('v_ver').textContent=d.ver; e=document.getElementById('t_ver'); e.textContent=d.ver_t; e.className='trend '+(d.ver_u?'up':'down');
+  document.getElementById('v_ang').textContent=d.ang; e=document.getElementById('t_ang'); e.textContent=d.ang_t; e.className='trend '+(d.ang_u?'up':'down');
+  document.getElementById('s_quote').textContent=d.quote;
+  var unit = (p==='j')?' Mio €':' Tsd €';
+  document.getElementById('v_asum').innerHTML=d.asum+'<small>'+unit+'</small>'; e=document.getElementById('t_asum'); e.textContent=d.asum_t; e.className='trend '+(d.asum_u?'up':'down');
+  document.getElementById('v_osum').innerHTML=d.osum+'<small>'+unit+'</small>'; e=document.getElementById('t_osum'); e.textContent=d.osum_t; e.className='trend '+(d.osum_u?'up':'down');
+}
+</script>
+</body>
+</html>

@@ -132,7 +132,12 @@ class M24_Offers {
 		echo '<div class="flt">' . $chip( '', 'Alle' );
 		foreach ( array( 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
-		if ( empty( $rows ) ) { echo '<p>Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</p></div>'; return; }
+		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); } // Statistik-Panel rechts
+		if ( empty( $rows ) ) {
+			echo '<p>Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</p>';
+			if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
+			echo '</div>'; return;
+		}
 		foreach ( (array) $rows as $o ) {
 			$cust = json_decode( (string) $o->customer_json, true ) ?: array();
 			$name = trim( (string) ( $cust['name'] ?? '' ) ); if ( '' === $name ) { $name = (string) ( $cust['email'] ?? '—' ); }
@@ -156,6 +161,7 @@ class M24_Offers {
 			if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
 			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
 		}
+		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
 	}
 

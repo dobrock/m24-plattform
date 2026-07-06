@@ -449,7 +449,14 @@ class M24_Inquiries_Storage {
             . '<input type="search" name="s" value="' . esc_attr( $s ) . '" placeholder="Name, E-Mail oder G-Nr"><button class="button">Suchen</button></form>'
             . '</div>';
 
-        if ( empty( $cards ) ) { echo '<p>Keine Anfragen' . ( '' !== $s ? ' zur Suche' : ' in dieser Ansicht' ) . '.</p></div>'; return; }
+        // Statistik-Panel: zweispaltiges Layout (Karten links, Panel rechts).
+        if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); }
+
+        if ( empty( $cards ) ) {
+            echo '<p>Keine Anfragen' . ( '' !== $s ? ' zur Suche' : ' in dieser Ansicht' ) . '.</p>';
+            if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'inquiries' ); }
+            echo '</div>'; return;
+        }
 
         foreach ( $cards as $c ) {
             $p = $c['p'];
@@ -498,6 +505,7 @@ class M24_Inquiries_Storage {
             }
             echo '</div></div>';
         }
+        if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'inquiries' ); }
         echo '</div>';
     }
 }

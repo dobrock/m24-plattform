@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.310
+ * Version:           0.11.311
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -156,6 +156,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-b2b-header-login.php'; // G
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-updater.php';
 require_once M24_PLATTFORM_DIR . 'includes/inquiry-mail-template.php'; // Anfrage-Mail „Variante A" (reines HTML-Rendering)
 require_once M24_PLATTFORM_DIR . 'includes/image-optimization.php';    // WebP-Output + Qualität 90 + 4K-Schwelle (reine Filter)
+require_once M24_PLATTFORM_DIR . 'admin/class-m24-stats-panel.php'; // Statistik-Panel (rechte Spalte, vorerst Platzhalter)
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-settings.php';
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-mail-preview.php'; // Admin-Tool: Mail-/PDF-Vorschau + Test-Versand
 require_once M24_PLATTFORM_DIR . 'includes/admin/class-m24-editor-notices.php'; // Fremd-Admin-Notices auf den M24-Editoren unterdrücken
