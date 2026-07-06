@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.305
+ * Version:           0.11.306
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '015' );
+define( 'M24_PLATTFORM_DB_VERSION',  '016' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -168,6 +168,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-variant-price.php'; //
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-related.php';   // „Weitere Teile"-Auswahl + Admin-REST
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-related-fields.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-fields.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-partnums.php'; // v3/C1: Teilenummern-Index (_m24_partnums)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-admin-list.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-artnr.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-gallery.php';
@@ -289,6 +290,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_Related::init();
     M24_Catalog_Related_Fields::init();
     M24_Catalog_Fields::init();
+    M24_Catalog_Partnums::init(); // v3/C1: save_post-Reindex + Backfill-Cron
     M24_Catalog_Admin_List::init();
     M24_Catalog_Artnr::init();
     M24_Catalog_Gallery::init();

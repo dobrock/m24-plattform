@@ -296,33 +296,39 @@ class M24_Offers {
 		$cat    = sanitize_text_field( (string) $req->get_param( 'cat' ) ); // '', 'neu', 'gebraucht'
 		$q      = sanitize_text_field( (string) $req->get_param( 'q' ) );
 
-		$args = array(
-			'post_type'      => 'm24_teil',
-			'post_status'    => 'publish',
-			'posts_per_page' => 24,
-			'no_found_rows'  => true,
-			's'              => $q,
-		);
-		if ( '' !== $modell ) {
-			$args['tax_query'] = array( array( 'taxonomy' => 'm24_fahrzeugkat', 'field' => 'slug', 'terms' => $modell ) );
-		}
-		if ( 'neu' === $cat || 'gebraucht' === $cat ) {
-			$args['meta_query'] = array( array( 'key' => '_m24_typ', 'value' => $cat ) );
-		}
-		$out = array();
-		$posts = get_posts( $args );
-		foreach ( $posts as $p ) {
+		$qn  = preg_replace( '/\D/', '', $q ); // C1: normalisierte Ziffern-Query
+		$tax = ( '' !== $modell ) ? array( array( 'taxonomy' => 'm24_fahrzeugkat', 'field' => 'slug', 'terms' => $modell ) ) : array();
+		$mq  = ( 'neu' === $cat || 'gebraucht' === $cat ) ? array( array( 'key' => '_m24_typ', 'value' => $cat ) ) : array();
+
+		$mk = function ( $p, $match ) {
 			$price = self::teil_price( (int) $p->ID );
-			$out[] = array(
+			return array(
 				'id'     => (int) $p->ID,
 				'title'  => get_the_title( $p ),
 				'art_nr' => (string) get_post_meta( $p->ID, '_m24_artikelnummer', true ),
+				'bmw'    => (string) get_post_meta( $p->ID, '_m24_bmw_teilenummer', true ),
 				'price'  => ( null !== $price ) ? $price : null,
 				'tax25a' => self::is_tax25a( (int) $p->ID ),
 				'thumb'  => (string) get_the_post_thumbnail_url( $p->ID, 'thumbnail' ),
+				'match'  => $match, // 'partnum' → „Treffer nach BMW-Teilenummer", 'name' → Name/Art-Nr.
 			);
+		};
+
+		$out = array(); $seen = array();
+		// 1) Teilenummern-Pfad: ab ≥6 Ziffern gegen _m24_partnums (Substring auf normalisierte Nummern).
+		if ( strlen( $qn ) >= 6 ) {
+			$pmq   = array_merge( $mq, array( array( 'key' => '_m24_partnums', 'value' => $qn, 'compare' => 'LIKE' ) ) );
+			$pargs = array( 'post_type' => 'm24_teil', 'post_status' => 'publish', 'posts_per_page' => 24, 'no_found_rows' => true, 'meta_query' => $pmq );
+			if ( $tax ) { $pargs['tax_query'] = $tax; }
+			foreach ( get_posts( $pargs ) as $p ) { $seen[ (int) $p->ID ] = 1; $out[] = $mk( $p, 'partnum' ); }
 		}
-		return rest_ensure_response( array( 'ok' => true, 'items' => $out ) );
+		// 2) Name-/Art-Nr-Pfad (WP-Volltext 's'), Teilenummern-Treffer nicht doppeln.
+		$sargs = array( 'post_type' => 'm24_teil', 'post_status' => 'publish', 'posts_per_page' => 24, 'no_found_rows' => true, 's' => $q );
+		if ( $tax ) { $sargs['tax_query'] = $tax; }
+		if ( $mq ) { $sargs['meta_query'] = $mq; }
+		foreach ( get_posts( $sargs ) as $p ) { if ( isset( $seen[ (int) $p->ID ] ) ) { continue; } $out[] = $mk( $p, 'name' ); }
+
+		return rest_ensure_response( array( 'ok' => true, 'items' => $out, 'qnorm' => $qn ) );
 	}
 
 	private static function teil_price( int $pid ): ?float {

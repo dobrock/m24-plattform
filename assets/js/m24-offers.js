@@ -148,20 +148,30 @@
 				var list = $('[data-picker-list]'); if (!list) { return; }
 				list.innerHTML = '';
 				var arr = Array.isArray(d) ? d : ((d && (d.items || (d.data && d.data.items))) || []);
-				arr.forEach(function (it) {
-					var row = document.createElement('div');
-					row.className = 'm24off-pick';
-					row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pick-ph"></span>')
-						+ '<div class="m24off-pick-info"><span>' + esc(it.title) + '</span>'
-						+ (it.art_nr ? '<small>Art.-Nr.: ' + esc(it.art_nr) + '</small>' : '')
-						+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.tax25a ? ' · §25a' : '') + '</small></div>'
-						+ '<button type="button" class="m24off-pick-add" data-pick '
-						+ 'data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-art="' + esc(it.art_nr || '') + '" '
-						+ 'data-thumb="' + esc(it.thumb || '') + '" '
-						+ 'data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
-					list.appendChild(row);
-				});
-				if (!arr.length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; }
+					var qn = (d && d.qnorm) || '';
+					if (!arr.length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; return; }
+					function hl(str) {
+						if (!qn || !str) { return esc(str || ''); }
+						var digs = String(str).replace(/\D/g, ''); var pos = digs.indexOf(qn);
+						if (pos < 0) { return esc(str); }
+						var from = 0, to = str.length, c = 0;
+						for (var k = 0; k < str.length; k++) { if (/\d/.test(str[k])) { c++; if (c === pos + 1) { from = k; } if (c === pos + qn.length) { to = k + 1; break; } } }
+						return esc(str.slice(0, from)) + '<mark>' + esc(str.slice(from, to)) + '</mark>' + esc(str.slice(to));
+					}
+					var lastGrp = '';
+					arr.forEach(function (it) {
+						var grp = ('partnum' === it.match) ? 'Treffer nach BMW-Teilenummer' : 'Treffer nach Artikelname / Art-Nr.';
+						if (grp !== lastGrp) { var g = document.createElement('div'); g.className = 'm24off-pick-grp'; g.textContent = grp; list.appendChild(g); lastGrp = grp; }
+						var sub = ('partnum' === it.match && it.bmw) ? ('BMW ' + hl(it.bmw) + (it.art_nr ? ' · Art.-Nr. ' + esc(it.art_nr) : '')) : (it.art_nr ? 'Art.-Nr.: ' + esc(it.art_nr) : '');
+						var row = document.createElement('div');
+						row.className = 'm24off-pick';
+						row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pick-ph"></span>')
+							+ '<div class="m24off-pick-info"><span>' + esc(it.title) + '</span>'
+							+ (sub ? '<small>' + sub + '</small>' : '')
+							+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.tax25a ? ' · §25a' : '') + '</small></div>'
+							+ '<button type="button" class="m24off-pick-add" data-pick data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-art="' + esc(it.art_nr || '') + '" data-thumb="' + esc(it.thumb || '') + '" data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
+						list.appendChild(row);
+					});
 			});
 	}
 	function addFromPick(btn) {

@@ -283,3 +283,7 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 
 /* v3/E: Bankdaten-Box strikt versteckt bis „Angebot annehmen" (gegen Theme-CSS, das [hidden] überschreibt) */
 .m24off-paybox[hidden]{display:none!important}
+
+/* v3/C1: Teile-Picker — Gruppen-Header + Suchbegriff-Highlight */
+.m24off-pick-grp{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#8a929c;font-weight:700;padding:12px 0 4px;border-bottom:1px solid #eef0f2}
+.m24off-pick mark{background:#dcebfa;color:#0e447e;border-radius:2px;padding:0 1px}
