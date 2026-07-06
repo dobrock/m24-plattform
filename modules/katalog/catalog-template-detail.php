@@ -756,15 +756,18 @@ class M24_Catalog_Template_Detail {
 					var nettoFmt  = o.dataset.nettoFmt  || '';
 					var artnr     = o.dataset.artnr     || '';
 					var label     = o.dataset.label     || '';
+					var bruttoNum = o.dataset.brutto    || ''; // numerischer Brutto-Preis der Variante (#6)
 						if(abEl)abEl.hidden=true;
 					var bEl = root.querySelector('.m24-brutto-val'); if(bEl) bEl.textContent = bruttoFmt;
 					var nEl = root.querySelector('.m24-netto-val');  if(nEl && nettoFmt) nEl.textContent = nettoFmt;
 						if(pnetEl&&nettoFmt)pnetEl.style.display='';
 					var aEl = root.querySelector('.m24-artnr-value'); if(aEl && artnr) aEl.textContent = artnr;
-					root.querySelectorAll('.m24-frage, .m24-merken').forEach(function(btn){
+					root.querySelectorAll('.m24-frage, .m24-merken, .m24-garage-open').forEach(function(btn){
 						if(artnr)    btn.setAttribute('data-artnr', artnr);
 						if(bruttoFmt) btn.setAttribute('data-price', bruttoFmt);
 						btn.setAttribute('data-variant-label', label);
+						btn.setAttribute('data-variant-artnr', artnr);      // abweichende Varianten-Art-Nr. (#6)
+						btn.setAttribute('data-variant-brutto', bruttoNum); // Varianten-Brutto-Preis (#6)
 					});
 				});
 			}

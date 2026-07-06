@@ -422,6 +422,7 @@ class M24_Offers {
 				'teil_id'    => $teil_id,
 				'title'      => $title,
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
+				'variant'    => sanitize_text_field( (string) ( $it['variant'] ?? '' ) ), // #6: Varianten-Name im Angebot
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
 				'tax25a'     => $tax25a,            // Differenzbesteuerung (unabhängig von used)

@@ -155,7 +155,18 @@
 			var isToggle = btn.classList.contains('m24-garage-toggle');
 			var path = ( isToggle && inGarage ) ? '/remove' : '/add';
 			btn.dataset.m24gcBusy = '1';
-			post(path, { post_id: pid }).then(function (res) {
+			// #6: gewählte Variante (Label/Art-Nr./Brutto) mit an /add geben; leer, wenn keine Variante gewählt.
+			var payload = { post_id: pid };
+			if ('/add' === path) {
+				var vl = btn.getAttribute('data-variant-label') || '';
+				if (vl) {
+					payload.variant_label = vl;
+					payload.variant_artnr = btn.getAttribute('data-variant-artnr') || '';
+					var vb = btn.getAttribute('data-variant-brutto') || '';
+					if (vb) { payload.variant_price = vb; }
+				}
+			}
+			post(path, payload).then(function (res) {
 				btn.dataset.m24gcBusy = '';
 				if (res.ok && res.data && res.data.ok) {
 					updateCount(res.data.count);

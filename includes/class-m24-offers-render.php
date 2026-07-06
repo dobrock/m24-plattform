@@ -110,6 +110,7 @@ class M24_Offers_Render {
 						'teil_id'    => 0,
 						'title'      => $title,
 						'art_nr'     => sanitize_text_field( (string) ( $it['src_art_nr'] ?? '' ) ),
+						'variant'    => sanitize_text_field( (string) ( $it['src_variant'] ?? '' ) ), // #6: Variante in den Operator-Prefill
 						'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 						'unit_price' => is_numeric( $raw ) ? (float) $raw : 0.0,
 						'tax25a'     => false,
@@ -325,6 +326,7 @@ class M24_Offers_Render {
 					<<?php echo $tag; ?> class="m24off-pos<?php echo '' !== $url ? ' is-link' : ''; ?>"<?php echo $att; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
 						<div class="m24off-pos-main">
 							<span class="m24off-pos-title"><?php echo esc_html( $it['title'] ); ?></span>
+							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant">Variante: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
 							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
@@ -568,6 +570,7 @@ class M24_Offers_Render {
 				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $it['title'] ) . '</a>'
 				: '<span style="font-weight:600;">' . esc_html( $it['title'] ) . '</span>';
 			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
+				. ( ! empty( $it['variant'] ) ? '<br><span style="color:#1f74c4;font-size:12px;font-weight:600;">Variante: ' . esc_html( $it['variant'] ) . '</span>' : '' )
 				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'
 					. ( ! empty( $it['art_nr'] ) ? 'Art.-Nr.: ' . esc_html( $it['art_nr'] ) : '' )
 					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . 'gebraucht' : '' ) . '</span>' : '' )

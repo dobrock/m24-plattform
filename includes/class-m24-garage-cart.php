@@ -226,6 +226,8 @@ class M24_Garage_Cart {
 			. '.m24sa-foot{max-width:900px;margin:24px auto 40px;padding:18px 16px 0;border-top:1px solid #e6e9ee;text-align:center;font-size:12px;line-height:1.6;color:#9aa3b0}'
 			. '.m24sa-foot a{color:#1f74c4;text-decoration:none}'
 			. '.m24gc-line-net{display:block;font-weight:400;font-size:11px;color:#9aa3b0;margin-top:2px;white-space:nowrap}'
+			. '.m24gc-variant{display:block;font-size:12px;color:#1f74c4;font-weight:600}' // #6: Varianten-Name unter dem Titel
+
 			. 'a.m24gc-rowlink{text-decoration:none;color:inherit}'
 			. '@media(max-width:480px){'
 			// Titel-Bug: die Zeile hat .m24gc-title(grid-area:title) + .m24gc-info(grid-area:meta). Die alten Areas
@@ -350,11 +352,14 @@ class M24_Garage_Cart {
 			account_id BIGINT UNSIGNED NOT NULL,
 			post_type VARCHAR(20) NOT NULL,
 			post_id BIGINT UNSIGNED NOT NULL,
+			variant_label VARCHAR(190) NOT NULL DEFAULT '',
+			variant_artnr VARCHAR(100) NOT NULL DEFAULT '',
+			variant_price DECIMAL(10,2) NULL,
 			qty INT UNSIGNED NOT NULL DEFAULT 1,
 			added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NULL,
 			PRIMARY KEY (id),
-			UNIQUE KEY uniq_pos (account_id, post_type, post_id),
+			UNIQUE KEY uniq_pos_v (account_id, post_type, post_id, variant_label),
 			KEY idx_account (account_id)
 		) {$cc};" );
 	}
@@ -723,6 +728,7 @@ class M24_Garage_Cart {
 				'article_id'  => (int) $it['post_id'],
 				'title'       => (string) $it['title'],
 				'art_nr'      => (string) $it['artnr'],
+				'variant'     => (string) ( $it['variant'] ?? '' ), // #6: Varianten-Name mit in den Snapshot
 				'price_gross' => $gross,
 				'price_net'   => $net,
 				'qty'         => (int) $it['qty'],
@@ -1151,11 +1157,12 @@ class M24_Garage_Cart {
 		foreach ( $items as $it ) {
 			$price = ( null !== $it['unit'] ) ? number_format( (float) $it['unit'], 2, '.', '' ) : ''; // leer → Preis auf Anfrage
 			$out[] = array(
-				'art'        => (string) $it['title'],
-				'qty'        => (int) $it['qty'],
-				'price'      => $price,
-				'src_url'    => (string) $it['url'],
-				'src_art_nr' => (string) $it['artnr'],
+				'art'         => (string) $it['title'],
+				'qty'         => (int) $it['qty'],
+				'price'       => $price,
+				'src_url'     => (string) $it['url'],
+				'src_art_nr'  => (string) $it['artnr'],
+				'src_variant' => (string) ( $it['variant'] ?? '' ), // #6: Variante an die Anfrage/Desk-Push
 			);
 		}
 		return $out;
@@ -1233,9 +1240,16 @@ class M24_Garage_Cart {
 		$t   = self::table();
 		$now = current_time( 'mysql' );
 
+		// Paket G/#6: gewählte Variante mitführen (Label/Art-Nr./Brutto-Preis). Gleiche Teile-ID + andere
+		// Variante = eigene Position (Unique-Key uniq_pos_v inkl. variant_label).
+		$vlabel = sanitize_text_field( (string) $req->get_param( 'variant_label' ) );
+		$vartnr = sanitize_text_field( (string) $req->get_param( 'variant_artnr' ) );
+		$vpraw  = $req->get_param( 'variant_price' );
+		$vprice = ( null !== $vpraw && '' !== (string) $vpraw ) ? round( (float) $vpraw, 2 ) : null;
+
 		$row = $wpdb->get_row( $wpdb->prepare(
-			"SELECT id, qty FROM $t WHERE account_id = %d AND post_type = %s AND post_id = %d",
-			$acc, $pt, $pid
+			"SELECT id, qty FROM $t WHERE account_id = %d AND post_type = %s AND post_id = %d AND variant_label = %s",
+			$acc, $pt, $pid, $vlabel
 		), ARRAY_A );
 
 		if ( $row ) {
@@ -1243,11 +1257,14 @@ class M24_Garage_Cart {
 			$wpdb->update( $t, array( 'qty' => $qty, 'updated_at' => $now ), array( 'id' => (int) $row['id'] ) );
 		} else {
 			$wpdb->insert( $t, array(
-				'account_id' => $acc,
-				'post_type'  => $pt,
-				'post_id'    => $pid,
-				'qty'        => 1,
-				'added_at'   => $now,
+				'account_id'    => $acc,
+				'post_type'     => $pt,
+				'post_id'       => $pid,
+				'variant_label' => $vlabel,
+				'variant_artnr' => $vartnr,
+				'variant_price' => $vprice,
+				'qty'           => 1,
+				'added_at'      => $now,
 			) );
 		}
 		return rest_ensure_response( self::state( $acc, $pid, $pt ) );
@@ -1360,7 +1377,7 @@ class M24_Garage_Cart {
 		$t    = self::table();
 		// Sortierung: manuelle Reihenfolge (sort_order, Migration 009) zuerst, id als stabiler Tiebreaker.
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT id, post_type, post_id, qty, sort_order FROM $t WHERE account_id = %d ORDER BY sort_order ASC, id ASC",
+			"SELECT id, post_type, post_id, variant_label, variant_artnr, variant_price, qty, sort_order FROM $t WHERE account_id = %d ORDER BY sort_order ASC, id ASC",
 			$acc
 		), ARRAY_A );
 
@@ -1369,10 +1386,14 @@ class M24_Garage_Cart {
 			$pid = (int) $r['post_id'];
 			$pt  = (string) $r['post_type'];
 			if ( 'publish' !== get_post_status( $pid ) ) { continue; }
-			$qty   = max( 1, (int) $r['qty'] );
-			$unit  = self::unit_price( $pt, $pid );
-			$line  = ( null !== $unit ) ? $unit * $qty : null;
-			$thumb = get_the_post_thumbnail_url( $pid, 'medium' );
+			$qty    = max( 1, (int) $r['qty'] );
+			$vlabel = (string) ( $r['variant_label'] ?? '' );
+			$vartnr = (string) ( $r['variant_artnr'] ?? '' );
+			$vprice = ( isset( $r['variant_price'] ) && null !== $r['variant_price'] && '' !== (string) $r['variant_price'] ) ? (float) $r['variant_price'] : null;
+			$unit   = ( null !== $vprice ) ? $vprice : self::unit_price( $pt, $pid ); // Varianten-Preis (Brutto) hat Vorrang
+			$artnr  = ( '' !== $vartnr ) ? $vartnr : self::artnr( $pt, $pid );        // abweichende Varianten-Art-Nr. hat Vorrang
+			$line   = ( null !== $unit ) ? $unit * $qty : null;
+			$thumb  = get_the_post_thumbnail_url( $pid, 'medium' );
 			$out[] = array(
 				'row_id'        => (int) $r['id'],
 				'sort_order'    => (int) $r['sort_order'],
@@ -1382,7 +1403,8 @@ class M24_Garage_Cart {
 				'title'         => get_the_title( $pid ),
 				'url'           => (string) get_permalink( $pid ),
 				'thumb'         => $thumb ? (string) $thumb : '',
-				'artnr'         => self::artnr( $pt, $pid ),
+				'artnr'         => $artnr,
+				'variant'       => $vlabel,
 				'unit'          => $unit,
 				'unit_fmt'      => ( null !== $unit ) ? self::fmt( $unit ) : null,
 				'line_total'    => $line,
@@ -2163,6 +2185,7 @@ class M24_Garage_Cart {
 			</span>
 			<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 			<div class="m24gc-info">
+				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant">Variante: <?php echo esc_html( (string) $it['variant'] ); ?></span><?php endif; ?>
 				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( (string) $it['art_nr'] ); ?></span><?php endif; ?>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
