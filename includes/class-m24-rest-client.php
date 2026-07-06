@@ -71,6 +71,20 @@ class M24_REST_Client {
      *   2. Konstante M24_DESK_API_TOKEN aus wp-config.php
      *   3. DB-Setting api_key
      */
+    /** Ist der Desk vollständig konfiguriert (URL + Token/Key)? Zentraler Gate für Push/Sync + Cron-Scheduling. */
+    public static function is_configured(): bool {
+        return '' !== (string) self::get_base_url() && '' !== (string) self::get_api_key();
+    }
+
+    /** Einmal pro Tag eine info loggen, dass der Desk-Push mangels Token übersprungen wurde (kein Spam). */
+    private static function log_skip_once(): void {
+        if ( get_transient( 'm24_desk_skip_logged' ) ) { return; }
+        set_transient( 'm24_desk_skip_logged', 1, DAY_IN_SECONDS );
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( 'rest_client', 'info', 'Desk-Push übersprungen — kein M24_DESK_API_TOKEN', [] );
+        }
+    }
+
     public static function get_api_key() {
         // 1. Test-Mode: Dummy-Key, damit der Pre-Flight nicht abbricht.
         if ( class_exists( 'M24_Settings' ) && M24_Settings::is_test_mode_active() ) {
@@ -146,18 +160,12 @@ class M24_REST_Client {
         $base    = self::get_base_url();
         $api_key = self::get_api_key();
 
-        // Pre-Flight: Konfiguration vorhanden?
-        if ( ! $base ) {
-            return self::fail( 'rest_client', 'API-URL nicht konfiguriert', 0, [
-                'method' => $method,
-                'path'   => $path,
-            ] );
-        }
-        if ( ! $api_key ) {
-            return self::fail( 'rest_client', 'API-Key nicht konfiguriert', 0, [
-                'method' => $method,
-                'path'   => $path,
-            ] );
+        // Pre-Flight: Desk konfiguriert? Sonst SANFT überspringen — KEIN Request, KEIN error-Log, kein Retry-
+        // Spam. Nur einmalig eine info („Desk-Push übersprungen — kein Token"); der Aufrufer behandelt
+        // 'skipped' als „aufgeschoben", nicht als Fehler.
+        if ( ! $base || ! $api_key ) {
+            self::log_skip_once();
+            return [ 'ok' => false, 'skipped' => true, 'status' => 0, 'error' => 'desk_not_configured', 'message' => 'Desk-Push übersprungen — kein Token/keine URL.' ];
         }
 
         // Test-Mode-Pfad-Mapping: das Production-Backend liegt unter /api/health,

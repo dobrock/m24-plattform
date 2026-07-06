@@ -72,6 +72,26 @@ class M24_Inquiries_Push {
         // Cron-Callback fuer den eigentlichen Push.
         add_action( self::CRON_HOOK_PUSH,  [ __CLASS__, 'run_push' ], 10, 1 );
         add_action( self::CRON_HOOK_RETRY, [ __CLASS__, 'run_push' ], 10, 1 );
+
+        // Sobald der Desk-Token gesetzt ist: aufgeschobene Pushs nachholen (Set/Unset-sicher, gedrosselt).
+        add_action( 'admin_init', [ __CLASS__, 'maybe_resume_deferred' ] );
+    }
+
+    /** Aufgeschobene Anfragen (Desk war ohne Token) neu einplanen, sobald der Desk konfiguriert ist. */
+    public static function maybe_resume_deferred() {
+        if ( ! class_exists( 'M24_REST_Client' ) || ! M24_REST_Client::is_configured() ) { return; }
+        if ( get_transient( 'm24_push_resume_checked' ) ) { return; } // gedrosselt: max. 1×/Stunde
+        set_transient( 'm24_push_resume_checked', 1, HOUR_IN_SECONDS );
+        $ids = get_posts( [
+            'post_type'      => M24_Inquiries_Storage::CPT_SLUG,
+            'post_status'    => M24_Inquiries::STATUS_PENDING,
+            'meta_key'       => '_m24_push_deferred',
+            'meta_value'     => '1',
+            'fields'         => 'ids',
+            'posts_per_page' => 50,
+            'no_found_rows'  => true,
+        ] );
+        foreach ( (array) $ids as $id ) { self::schedule_push( (int) $id ); }
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -111,6 +131,14 @@ class M24_Inquiries_Push {
             return;
         }
 
+        // Desk nicht konfiguriert (kein Token/keine URL) → GAR NICHT schedulen. Als „aufgeschoben" markieren;
+        // maybe_resume_deferred() holt es nach, sobald der Token gesetzt ist. Kein Request, kein Retry-Spam.
+        if ( class_exists( 'M24_REST_Client' ) && ! M24_REST_Client::is_configured() ) {
+            update_post_meta( $post_id, '_m24_push_deferred', 1 );
+            return;
+        }
+        delete_post_meta( $post_id, '_m24_push_deferred' );
+
         // Sofort, nicht zukuenftig — WP-Cron picked es beim naechsten Page-Load.
         $scheduled = wp_schedule_single_event( time(), self::CRON_HOOK_PUSH, [ $post_id ] );
 
@@ -149,6 +177,14 @@ class M24_Inquiries_Push {
             self::log_info( $post_id, 'Push uebersprungen — Status ist nicht mehr pending', [
                 'current_status' => $post->post_status,
             ] );
+            return;
+        }
+
+        // Desk nicht konfiguriert → AUFSCHIEBEN statt in Dauerschleife retryen. Kein Request, kein error-Log,
+        // KEIN Retry-Reschedule (maybe_resume_deferred holt es nach, sobald der Token gesetzt ist).
+        if ( class_exists( 'M24_REST_Client' ) && ! M24_REST_Client::is_configured() ) {
+            update_post_meta( $post_id, '_m24_push_deferred', 1 );
+            self::log_info( $post_id, 'Push aufgeschoben — Desk nicht konfiguriert (kein Token)' );
             return;
         }
 
