@@ -157,12 +157,13 @@ class M24_Garage_Cart {
 		$consent   = function_exists( 'm24_inquiry_consent_html' ) ? m24_inquiry_consent_html() : 'Ich willige in die Verarbeitung meiner Angaben zur Bearbeitung der Anfrage ein. *';
 		$offer_css = '.m24sa-btn{display:inline-block;margin:18px auto 0;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 Saira,Arial,sans-serif;padding:12px 22px;cursor:pointer}'
 			. '.m24sa-flash{max-width:900px;margin:16px auto 0;padding:14px 16px;background:#eafaf0;border:1px solid #bfe6cd;border-radius:10px;color:#1a7f37;font-size:14px}'
-			. '.m24sa-form{max-width:900px;margin:20px auto 0;padding:22px;background:#fff;border:1px solid #eef0f2;border-radius:14px;scroll-margin-top:16px}'
+			. '.m24sa-form{max-width:900px;margin:20px auto 0;padding:22px;background:#fff;border:1px solid #eef0f2;border-radius:14px;scroll-margin-top:16px;max-height:2000px;overflow:hidden;transition:max-height .4s ease,opacity .3s ease,padding .3s ease,margin .3s ease,border-width .3s ease}'
+			. '.m24sa-form[data-collapsed]{max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;border-width:0}' // initial ausgeblendet, weiches Einblenden per JS
 			. '.m24sa-form-h{margin:0 0 6px;font-size:20px}.m24sa-form-sub{margin:0 0 16px;color:#5a6474;font-size:13.5px;line-height:1.5}.m24sa-form-note{margin:0 0 14px;color:#5a6474;font-size:13.5px}'
 			. '.m24sa-f{display:block;margin:0 0 12px}.m24sa-f>span{display:block;font-size:12px;font-weight:600;color:#5a6474;margin:0 0 4px}'
 			. '.m24sa-f input,.m24sa-f textarea,.m24sa-f select{width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid #d3d8de;border-radius:8px;font:400 16px/1.3 Saira,Arial,sans-serif;background:#fff}'
 			. '.m24sa-f textarea{min-height:90px}'
-			. '.m24sa-seg{display:inline-flex;border:1px solid #d3d8de;border-radius:8px;overflow:hidden}.m24sa-seg label{position:relative;padding:10px 18px;font-size:14px;cursor:pointer;background:#fff}.m24sa-seg label+label{border-left:1px solid #d3d8de}.m24sa-seg input{position:absolute;opacity:0;inset:0;cursor:pointer}.m24sa-seg input:checked+span{color:#1f74c4;font-weight:700}'
+			. '.m24sa-seg{display:flex;width:100%;border:1px solid #d3d8de;border-radius:8px;overflow:hidden}.m24sa-seg label{flex:1 1 0;box-sizing:border-box;position:relative;padding:12px 10px;font-size:14px;cursor:pointer;background:#fff;text-align:center;display:flex;align-items:center;justify-content:center;min-height:46px}.m24sa-seg label+label{border-left:1px solid #d3d8de}.m24sa-seg input{position:absolute;opacity:0;inset:0;cursor:pointer}.m24sa-seg input:checked+span{color:#1f74c4;font-weight:700}'
 			. '.m24sa-consent{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#5a6474;margin:8px 0 12px}.m24sa-consent a{color:#1f74c4}'
 			. '.m24sa-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden}'
 			. '.m24sa-submit{width:100%;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 Saira,Arial,sans-serif;padding:14px;cursor:pointer;margin-top:4px}';
@@ -188,7 +189,7 @@ class M24_Garage_Cart {
 					. '<label class="m24sa-consent"><input type="checkbox" name="consent" value="1" required> <span>' . $consent . '</span></label>'
 					. '<label class="m24sa-consent"><input type="checkbox" name="register" value="1"> <span>Kostenloses MOTORSPORT24-Kundenkonto anlegen und meine Garage übernehmen.</span></label>';
 			}
-			$offer_form = '<section class="m24sa-form" id="m24-kontakt">'
+			$offer_form = '<section class="m24sa-form" id="m24-kontakt" data-collapsed>'
 				. '<h2 class="m24sa-form-h">Angebot anfragen</h2>'
 				. '<p class="m24sa-form-sub">Wir übernehmen Deine Auswahl automatisch — Du musst nichts erneut eingeben. Nach dem Absenden melden wir uns mit einem verbindlichen Angebot inkl. Verpackung, Versand und (falls nötig) Zollabwicklung.</p>'
 				. '<form method="post" action="' . $ap_url . '">'
@@ -202,8 +203,8 @@ class M24_Garage_Cart {
 		}
 		$offer_js = $has_parts ? (
 			'<script>(function(){var form=document.getElementById("m24-kontakt");'
-			. 'function go(){if(!form)return;try{form.scrollIntoView({behavior:"smooth",block:"start"});}catch(e){form.scrollIntoView();}'
-			. 'var fld=form.querySelector("input[name=name],textarea[name=nachricht]");if(fld)fld.focus();}'
+			. 'function go(){if(!form)return;form.removeAttribute("data-collapsed");try{form.scrollIntoView({behavior:"smooth",block:"start"});}catch(e){form.scrollIntoView();}'
+			. 'var fld=form.querySelector("input[name=name],textarea[name=nachricht]");if(fld)setTimeout(function(){fld.focus();},320);}'
 			. 'var b=document.getElementById("m24-angebot-open");if(b)b.addEventListener("click",function(e){e.preventDefault();go();});'
 			. 'if(/[?&]angebot=start/.test(location.search)||"#m24-kontakt"===location.hash)setTimeout(go,80);})();</script>'
 		) : '';
@@ -234,7 +235,7 @@ class M24_Garage_Cart {
 			. '.m24gc-shared .m24gc-row .m24gc-thumb{grid-area:thumb;width:72px;height:56px}'
 			. '.m24gc-shared .m24gc-row .m24gc-info{grid-area:meta;min-width:0}'
 			. '.m24gc-shared .m24gc-row .m24gc-title{font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
-			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}'
+			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}.m24gc-shared .m24gc-row .m24gc-qty,.m24gc-shared .m24gc-row .m24gc-line{align-self:start}'
 			. '}'
 			. $offer_css . '</style></head><body>'
 			. '<div class="m24sa-bar"><div class="m24sa-bar-inner"><img src="' . $logo . '" alt="MOTORSPORT24"></div></div>'
@@ -2020,10 +2021,12 @@ class M24_Garage_Cart {
 			<header class="m24gc-dash-head">
 				<h1 class="m24gc-dash-title">Geteilte Garage</h1>
 				<?php
-				$snap_ts   = ( $created > 0 ) ? $created : current_time( 'timestamp' );
-				$snap_when = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
+				$snap_ts    = ( $created > 0 ) ? $created : current_time( 'timestamp' );
+				$snap_when  = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
+				$owner_u    = get_userdata( $acc );
+				$owner_mail = $owner_u ? (string) $owner_u->user_email : '';
 				?>
-				<p class="m24gc-shared-hint">Ein Blick in meine Garage vom <?php echo esc_html( $snap_when ); ?> Uhr.</p>
+				<p class="m24gc-shared-hint">Ein Blick in die Garage<?php echo '' !== $owner_mail ? ' von ' . esc_html( $owner_mail ) : ''; ?>, erstellt am <?php echo esc_html( $snap_when ); ?> Uhr.</p>
 					<?php $gno = self::garage_no( $acc, false ); ?>
 					<?php if ( '' !== $gno ) : ?><p class="m24gc-shared-no">Garagen-Nr. <?php echo esc_html( $gno ); ?></p><?php endif; ?>
 			</header>
@@ -2069,8 +2072,7 @@ class M24_Garage_Cart {
 			$gross = isset( $it['price_gross'] ) && null !== $it['price_gross'] ? (float) $it['price_gross'] : null;
 		}
 		$qty   = max( 1, (int) ( $it['qty'] ?? 1 ) );
-		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : '—';
-		$unit  = ( null !== $gross ) ? self::fmt( $gross ) : 'Preis auf Anfrage';
+		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : 'Preis auf Anfrage';
 		// Netto pro Position (kaufmännisch gerundet) — dezente Grau-Zeile unter dem Brutto.
 		$net_line = ( null !== $gross ) ? self::fmt( round( $gross * $qty / 1.19, 2 ) ) : '';
 
@@ -2093,7 +2095,6 @@ class M24_Garage_Cart {
 			<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 			<div class="m24gc-info">
 				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( (string) $it['art_nr'] ); ?></span><?php endif; ?>
-				<span class="m24gc-unit"><?php echo esc_html( $unit ); ?></span>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
 			<div class="m24gc-line"><?php echo esc_html( $line ); ?><?php if ( '' !== $net_line ) : ?><span class="m24gc-line-net">inkl. 19 % MwSt · <?php echo esc_html( $net_line ); ?> netto</span><?php endif; ?></div>
