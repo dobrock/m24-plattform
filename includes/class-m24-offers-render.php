@@ -470,7 +470,7 @@ class M24_Offers_Render {
 			<?php if ( $is_b2c ) : ?>
 			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 			<?php endif; ?>
-			<details class="m24off-acc"><summary>Gewährleistung &amp; Steuer</summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
+			<details class="m24off-acc"><summary>Gewährleistung &amp; Steuer</summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 
 			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
 			<!-- B/D: „Angebot annehmen" → Status angenommen (DB) + Bankdaten (erst nach Klick im DOM) -->
@@ -623,7 +623,7 @@ class M24_Offers_Render {
 		return $h;
 	}
 	/** Accordion „Gewährleistung & Steuer" — modusabhängig. */
-	private static function gewaehr_accordion( bool $is_b2c, bool $has_used ): string {
+	private static function gewaehr_accordion( bool $is_b2c, bool $has_used, bool $has_25a = false ): string {
 		$h = '';
 		if ( ! $is_b2c ) {
 			$h .= '<p><strong>Gewährleistung.</strong> Verkauf im Rahmen eines Handelsgeschäfts unter Ausschluss der Sachmängelhaftung. Ausgenommen sind Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
@@ -632,7 +632,11 @@ class M24_Offers_Render {
 			// gebrauchte Ware"). Bei reinen Neuware-Angeboten wird dieser Zweig gar nicht erreicht (has_used=false).
 			$h .= '<p><strong>Gewährleistung.</strong> Für als gebraucht gekennzeichnete Artikel wird die Verjährungsfrist für Mängelansprüche auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
 		}
-		$h .= '<p>' . esc_html( self::st25a_line() ) . ' (bei entsprechend gekennzeichneten Positionen).</p>';
+		// §25a-Satz NUR, wenn tatsächlich ≥1 Position differenzbesteuert ist. Bei reinen regelbesteuerten
+		// Angeboten (z. B. DE 19 % ohne §25a) weglassen — sonst widersprüchlich neben „USt 19 %".
+		if ( $has_25a ) {
+			$h .= '<p>' . esc_html( self::st25a_line() ) . ' (bei entsprechend gekennzeichneten Positionen).</p>';
+		}
 		$h .= '<p><strong>Anbieter:</strong> ' . esc_html( self::company_line() ) . '</p>';
 		$links = array(); $ll = self::legal_links();
 		foreach ( array( 'Impressum', 'AGB', 'Datenschutz' ) as $k ) {
