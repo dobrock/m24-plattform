@@ -74,8 +74,8 @@ class M24_Garage_Cart {
 		add_action( 'init', array( __CLASS__, 'add_share_rewrite' ), 5 );
 		// Legacy-Query-URLs (?m24garage_share=) 301 → Pfad-URL (vor dem Owner-Redirect).
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_legacy_share' ), 0 );
-		// Garage-Link wasserdicht (server-seitig, JS-/cache-unabhängig): Eigentümer immer auf eigenen Token.
-		add_action( 'template_redirect', array( __CLASS__, 'maybe_redirect_owner_to_token' ), 1 );
+		// Kein Owner→Token-Redirect mehr: /meine-garage/ ist die LIVE-editierbare Garage; die Token-URL
+		// (/geteilt/{token}) bleibt der eingefrorene, schreibgeschützte Snapshot — sauber getrennt.
 		// Share-View als theme-unabhängiges Standalone-Dokument rendern (tagDiv-Mobile-Content-Pipeline umgehen).
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_standalone_share' ), 5 );
 		// Paket 4: Garagen-Nr. am Kundenprofil (anzeigen + manuell editierbar) + Lookup-Seite im Backend.
@@ -99,9 +99,9 @@ class M24_Garage_Cart {
 		$token = self::current_share_token();
 		$acc   = self::resolve_share_token( $token );
 		if ( $acc <= 0 ) { return; }                                   // ungültiger Token → normaler Flow
-		$me = self::current_account_id();
-		if ( $me > 0 && $me === $acc ) { return; }                     // Eigentümer → editierbare Ansicht (Shortcode)
 		if ( null === self::read_snapshot( $token ) ) { return; }      // kein Snapshot → normaler Flow
+		// Token-URL = eingefrorener, schreibgeschützter Snapshot für ALLE (inkl. Eigentümer). Die Live-/
+		// editierbare Garage ist ausschließlich unter /meine-garage/ (ohne Token) erreichbar.
 		self::render_shared_standalone( $token );                      // exit-et
 	}
 
@@ -1581,11 +1581,10 @@ class M24_Garage_Cart {
 		$share = self::current_share_token();
 		$acc   = self::current_account_id();
 		if ( '' !== $share ) {
-			// Eigener Token beim eingeloggten Eigentümer → editierbare Ansicht (Adresszeile-Spiegel reload-sicher).
-			// Nur fremde/ausgeloggte Besucher bekommen die read-only Ansicht.
-			if ( ! ( $acc > 0 && self::resolve_share_token( $share ) === $acc ) ) {
-				return self::render_shared( $share );
-			}
+			// Token-URL ist IMMER die eingefrorene, schreibgeschützte Snapshot-Ansicht — auch für den Eigentümer.
+			// Die Live-/editierbare Garage ist ausschließlich unter /meine-garage/ (ohne Token) erreichbar (Fallback,
+			// falls das Standalone-Rendering keinen Snapshot fand).
+			return self::render_shared( $share );
 		}
 
 		ob_start();

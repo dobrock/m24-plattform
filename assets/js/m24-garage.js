@@ -316,13 +316,10 @@
 
 		function shareMsg(t) { if (msgEl) { msgEl.textContent = t || ''; } }
 
-		// Adresszeile = der teilbare Token-Link (deckt „Adresszeile kopieren" ab). Eigentümer sieht dabei
-		// weiter die editierbare Ansicht (Server rendert den eigenen Token nicht read-only).
-		function mirrorUrl(url) {
-			if (url && url.indexOf('m24garage_share=') !== -1 && window.history && history.replaceState) {
-				try { history.replaceState(null, '', url); } catch (e) {}
-			}
-		}
+		// Adresszeile NICHT mehr auf den Token spiegeln: die Token-URL ist jetzt serverseitig für ALLE die
+		// eingefrorene read-only Ansicht. Der Eigentümer bleibt unter /meine-garage/ (live editierbar); der
+		// teilbare Link steht im Share-Panel zum Kopieren bereit. (No-op bewusst beibehalten.)
+		function mirrorUrl(url) { /* absichtlich leer — kein Token in der Adresszeile des Eigentümers */ }
 
 		function shortUrl(url) { return (url || '').replace(/^https?:\/\//, '').replace(/\/+$/, ''); }
 

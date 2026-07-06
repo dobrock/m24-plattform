@@ -59,7 +59,7 @@
 				row.className = 'm24gt-it'; row.href = it.url || '#';
 				row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24gt-thumb-ph"></span>')
 					+ '<div class="m24gt-it-main"><div class="t">' + esc(it.title) + '</div>'
-					+ '<div class="m24gt-it-meta">' + (it.artnr ? 'Art.-Nr. ' + esc(it.artnr) + ' · ' : '') + '×' + (it.qty || 1) + (it.variant ? ' · ' + esc(it.variant) : '') + '</div></div>'
+					+ '<div class="m24gt-it-meta">' + (it.artnr ? 'Art.-Nr. ' + esc(it.artnr) + ' · ' : '') + '×' + (it.qty || 1) + (it.variant ? ' · Variante: ' + esc(it.variant) : '') + '</div></div>'
 					+ '<div class="p">' + esc(it.line_fmt || it.unit_fmt || 'auf Anfrage') + '</div>';
 				itemsEl.appendChild(row);
 			});
