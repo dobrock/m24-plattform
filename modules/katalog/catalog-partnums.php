@@ -17,12 +17,15 @@ class M24_Catalog_Partnums {
 	const CRON      = 'm24_partnums_backfill';
 	const CURSOR    = 'm24_partnums_cursor';
 	const COUNT     = 'm24_partnums_indexed_count';
+	const TOTAL     = 'm24_partnums_total';
 	const DONE      = 'm24_partnums_backfill_done';
 	const BATCH     = 40;
 
 	public static function init() {
 		add_action( 'save_post_m24_teil', array( __CLASS__, 'on_save' ), 20, 1 );
 		add_action( self::CRON, array( __CLASS__, 'run_backfill' ) );
+		add_action( 'admin_post_m24_partnums_rebuild', array( __CLASS__, 'handle_rebuild' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
 	}
 
 	/** Ziffernfolgen (≥7, ≤13) aus Rohtexten; 11-stellig zusätzlich als letzte-7-Alias. Dedupe. */
@@ -70,18 +73,22 @@ class M24_Catalog_Partnums {
 		self::reindex( (int) $post_id );
 	}
 
-	/** Backfill (neu) starten — von der Migration aufgerufen. */
-	public static function start_backfill() {
-		update_option( self::CURSOR, 0, false );
-		update_option( self::COUNT, 0, false );
-		delete_option( self::DONE );
-		if ( ! wp_next_scheduled( self::CRON ) ) {
-			wp_schedule_single_event( time() + 10, self::CRON );
-		}
+	private static function total_teile(): int {
+		global $wpdb;
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'm24_teil'" ); // phpcs:ignore WordPress.DB
 	}
 
-	/** Ein Häppchen abarbeiten (Cursor über ID); reschedult sich selbst bis fertig. OPcache-/Timeout-sicher. */
-	public static function run_backfill() {
+	/** Cursor/Zähler zurücksetzen. WICHTIG: löscht KEINE bestehenden _m24_partnums-Metas — der alte Index
+	 *  bleibt pro Artikel gültig, bis reindex() ihn in-place überschreibt → kein globales Leerfenster. */
+	private static function reset_cursor(): void {
+		update_option( self::CURSOR, 0, false );
+		update_option( self::COUNT, 0, false );
+		update_option( self::TOTAL, self::total_teile(), false );
+		delete_option( self::DONE );
+	}
+
+	/** Ein Häppchen abarbeiten. @return bool true = es gibt noch mehr. */
+	public static function process_chunk(): bool {
 		global $wpdb;
 		$cursor = (int) get_option( self::CURSOR, 0 );
 		$ids    = $wpdb->get_col( $wpdb->prepare(
@@ -89,15 +96,13 @@ class M24_Catalog_Partnums {
 			$cursor,
 			self::BATCH
 		) ); // phpcs:ignore WordPress.DB
-
 		if ( empty( $ids ) ) {
 			update_option( self::DONE, gmdate( 'c' ), false );
 			if ( class_exists( 'M24_Error_Log' ) ) {
 				M24_Error_Log::capture( 'partnums_backfill', 'info', 'Teilenummern-Backfill fertig', array( 'artikel_mit_index' => (int) get_option( self::COUNT, 0 ) ) );
 			}
-			return;
+			return false;
 		}
-
 		$indexed = (int) get_option( self::COUNT, 0 );
 		foreach ( $ids as $id ) {
 			if ( self::reindex( (int) $id ) > 0 ) { $indexed++; }
@@ -105,8 +110,57 @@ class M24_Catalog_Partnums {
 		}
 		update_option( self::CURSOR, $cursor, false );
 		update_option( self::COUNT, $indexed, false );
-		if ( ! wp_next_scheduled( self::CRON ) ) {
+		return true;
+	}
+
+	/** Cron: ein Häppchen + selbst reschedulen bis fertig. OPcache-/Timeout-sicher. */
+	public static function run_backfill() {
+		if ( self::process_chunk() && ! wp_next_scheduled( self::CRON ) ) {
 			wp_schedule_single_event( time() + 20, self::CRON );
 		}
+	}
+
+	/** Backfill (neu) per Cron starten — von der Migration aufgerufen. */
+	public static function start_backfill() {
+		self::reset_cursor();
+		if ( ! wp_next_scheduled( self::CRON ) ) {
+			wp_schedule_single_event( time() + 10, self::CRON );
+		}
+	}
+
+	/** Manueller Sofort-Rebuild (nicht cron-abhängig): Häppchen im Zeitbudget, Rest per Cron. */
+	public static function rebuild_now(): void {
+		if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 0 ); } // phpcs:ignore
+		self::reset_cursor();
+		$deadline = time() + 18;
+		$more     = true;
+		while ( $more && time() < $deadline ) { $more = self::process_chunk(); }
+		if ( $more && ! wp_next_scheduled( self::CRON ) ) { wp_schedule_single_event( time() + 5, self::CRON ); }
+	}
+
+	public static function handle_rebuild() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Keine Berechtigung.' ); }
+		check_admin_referer( 'm24_partnums_rebuild' );
+		self::rebuild_now();
+		wp_safe_redirect( add_query_arg( 'm24pn', 'rebuilt', wp_get_referer() ?: admin_url() ) );
+		exit;
+	}
+
+	/** Fortschritts-/Trigger-Notice auf der Teile-Liste + im Fehlerprotokoll. */
+	public static function admin_notice() {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$s   = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		$sid = ( $s && isset( $s->id ) ) ? (string) $s->id : '';
+		if ( false === strpos( $sid, 'm24_teil' ) && false === strpos( $sid, 'm24-error-log' ) ) { return; }
+		$done = (string) get_option( self::DONE, '' );
+		$cnt  = (int) get_option( self::COUNT, 0 );
+		$tot  = (int) get_option( self::TOTAL, 0 );
+		$url  = wp_nonce_url( admin_url( 'admin-post.php?action=m24_partnums_rebuild' ), 'm24_partnums_rebuild' );
+		if ( '' === $done && $tot > 0 ) { $prog = ' — Aufbau läuft: <strong>' . $cnt . ' / ' . $tot . '</strong> Artikel'; }
+		elseif ( '' !== $done ) { $prog = ' — fertig: <strong>' . $cnt . '</strong> Artikel mit ≥1 Teilenummer'; }
+		else { $prog = ''; }
+		echo '<div class="notice notice-info"><p><strong>Teilenummern-Index</strong>' . wp_kses_post( $prog ) // phpcs:ignore WordPress.Security.EscapeOutput
+			. ' <a href="' . esc_url( $url ) . '" class="button button-secondary" style="margin-left:8px;">Jetzt neu aufbauen</a>'
+			. ( isset( $_GET['m24pn'] ) && 'rebuilt' === $_GET['m24pn'] ? ' <em>Neu angestoßen.</em>' : '' ) . '</p></div>'; // phpcs:ignore WordPress.Security.NonceVerification
 	}
 }

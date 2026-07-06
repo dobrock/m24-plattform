@@ -322,6 +322,28 @@ class M24_Offers {
 			if ( $tax ) { $pargs['tax_query'] = $tax; }
 			foreach ( get_posts( $pargs ) as $p ) { $seen[ (int) $p->ID ] = 1; $out[] = $mk( $p, 'partnum' ); }
 		}
+		// 1b) Fallback-Härtung: Index leer/unvollständig (z. B. während Rebuild) → Live-Scan der Rohfelder,
+		// normalisiert wie der Index, gedeckelt (200 Kandidaten / 24 Treffer). Nie „0 durch leeren Index".
+		if ( strlen( $qn ) >= 6 && empty( $seen ) && class_exists( 'M24_Catalog_Partnums' ) ) {
+			$fargs = array( 'post_type' => 'm24_teil', 'post_status' => 'publish', 'posts_per_page' => 200, 'no_found_rows' => true, 'fields' => 'ids' );
+			if ( $tax ) { $fargs['tax_query'] = $tax; }
+			if ( $mq ) { $fargs['meta_query'] = $mq; }
+			$added = 0;
+			foreach ( get_posts( $fargs ) as $pid ) {
+				$pid  = (int) $pid;
+				$nums = M24_Catalog_Partnums::extract_from(
+					(string) get_post_field( 'post_content', $pid ),
+					(string) get_post_meta( $pid, '_m24_beschreibung_de', true ),
+					(string) get_post_meta( $pid, '_m24_beschreibung_en', true ),
+					(string) get_post_meta( $pid, '_m24_hinweis', true ),
+					(string) get_post_meta( $pid, '_m24_bmw_teilenummer', true )
+				);
+				foreach ( $nums as $n ) {
+					if ( false !== strpos( $n, $qn ) ) { $seen[ $pid ] = 1; $out[] = $mk( get_post( $pid ), 'partnum' ); $added++; break; }
+				}
+				if ( $added >= 24 ) { break; }
+			}
+		}
 		// 2) Name-/Art-Nr-Pfad (WP-Volltext 's'), Teilenummern-Treffer nicht doppeln.
 		$sargs = array( 'post_type' => 'm24_teil', 'post_status' => 'publish', 'posts_per_page' => 24, 'no_found_rows' => true, 's' => $q );
 		if ( $tax ) { $sargs['tax_query'] = $tax; }
