@@ -1462,6 +1462,8 @@ class M24_Garage_Cart {
 					<div class="m24gt-sumrow"><span>Gesamt inkl. 19&nbsp;% MwSt</span><b data-m24gt-sum>0,00&nbsp;€</b></div>
 					<a class="m24gt-btn m24gt-btn-blue" data-m24gt-cta-garage href="<?php echo esc_url( self::page_url() ); ?>">Zur Garage</a>
 					<a class="m24gt-btn m24gt-btn-ghost" data-m24gt-cta-inquire href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
+					<button type="button" class="m24gt-btn m24gt-btn-share" data-m24gt-share hidden>Garage teilen (7 Tage)</button>
+					<div class="m24gt-sharebox" data-m24gt-sharebox hidden><input type="text" readonly data-m24gt-shareurl><button type="button" data-m24gt-copy>Kopieren</button></div>
 				</div>
 			</aside>
 		</div>
@@ -1528,6 +1530,7 @@ class M24_Garage_Cart {
 			'garageNo' => $acc_now > 0 ? self::garage_no( $acc_now, false ) : '',
 			'guestKey' => 'm24_guest_garage',
 			'loginUrl' => esc_url_raw( class_exists( 'M24_B2B_Auth' ) && method_exists( 'M24_B2B_Auth', 'login_url' ) ? M24_B2B_Auth::login_url() : home_url( '/haendler-login/' ) ),
+			'guestShare' => esc_url_raw( rest_url( self::NS . '/garage/guest-share' ) ), // #4: anonymer 7-Tage-Share
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),

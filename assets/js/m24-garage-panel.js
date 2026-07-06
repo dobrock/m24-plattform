@@ -84,6 +84,29 @@
 		if (loginA) { loginA.href = lg; }
 		if (cg) { cg.href = lg; }
 		if (ci) { ci.href = lg; }
+
+		// #4: anonymer 7-Tage-Share — Link ohne Konto erzeugen (nur IDs/Varianten/Mengen, keine PII).
+		var shareBtn = $('[data-m24gt-share]'), shareBox = $('[data-m24gt-sharebox]'), shareUrl = $('[data-m24gt-shareurl]'), copyBtn = $('[data-m24gt-copy]');
+		if (shareBtn && cfg.guestShare) {
+			shareBtn.hidden = false;
+			shareBtn.addEventListener('click', function () {
+				var g = guestItems(); if (!g.length) { return; }
+				shareBtn.disabled = true; shareBtn.textContent = 'Erstelle Link …';
+				fetch(cfg.guestShare, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: g }) })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						shareBtn.disabled = false; shareBtn.textContent = 'Garage teilen (7 Tage)';
+						if (d && d.ok && d.url && shareUrl) { shareUrl.value = d.url; if (shareBox) { shareBox.hidden = false; } shareUrl.focus(); shareUrl.select(); }
+					}).catch(function () { shareBtn.disabled = false; shareBtn.textContent = 'Garage teilen (7 Tage)'; });
+			});
+		}
+		if (copyBtn && shareUrl) {
+			copyBtn.addEventListener('click', function () {
+				shareUrl.select();
+				if (navigator.clipboard) { try { navigator.clipboard.writeText(shareUrl.value); } catch (e) {} } else { try { document.execCommand('copy'); } catch (e) {} }
+				copyBtn.textContent = 'Kopiert ✓'; setTimeout(function () { copyBtn.textContent = 'Kopieren'; }, 1500);
+			});
+		}
 	}
 
 	if (tab) { tab.addEventListener('click', function () { load(); open(); }); }

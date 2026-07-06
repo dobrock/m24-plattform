@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.291
+ * Version:           0.11.292
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '014' );
+define( 'M24_PLATTFORM_DB_VERSION',  '015' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -136,6 +136,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage.php';      // Meine Garage G1: Store + Add-to-Garage + DOI (No-Account)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-cart.php'; // Meine Garage Etappe 1: kontogebundener Warenkorb (Menge, Garage-Seite, Zähler)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-guest-share.php'; // Paket G #4: anonymer 1-Wochen-Gast-Share (7-Tage-TTL, noindex, keine PII)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-pdf.php';  // Meine Garage Etappe 3: Garage als PDF (Dompdf, vendor/)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-alerts.php'; // Meine Garage Etappe 3: per-Fahrzeug-Änderungs-Alerts (Flag-gated)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
@@ -326,6 +327,7 @@ add_action( 'plugins_loaded', function() {
     M24_Brevo_IL::init();
     M24_Garage::init(); // Meine Garage G1
     M24_Garage_Cart::init(); // Meine Garage Etappe 1: kontogebundener Warenkorb
+    M24_Guest_Share::init(); // Paket G #4: anonymer 1-Wochen-Gast-Share
     M24_Garage_PDF::init();  // Meine Garage Etappe 3: PDF-Download (admin-post)
     M24_Garage_Alerts::init(); // Meine Garage Etappe 3: per-Fahrzeug-Änderungs-Alerts (Flag-gated)
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
