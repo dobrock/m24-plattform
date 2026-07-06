@@ -829,9 +829,15 @@ class M24_Offers {
 	/** Operator-Link (für die interne Anfrage-Mail): öffnet das Modal mit vorbefülltem Kontext. */
 	public static function operator_mail_link( array $links, array $data ): array {
 		$args = array( self::QV_NEW => 1 );
-		foreach ( array( 'email' => 'email', 'name' => 'name', 'kundentyp' => 'kundentyp', 'land' => 'land',
-			'modell' => 'src_modell', 'pid' => 'src_pid', 'pillar' => 'src_pillar', 'lang' => 'src_lang' ) as $qk => $dk ) {
-			if ( ! empty( $data[ $dk ] ) ) { $args[ $qk ] = (string) $data[ $dk ]; }
+		// Liegt die Anfrage-ID vor → per ?from_inquiry laden (bringt die Positionen mit, wie die Inbox-Karte).
+		// Sonst Fallback auf die Feld-Parameter (Operator ohne Positionen).
+		if ( ! empty( $data['inquiry_id'] ) ) {
+			$args['from_inquiry'] = (int) $data['inquiry_id'];
+		} else {
+			foreach ( array( 'email' => 'email', 'name' => 'name', 'kundentyp' => 'kundentyp', 'land' => 'land',
+				'modell' => 'src_modell', 'pid' => 'src_pid', 'pillar' => 'src_pillar', 'lang' => 'src_lang' ) as $qk => $dk ) {
+				if ( ! empty( $data[ $dk ] ) ) { $args[ $qk ] = (string) $data[ $dk ]; }
+			}
 		}
 		$links[] = array( 'label' => 'Angebot erstellen →', 'url' => add_query_arg( $args, home_url( '/' ) ) );
 		return $links;

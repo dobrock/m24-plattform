@@ -57,7 +57,10 @@ class M24_Inquiries_Mail_Fallback {
         if ( self::REASON_MERKZETTEL === $reason ) {
             return 'Per E-Mail gesendeter Merkzettel eines Website-Besuchers. Bitte direkt beantworten.';
         }
-        return 'Neue Anfrage über die Website. Der automatische Push ans M24-Desk läuft bereits — diese Mail ist eine Info-Kopie.';
+        // Desk-Push-Hinweis nur zeigen, wenn der Desk tatsächlich angebunden ist (Konstante gesetzt) — sonst
+        // wäre er irreführend. Ohne Desk: kein Erklärtext (die Box wird dann gar nicht gerendert).
+        $has_desk = defined( 'M24_DESK_API_TOKEN' ) && '' !== (string) M24_DESK_API_TOKEN;
+        return $has_desk ? 'Neue Anfrage über die Website. Der automatische Push ans M24-Desk läuft bereits — diese Mail ist eine Info-Kopie.' : '';
     }
 
     /** @var bool Schutz gegen doppelte Init */
@@ -207,6 +210,7 @@ class M24_Inquiries_Mail_Fallback {
         if ( class_exists( 'M24_Offers' ) && M24_Offers::enabled() ) {
             $first   = ( ! empty( $data['items'] ) && is_array( $data['items'] ) ) ? (array) reset( $data['items'] ) : array();
             $op_data = array(
+                'inquiry_id' => (int) ( $data['post_id'] ?? 0 ), // → Operator lädt die Positionen via ?from_inquiry
                 'email'      => (string) $data['email'],
                 'name'       => trim( (string) $data['vorname'] . ' ' . (string) $data['nachname'] ),
                 'kundentyp'  => in_array( (string) ( $data['kundentyp'] ?? '' ), array( 'Geschäftskunde', 'b2b' ), true ) ? 'b2b' : 'b2c',
@@ -431,21 +435,19 @@ class M24_Inquiries_Mail_Fallback {
         // Inner-Body (ohne Chrome) — wird von der EINEN kanonischen Shell (m24_mail_shell) umschlossen.
         ob_start();
         ?>
-<div style="font-size:18px;font-weight:700;color:#10243a;margin:0 0 4px;"><?php echo $is_note ? 'Neue Anfrage von' : 'Sammelanfrage von'; ?> <?php echo esc_html( $name !== '' ? $name : '(unbekannt)' ); ?></div>
+<?php // Kein eigener Titel hier: der EINE Titel steht in der Mail-Shell-Headline (m24_mail_shell) → keine Dopplung. ?>
 <?php if ( ! $is_note ) : ?>
 <div style="font-size:12px;margin:0 0 12px;color:#7e8794;">Grund: <code style="background:#f2f4f7;padding:1px 6px;border-radius:3px;color:#3a414c;"><?php echo esc_html( $reason ); ?></code></div>
 <?php endif; ?>
 
-<!-- Erklaerung -->
-<div style="padding:14px 16px;margin:8px 0 18px;background:<?php echo $is_note ? '#eef4fb' : '#fdf6e3'; ?>;border-radius:6px;font-size:13px;color:<?php echo $is_note ? '#1b3a5a' : '#5a4a1a'; ?>;">
-<?php if ( $is_note ) : ?>
-<?php echo esc_html( self::intro_for( $reason ) ); ?>
-<?php else : ?>
-Diese Anfrage konnte <strong>nicht automatisch ans M24-Desk uebergeben</strong> werden.
-Die Daten werden hier per Mail bereitgestellt, damit ihr sie manuell bearbeiten koennt.
+<?php
+// Erklär-Box nur, wenn es etwas zu erklären gibt (Desk-Push-Hinweis nur bei angebundenem Desk → sonst leer).
+$intro_txt = $is_note ? self::intro_for( $reason ) : 'Diese Anfrage konnte nicht automatisch ans M24-Desk übergeben werden. Die Daten werden hier per Mail bereitgestellt, damit ihr sie manuell bearbeiten könnt.';
+?>
+<?php if ( '' !== $intro_txt ) : ?>
+<div style="padding:14px 16px;margin:8px 0 12px;background:<?php echo $is_note ? '#eef4fb' : '#fdf6e3'; ?>;border-radius:6px;font-size:13px;color:<?php echo $is_note ? '#1b3a5a' : '#5a4a1a'; ?>;"><?php echo esc_html( $intro_txt ); ?></div>
 <?php endif; ?>
-Antworten an diese Mail gehen direkt an die anfragende Person<?php echo $data['email'] !== '' ? ' (<a href="mailto:' . esc_attr( $data['email'] ) . '" style="color:' . ( $is_note ? '#1b3a5a' : '#5a4a1a' ) . ';">' . esc_html( $data['email'] ) . '</a>)' : ''; ?>.
-</div>
+<p style="font-size:12.5px;color:#7e8794;margin:2px 0 18px;">Antworten an diese Mail gehen direkt an die anfragende Person<?php echo $data['email'] !== '' ? ' (<a href="mailto:' . esc_attr( $data['email'] ) . '" style="color:#0073aa;">' . esc_html( $data['email'] ) . '</a>)' : ''; ?>.</p>
 
 <!-- Kontaktdaten -->
 <div style="border-top:1px solid #eee;padding-top:14px;">
@@ -460,7 +462,7 @@ $contact_rows = [
     'Telefon'   => $data['tel'],
     'Strasse'   => $data['strasse'],
     'PLZ / Ort' => trim( trim( $data['plz'] . ' ' . $data['ort'] ) ),
-    'Land'      => $data['land'],
+    'Land'      => ( '' !== (string) $data['land'] && function_exists( 'm24_inquiry_country_name' ) ) ? m24_inquiry_country_name( (string) $data['land'] ) : (string) $data['land'],
     'USt-IdNr.' => $data['uid'],
     'Kunde'     => $data['biz'] === '1' ? 'B2B' : 'B2C',
 ];
@@ -518,9 +520,12 @@ foreach ( $contact_rows as $label => $value ) :
 <?php if ( ! empty( $src_fields ) ) : ?>
 <div style="font-size:11px;color:#888;margin-top:4px;">
 <?php
-$pairs = [];
+$labels = array( 'src_art_nr' => 'Artikelnummer', 'src_variant' => 'Variante' );
+$pairs  = [];
 foreach ( $src_fields as $k => $v ) {
-    $pairs[] = esc_html( $k ) . ': ' . esc_html( mb_substr( $v, 0, 80 ) );
+    if ( 'src_url' === $k ) { continue; } // Shop-Link nicht in der internen Position ausweisen
+    $lbl     = isset( $labels[ $k ] ) ? $labels[ $k ] : $k;
+    $pairs[] = esc_html( $lbl ) . ': ' . esc_html( mb_substr( $v, 0, 80 ) );
 }
 echo implode( ' &middot; ', $pairs );
 ?>
@@ -536,16 +541,18 @@ echo implode( ' &middot; ', $pairs );
 <?php endif; ?>
 </div>
 
-<!-- Source -->
-<?php if ( $data['source'] !== '' || ! empty( $data['source_meta'] ) ) : ?>
-<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
-<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Quelle</div>
-<?php if ( $data['source'] !== '' ) : ?>
-<div style="font-size:13px;margin-bottom:6px;"><strong><?php echo esc_html( $data['source'] ); ?></strong></div>
-<?php endif; ?>
-<?php if ( ! empty( $data['source_meta'] ) ) : ?>
-<pre style="font-size:11px;background:#f7f7f7;padding:8px;border-radius:3px;overflow:auto;color:#333;margin:0;font-family:'SF Mono',Menlo,Consolas,monospace;"><?php echo esc_html( wp_json_encode( $data['source_meta'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
-<?php endif; ?>
+<!-- Source (lesbar, kein JSON-Dump) -->
+<?php
+$origin = '';
+if ( ! empty( $data['source_meta'] ) && is_array( $data['source_meta'] ) && ! empty( $data['source_meta']['origin'] ) ) {
+    $origin = (string) $data['source_meta']['origin'];
+}
+$origin_map = array( 'guest_garage' => 'Gast-Garage', 'garage' => 'Kunden-Garage' );
+$quelle     = isset( $origin_map[ $origin ] ) ? $origin_map[ $origin ] : ( '' !== $origin ? $origin : (string) $data['source'] );
+?>
+<?php if ( '' !== $quelle ) : ?>
+<div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;font-size:13px;color:#222;">
+<span style="color:#888;">Quelle:</span> <strong><?php echo esc_html( $quelle ); ?></strong>
 </div>
 <?php endif; ?>
 
@@ -584,7 +591,7 @@ Anfrage-ID: <code><?php echo esc_html( (string) $data['post_id'] ); ?></code> &m
 </div>
         <?php
         $inner    = ob_get_clean();
-        $headline = $is_note ? 'Neue Anfrage' : 'Sammelanfrage (Fallback)';
+        $headline = $is_note ? ( 'Neue Anfrage von ' . ( $name !== '' ? $name : '(unbekannt)' ) ) : 'Sammelanfrage (Fallback)';
         return function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner ) : $inner;
     }
 

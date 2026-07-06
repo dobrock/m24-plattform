@@ -40,6 +40,9 @@ class M24_Inquiries_Storage {
 
         // Paket H: eigene Inbox-Karten-Seite (M24 → Anfragen); die CPT-Liste bleibt als Fallback erreichbar.
         add_action( 'admin_menu', [ __CLASS__, 'admin_menu_inbox' ], 26 );
+        // Fremde Admin-Notices (WP-Site-Health „REST-API nicht erreichbar" / Härtungs-Plugins) NUR auf der Inbox
+        // unterdrücken — die Inbox rendert inline und nutzt selbst keine admin_notices.
+        add_action( 'in_admin_header', [ __CLASS__, 'suppress_foreign_inbox_notices' ], 0 );
     }
 
     /**
@@ -357,6 +360,15 @@ class M24_Inquiries_Storage {
 
     public static function admin_menu_inbox() {
         add_submenu_page( 'm24-plattform', 'Anfragen', 'Anfragen', 'manage_options', 'm24-anfragen', [ __CLASS__, 'render_inbox_page' ] );
+    }
+
+    /** Fremde Admin-Notices auf der Inbox-Seite entfernen (die Meldung stammt nicht aus diesem Plugin). */
+    public static function suppress_foreign_inbox_notices() {
+        $s = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( $s && isset( $s->id ) && false !== strpos( (string) $s->id, 'm24-anfragen' ) ) {
+            remove_all_actions( 'admin_notices' );
+            remove_all_actions( 'all_admin_notices' );
+        }
     }
 
     /** Anfrage als beantwortet markieren (aus einem erstellten Angebot). */
