@@ -95,17 +95,17 @@ class M24_Offers_Render {
 
 	public static function operator() {
 		if ( empty( $_GET[ M24_Offers::QV_NEW ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
-		// Nicht eingeloggt (z. B. iPhone-Safari) → auf die Login-Seite mit redirect_to zurück zur Modal-URL,
-		// damit das Modal NACH dem Login öffnet — statt still auf der Startseite zu landen.
-		if ( ! is_user_logged_in() ) {
+		// Ohne manage_options (ausgeloggt ODER eingeloggter Nicht-Admin): SOFORT auf die KLASSISCHE Login-Seite
+		// (m24_classic=1 umgeht das schwere passwordless-Login-Rendering) mit redirect_to zurück zur Modal-URL.
+		// KEIN Volltheme-Render, KEIN alter Anonym-Fallback (das war die Ursache der „unendlichen" Ladezeit).
+		if ( ! current_user_can( 'manage_options' ) ) {
 			$host    = isset( $_SERVER['HTTP_HOST'] ) ? (string) wp_unslash( $_SERVER['HTTP_HOST'] ) : (string) wp_parse_url( home_url(), PHP_URL_HOST );
 			$uri     = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
 			$current = ( is_ssl() ? 'https://' : 'http://' ) . $host . $uri;
 			nocache_headers();
-			wp_safe_redirect( wp_login_url( esc_url_raw( $current ) ) );
+			wp_safe_redirect( add_query_arg( array( 'm24_classic' => 1, 'redirect_to' => esc_url_raw( $current ) ), wp_login_url() ) );
 			exit;
 		}
-		if ( ! current_user_can( 'manage_options' ) ) { return; } // eingeloggte Nicht-Admins: kein Zugriff
 		nocache_headers();
 
 		$g = function ( $k ) { return isset( $_GET[ $k ] ) ? sanitize_text_field( wp_unslash( $_GET[ $k ] ) ) : ''; }; // phpcs:ignore WordPress.Security.NonceVerification
