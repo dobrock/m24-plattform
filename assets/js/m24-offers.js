@@ -12,6 +12,10 @@
 	var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
 	function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 	function eur(v) { return (Math.round(v * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+	// Deutsches Dezimalkomma robust parsen: „77,50" · „1.234,56" (Tausenderpunkt) · „77.50" · „77" → Number.
+	// Ungültige Eingabe → NaN (Aufrufer behält den letzten gültigen Wert statt auf 0 zu fallen).
+	function parseNum(s) { s = String(s == null ? '' : s).trim(); if (!s) { return NaN; } if (s.indexOf(',') > -1) { s = s.replace(/\./g, '').replace(',', '.'); } var n = parseFloat(s); return isNaN(n) ? NaN : n; }
+	function numIn(n) { return (n == null || isNaN(n)) ? '' : String(n).replace('.', ','); } // Anzeige im Feld mit Komma
 
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
@@ -62,7 +66,7 @@
 				+ '<div class="m24off-qty2"><button type="button" data-i="' + i + '" data-qdec aria-label="weniger">−</button>'
 				+ '<input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric">'
 				+ '<button type="button" data-i="' + i + '" data-qinc aria-label="mehr">+</button></div>'
-				+ '<div class="m24off-pprice"><input type="number" step="0.01" value="' + it.unit_price + '" data-i="' + i + '" data-price inputmode="decimal">'
+				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(it.unit_price) + '" data-i="' + i + '" data-price autocomplete="off">'
 				+ '<div class="m24off-bru2" data-brutto>= ' + eur((it.unit_price || 0) * 1.19) + ' brutto</div></div>'
 				+ '<button type="button" class="m24off-posx" data-i="' + i + '" data-rm aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
@@ -83,7 +87,7 @@
 				+ '<span class="m24off-pos-ph m24off-ph-std">€</span>'
 				+ '<div class="m24off-pos-main"><div class="m24off-pt">' + esc(chipLabel(ex)) + '</div><div class="m24off-pa">Standard-Position</div></div>'
 				+ '<div class="m24off-qty2"></div>'
-				+ '<div class="m24off-pprice"><input type="number" step="0.01" value="' + ex.amount + '" data-extra-price="' + i + '" inputmode="decimal"><div class="m24off-bru2">netto</div></div>'
+				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-extra-price="' + i + '" autocomplete="off"><div class="m24off-bru2">netto</div></div>'
 				+ '<button type="button" class="m24off-posx" data-extra-toggle="' + i + '" aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
 		});
@@ -319,10 +323,10 @@
 	document.addEventListener('input', function (e) {
 		var t = e.target;
 		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); renderSummary(); }
-		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); items[pi].unit_price = parseFloat(t.value) || 0; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(items[pi].unit_price * 1.19) + ' brutto'; } renderSummary(); }
+		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) { items[pi].unit_price = pn; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(pn * 1.19) + ' brutto'; } renderSummary(); } }
 		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
-			else if (t.matches('[data-extra-price]')) { extras[+t.getAttribute('data-extra-price')].amount = parseFloat(String(t.value).replace(',', '.')) || 0; renderSummary(); }
+			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
 			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
@@ -396,8 +400,19 @@
 	function cxSetKt(kt) {
 		cxKt = ('b2b' === kt) ? 'b2b' : 'b2c';
 		$$('[data-cx-kt] .m24off-segbtn').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-cxkt') === cxKt); });
-		var grid = $('[data-cx-grid]'); if (grid) { grid.classList.toggle('is-b2b', 'b2b' === cxKt); } // steuert Sichtbarkeit + Fade
-		if ('b2b' !== cxKt) { ['firmenname', 'ustid', 'eori'].forEach(function (k) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = ''; } }); } // B2C: keine USt-ID an den Datensatz
+		var grid = $('[data-cx-grid]'); if (grid) { grid.classList.toggle('is-b2b', 'b2b' === cxKt); }
+		var show = ('b2b' === cxKt);
+		// Sichtbarkeit an EINER Stelle: Inline-Styles (opacity + max-height, Transition kommt aus dem CSS-Basis-
+		// Regel). BEWUSST inline statt nur per Klasse — sonst würde WP-Rockets „Unused CSS entfernen" die
+		// .is-b2b-Show-Regel strippen (Klasse steht nur per JS im DOM, nicht im statischen HTML) → Felder blieben
+		// dauerhaft ausgeblendet (genau der Bug seit 0.11.315). Inline-Styles sind davon immun.
+		$$('.m24off-cx-b2b').forEach(function (el) {
+			el.style.opacity = show ? '1' : '0';
+			el.style.maxHeight = show ? '240px' : '0';
+			el.style.overflow = show ? 'visible' : 'hidden';
+			el.style.pointerEvents = show ? 'auto' : 'none';
+		});
+		if (!show) { ['firmenname', 'ustid', 'eori'].forEach(function (k) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = ''; } }); } // B2C: keine USt-ID an den Datensatz
 	}
 	function cxReset() { $$('[data-cx]').forEach(function (el) { el.value = ''; }); cxEditId = 0; cxSetKt('b2c'); var st = $('[data-cx-status]'); if (st) { st.textContent = ''; st.className = 'm24off-cxstatus'; } }
 	function cxLoadForEdit(c) {
