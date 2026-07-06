@@ -223,9 +223,36 @@ class M24_Offers {
 			if ( class_exists( 'M24_Error_Log' ) ) {
 				M24_Error_Log::capture( 'offer_accept', 'info', 'Angebot vom Kunden angenommen', array( 'offer_no' => (string) $o->offer_no ) );
 			}
+			self::notify_accept( $o );
 			do_action( 'm24_offer_accepted', (int) $o->id );
 		}
 		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/** Interne Benachrichtigung an den Betrieb, wenn ein Kunde ein Angebot annimmt (m24_mail_shell). */
+	private static function notify_accept( $o ): void {
+		$to   = (string) apply_filters( 'm24_offer_accept_notify_to', 'service@motorsport24.de' );
+		$cust = json_decode( (string) $o->customer_json, true ) ?: array();
+		$src  = json_decode( (string) $o->src_json, true ) ?: array();
+		$gno  = (string) ( $src['garage_no'] ?? '' );
+		if ( '' === $gno && (int) $o->account_id > 0 && class_exists( 'M24_Garage_Cart' ) ) { $gno = M24_Garage_Cart::garage_no( (int) $o->account_id, false ); }
+		$sum    = number_format( (float) $o->total_gross, 2, ',', '.' ) . ' €';
+		$reopen = self::reopen_url( $o );
+		$view   = self::view_url( (string) $o->token );
+		$inner  = '<p style="margin:0 0 14px;">Ein Kunde hat ein Angebot <strong>angenommen</strong>.</p>'
+			. '<ul style="margin:0 0 16px;padding-left:18px;line-height:1.7;">'
+			. '<li>Angebot: <strong>' . esc_html( (string) $o->offer_no ) . '</strong></li>'
+			. '<li>Kunde: ' . esc_html( (string) ( $cust['name'] ?? '' ) ) . ' &lt;' . esc_html( (string) ( $cust['email'] ?? '' ) ) . '&gt;</li>'
+			. ( '' !== $gno ? '<li>Garagen-Nr.: <strong>' . esc_html( $gno ) . '</strong></li>' : '' )
+			. '<li>Summe: <strong>' . esc_html( $sum ) . '</strong></li>'
+			. '</ul>'
+			. '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $reopen ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Im Operator öffnen</a></p>'
+			. '<p style="margin:0;color:#5a6474;font-size:13px;">Kunden-Ansicht: <a href="' . esc_url( $view ) . '" style="color:#1f74c4;">' . esc_html( (string) $o->offer_no ) . '</a>. Den Zahlungseingang bestätigst du im M24 Desk (Status → bezahlt).</p>';
+		$html = function_exists( 'm24_mail_shell' )
+			? m24_mail_shell( 'Angebot ' . $o->offer_no . ' angenommen', $inner, array( 'lang' => 'de' ) )
+			: '<h1>Angebot ' . esc_html( (string) $o->offer_no ) . ' angenommen</h1>' . $inner;
+		$headers = array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: MOTORSPORT24 <service@motorsport24.de>' );
+		wp_mail( $to, 'Angebot ' . $o->offer_no . ' wurde angenommen', $html, $headers );
 	}
 
 	/** Teile-Picker: nach Modell (m24_fahrzeugkat) + Kategorie + Freitext (Titel + Art.-Nr.). */
