@@ -230,6 +230,13 @@ class M24_Offers {
 		register_rest_route( self::NS, '/offers/send', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_send' ),
 		) );
+		// B (v3): Kunden-Schnellanlage — Live-Suche + Neuanlage (Desk-kompatible Felder).
+		register_rest_route( self::NS, '/offers/customers', array(
+			'methods' => 'GET', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_customers_search' ),
+		) );
+		register_rest_route( self::NS, '/offers/customer-create', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_customer_create' ),
+		) );
 		// Phase 2: „bezahlt"-Rücksync vom Desk (Auth via Service-Token-Header, konstantezeit-Vergleich).
 		register_rest_route( self::NS, '/offers/desk/paid', array(
 			'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'handle_desk_paid' ),
@@ -351,6 +358,106 @@ class M24_Offers {
 		foreach ( get_posts( $sargs ) as $p ) { if ( isset( $seen[ (int) $p->ID ] ) ) { continue; } $out[] = $mk( $p, 'name' ); }
 
 		return rest_ensure_response( array( 'ok' => true, 'items' => $out, 'qnorm' => $qn ) );
+	}
+
+	/* ── B (v3): Kunden-Schnellanlage ───────────────────────────────────── */
+
+	/** WP-User → Operator-Kunde (Desk-kompatible Meta). */
+	private static function user_to_customer( int $uid ): ?array {
+		$u = get_userdata( $uid );
+		if ( ! $u ) { return null; }
+		$vn   = (string) get_user_meta( $uid, 'first_name', true );
+		$nn   = (string) get_user_meta( $uid, 'last_name', true );
+		$name = trim( $vn . ' ' . $nn ); if ( '' === $name ) { $name = (string) $u->display_name; }
+		$kt   = ( 'b2b' === get_user_meta( $uid, '_m24_kundentyp', true ) ) ? 'b2b' : 'b2c';
+		$firma = (string) get_user_meta( $uid, '_m24_firmenname', true );
+		if ( class_exists( 'M24_B2B' ) && method_exists( 'M24_B2B', 'get_haendler_by_user' ) ) {
+			$h = M24_B2B::get_haendler_by_user( $uid );
+			if ( $h ) { if ( isset( $h->firma ) && '' !== (string) $h->firma ) { $firma = (string) $h->firma; } $kt = 'b2b'; }
+		}
+		return array(
+			'id'    => $uid,
+			'name'  => $name,
+			'email' => (string) $u->user_email,
+			'firma' => $firma,
+			'kundentyp' => $kt,
+			'land'  => strtoupper( substr( (string) get_user_meta( $uid, '_m24_land', true ), 0, 2 ) ),
+		);
+	}
+
+	public static function handle_customers_search( WP_REST_Request $req ) {
+		$q = trim( sanitize_text_field( (string) $req->get_param( 'q' ) ) );
+		if ( strlen( $q ) < 2 ) { return rest_ensure_response( array( 'ok' => true, 'items' => array() ) ); }
+		$ids = array();
+		$uq  = new WP_User_Query( array(
+			'search'         => '*' . $q . '*',
+			'search_columns' => array( 'user_email', 'display_name', 'user_login', 'user_nicename' ),
+			'number'         => 12,
+			'fields'         => 'ID',
+		) );
+		foreach ( (array) $uq->get_results() as $id ) { $ids[] = (int) $id; }
+		// Vor-/Nachname/Firma-Meta ergänzen (deckt Suchen ab, die display_name nicht trifft).
+		$mq = new WP_User_Query( array(
+			'number'     => 12,
+			'fields'     => 'ID',
+			'meta_query' => array( 'relation' => 'OR',
+				array( 'key' => 'first_name', 'value' => $q, 'compare' => 'LIKE' ),
+				array( 'key' => 'last_name', 'value' => $q, 'compare' => 'LIKE' ),
+				array( 'key' => '_m24_firmenname', 'value' => $q, 'compare' => 'LIKE' ),
+			),
+		) );
+		foreach ( (array) $mq->get_results() as $id ) { $ids[] = (int) $id; }
+		$ids = array_slice( array_values( array_unique( $ids ) ), 0, 12 );
+		$items = array();
+		foreach ( $ids as $uid ) { $c = self::user_to_customer( $uid ); if ( $c ) { $items[] = $c; } }
+		return rest_ensure_response( array( 'ok' => true, 'items' => $items ) );
+	}
+
+	public static function handle_customer_create( WP_REST_Request $req ) {
+		$p     = (array) $req->get_json_params();
+		$email = sanitize_email( (string) ( $p['email'] ?? '' ) );
+		if ( ! is_email( $email ) ) { return new WP_Error( 'm24off_email', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
+		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
+		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
+		if ( '' === $vorname || '' === $nachname ) { return new WP_Error( 'm24off_name', 'Vor- und Nachname sind Pflicht.', array( 'status' => 422 ) ); }
+		$kt = ( 'b2b' === ( $p['kundentyp'] ?? '' ) ) ? 'b2b' : 'b2c';
+
+		// Existiert bereits → verknüpfen statt doppeln (kein zweites Konto je E-Mail).
+		$ex = get_user_by( 'email', $email );
+		if ( $ex ) {
+			$c = self::user_to_customer( (int) $ex->ID );
+			$c['existed'] = true;
+			return rest_ensure_response( array( 'ok' => true, 'customer' => $c ) );
+		}
+		$uid = wp_insert_user( array(
+			'user_login'   => $email,
+			'user_email'   => $email,
+			'user_pass'    => wp_generate_password( 24 ),
+			'first_name'   => $vorname,
+			'last_name'    => $nachname,
+			'display_name' => trim( $vorname . ' ' . $nachname ),
+			'role'         => 'subscriber',
+		) );
+		if ( is_wp_error( $uid ) ) { return new WP_Error( 'm24off_create', $uid->get_error_message(), array( 'status' => 422 ) ); }
+		$uid = (int) $uid;
+		// Desk-kompatible Felder als User-Meta (späteres Sync-Mapping; Desk bleibt gated).
+		$fields = array(
+			'_m24_kundentyp'    => $kt,
+			'_m24_firmenname'   => 'b2b' === $kt ? sanitize_text_field( (string) ( $p['firmenname'] ?? '' ) ) : '',
+			'_m24_strasse'      => sanitize_text_field( (string) ( $p['strasse'] ?? '' ) ),
+			'_m24_adresszusatz' => sanitize_text_field( (string) ( $p['adresszusatz'] ?? '' ) ),
+			'_m24_plz'          => sanitize_text_field( (string) ( $p['plz'] ?? '' ) ),
+			'_m24_ort'          => sanitize_text_field( (string) ( $p['ort'] ?? '' ) ),
+			'_m24_land'         => strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', (string) ( $p['land'] ?? '' ) ), 0, 2 ) ),
+			'_m24_telefon'      => sanitize_text_field( (string) ( $p['telefon'] ?? '' ) ),
+			'_m24_ustid'        => 'b2b' === $kt ? sanitize_text_field( (string) ( $p['ustid'] ?? '' ) ) : '',
+			'_m24_eori'         => 'b2b' === $kt ? sanitize_text_field( (string) ( $p['eori'] ?? '' ) ) : '',
+		);
+		foreach ( $fields as $k => $v ) { update_user_meta( $uid, $k, $v ); }
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'customer_create', 'info', 'Kunde per Schnellanlage angelegt', array( 'email' => $email, 'kundentyp' => $kt ) );
+		}
+		return rest_ensure_response( array( 'ok' => true, 'customer' => self::user_to_customer( $uid ) ) );
 	}
 
 	private static function teil_price( int $pid ): ?float {

@@ -227,11 +227,11 @@ class M24_Offers_Render {
 		<div class="m24off-grid">
 			<div class="m24off-col-main">
 				<div class="m24off-card">
-					<h2>Kunde <span class="m24off-hint2"><a href="#" data-cust-edit>ändern</a></span></h2>
+					<h2>Kunde <span class="m24off-hint2"><a href="#" data-cust-search>suchen/anlegen</a> · <a href="#" data-cust-edit>ändern</a></span></h2>
 					<div class="m24off-kunde" data-kunde-view>
-						<div class="m24off-av"><?php echo esc_html( $c_ini ); ?></div>
-						<div class="m24off-kunde-txt"><b><?php echo esc_html( '' !== $c_name ? $c_name : '—' ); ?></b>
-							<div class="kd"><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( '' !== $c_land_nm ? $c_land_nm : '—' ); ?></div></div>
+						<div class="m24off-av" data-cust-chip-av><?php echo esc_html( $c_ini ); ?></div>
+						<div class="m24off-kunde-txt"><b data-cust-chip-name><?php echo esc_html( '' !== $c_name ? $c_name : '—' ); ?></b>
+							<div class="kd" data-cust-chip-sub><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( '' !== $c_land_nm ? $c_land_nm : '—' ); ?></div></div>
 						<?php if ( '' !== $garageNo ) : ?><div class="m24off-kg"><?php echo esc_html( $garageNo ); ?></div><?php endif; ?>
 					</div>
 					<div class="m24off-kunde-edit" data-kunde-edit hidden>
@@ -293,6 +293,38 @@ class M24_Offers_Render {
 		<div class="m24off-mbar">
 			<div><div class="mt">Gesamt brutto</div><div class="ms" data-sum-total-bar>0,00 €</div></div>
 			<button type="button" data-action="send">Angebot senden</button>
+		</div>
+
+		<!-- B: Kunden-Schnellanlage (Modal) -->
+		<div class="m24off-cxmodal" data-cxmodal hidden>
+			<div class="m24off-cxbox">
+				<div class="m24off-cxhead"><b>Kunde suchen oder anlegen</b><button type="button" class="m24off-cxx" data-cx-close aria-label="Schließen">✕</button></div>
+				<div class="m24off-cxbody">
+					<input type="search" data-cx-q placeholder="Name, E-Mail oder Firma …" class="m24off-cxsearch" autocomplete="off">
+					<div class="m24off-cxresults" data-cx-results></div>
+					<div class="m24off-cxsep">oder neu anlegen</div>
+					<div class="m24off-seg" data-cx-kt>
+						<button type="button" class="m24off-segbtn is-on" data-cxkt="b2c">Privat (B2C)</button>
+						<button type="button" class="m24off-segbtn" data-cxkt="b2b">Geschäftskunde (B2B)</button>
+					</div>
+					<div class="m24off-cxgrid">
+						<label class="m24off-f m24off-cx-wide m24off-cx-b2b" hidden><span>Firmenname</span><input type="text" data-cx="firmenname"></label>
+						<label class="m24off-f"><span>Vorname *</span><input type="text" data-cx="vorname"></label>
+						<label class="m24off-f"><span>Nachname *</span><input type="text" data-cx="nachname"></label>
+						<label class="m24off-f m24off-cx-wide"><span>Straße &amp; Hausnummer *</span><input type="text" data-cx="strasse"></label>
+						<label class="m24off-f"><span>Adresszusatz</span><input type="text" data-cx="adresszusatz"></label>
+						<label class="m24off-f"><span>PLZ *</span><input type="text" data-cx="plz"></label>
+						<label class="m24off-f"><span>Ort *</span><input type="text" data-cx="ort"></label>
+						<label class="m24off-f"><span>Land *</span><input type="text" data-cx="land" maxlength="2" placeholder="DE"></label>
+						<label class="m24off-f"><span>Telefon</span><input type="text" data-cx="telefon"></label>
+						<label class="m24off-f"><span>E-Mail *</span><input type="email" data-cx="email"></label>
+						<label class="m24off-f m24off-cx-b2b" hidden><span>USt-IdNr.</span><span class="m24off-cx-vatrow"><input type="text" data-cx="ustid"><button type="button" class="m24off-cx-vatbtn" data-cx-vatcheck>Prüfen</button></span></label>
+						<label class="m24off-f m24off-cx-b2b" hidden><span>EORI</span><input type="text" data-cx="eori"></label>
+					</div>
+					<p class="m24off-cxstatus" data-cx-status role="status"></p>
+					<button type="button" class="m24off-btn m24off-btn-blue" data-cx-create>Kunde anlegen &amp; übernehmen</button>
+				</div>
+			</div>
 		</div>
 
 		<!-- Mobile Sticky-Bar: Live-Summe + Senden immer sichtbar -->

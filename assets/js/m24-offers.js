@@ -255,6 +255,7 @@
 		else if (t.matches('[data-title]')) { items[+t.getAttribute('data-i')].title = t.value; }
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
+			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
 			else if (t.matches('[data-picker-q]')) { clearTimeout(searchT); searchT = setTimeout(searchParts, 250); }
 	});
 	document.addEventListener('change', function (e) { if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); } });
@@ -276,6 +277,11 @@
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
 		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); var ed = $('[data-kunde-edit]'); if (ed) { ed.hidden = !ed.hidden; } return; }
 		if ((el = t.closest('[data-kt]'))) { segKT(el); return; }
+		if ((el = t.closest('[data-cust-search]'))) { e.preventDefault(); cxOpen(); return; }
+		if ((el = t.closest('[data-cx-close]')) || t.matches('[data-cxmodal]')) { cxClose(); return; }
+		if ((el = t.closest('[data-cxkt]'))) { cxSetKt(el.getAttribute('data-cxkt')); return; }
+		if ((el = t.closest('[data-cx-vatcheck]'))) { cxVatCheck(); return; }
+		if ((el = t.closest('[data-cx-create]'))) { cxCreate(); return; }
 		if ((el = t.closest('[data-action]'))) { doAction(el.getAttribute('data-action')); return; }
 	});
 
@@ -297,6 +303,57 @@
 		if (cfg.prefill.salutation) { var se = $('[data-salutation]'); if (se) { se.value = cfg.prefill.salutation; salTouched = true; } }
 		if (cfg.prefill.note) { var ne = $('[data-note]'); if (ne) { ne.value = cfg.prefill.note; } }
 	}
+
+	/* ── B: Kunden-Schnellanlage (Modal) ── */
+	var CX_EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
+	function cxIsDrittland(land) { land = (land || '').toUpperCase(); return '' !== land && CX_EU.indexOf(land) < 0; }
+	var cxKt = 'b2c', cxT;
+	function applyCustomer(c) {
+		customer = { name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || '').toUpperCase() };
+		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = customer.name || '—'; }
+		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + ' · ' + (customer.land || '—'); }
+		var av = $('[data-cust-chip-av]'); if (av) { var pp = (customer.name || '').trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
+		var fn = $('[data-c="name"]'); if (fn) { fn.value = customer.name; }
+		var fe = $('[data-c="email"]'); if (fe) { fe.value = customer.email; }
+		var fl = $('[data-c="land"]'); if (fl) { fl.value = customer.land; }
+		salApply(false);
+		cfg.custIsDrittland = cxIsDrittland(customer.land);
+		if (cfg.custIsDrittland && autoSuggestZoll()) { renderStdRow(); }
+		renderStdRow(); renderSummary(); // Versand-Label trägt das (evtl. neue) Land
+	}
+	function cxOpen() { var m = $('[data-cxmodal]'); if (!m) { return; } m.hidden = false; var q = $('[data-cx-q]'); if (q) { q.value = ''; q.focus(); } var r = $('[data-cx-results]'); if (r) { r.innerHTML = ''; } }
+	function cxClose() { var m = $('[data-cxmodal]'); if (m) { m.hidden = true; } }
+	function cxSetKt(kt) { cxKt = ('b2b' === kt) ? 'b2b' : 'b2c'; $$('[data-cx-kt] .m24off-segbtn').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-cxkt') === cxKt); }); $$('.m24off-cx-b2b').forEach(function (el) { el.hidden = ('b2b' !== cxKt); }); }
+	function cxSearch() {
+		var q = ($('[data-cx-q]') || {}).value || ''; var r = $('[data-cx-results]'); if (!r) { return; }
+		if (q.trim().length < 2) { r.innerHTML = ''; return; }
+		fetch(cfg.rest + '/customers?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce } })
+			.then(function (x) { return x.json(); }).then(function (d) {
+				var items = (d && d.items) || []; r.innerHTML = '';
+				if (!items.length) { r.innerHTML = '<div class="m24off-cxempty">Kein Treffer — unten neu anlegen.</div>'; return; }
+				items.forEach(function (c) {
+					var row = document.createElement('button'); row.type = 'button'; row.className = 'm24off-cxres';
+					row.innerHTML = '<b>' + esc(c.name || c.email) + '</b><small>' + esc(c.email) + (c.firma ? ' · ' + esc(c.firma) : '') + ' · ' + ('b2b' === c.kundentyp ? 'B2B' : 'B2C') + (c.land ? ' · ' + esc(c.land) : '') + '</small>';
+					row.addEventListener('click', function () { applyCustomer(c); cxClose(); });
+					r.appendChild(row);
+				});
+			}).catch(function () {});
+	}
+	function cxCreate() {
+		var st = $('[data-cx-status]');
+		var g = function (k) { var el = $('[data-cx="' + k + '"]'); return el ? el.value.trim() : ''; };
+		if (!g('vorname') || !g('nachname')) { if (st) { st.textContent = 'Vor- und Nachname sind Pflicht.'; st.className = 'm24off-cxstatus is-error'; } return; }
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g('email'))) { if (st) { st.textContent = 'Bitte eine gültige E-Mail angeben.'; st.className = 'm24off-cxstatus is-error'; } return; }
+		var payload = { kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: g('land'), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') };
+		var btn = $('[data-cx-create]'); if (btn) { btn.disabled = true; } if (st) { st.textContent = 'Wird angelegt …'; st.className = 'm24off-cxstatus'; }
+		fetch(cfg.rest + '/customer-create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(payload) })
+			.then(function (x) { return x.json(); }).then(function (d) {
+				if (btn) { btn.disabled = false; }
+				if (d && d.ok && d.customer) { applyCustomer(d.customer); if (st) { st.textContent = d.customer.existed ? 'Bestehender Kunde übernommen.' : 'Kunde angelegt & übernommen.'; st.className = 'm24off-cxstatus is-ok'; } setTimeout(cxClose, 600); }
+				else if (st) { st.textContent = (d && (d.message || d.error)) || 'Anlage fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; }
+			}).catch(function () { if (btn) { btn.disabled = false; } if (st) { st.textContent = 'Anlage fehlgeschlagen.'; st.className = 'm24off-cxstatus is-error'; } });
+	}
+	function cxVatCheck() { var el = $('[data-cx="ustid"]'), st = $('[data-cx-status]'); if (!el || !st) { return; } var v = el.value.replace(/\s/g, '').toUpperCase(); var ok = /^[A-Z]{2}[0-9A-Z]{2,12}$/.test(v); st.textContent = ok ? ('USt-IdNr. ' + v + ' — Format gültig (Live-VIES-Prüfung folgt).') : 'USt-IdNr.-Format unplausibel (z. B. DE123456789).'; st.className = 'm24off-cxstatus ' + (ok ? 'is-ok' : 'is-error'); }
 
 	setLang('de');
 	salApply(false);
