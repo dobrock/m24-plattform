@@ -82,9 +82,34 @@ class M24_Offers {
 			'angenommen' => array( 'Angenommen', '#9a6b25' ),
 			'bezahlt'    => array( 'Bezahlt', '#1a7f37' ),
 			'versandt'   => array( 'Versandt', '#1f74c4' ),
+			'storniert'  => array( 'Storniert', '#6b7280' ),
 			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
 		);
 		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+		// Zeilen-Aktion (Stornieren/Löschen/Reaktivieren) — nur Admin, nonce-geschützt. Idempotent → Refresh unschädlich.
+		$notice = '';
+		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
+			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
+			$id = (int) $_GET['id'];
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'reactivate' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
+				$no  = $row ? (string) $row->offer_no : (string) $id;
+				if ( 'delete' === $do ) {
+					$wpdb->delete( $t, array( 'id' => $id ) );
+					self::log( 'deleted', $id, $no );
+					$notice = 'Angebot ' . $no . ' gelöscht.';
+				} elseif ( 'storno' === $do ) {
+					$wpdb->update( $t, array( 'status' => 'storniert' ), array( 'id' => $id ) );
+					self::log( 'cancelled', $id, $no );
+					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
+				} else {
+					$wpdb->update( $t, array( 'status' => 'entwurf' ), array( 'id' => $id ) );
+					self::log( 'reactivated', $id, $no );
+					$notice = 'Angebot ' . $no . ' reaktiviert (Entwurf).';
+				}
+			}
+		}
 		$f_st = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : '';            // phpcs:ignore WordPress.Security.NonceVerification
 		$f_s  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';        // phpcs:ignore WordPress.Security.NonceVerification
 
@@ -95,6 +120,7 @@ class M24_Offers {
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
 
 		echo '<div class="wrap"><h1>Angebote</h1>';
+		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
 		// Status-Filter + Suche.
 		echo '<form method="get" style="margin:10px 0;"><input type="hidden" name="page" value="' . esc_attr( $page ) . '">';
 		echo '<select name="st"><option value="">Alle Status</option>';
@@ -125,7 +151,18 @@ class M24_Offers {
 			echo '<td style="white-space:nowrap;">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . ' €</td>';
 			echo '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-weight:600;background:' . esc_attr( $st[1] ) . ';">' . esc_html( $st[0] ) . '</span></td>';
 			echo '<td>' . esc_html( $vu ) . '</td>';
-			echo '<td><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a> &middot; <a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a></td>';
+			$act_base = admin_url( 'admin.php?page=' . $page );
+			$u_storno = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'storno', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
+			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
+			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $act_base ), 'm24off_do_' . (int) $o->id );
+			echo '<td><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a> &middot; <a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+			if ( 'storniert' === (string) $o->status ) {
+				echo ' &middot; <a href="' . esc_url( $u_react ) . '">Reaktivieren</a>';
+			} else {
+				echo ' &middot; <a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>';
+			}
+			echo ' &middot; <a href="' . esc_url( $u_del ) . '" style="color:#a00;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' unwiderruflich löschen?\');">Löschen</a>';
+			echo '</td>';
 			echo '</tr>';
 		}
 		echo '</tbody></table></div>';
