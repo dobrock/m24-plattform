@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entwurf 5 v2 — Editor + Mail-Vorschau (final)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&display=swap');
+:root{
+  --brass:#9a6b25; --blue1:#1f74c4; --blue2:#0e447e;
+  --bg:#fafafa; --card:#fff; --line:#e8e8ec; --txt:#1d2327; --mut:#787f87;
+  --green:#1a7f37; --green-bg:#e6f4ea;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Saira',sans-serif;background:var(--bg);color:var(--txt);padding:28px 32px}
+.demo-note{font-size:12px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase;margin-bottom:18px}
+.demo-note b{color:var(--blue2)}
+.wrap{display:grid;grid-template-columns:1fr 480px;gap:22px;max-width:1200px;align-items:start}
+
+/* ── LINKS: Editor ── */
+.ed{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.ed h1{font-size:18px;font-weight:700;margin-bottom:2px}
+.ed .sub{font-size:12.5px;color:var(--mut);margin-bottom:16px}
+h3.lb{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600;margin:18px 0 8px}
+.cust{display:flex;align-items:center;gap:11px;background:#fcfcfd;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.cust .av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue1),var(--blue2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.cust .n{font-weight:600;font-size:14px}
+.cust .m{font-size:11.5px;color:var(--mut)}
+.cust .e{margin-left:auto;font-size:12px;color:var(--blue1);cursor:pointer;font-weight:600}
+
+/* Positionen */
+.pos{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.pos .t{flex:1;font-weight:600}
+.pos .t small{display:block;font-weight:400;color:var(--mut);font-size:11px}
+.pos .t small b{color:var(--brass);font-weight:600}
+.pos input{width:78px;border:1px solid var(--line);border-radius:6px;padding:6px;text-align:right;font:600 13px 'Saira'}
+.pos .x{color:var(--mut);cursor:pointer;padding:0 2px}
+
+/* Artikel-Suche */
+.artsearch{position:relative;margin-top:10px}
+.artsearch input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px 11px 38px;font:400 13.5px 'Saira'}
+.artsearch input:focus{outline:2px solid var(--blue1);outline-offset:-1px}
+.artsearch::before{content:'🔍';position:absolute;left:11px;top:10px;opacity:.5;font-size:14px}
+.artsearch .hint{font-size:11px;color:var(--mut);margin-top:5px}
+.artsearch .drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);z-index:9;overflow:hidden}
+.artsearch .drop .grp{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);padding:8px 12px 4px;background:#fcfcfd}
+.artsearch .drop .it{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;cursor:pointer}
+.artsearch .drop .it:hover{background:#eef5fc}
+.artsearch .drop .it .tt{font-weight:600}
+.artsearch .drop .it .ss{font-size:11px;color:var(--mut)}
+.artsearch .drop .it .ss b{color:var(--brass);font-weight:600}
+.artsearch .drop .it .pp{margin-left:auto;font-weight:600;font-size:12.5px;white-space:nowrap}
+.artsearch .drop mark{background:#dcebfa;color:var(--blue2);border-radius:2px;padding:0 1px}
+.stdadd{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.stdadd span{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font-size:11.5px;color:var(--mut);cursor:pointer;font-weight:600}
+.stdadd span:hover{border-color:var(--blue1);color:var(--blue2)}
+
+/* Steuer-Dropdown + Sprache */
+.settings{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end}
+.setblock label{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:6px}
+select.tax{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 12px;font:600 13.5px 'Saira';background:#fff;color:var(--txt);cursor:pointer}
+.langseg{display:flex;gap:5px}
+.langseg span{border:1px solid var(--line);border-radius:9px;padding:10px 18px;font-size:13px;font-weight:700;color:var(--mut);cursor:pointer;background:#fff}
+.langseg span.on{background:linear-gradient(135deg,var(--blue1),var(--blue2));color:#fff;border-color:transparent}
+
+/* Anrede + Freitext */
+.field input[type=text],.field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:400 13.5px 'Saira';resize:vertical}
+.field input:focus,.field textarea:focus{outline:2px solid var(--blue1);outline-offset:-1px}
+.field .auto{font-size:11px;color:var(--mut);margin-top:4px}
+.field .auto b{color:var(--blue2);cursor:pointer}
+
+/* Send */
+.sendbar{margin-top:20px;display:flex;gap:10px;align-items:center}
+.btn{border:0;border-radius:9px;padding:12px 18px;font:700 14px 'Saira';cursor:pointer}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--txt);font-weight:600}
+.btn.ghost:hover{border-color:var(--blue1);color:var(--blue2)}
+.btn.send{background:linear-gradient(135deg,var(--blue1),var(--blue2));color:#fff;flex:1;box-shadow:0 2px 8px rgba(14,68,126,.28)}
+.btn.send:hover{filter:brightness(1.08)}
+
+/* ── RECHTS: Mail-Vorschau ── */
+.mailcol .caption{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.mailcol .caption .live{background:var(--green-bg);color:var(--green);border-radius:20px;padding:2px 10px;font-size:10.5px}
+.mail{background:#e9ebee;border-radius:14px;padding:18px;box-shadow:inset 0 1px 4px rgba(0,0,0,.06)}
+.mail .env{font-size:11.5px;color:var(--mut);margin-bottom:10px;padding:0 4px}
+.mail .env b{color:var(--txt)}
+.mailbody{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.1);font-size:13px}
+
+/* m24_mail_shell — Header: weißes Logo rechtsbündig auf Blau-Gradient 135° */
+.mhead{background:linear-gradient(135deg,#1f74c4,#0e447e);padding:20px 24px;text-align:right}
+.mhead .logo{color:#fff;font-weight:800;font-size:16px;letter-spacing:.04em}
+
+.mcontent{padding:22px 24px}
+.mcontent h2{font-size:17px;font-weight:700;margin-bottom:10px}
+.mcontent .valid{font-size:12px;color:var(--brass);font-weight:600;margin-bottom:12px}
+.mcontent p{font-size:13px;line-height:1.6;color:#3a4149;margin-bottom:12px}
+.mtable{width:100%;border-collapse:collapse;margin:6px 0 4px}
+.mtable th{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);text-align:left;padding:6px 0;border-bottom:1px solid var(--line)}
+.mtable th.r,.mtable td.r{text-align:right}
+.mtable td{padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.mtable td small{display:block;color:var(--mut);font-size:10.5px}
+.mtotal{display:flex;justify-content:space-between;font-size:15px;font-weight:800;padding:10px 0 2px}
+.mtotal small{display:block;font-weight:400;font-size:10.5px;color:var(--mut)}
+.mfree{font-size:13px;line-height:1.6;color:#3a4149;margin:12px 0 2px;white-space:pre-line}
+.mcta{display:block;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-align:center;border-radius:9px;padding:14px;font-weight:700;font-size:14px;text-decoration:none;margin:16px 0 8px}
+.msub{text-align:center;font-size:11px;color:var(--mut);margin-bottom:6px}
+
+/* m24_mail_shell — Footer: Divider + Claim + Adresse + Links + Sprache */
+.mfoot{border-top:1px solid var(--line);padding:16px 24px;text-align:center;font-size:11px;color:var(--mut);line-height:1.7}
+.mfoot .tag{font-style:italic}
+.mfoot a{color:var(--mut);text-decoration:underline}
+
+.annot{max-width:1200px;margin-top:22px;background:#fff;border:1px dashed var(--line);border-radius:12px;padding:16px 20px;font-size:13.5px;line-height:1.6}
+.annot b{color:var(--blue2)}
+.annot .flow{display:flex;gap:0;margin-top:12px}
+.annot .fs{flex:1;border:1px solid var(--line);padding:10px 14px;font-size:12px;color:var(--mut)}
+.annot .fs:first-child{border-radius:9px 0 0 9px}
+.annot .fs:last-child{border-radius:0 9px 9px 0}
+.annot .fs b{display:block;font-size:12.5px;color:var(--txt);margin-bottom:2px}
+</style>
+</head>
+<body>
+
+<div class="demo-note">Entwurf <b>5 · Version 2 (final)</b> · DE/EN umschalten aktualisiert die Anrede live — probier's aus</div>
+
+<div class="wrap">
+  <div class="ed">
+    <h1>Angebot 2026-1003</h1>
+    <div class="sub">aus Anfrage G-20481 · verbindlich nach §145 BGB · gültig 14 Tage</div>
+
+    <h3 class="lb">Kunde</h3>
+    <div class="cust">
+      <div class="av">SL</div>
+      <div><div class="n">Stefan Loeber 🇨🇭</div><div class="m">8055 Zürich · B2B · stefan.loeber@gmx.ch</div></div>
+      <span class="e">✎ Bearbeiten</span>
+    </div>
+
+    <h3 class="lb">Positionen</h3>
+    <div class="pos"><div class="t">NTM Pista III Felgen, gebraucht<small>Art-Nr. <b>M24-7781</b> · Am Lager</small></div><input value="2.100,00"><span class="x">✕</span></div>
+    <div class="pos"><div class="t">Transportsicher verpacken<small>Standard-Position</small></div><input value="20,00"><span class="x">✕</span></div>
+    <div class="pos"><div class="t">Versicherter Versand Schweiz<small>Zielland: CH</small></div><input value="112,00"><span class="x">✕</span></div>
+    <div class="pos"><div class="t">Zollabwicklung Deutschland<small>Auto-Vorschlag Drittland</small></div><input value="50,00"><span class="x">✕</span></div>
+
+    <div class="artsearch">
+      <input type="text" value="11 12 1 316" placeholder="Position suchen: Artikelname, BMW-Teilenummer oder Art-Nr. …">
+      <div class="drop">
+        <div class="grp">Treffer nach BMW-Teilenummer</div>
+        <div class="it"><div><div class="tt">Ventildeckel S14 <small style="color:var(--mut)">·</small> Dichtung</div><div class="ss">BMW <b><mark>11 12 1 316</mark> 993</b> · Art-Nr. M24-4471 · Neuteil</div></div><div class="pp">€ 38,00</div></div>
+        <div class="it"><div><div class="tt">Zylinderkopfhaube S14B23</div><div class="ss">BMW <b><mark>11 12 1 316</mark> 700</b> · Art-Nr. M24-4470 · gebraucht</div></div><div class="pp">€ 290,00</div></div>
+        <div class="grp">Treffer nach Artikelname / Art-Nr.</div>
+        <div class="it"><div><div class="tt">Dichtsatz Motor S14 komplett</div><div class="ss">Art-Nr. M24-4488 · Neuteil · passend für BMW M3 E30</div></div><div class="pp">€ 420,00</div></div>
+      </div>
+      <div class="hint">Suche greift auf Artikelname, BMW-Teilenummer und M24-Artikelnummer</div>
+    </div>
+    <div class="stdadd" style="margin-top:46px">
+      <span>+ Verpackung</span><span>+ Versicherter Versand</span><span>+ Zollabwicklung DE</span><span>+ Freie Position</span>
+    </div>
+
+    <div class="settings" style="margin-top:18px">
+      <div class="setblock">
+        <label>Steuer</label>
+        <select class="tax">
+          <option>Drittland — netto + Ausfuhr</option>
+          <option>B2B-EU — netto (Reverse Charge)</option>
+          <option>Brutto — 19% MwSt. (DE)</option>
+          <option>B2C-EU — OSS</option>
+        </select>
+      </div>
+      <div class="setblock">
+        <label>Angebotssprache</label>
+        <div class="langseg"><span class="on" id="lDE" onclick="setLang('de')">DE</span><span id="lEN" onclick="setLang('en')">EN</span></div>
+      </div>
+    </div>
+
+    <h3 class="lb">Anrede</h3>
+    <div class="field">
+      <input type="text" id="anrede" value="Hallo Stefan,">
+      <div class="auto">Vorschlag aus Kundendaten · <b onclick="resetAnrede()">zurücksetzen</b></div>
+    </div>
+
+    <h3 class="lb">Freitext (erscheint unter dem Angebot, über dem Button)</h3>
+    <div class="field">
+      <textarea id="freitext" rows="3" oninput="syncFree()">Die Felgen sind aufbereitet und sofort versandfertig. Bei Fragen zur Zollabwicklung melde dich gern direkt bei mir.</textarea>
+    </div>
+
+    <div class="sendbar">
+      <button class="btn ghost">Kunden-Ansicht</button>
+      <button class="btn send">Angebot senden — € 2.282,00 netto</button>
+    </div>
+  </div>
+
+  <div class="mailcol">
+    <div class="caption">Mail-Vorschau · m24_mail_shell <span class="live">aktualisiert live</span></div>
+    <div class="mail">
+      <div class="env">An: <b>stefan.loeber@gmx.ch</b> · Betreff: <b id="mSubj">Dein Angebot 2026-1003 von MOTORSPORT24</b></div>
+      <div class="mailbody">
+        <div class="mhead"><span class="logo">MOTORSPORT24</span></div>
+        <div class="mcontent">
+          <h2 id="mH">Dein Angebot 2026-1003</h2>
+          <div class="valid" id="mValid">Gültig bis 20.07.2026 — noch 14 Tage</div>
+          <p><span id="mAnrede">Hallo Stefan,</span><br><span id="mIntro">vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:</span></p>
+          <table class="mtable">
+            <tr><th id="thP">Position</th><th class="r" id="thM">Menge</th><th class="r" id="thPr">Preis</th></tr>
+            <tr><td>NTM Pista III Felgen, gebraucht<small id="mLZ">Am Lager · sofort versandfertig</small></td><td class="r">1×</td><td class="r">€ 2.100,00</td></tr>
+            <tr><td id="mP2">Transportsicher verpacken</td><td class="r">1×</td><td class="r">€ 20,00</td></tr>
+            <tr><td id="mP3">Versicherter Versand Schweiz</td><td class="r">1×</td><td class="r">€ 112,00</td></tr>
+            <tr><td id="mP4">Zollabwicklung Deutschland</td><td class="r">1×</td><td class="r">€ 50,00</td></tr>
+          </table>
+          <div class="mtotal"><span id="mTot">Gesamt netto<small id="mTax">Ausfuhrlieferung, umsatzsteuerfrei</small></span><span>€ 2.282,00</span></div>
+          <div class="mfree" id="mFree">Die Felgen sind aufbereitet und sofort versandfertig. Bei Fragen zur Zollabwicklung melde dich gern direkt bei mir.</div>
+          <a class="mcta" href="#" id="mCta">Angebot ansehen &amp; bezahlen</a>
+          <div class="msub" id="mSub">Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt</div>
+        </div>
+        <div class="mfoot">
+          <span class="tag">Classic &amp; Race Cars and Parts Sales since 2006</span><br>
+          MOTORSPORT24 GmbH · Scharfe Lanke 109–131, Haus 113a · 13595 Berlin<br>
+          <a href="#">Impressum</a> · <a href="#">Datenschutz</a> · <a href="#">www.motorsport24.de</a><br>
+          Sprache ändern: DE | EN
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="annot">
+  <b>Änderungen v2:</b> Messing fast raus (nur noch Art-Nr.-Akzent + Gültigkeits-Zeile), Primär-Buttons im Blau-Gradient, Steuer als <b>Dropdown</b> statt Segment-Bubbles, <b>editierbare Anrede</b> mit Auto-Vorschlag („Hallo Stefan," / „Hello Stefan,"), <b>Freitextfeld</b> unter dem Angebot / über dem Button, Button heißt <b>„Angebot ansehen &amp; bezahlen"</b>, Mail-Header/-Footer exakt nach m24_mail_shell (weißes Logo rechtsbündig auf Blau-Gradient · Divider + Claim + Postadresse + Impressum · Datenschutz · www.motorsport24.de + „Sprache ändern: DE | EN"), Artikel-Suche über <b>Artikelname, BMW-Teilenummer und M24-Artikelnummer</b> (gruppierte Treffer, Suchbegriff markiert).
+  <div class="flow">
+    <div class="fs"><b>① Mail</b>Komplettes Angebot + Freitext + Button „Angebot ansehen &amp; bezahlen"</div>
+    <div class="fs"><b>② Online-Ansicht</b>Kunde sieht das Angebot erneut, Countdown läuft</div>
+    <div class="fs"><b>③ Annehmen</b>Klick wird protokolliert (Status + Zeitstempel, §145)</div>
+    <div class="fs"><b>④ Bankverbindung</b>Erst nach Annahme sichtbar · IBAN Tap-to-Copy</div>
+  </div>
+</div>
+
+<script>
+var curLang = 'de';
+function setLang(l){
+  curLang = l;
+  document.getElementById('lDE').classList.toggle('on', l==='de');
+  document.getElementById('lEN').classList.toggle('on', l==='en');
+  var de = l==='de';
+  document.getElementById('anrede').value = de ? 'Hallo Stefan,' : 'Hello Stefan,';
+  document.getElementById('mAnrede').textContent = document.getElementById('anrede').value;
+  document.getElementById('mSubj').textContent = de ? 'Dein Angebot 2026-1003 von MOTORSPORT24' : 'Your offer 2026-1003 from MOTORSPORT24';
+  document.getElementById('mH').textContent = de ? 'Dein Angebot 2026-1003' : 'Your offer 2026-1003';
+  document.getElementById('mValid').textContent = de ? 'Gültig bis 20.07.2026 — noch 14 Tage' : 'Valid until 20 July 2026 — 14 days left';
+  document.getElementById('mIntro').textContent = de ? 'vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:' : 'thank you for your inquiry. Here is our binding offer:';
+  document.getElementById('thP').textContent = de ? 'Position' : 'Item';
+  document.getElementById('thM').textContent = de ? 'Menge' : 'Qty';
+  document.getElementById('thPr').textContent = de ? 'Preis' : 'Price';
+  document.getElementById('mLZ').textContent = de ? 'Am Lager · sofort versandfertig' : 'In stock · ships immediately';
+  document.getElementById('mP2').textContent = de ? 'Transportsicher verpacken' : 'Secure transport packaging';
+  document.getElementById('mP3').textContent = de ? 'Versicherter Versand Schweiz' : 'Insured shipping Switzerland';
+  document.getElementById('mP4').textContent = de ? 'Zollabwicklung Deutschland' : 'Customs handling Germany';
+  document.getElementById('mTot').firstChild.textContent = de ? 'Gesamt netto' : 'Total net';
+  document.getElementById('mTax').textContent = de ? 'Ausfuhrlieferung, umsatzsteuerfrei' : 'Export delivery, VAT-exempt';
+  document.getElementById('mCta').textContent = de ? 'Angebot ansehen & bezahlen' : 'View offer & pay';
+  document.getElementById('mSub').textContent = de ? 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt' : 'Online: review offer → accept → bank details are shown';
+}
+document.getElementById('anrede').addEventListener('input', function(){
+  document.getElementById('mAnrede').textContent = this.value;
+});
+function resetAnrede(){ document.getElementById('anrede').value = curLang==='de' ? 'Hallo Stefan,' : 'Hello Stefan,'; document.getElementById('mAnrede').textContent = document.getElementById('anrede').value; }
+function syncFree(){ document.getElementById('mFree').textContent = document.getElementById('freitext').value; }
+</script>
+</body>
+</html>

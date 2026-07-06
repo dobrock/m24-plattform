@@ -34,9 +34,9 @@ class M24_Offers_Render {
 	/** v3: Klartext-Label je Steuer-Modus für das Dropdown (statt Segment-Bubbles). */
 	private static function tax_dropdown_label( string $k ): string {
 		$m = array(
-			'b2b_de_19'     => 'Brutto — 19 % MwSt. (DE)',
-			'b2b_eu_net'    => 'EU B2B — netto (Reverse Charge)',
-			'b2c_eu_oss'    => 'EU B2C — OSS',
+			'b2b_de_19'     => 'Brutto — 19% MwSt. (DE)',
+			'b2b_eu_net'    => 'B2B-EU — netto (Reverse Charge)',
+			'b2c_eu_oss'    => 'B2C-EU — OSS',
 			'drittland_net' => 'Drittland — netto + Ausfuhr',
 		);
 		return $m[ $k ] ?? $k;
@@ -60,7 +60,7 @@ class M24_Offers_Render {
 	 */
 	private static function ol( string $lang ): array {
 		$de = array(
-			'hello' => 'Hallo', 'intro' => 'anbei dein verbindliches Angebot', 'valid' => 'gültig bis',
+			'hello' => 'Hallo', 'intro' => 'vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:', 'valid' => 'gültig bis',
 			'valid_line' => 'Gültig bis %1$s — noch %2$d Tag%3$s', 'cta_sub' => 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt',
 			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
 			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
@@ -71,7 +71,7 @@ class M24_Offers_Render {
 			'your_offer' => 'Dein Angebot',
 		);
 		$en = array(
-			'hello' => 'Hello', 'intro' => 'please find attached your binding offer', 'valid' => 'valid until',
+			'hello' => 'Hello', 'intro' => 'thank you for your inquiry. Here is our binding offer:', 'valid' => 'valid until',
 			'valid_line' => 'Valid until %1$s — %2$d day%3$s left', 'cta_sub' => 'Online: review the offer → accept → bank details are shown',
 			'subtotal' => 'Subtotal (net)', 'vat' => 'VAT', 'margin' => 'Margin scheme (§ 25a)',
 			'std_net' => 'Standard-rated items (net)', 'total' => 'Total', 'delivery' => 'Delivery time',
@@ -531,13 +531,14 @@ class M24_Offers_Render {
 	private static function st25a_line(): string {
 		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird nicht gesondert ausgewiesen.';
 	}
-	/** Dezente Positions-Zeile bei §25a. */
+	/** Dezente Positions-Zeile bei §25a (C3: gilt in JEDEM Steuer-Modus — §25a-Positionen sind immer
+	 *  differenzbesteuert und werden nie Reverse-Charge/OSS/Export-besteuert; compute_totals nimmt sie aus). */
 	private static function tax25a_pos_line(): string {
-		return '§ 25a – Umsatzsteuer nicht gesondert ausgewiesen.';
+		return 'Differenzbesteuerung gem. § 25a UStG, MwSt. nicht ausweisbar.';
 	}
 	/** Einmalige Fußnote unter dem Summenblock, wenn ≥ 1 §25a-Position. */
 	private static function tax25a_footnote(): string {
-		return '§ 25a: Differenzbesteuerung – Umsatzsteuer wird nicht gesondert ausgewiesen.';
+		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird auf diese Positionen nicht gesondert ausgewiesen (unabhängig vom Steuermodus der übrigen Positionen).';
 	}
 	private static function has_tax25a( array $items ): bool {
 		foreach ( $items as $it ) { if ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ) { return true; } }
@@ -663,7 +664,7 @@ class M24_Offers_Render {
 		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( sprintf( $L['valid_line'], $vu, $mdays, $mplural ) ) . '</p>' : '';
 		$greet  = '' !== $sal ? $sal : ( $L['hello'] . ( ! empty( $cust['name'] ) ? ' ' . $cust['name'] : '' ) . ',' );
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
-		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . ' ' . esc_html( $o->offer_no ) . '.</p>';
+		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
 		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
