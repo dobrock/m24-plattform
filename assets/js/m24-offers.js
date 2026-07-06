@@ -208,6 +208,7 @@
 				customer: cust, items: items, extras: extras,
 				tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
 				delivery_time: ($('[data-delivery]') || {}).value || '',
+				inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
 				src: cfg.src || {}
 			})
 		}).then(function (r) { return r.json(); }).then(function (d) {

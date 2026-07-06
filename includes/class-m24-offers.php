@@ -370,6 +370,12 @@ class M24_Offers {
 		$offer_id = (int) $wpdb->insert_id;
 		self::log( 'sent', $offer_id, $offer_no );
 
+		// Paket H: stammt das Angebot aus einer Anfrage → diese als „Beantwortet → {Nr}" markieren (To-do-Liste).
+		$inquiry_id = (int) ( $p['inquiry_id'] ?? 0 );
+		if ( $inquiry_id > 0 && class_exists( 'M24_Inquiries_Storage' ) ) {
+			M24_Inquiries_Storage::mark_answered( $inquiry_id, $offer_no, $token );
+		}
+
 		// Gast ohne Konto → Konto-Anlage-Bestätigungslink an die Register→Magic-Link-Strecke andocken.
 		$register_link = false;
 		if ( $account_id <= 0 && class_exists( 'M24_Login' ) ) {

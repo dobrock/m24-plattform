@@ -37,6 +37,9 @@ class M24_Inquiries_Storage {
         add_filter( 'manage_edit-' . self::CPT_SLUG . '_columns',          [ __CLASS__, 'admin_columns' ], 99 );
         add_action( 'manage_' . self::CPT_SLUG . '_posts_custom_column',  [ __CLASS__, 'admin_column_content' ], 10, 2 );
         add_filter( 'manage_edit-' . self::CPT_SLUG . '_sortable_columns', [ __CLASS__, 'admin_sortable_columns' ] );
+
+        // Paket H: eigene Inbox-Karten-Seite (M24 → Anfragen); die CPT-Liste bleibt als Fallback erreichbar.
+        add_action( 'admin_menu', [ __CLASS__, 'admin_menu_inbox' ], 26 );
     }
 
     /**
@@ -348,5 +351,135 @@ class M24_Inquiries_Storage {
     public static function admin_sortable_columns( $columns ) {
         $columns['m24_items'] = '_m24_item_count';
         return $columns;
+    }
+
+    /* ── Paket H: Inbox-Karten (M24 → Anfragen) + Status-Workflow ─────────── */
+
+    public static function admin_menu_inbox() {
+        add_submenu_page( 'm24-plattform', 'Anfragen', 'Anfragen', 'manage_options', 'm24-anfragen', [ __CLASS__, 'render_inbox_page' ] );
+    }
+
+    /** Anfrage als beantwortet markieren (aus einem erstellten Angebot). */
+    public static function mark_answered( int $inquiry_id, string $offer_no, string $token ): void {
+        if ( $inquiry_id <= 0 || self::CPT_SLUG !== get_post_type( $inquiry_id ) ) { return; }
+        update_post_meta( $inquiry_id, '_m24_answered_offer_no', sanitize_text_field( $offer_no ) );
+        update_post_meta( $inquiry_id, '_m24_answered_token', preg_replace( '/[^a-f0-9]/', '', $token ) );
+    }
+
+    public static function render_inbox_page() {
+        if ( ! current_user_can( 'manage_options' ) ) { return; }
+        $f = isset( $_GET['f'] ) ? sanitize_key( wp_unslash( $_GET['f'] ) ) : 'offen';          // phpcs:ignore WordPress.Security.NonceVerification
+        $s = isset( $_GET['s'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['s'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+        $q = new WP_Query( [ 'post_type' => self::CPT_SLUG, 'post_status' => 'any', 'posts_per_page' => 300, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => true ] );
+        $cards = array(); $offen_n = 0;
+        foreach ( $q->posts as $p ) {
+            $answered = (string) get_post_meta( $p->ID, '_m24_answered_offer_no', true );
+            if ( '' === $answered ) { $offen_n++; }
+            $vor   = (string) get_post_meta( $p->ID, '_m24_vorname', true );
+            $nach  = (string) get_post_meta( $p->ID, '_m24_nachname', true );
+            $firma = (string) get_post_meta( $p->ID, '_m24_firma', true );
+            $email = (string) get_post_meta( $p->ID, '_m24_email', true );
+            $name  = trim( $vor . ' ' . $nach ); if ( '' === $name ) { $name = '' !== $firma ? $firma : $email; }
+            $gno   = self::inquiry_garage_no( $p->ID );
+            $hay   = mb_strtolower( $name . ' ' . $email . ' ' . $gno );
+            if ( '' !== $s && false === mb_strpos( $hay, mb_strtolower( $s ) ) ) { continue; }
+            if ( 'offen' === $f && '' !== $answered ) { continue; }
+            if ( 'beantwortet' === $f && '' === $answered ) { continue; }
+            $cards[] = array( 'p' => $p, 'name' => $name, 'firma' => $firma, 'email' => $email, 'gno' => $gno, 'answered' => $answered );
+        }
+
+        echo '<div class="wrap m24inbox"><h1>Anfragen</h1>';
+        echo '<style>'
+            . '.m24inbox .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}'
+            . '.m24inbox .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}'
+            . '.m24inbox .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}'
+            . '.m24inbox .srch{margin-left:auto;display:flex;gap:6px}.m24inbox .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}'
+            . '.m24inbox .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;overflow:hidden;max-width:1000px}'
+            . '.m24inbox .crow{display:flex;align-items:center;gap:16px;padding:16px 18px;flex-wrap:wrap}'
+            . '.m24inbox .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}'
+            . '.m24inbox .who b{font-size:15px}.m24inbox .who div{color:#6b7280;font-size:12.5px}'
+            . '.m24inbox .meta{margin-left:auto;display:flex;align-items:center;gap:18px}'
+            . '.m24inbox .g{font-family:\'Saira Condensed\',Saira,sans-serif;font-weight:700;color:#9a6b25;font-size:14px}'
+            . '.m24inbox .sum{font-weight:800;font-size:16px}'
+            . '.m24inbox .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px}'
+            . '.m24inbox .badge.pending{background:#fef3c7;color:#b45309}.m24inbox .badge.done{background:#d1fae5;color:#0e7a3b}.m24inbox .badge.done a{color:#0e7a3b;text-decoration:none}'
+            . '.m24inbox .tgl{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px dashed #e5e7eb;color:#0e447e;font-size:13px;font-weight:600;cursor:pointer;user-select:none}'
+            . '.m24inbox .car{transition:.2s;display:inline-block}.m24inbox .card.open .car{transform:rotate(90deg)}'
+            . '.m24inbox .pos-wrap{display:none;border-top:1px solid #e5e7eb;background:#fbfcfe}.m24inbox .card.open .pos-wrap{display:block}'
+            . '.m24inbox .pos{display:flex;gap:12px;align-items:center;padding:10px 18px;border-bottom:1px solid #eef1f5;font-size:13.5px}'
+            . '.m24inbox .pos .ph{width:52px;height:38px;border-radius:6px;background:#e5e7eb;flex:0 0 auto}'
+            . '.m24inbox .pos .pn{font-weight:600}.m24inbox .pos .pa{color:#6b7280;font-size:12px}.m24inbox .pos .pp{margin-left:auto;font-weight:700;white-space:nowrap}'
+            . '.m24inbox .msg{padding:10px 18px;color:#6b7280;font-size:13px;font-style:italic}'
+            . '.m24inbox .foot{display:flex;gap:10px;padding:14px 18px;justify-content:flex-end;background:#fff}'
+            . '.m24inbox .b{border:0;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13.5px;cursor:pointer;text-decoration:none;display:inline-block}'
+            . '.m24inbox .b.blue{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}.m24inbox .b.ghost{background:#fff;border:1.5px solid #e5e7eb;color:#111417}'
+            . '@media(max-width:700px){.m24inbox .meta{width:100%;margin-left:58px}}'
+            . '</style>';
+
+        // Filterleiste.
+        $base = admin_url( 'admin.php?page=m24-anfragen' );
+        $chip = function ( $key, $label ) use ( $f, $base, $s ) {
+            $url = add_query_arg( array( 'f' => $key, 's' => $s ), $base );
+            return '<a class="chip' . ( $f === $key ? ' on' : '' ) . '" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a>';
+        };
+        echo '<div class="flt">'
+            . $chip( 'offen', 'Offen (' . (int) $offen_n . ')' )
+            . $chip( 'beantwortet', 'Beantwortet' )
+            . $chip( 'alle', 'Alle' )
+            . '<form class="srch" method="get"><input type="hidden" name="page" value="m24-anfragen"><input type="hidden" name="f" value="' . esc_attr( $f ) . '">'
+            . '<input type="search" name="s" value="' . esc_attr( $s ) . '" placeholder="Name, E-Mail oder G-Nr"><button class="button">Suchen</button></form>'
+            . '</div>';
+
+        if ( empty( $cards ) ) { echo '<p>Keine Anfragen' . ( '' !== $s ? ' zur Suche' : ' in dieser Ansicht' ) . '.</p></div>'; return; }
+
+        foreach ( $cards as $c ) {
+            $p = $c['p'];
+            $ini = ''; foreach ( array_slice( array_values( array_filter( explode( ' ', $c['name'] ) ) ), 0, 2 ) as $w ) { $ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
+            if ( '' === $ini ) { $ini = 'K'; }
+            $biz  = (string) get_post_meta( $p->ID, '_m24_biz', true );
+            $kt   = ( '1' === $biz ) ? 'B2B' : 'B2C';
+            $land = self::inquiry_garage_no( $p->ID ); // placeholder not used
+            $land_nm = function_exists( 'm24_inquiry_country_name' ) ? m24_inquiry_country_name( (string) get_post_meta( $p->ID, '_m24_land', true ) ) : (string) get_post_meta( $p->ID, '_m24_land', true );
+            $date = get_the_date( 'd.m. H:i', $p );
+            $items = get_post_meta( $p->ID, '_m24_items', true ); $items = is_array( $items ) ? $items : array();
+            $cnt   = (int) get_post_meta( $p->ID, '_m24_item_count', true ); if ( ! $cnt ) { $cnt = count( $items ); }
+            $msg   = trim( (string) $p->post_content );
+            $create = add_query_arg( array( 'm24_offer_new' => 1, 'from_inquiry' => $p->ID ), home_url( '/' ) );
+            $atok   = (string) get_post_meta( $p->ID, '_m24_answered_token', true );
+            $view   = ( '' !== $atok && class_exists( 'M24_Offers' ) ) ? M24_Offers::view_url( $atok ) : '';
+
+            echo '<div class="card">';
+            echo '<div class="crow"><div class="av">' . esc_html( $ini ) . '</div>'
+                . '<div class="who"><b>' . esc_html( $c['name'] ) . '</b><div>' . esc_html( $c['email'] ) . ' · ' . esc_html( $kt ) . ' · ' . esc_html( '' !== $land_nm ? $land_nm : '—' ) . ' · ' . esc_html( $date ) . '</div></div>'
+                . '<div class="meta">' . ( '' !== $c['gno'] && '—' !== $c['gno'] ? '<span class="g">' . esc_html( $c['gno'] ) . '</span>' : '' );
+            if ( '' !== $c['answered'] ) {
+                echo '<span class="badge done">' . ( '' !== $view ? '<a href="' . esc_url( $view ) . '" target="_blank" rel="noopener">Beantwortet → ' . esc_html( $c['answered'] ) . '</a>' : 'Beantwortet → ' . esc_html( $c['answered'] ) ) . '</span>';
+            } else {
+                echo '<span class="badge pending">Offen</span>';
+            }
+            echo '<span class="sum">' . esc_html( self::inquiry_amount_fmt( $p->ID ) ) . '</span></div></div>';
+
+            echo '<div class="tgl" onclick="this.closest(\'.card\').classList.toggle(\'open\')"><span class="car">▶</span> ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>';
+            echo '<div class="pos-wrap">';
+            foreach ( $items as $it ) {
+                $it = (array) $it;
+                echo '<div class="pos"><span class="ph"></span><div><div class="pn">' . esc_html( (string) ( $it['art'] ?? '' ) ) . '</div>'
+                    . '<div class="pa">' . ( ! empty( $it['src_art_nr'] ) ? 'Art.-Nr. ' . esc_html( (string) $it['src_art_nr'] ) . ' · ' : '' ) . '×' . (int) ( $it['qty'] ?? 1 ) . '</div></div>'
+                    . '<div class="pp">' . esc_html( '' !== (string) ( $it['price'] ?? '' ) ? (string) $it['price'] . ' €' : 'auf Anfrage' ) . '</div></div>';
+            }
+            if ( '' !== $msg ) { echo '<div class="msg">Nachricht: „' . esc_html( $msg ) . '"</div>'; }
+            echo '</div>';
+
+            echo '<div class="foot">';
+            if ( '' !== $c['answered'] && '' !== $view ) {
+                echo '<a class="b ghost" href="' . esc_url( $view ) . '" target="_blank" rel="noopener">Angebot ansehen</a>';
+            } else {
+                if ( '' !== $msg ) { echo '<button type="button" class="b ghost" onclick="this.closest(\'.card\').classList.add(\'open\')">Nachricht lesen</button>'; }
+                echo '<a class="b blue" href="' . esc_url( $create ) . '" target="_blank" rel="noopener">Angebot erstellen →</a>';
+            }
+            echo '</div></div>';
+        }
+        echo '</div>';
     }
 }
