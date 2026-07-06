@@ -14,9 +14,12 @@
 	var prev = -1;
 
 	function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-	function guestIds() {
-		try { var r = localStorage.getItem(cfg.guestKey || 'm24_guest_garage'); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a.map(function (v) { return parseInt(v, 10); }).filter(function (v) { return v > 0; }) : []; }
-		catch (e) { return []; }
+	function guestItems() {
+		try {
+			var r = localStorage.getItem(cfg.guestKey || 'm24_guest_garage'); var a = r ? JSON.parse(r) : [];
+			if (!Array.isArray(a)) { return []; }
+			return a.map(function (x) { return ('object' === typeof x && x) ? x : { id: parseInt(x, 10) || 0, q: 1 }; }).filter(function (o) { return o.id > 0; });
+		} catch (e) { return []; }
 	}
 
 	function load() {
@@ -24,10 +27,22 @@
 			fetch(cfg.rest, { credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce } })
 				.then(function (r) { return r.json(); }).then(render).catch(function () {});
 		} else {
-			var ids = guestIds();
-			if (!ids.length) { render({ items: [], grand_fmt: '0,00 €' }); return; }
+			var g = guestItems();
+			if (!g.length) { render({ items: [], grand_fmt: '0,00 €' }); return; }
+			var ids = g.map(function (o) { return o.id; });
 			fetch(cfg.resolve + '?ids=' + ids.join(','), { credentials: 'same-origin' })
-				.then(function (r) { return r.json(); }).then(render).catch(function () {});
+				.then(function (r) { return r.json(); }).then(function (d) {
+					// Basis-Details aus dem Katalog + Gast-Variante/Menge je Position überlagern (eine Zeile je Gast-Item).
+					var base = {}; ((d && d.items) || []).forEach(function (it) { base[it.post_id] = it; });
+					var items = g.map(function (o) {
+						var b = base[o.id]; if (!b) { return null; }
+						var it = {}; for (var k in b) { if (Object.prototype.hasOwnProperty.call(b, k)) { it[k] = b[k]; } }
+						if (o.vl) { it.variant = o.vl; if (o.va) { it.artnr = o.va; } }
+						it.qty = o.q || 1;
+						return it;
+					}).filter(Boolean);
+					render({ items: items, grand_fmt: (d && d.grand_fmt) || '0,00 €' });
+				}).catch(function () {});
 		}
 	}
 
@@ -58,6 +73,18 @@
 	function open() { if (!panel) { return; } panel.hidden = false; if (ov) { ov.hidden = false; } requestAnimationFrame(function () { root.classList.add('is-open'); }); document.body.classList.add('m24gt-lock'); document.addEventListener('keydown', onKey); }
 	function close() { root.classList.remove('is-open'); document.body.classList.remove('m24gt-lock'); document.removeEventListener('keydown', onKey); setTimeout(function () { if (!root.classList.contains('is-open')) { panel.hidden = true; if (ov) { ov.hidden = true; } } }, 320); }
 	function onKey(e) { if ('Escape' === e.key) { close(); } }
+
+	// Gast-Modus: Nudge einblenden + Login/Registrieren-Links setzen; CTAs auf Login umbiegen (Angebot/Garage
+	// brauchen ein Konto — die Gast-Garage wird nach Login automatisch übernommen).
+	if (!cfg.loggedIn) {
+		var lg = cfg.loginUrl || '/haendler-login/';
+		var nudge = $('[data-m24gt-nudge]'), loginA = $('[data-m24gt-login]');
+		var cg = $('[data-m24gt-cta-garage]'), ci = $('[data-m24gt-cta-inquire]');
+		if (nudge) { nudge.hidden = false; }
+		if (loginA) { loginA.href = lg; }
+		if (cg) { cg.href = lg; }
+		if (ci) { ci.href = lg; }
+	}
 
 	if (tab) { tab.addEventListener('click', function () { load(); open(); }); }
 	root.addEventListener('click', function (e) { if (e.target.closest('[data-m24gt-close]') || e.target === ov) { close(); } });

@@ -129,6 +129,29 @@
 	}
 
 	if (cfg.loggedIn) {
+		// Phase 2b: Gast-Garage (localStorage) nach Login/Registrierung in den Account übernehmen + leeren.
+		(function adoptGuestGarage() {
+			var raw; try { raw = window.localStorage.getItem('m24_guest_garage'); } catch (e) { return; }
+			if (!raw) { return; }
+			var arr; try { arr = JSON.parse(raw); } catch (e) { arr = null; }
+			try { window.localStorage.removeItem('m24_guest_garage'); } catch (e) {} // sofort leeren → keine Doppel-Übernahme
+			if (!Array.isArray(arr) || !arr.length) { return; }
+			var i = 0;
+			(function next() {
+				if (i >= arr.length) {
+					fetch(cfg.rest, { credentials: 'same-origin', headers: headers() }).then(function (r) { return r.json(); })
+						.then(function (d) { if (d && typeof d.count === 'number') { updateCount(d.count); } }).catch(function () {});
+					return;
+				}
+				var o = arr[i++];
+				var id = (o && 'object' === typeof o) ? (parseInt(o.id, 10) || 0) : (parseInt(o, 10) || 0);
+				if (!id) { next(); return; }
+				var body = { post_id: id };
+				if (o && 'object' === typeof o && o.vl) { body.variant_label = o.vl; body.variant_artnr = o.va || ''; if (o.vb) { body.variant_price = o.vb; } }
+				post('/add', body).then(function () { next(); }).catch(function () { next(); });
+			})();
+		})();
+
 		// Initialzustand aus dem Cart-State: welche post_ids liegen bereits in der Garage?
 		var toggleBtns = Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle'));
 		if (toggleBtns.length && cfg.rest) {
@@ -188,14 +211,23 @@
 	} else {
 		// Gast (nicht eingeloggt): ♡ legt das Item SOFORT in die ephemere localStorage-Garage — nur Toast, KEIN
 		// Modal. Registrierung erfolgt separat am Wert-Moment. (Kehrt 0.11.265 um.)
+		// Gast-Store = Objekte {id, q, vl, va, vb} (Phase 2b: inkl. Variante). Abwärtskompat: alte Zahlen-IDs
+		// werden beim Lesen zu Objekten migriert.
 		var GKEY = 'm24_guest_garage';
-		function gRead() { try { var r = window.localStorage.getItem(GKEY); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+		function gRead() {
+			try {
+				var r = window.localStorage.getItem(GKEY); var a = r ? JSON.parse(r) : [];
+				if (!Array.isArray(a)) { return []; }
+				return a.map(function (x) { return ('object' === typeof x && x) ? x : { id: parseInt(x, 10) || 0, q: 1 }; }).filter(function (o) { return o.id > 0; });
+			} catch (e) { return []; }
+		}
 		function gWrite(a) { try { window.localStorage.setItem(GKEY, JSON.stringify(a)); } catch (e) {} }
+		function gHasId(arr, id) { for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) { return true; } } return false; }
 		updateCount(gRead().length);
 		var gpre = gRead();
 		Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle')).forEach(function (b) {
 			var id = parseInt(b.getAttribute('data-garage-id') || '0', 10);
-			if (id && gpre.indexOf(id) > -1) { setGarageBtn(b, true); }
+			if (id && gHasId(gpre, id)) { setGarageBtn(b, true); }
 		});
 		document.addEventListener('click', function (e) {
 			var btn = e.target.closest ? e.target.closest('.m24-garage-open') : null;
@@ -204,8 +236,11 @@
 			e.stopImmediatePropagation(); // KEIN „In meine Garage"-Dialog (kein Modal beim Hinzufügen)
 			var id = parseInt(btn.getAttribute('data-garage-id') || '0', 10);
 			if (!id) { return; }
-			var arr = gRead(), at = arr.indexOf(id), nowIn;
-			if (at > -1) { arr.splice(at, 1); nowIn = false; } else { arr.push(id); nowIn = true; }
+			var vl = btn.getAttribute('data-variant-label') || '';
+			var arr = gRead(), at = -1, nowIn;
+			for (var i = 0; i < arr.length; i++) { if (arr[i].id === id && (arr[i].vl || '') === vl) { at = i; break; } }
+			if (at > -1) { arr.splice(at, 1); nowIn = false; }
+			else { arr.push({ id: id, q: 1, vl: vl, va: btn.getAttribute('data-variant-artnr') || '', vb: btn.getAttribute('data-variant-brutto') || '' }); nowIn = true; }
 			gWrite(arr);
 			updateCount(arr.length);
 			if (btn.classList.contains('m24-garage-toggle')) { setGarageBtn(btn, nowIn); }

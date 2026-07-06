@@ -1458,9 +1458,10 @@ class M24_Garage_Cart {
 				<header class="m24gt-ph"><div><b>Meine Garage</b><br><span class="m24gt-sub" data-m24gt-sub>0 Positionen</span></div><button type="button" class="m24gt-x" data-m24gt-close aria-label="Schließen">✕</button></header>
 				<div class="m24gt-items" data-m24gt-items></div>
 				<div class="m24gt-foot">
+					<p class="m24gt-nudge" data-m24gt-nudge hidden>Deine Garage ist <b>temporär</b> gespeichert. <a data-m24gt-login href="#">Einloggen / registrieren</a>, um sie dauerhaft zu sichern.</p>
 					<div class="m24gt-sumrow"><span>Gesamt inkl. 19&nbsp;% MwSt</span><b data-m24gt-sum>0,00&nbsp;€</b></div>
-					<a class="m24gt-btn m24gt-btn-blue" href="<?php echo esc_url( self::page_url() ); ?>">Zur Garage</a>
-					<a class="m24gt-btn m24gt-btn-ghost" href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
+					<a class="m24gt-btn m24gt-btn-blue" data-m24gt-cta-garage href="<?php echo esc_url( self::page_url() ); ?>">Zur Garage</a>
+					<a class="m24gt-btn m24gt-btn-ghost" data-m24gt-cta-inquire href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
 				</div>
 			</aside>
 		</div>
@@ -1526,6 +1527,7 @@ class M24_Garage_Cart {
 			'resolve'  => esc_url_raw( rest_url( self::NS . '/garage/resolve' ) ),
 			'garageNo' => $acc_now > 0 ? self::garage_no( $acc_now, false ) : '',
 			'guestKey' => 'm24_guest_garage',
+			'loginUrl' => esc_url_raw( class_exists( 'M24_B2B_Auth' ) && method_exists( 'M24_B2B_Auth', 'login_url' ) ? M24_B2B_Auth::login_url() : home_url( '/haendler-login/' ) ),
 			'rest'     => esc_url_raw( rest_url( self::NS . '/garage/cart' ) ),
 			'share'    => esc_url_raw( rest_url( self::NS . '/garage/share' ) ),
 			'submit'   => esc_url_raw( rest_url( self::NS . '/garage/submit' ) ),
