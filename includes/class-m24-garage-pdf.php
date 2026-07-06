@@ -375,10 +375,11 @@ class M24_Garage_PDF {
 				$net19_sum += (float) $line_g / 1.19;
 			}
 			$artnr = ( '' !== $it['artnr'] ) ? '<div class="art">Art.-Nr.: ' . esc_html( $it['artnr'] ) . '</div>' : '';
+			$var   = ( ! empty( $it['variant'] ) ) ? '<div class="art">Variante: ' . esc_html( (string) $it['variant'] ) . '</div>' : ''; // #6: Varianten-Name im PDF
 			$t     = esc_html( $it['title'] );
 			$tit   = ( '' !== $it['url'] ) ? '<a href="' . esc_url( $it['url'] ) . '">' . $t . '</a>' : $t;
 			$rows .= '<tr>'
-				. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $artnr . $mark . '</td>'
+				. '<td class="c-pos"><div class="tit">' . $tit . '</div>' . $var . $artnr . $mark . '</td>'
 				. '<td class="c c-qty">' . (int) $it['qty'] . '</td>'
 				. '<td class="r c-unit">' . $unit_out . '</td>'
 				. '<td class="r c-line">' . $line_out . '</td>'

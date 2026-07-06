@@ -283,25 +283,8 @@ class M24_Garage_Cart {
 		exit;
 	}
 
-	/**
-	 * Ruft ein eingeloggter Eigentümer /meine-garage/ OHNE eigenen Token auf (kein Token oder fremder),
-	 * bei nicht-leerer Garage → 302 auf den eigenen Token-Link. Die Adresszeile trägt danach IMMER den
-	 * Token (Kopieren funktioniert ohne JS); der owner-owns-token-Branch rendert dann editierbar (kein Loop).
-	 * Ausgeloggte/Fremde bleiben unberührt (render_shared).
-	 */
-	public static function maybe_redirect_owner_to_token() {
-		if ( is_admin() || ! self::is_garage_page() ) { return; }
-		$acc = self::current_account_id();
-		if ( $acc <= 0 ) { return; }
-		$share = self::current_share_token();
-		if ( '' !== $share && self::resolve_share_token( $share ) === $acc ) { return; } // eigener Token → ok
-		if ( empty( self::items( $acc ) ) ) { return; } // leere Garage → nichts zu teilen
-		$tok = self::share_token_get_or_create( $acc );
-		if ( '' === $tok ) { return; }
-		self::$allow_redirect = true; // eigener Redirect → guard_share_redirect nicht blocken
-		wp_safe_redirect( self::share_url( $tok ), 302 );
-		exit;
-	}
+	// maybe_redirect_owner_to_token() ENTFERNT (0.11.294): kein Owner→Token-Redirect mehr. /meine-garage/ ist
+	// die LIVE-Garage, die Token-URL bleibt der read-only Snapshot (siehe maybe_render_standalone_share/shortcode).
 
 	public static function register_share_query_var( $vars ) {
 		$vars[] = self::SHARE_QUERY;
