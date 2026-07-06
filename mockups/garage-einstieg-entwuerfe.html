@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M24 · Garage-Einstieg — 3 Entwürfe</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--brass:#9a6b25;--b1:#1f74c4;--b2:#0e447e;--ink:#111417;--mut:#6b7280;--bg:#fafafa;--line:#e5e7eb;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Saira',sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:26px;font-weight:800}
+.sub{color:var(--mut);margin:6px 0 34px;font-size:15px}
+.entwurf{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:36px;overflow:hidden}
+.ehead{display:flex;align-items:baseline;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.etag{font-family:'Saira Condensed';font-weight:700;font-size:13px;letter-spacing:.12em;color:var(--brass);text-transform:uppercase}
+.ehead h2{font-size:19px;font-weight:700}
+.ehead p{margin-left:auto;color:var(--mut);font-size:13.5px}
+.stage{position:relative;height:420px;background:linear-gradient(180deg,#eef1f5,#f7f8fa);overflow:hidden}
+.fakepage{position:absolute;inset:24px 24px 0 24px;background:#fff;border-radius:10px 10px 0 0;border:1px solid var(--line);border-bottom:0;padding:18px}
+.fakebar{height:44px;border-radius:8px;background:linear-gradient(135deg,#2b2f33,#1c1f22);margin-bottom:14px}
+.fakeline{height:12px;border-radius:6px;background:#eceef1;margin:10px 0}
+.fakeline.w60{width:60%}.fakeline.w80{width:80%}.fakeline.w40{width:40%}
+.note{padding:16px 22px;font-size:14px;color:var(--mut);border-top:1px solid var(--line)}
+.note b{color:var(--ink)}
+/* ————— ENTWURF 1: Slide-Tab + Panel (Favorit) ————— */
+.e1-tab{position:absolute;right:0;top:44%;display:flex;flex-direction:column;align-items:center;gap:6px;background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff;border-radius:12px 0 0 12px;padding:14px 10px;cursor:pointer;box-shadow:-4px 4px 16px rgba(14,68,126,.25);transition:transform .2s}
+.e1-tab:hover{transform:translateX(-3px)}
+.e1-tab .ico{font-size:20px;line-height:1}
+.e1-tab .lbl{writing-mode:vertical-rl;font-family:'Saira Condensed';font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+.e1-tab .cnt{background:#fff;color:var(--b2);font-weight:800;font-size:12px;min-width:22px;height:22px;border-radius:11px;display:grid;place-items:center}
+.e1-panel{position:absolute;top:0;right:-340px;width:330px;height:100%;background:#fff;border-left:1px solid var(--line);box-shadow:-12px 0 32px rgba(0,0,0,.10);transition:right .28s ease;display:flex;flex-direction:column}
+.e1-panel.open{right:0}
+.e1-ph{padding:16px 18px;background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff;display:flex;align-items:center;justify-content:space-between}
+.e1-ph b{font-size:16px}
+.e1-ph span{font-size:12.5px;opacity:.85}
+.e1-x{cursor:pointer;font-size:18px;opacity:.9}
+.e1-items{padding:14px 18px;flex:1;overflow:auto}
+.e1-it{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.e1-it img{width:56px;height:42px;object-fit:cover;border-radius:6px;background:#e5e7eb}
+.e1-it .t{font-size:13.5px;font-weight:600;line-height:1.3}
+.e1-it .p{margin-left:auto;font-weight:700;font-size:13.5px;white-space:nowrap}
+.e1-sum{padding:14px 18px;border-top:1px solid var(--line)}
+.e1-sum .row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:10px}
+.e1-sum .row b{font-size:17px}
+.btn{display:block;width:100%;text-align:center;padding:12px;border:0;border-radius:10px;font-family:'Saira';font-weight:700;font-size:14.5px;cursor:pointer}
+.btn.blue{background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff}
+.btn.ghost{background:#fff;border:1.5px solid var(--b2);color:var(--b2);margin-top:8px}
+/* ————— ENTWURF 2: Header-Chip ————— */
+.e2-header{position:absolute;top:24px;left:24px;right:24px;height:52px;border-radius:10px;background:linear-gradient(135deg,#2b2f33,#1c1f22);display:flex;align-items:center;gap:22px;padding:0 20px;color:#cfd4d9;font-family:'Saira Condensed';font-weight:600;letter-spacing:.06em}
+.e2-header .m{font-size:14px;text-transform:uppercase}
+.e2-garage{margin-left:auto;display:flex;align-items:center;gap:8px;background:transparent;border:1.5px solid #5a6066;border-radius:999px;padding:7px 14px;color:#fff;cursor:pointer;font-family:'Saira';font-weight:600;font-size:13.5px;position:relative}
+.e2-garage:hover{border-color:#fff}
+.e2-garage .cnt{background:var(--brass);color:#fff;font-size:11px;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center}
+.e2-drop{position:absolute;top:64px;right:0;width:300px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.14);opacity:0;pointer-events:none;transform:translateY(-6px);transition:.2s;color:var(--ink);font-family:'Saira'}
+.e2-garage.open .e2-drop{opacity:1;pointer-events:auto;transform:none}
+.e2-drop .di{display:flex;justify-content:space-between;font-size:13px;padding:10px 16px;border-bottom:1px solid var(--line);font-weight:500;letter-spacing:0}
+.e2-drop .ds{display:flex;justify-content:space-between;padding:12px 16px;font-size:13.5px}
+.e2-drop .ds b{font-size:15px}
+.e2-drop .da{padding:0 16px 14px}
+/* ————— ENTWURF 3: Summen-Pill ————— */
+.e3-pill{position:absolute;right:28px;bottom:24px;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 18px 10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.14);cursor:pointer;transition:.2s}
+.e3-pill:hover{transform:translateY(-2px)}
+.e3-pill .dot{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff;display:grid;place-items:center;font-size:16px}
+.e3-pill .txt{font-size:14px;font-weight:600}
+.e3-pill .txt span{color:var(--mut);font-weight:500}
+.e3-card{position:absolute;right:28px;bottom:84px;width:300px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.16);opacity:0;pointer-events:none;transform:translateY(8px);transition:.22s}
+.e3-card.open{opacity:1;pointer-events:auto;transform:none}
+.e3-card .di{display:flex;justify-content:space-between;font-size:13px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.e3-card .da{padding:12px 16px}
+@media(max-width:640px){.stage{height:480px}.e1-panel{width:86%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Garage-Einstieg — drei Entwürfe</h1>
+  <p class="sub">Ersatz für den roten Kreis unten rechts. Alle drei klickbar — probier sie direkt aus. CI: Saira · Blau-Gradient · Brass-Akzent.</p>
+
+  <!-- ENTWURF 1 -->
+  <div class="entwurf">
+    <div class="ehead"><span class="etag">Entwurf 1 · Empfehlung</span><h2>Slide-Tab mit Schnellansicht</h2><p>Dein ursprüngliches Seitenleisten-Muster, im CI veredelt</p></div>
+    <div class="stage">
+      <div class="fakepage"><div class="fakebar"></div><div class="fakeline w80"></div><div class="fakeline w60"></div><div class="fakeline"></div><div class="fakeline w40"></div><div class="fakeline w80"></div><div class="fakeline w60"></div></div>
+      <div class="e1-tab" onclick="document.getElementById('p1').classList.add('open')">
+        <span class="ico">🏁</span><span class="cnt">2</span><span class="lbl">Garage</span>
+      </div>
+      <div class="e1-panel" id="p1">
+        <div class="e1-ph"><div><b>Meine Garage</b><br><span>2 Positionen · G-1000</span></div><span class="e1-x" onclick="document.getElementById('p1').classList.remove('open')">✕</span></div>
+        <div class="e1-items">
+          <div class="e1-it"><img><div><div class="t">Bodykit 8-teilig passend für BMW Z4 GT3</div><div style="color:var(--mut);font-size:12px">Art.-Nr. 14e89029 · ×1</div></div><div class="p">12.290 €</div></div>
+          <div class="e1-it"><img><div><div class="t">Heckklappe passend für BMW Z4 GT3</div><div style="color:var(--mut);font-size:12px">Art.-Nr. 14e89031 · ×1</div></div><div class="p">2.675 €</div></div>
+        </div>
+        <div class="e1-sum">
+          <div class="row"><span>Gesamt inkl. 19&nbsp;% MwSt</span><b>14.965,00&nbsp;€</b></div>
+          <button class="btn blue">Zur Garage</button>
+          <button class="btn ghost">Angebot anfragen</button>
+        </div>
+      </div>
+    </div>
+    <div class="note"><b>Verhalten:</b> Tab klebt dezent am rechten Rand (halb transparent bis Hover), Zähler in Weiß. Klick → Panel gleitet ein: Items mit Bild, Summe, zwei CTAs. Beim „In die Garage legen" pulst der Tab kurz + Zähler zählt hoch — <b>das ersetzt den Toast und den roten Kreis in einem.</b> Mobil: Tab wird zur unteren Kante (volle Breite Panel).</div>
+  </div>
+
+  <!-- ENTWURF 2 -->
+  <div class="entwurf">
+    <div class="ehead"><span class="etag">Entwurf 2</span><h2>Garage im Header</h2><p>Neben „Mein Konto" — immer da, nie im Weg</p></div>
+    <div class="stage">
+      <div class="e2-header">
+        <span class="m">Fahrzeuge</span><span class="m">Rennsport Teile</span><span class="m">Gebrauchte Teile</span>
+        <div class="e2-garage" id="g2" onclick="this.classList.toggle('open')">
+          <span>🏁 Garage</span><span class="cnt">2</span>
+          <div class="e2-drop">
+            <div class="di"><span>Bodykit 8-teilig · Z4 GT3</span><b>12.290 €</b></div>
+            <div class="di"><span>Heckklappe · Z4 GT3</span><b>2.675 €</b></div>
+            <div class="ds"><span>Gesamt</span><b>14.965,00 €</b></div>
+            <div class="da"><button class="btn blue">Zur Garage</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="fakepage" style="top:96px"><div class="fakeline w80"></div><div class="fakeline w60"></div><div class="fakeline"></div><div class="fakeline w40"></div><div class="fakeline w80"></div></div>
+    </div>
+    <div class="note"><b>Verhalten:</b> Garage-Chip im Header (gleiches Pill-Design wie Login/Mein Konto → CI-Einheit!). Brass-Zähler. Klick/Hover → Mini-Dropdown mit Positionen + Summe + CTA. <b>Pro:</b> null Überlagerung des Contents, konsistent mit der Konto-Pill. <b>Contra:</b> weniger präsent beim „Hinzufügen"-Moment (Toast bleibt nötig).</div>
+  </div>
+
+  <!-- ENTWURF 3 -->
+  <div class="entwurf">
+    <div class="ehead"><span class="etag">Entwurf 3</span><h2>Summen-Pill unten rechts</h2><p>Zeigt den Warenwert — Kaufimpuls inklusive</p></div>
+    <div class="stage">
+      <div class="fakepage"><div class="fakebar"></div><div class="fakeline w80"></div><div class="fakeline w60"></div><div class="fakeline"></div><div class="fakeline w40"></div><div class="fakeline w80"></div><div class="fakeline w60"></div></div>
+      <div class="e3-card" id="c3">
+        <div class="di"><span>Bodykit 8-teilig · Z4 GT3</span><b>12.290 €</b></div>
+        <div class="di"><span>Heckklappe · Z4 GT3</span><b>2.675 €</b></div>
+        <div class="da"><button class="btn blue">Zur Garage</button></div>
+      </div>
+      <div class="e3-pill" onclick="document.getElementById('c3').classList.toggle('open')">
+        <span class="dot">🏁</span><span class="txt">Garage · 2 <span>· 14.965 €</span></span>
+      </div>
+    </div>
+    <div class="note"><b>Verhalten:</b> Schmale weiße Pill statt rotem Kreis — zeigt Anzahl <b>und Summe</b> (starker psychologischer Anker). Klick → kompakte Karte. Scrollt der Nutzer runter, zieht sich die Pill auf das 🏁-Icon zusammen. <b>Pro:</b> minimalste Fläche, eleganteste Anmutung. <b>Contra:</b> Summe unten kann auf kleinen Screens mit Cookie-Bannern kollidieren.</div>
+  </div>
+</div>
+</body>
+</html>

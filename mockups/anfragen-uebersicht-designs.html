@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M24 · Anfragen-Übersicht — 2 Designs</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--brass:#9a6b25;--b1:#1f74c4;--b2:#0e447e;--ink:#111417;--mut:#6b7280;--bg:#fafafa;--line:#e5e7eb;--ok:#0e7a3b;--warn:#b45309;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Saira',sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:26px;font-weight:800}
+.sub{color:var(--mut);margin:6px 0 34px;font-size:15px}
+.design{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:40px;overflow:hidden}
+.dhead{display:flex;align-items:baseline;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.dtag{font-family:'Saira Condensed';font-weight:700;font-size:13px;letter-spacing:.12em;color:var(--brass);text-transform:uppercase}
+.dhead h2{font-size:19px;font-weight:700}
+.dhead p{margin-left:auto;color:var(--mut);font-size:13.5px}
+.body{padding:22px;background:#f6f7f9}
+.filter{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.chip{padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--b2);border-color:var(--b2);color:#fff}
+.badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.04em}
+.badge.pending{background:#fef3c7;color:var(--warn)}
+.badge.done{background:#d1fae5;color:var(--ok)}
+.btn{border:0;border-radius:9px;padding:10px 16px;font-family:'Saira';font-weight:700;font-size:13.5px;cursor:pointer}
+.btn.blue{background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff}
+.btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+/* ————— DESIGN A: Inbox-Karten ————— */
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.crow{display:flex;align-items:center;gap:16px;padding:16px 18px;flex-wrap:wrap}
+.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex-shrink:0}
+.cwho b{font-size:15px}
+.cwho div{color:var(--mut);font-size:12.5px}
+.cmeta{margin-left:auto;display:flex;align-items:center;gap:18px}
+.cmeta .g{font-family:'Saira Condensed';font-weight:700;color:var(--brass);font-size:14px}
+.cmeta .sum{font-weight:800;font-size:16px}
+.ctoggle{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px dashed var(--line);color:var(--b2);font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+.ctoggle .car{transition:.2s;display:inline-block}
+.card.open .ctoggle .car{transform:rotate(90deg)}
+.cpos{display:none;border-top:1px solid var(--line);background:#fbfcfe}
+.card.open .cpos{display:block}
+.pos{display:flex;gap:12px;align-items:center;padding:10px 18px;border-bottom:1px solid #eef1f5;font-size:13.5px}
+.pos img{width:52px;height:38px;border-radius:6px;background:#e5e7eb;object-fit:cover}
+.pos .pn{font-weight:600}
+.pos .pa{color:var(--mut);font-size:12px}
+.pos .pp{margin-left:auto;font-weight:700;white-space:nowrap}
+.cfoot{display:flex;gap:10px;padding:14px 18px;justify-content:flex-end;background:#fff}
+/* ————— DESIGN B: Expand-Tabelle ————— */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:13.5px}
+th{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--mut);text-align:left;padding:12px 14px;border-bottom:2px solid var(--line);background:#fff}
+td{padding:13px 14px;border-bottom:1px solid #eef1f5;vertical-align:middle}
+tr.main{cursor:pointer}
+tr.main:hover{background:#f8fafc}
+.exp{transition:.2s;display:inline-block;color:var(--b2);font-weight:700}
+tr.main.open .exp{transform:rotate(90deg)}
+tr.detail{display:none}
+tr.main.open + tr.detail{display:table-row}
+tr.detail td{background:#fbfcfe;padding:0 14px 14px 46px}
+.dtable{width:100%;font-size:13px}
+.dtable td{padding:8px 10px;border-bottom:1px solid #eef1f5;background:transparent}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.cmeta{width:100%;margin-left:58px}.crow{gap:10px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Anfragen-Übersicht — zwei Designs</h1>
+  <p class="sub">Ersatz für die WordPress-Listenansicht. Beide klickbar — Positionen lassen sich ein-/ausblenden. Gleiche Filterleiste in beiden.</p>
+
+  <!-- DESIGN A -->
+  <div class="design">
+    <div class="dhead"><span class="dtag">Design A · Empfehlung</span><h2>Inbox-Karten</h2><p>Wie ein Posteingang: eine Karte = eine Anfrage, alles auf einen Blick</p></div>
+    <div class="body">
+      <div class="filter"><span class="chip on">Offen (2)</span><span class="chip">Beantwortet</span><span class="chip">Alle</span><span class="chip" style="margin-left:auto">🔍 Suchen…</span></div>
+
+      <div class="card open">
+        <div class="crow">
+          <div class="avatar">DS</div>
+          <div class="cwho"><b>Daniel Schwab</b><div>danielschwab@me.com · B2C · Deutschland · 05.07. 18:01</div></div>
+          <div class="cmeta"><span class="g">G-1000</span><span class="badge pending">Offen</span><span class="sum">14.965,00&nbsp;€</span></div>
+        </div>
+        <div class="ctoggle" onclick="this.closest('.card').classList.toggle('open')"><span class="car">▶</span> 2 Positionen</div>
+        <div class="cpos">
+          <div class="pos"><img><div><div class="pn">Bodykit 8-teilig passend für BMW Z4 GT3</div><div class="pa">Art.-Nr. 14e89029 · ×1</div></div><div class="pp">12.290,00&nbsp;€</div></div>
+          <div class="pos"><img><div><div class="pn">Heckklappe passend für BMW Z4 GT3</div><div class="pa">Art.-Nr. 14e89031 · ×1</div></div><div class="pp">2.675,00&nbsp;€</div></div>
+        </div>
+        <div class="cfoot"><button class="btn ghost">Nachricht lesen</button><button class="btn blue">Angebot erstellen →</button></div>
+      </div>
+
+      <div class="card">
+        <div class="crow">
+          <div class="avatar" style="background:linear-gradient(135deg,#8a929a,#5b6269)">MK</div>
+          <div class="cwho"><b>Markus K.</b><div>m.k@example.com · B2B · Österreich · 04.07. 11:24</div></div>
+          <div class="cmeta"><span class="g">G-1001</span><span class="badge done">Beantwortet → 2026-1000</span><span class="sum">3.410,00&nbsp;€</span></div>
+        </div>
+        <div class="ctoggle" onclick="this.closest('.card').classList.toggle('open')"><span class="car">▶</span> 1 Position</div>
+        <div class="cpos"><div class="pos"><img><div><div class="pn">Fächerkrümmer S65 Clubsport</div><div class="pa">Art.-Nr. 14e92044 · ×1</div></div><div class="pp">3.410,00&nbsp;€</div></div></div>
+        <div class="cfoot"><button class="btn ghost">Angebot ansehen</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESIGN B -->
+  <div class="design">
+    <div class="dhead"><span class="dtag">Design B</span><h2>Kompakt-Tabelle mit Expand</h2><p>Maximale Dichte: viele Anfragen im Blick, Positionen inline aufklappbar</p></div>
+    <div class="body">
+      <div class="filter"><span class="chip on">Offen</span><span class="chip">Beantwortet</span><span class="chip">Alle</span></div>
+      <table>
+        <thead><tr><th style="width:34px"></th><th>Kunde</th><th>Typ / Land</th><th>Garagen-Nr.</th><th class="num">Betrag</th><th>Status</th><th style="width:170px"></th></tr></thead>
+        <tbody>
+          <tr class="main open" onclick="this.classList.toggle('open')">
+            <td><span class="exp">▶</span></td>
+            <td><b>Daniel Schwab</b><br><span style="color:var(--mut);font-size:12px">05.07. 18:01</span></td>
+            <td>B2C · DE</td>
+            <td style="color:var(--brass);font-weight:700">G-1000</td>
+            <td class="num"><b>14.965,00&nbsp;€</b></td>
+            <td><span class="badge pending">Offen</span></td>
+            <td><button class="btn blue" onclick="event.stopPropagation()">Angebot erstellen</button></td>
+          </tr>
+          <tr class="detail"><td colspan="7">
+            <table class="dtable">
+              <tr><td>Bodykit 8-teilig passend für BMW Z4 GT3 <span style="color:var(--mut)">· 14e89029 · ×1</span></td><td class="num">12.290,00&nbsp;€</td></tr>
+              <tr><td>Heckklappe passend für BMW Z4 GT3 <span style="color:var(--mut)">· 14e89031 · ×1</span></td><td class="num">2.675,00&nbsp;€</td></tr>
+              <tr><td style="color:var(--mut)">Nachricht: „hallo was kostet"</td><td></td></tr>
+            </table>
+          </td></tr>
+          <tr class="main" onclick="this.classList.toggle('open')">
+            <td><span class="exp">▶</span></td>
+            <td><b>Markus K.</b><br><span style="color:var(--mut);font-size:12px">04.07. 11:24</span></td>
+            <td>B2B · AT</td>
+            <td style="color:var(--brass);font-weight:700">G-1001</td>
+            <td class="num"><b>3.410,00&nbsp;€</b></td>
+            <td><span class="badge done">Beantwortet</span></td>
+            <td><button class="btn ghost" onclick="event.stopPropagation()">Ansehen</button></td>
+          </tr>
+          <tr class="detail"><td colspan="7">
+            <table class="dtable"><tr><td>Fächerkrümmer S65 Clubsport <span style="color:var(--mut)">· 14e92044 · ×1</span></td><td class="num">3.410,00&nbsp;€</td></tr></table>
+          </td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:14px;color:var(--mut);font-size:13px">Zeile anklicken = Positionen auf/zu. Mobil kollabiert die Tabelle zu gestapelten Karten (ähnlich Design A).</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

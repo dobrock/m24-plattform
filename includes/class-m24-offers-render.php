@@ -16,7 +16,7 @@ class M24_Offers_Render {
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
 			. '<title>' . esc_html( $title ) . '</title><meta name="robots" content="noindex,nofollow">'
-			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;600;700;800&display=swap" rel="stylesheet">'
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">'
 			. '<link rel="stylesheet" href="' . esc_url( self::assets_url( 'assets/css/m24-offers.css' ) ) . '">';
 	}
 	private static function fmt( float $v ): string {
@@ -25,6 +25,15 @@ class M24_Offers_Render {
 	private static function date_de( string $ymd ): string {
 		$t = $ymd ? strtotime( $ymd ) : 0;
 		return $t ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $t ) : gmdate( 'd.m.Y', $t ) ) : '';
+	}
+	/** Kurz-Label je Steuer-Modus für die Segment-Auswahl (v2). */
+	private static function tax_short( string $k ): string {
+		$m = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS', 'drittland_net' => 'Drittland · netto' );
+		return $m[ $k ] ?? $k;
+	}
+	/** Feste Reihenfolge der Steuer-Segmente (DE zuerst). */
+	private static function tax_order(): array {
+		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
 	}
 
 	/* ── Operator-Modal A1 (Admin, ?m24_offer_new=1) ───────────────────── */
@@ -131,72 +140,90 @@ class M24_Offers_Render {
 			'validDays'=> M24_Offers::VALID_DAYS,
 			'prefill'  => $prefill,
 			'garageNo' => $garageNo,
+			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
+			'nextNo'   => M24_Offers::peek_number(),
 		);
 
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
 		if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
 		echo self::head( 'Angebot erstellen' ); // phpcs:ignore WordPress.Security.EscapeOutput
 		?>
-		</head><body class="m24off-op">
-		<div class="m24off-wrap">
-			<header class="m24off-top"><span class="m24off-badge"><?php echo $prefill ? 'Angebots-Entwurf' : 'Neues Angebot'; ?></span><?php if ( '' !== $garageNo ) : ?><span class="m24off-badge" style="background:#9a6b25;">Garagen-Nr. <?php echo esc_html( $garageNo ); ?></span><?php endif; ?><span class="m24off-modell" data-modell><?php echo esc_html( $src['src_modell'] ); ?></span></header>
+		</head><body class="m24off-op m24off-v2">
+		<?php
+		$c_kt_label = ( 'b2b' === $customer['kundentyp'] ) ? 'Geschäftskunde (B2B)' : 'Privat (B2C)';
+		$c_land_nm  = function_exists( 'm24_inquiry_country_name' ) ? m24_inquiry_country_name( (string) $customer['land'] ) : (string) $customer['land'];
+		$c_name     = trim( (string) $customer['name'] );
+		$c_ini      = '';
+		foreach ( array_slice( array_values( array_filter( explode( ' ', $c_name ) ) ), 0, 2 ) as $w ) { $c_ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
+		if ( '' === $c_ini ) { $c_ini = 'K'; }
+		$who = ( $prefill ? 'aus Anfrage' : 'Neues Angebot' ) . ( '' !== $c_name ? ' · ' . $c_name : '' ) . ( '' !== $garageNo ? ' · ' . $garageNo : '' );
+		?>
+		<div class="m24off-top"><div class="m24off-top-in">
+			<h1>Angebot erstellen</h1>
+			<span class="m24off-who"><?php echo esc_html( $who ); ?></span>
+			<div class="m24off-langsw" data-langsw><span class="on" data-lang="de">DE</span><span data-lang="en">EN</span></div>
+		</div></div>
 
-			<section class="m24off-card m24off-acc-card" data-collapsed="<?php echo $prefill ? '1' : '0'; ?>">
-				<h2><span class="m24off-step">1</span>Kunde <span class="m24off-h-hint">aus Anfrage vorbefüllt</span></h2>
-				<label class="m24off-f"><span>Name</span><input type="text" data-c="name" value="<?php echo esc_attr( $customer['name'] ); ?>"></label>
-				<label class="m24off-f"><span>E-Mail</span><input type="email" data-c="email" value="<?php echo esc_attr( $customer['email'] ); ?>"></label>
-				<div class="m24off-seg" data-c-kundentyp>
-					<button type="button" class="m24off-segbtn<?php echo 'b2b' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2b">Gewerblich (B2B)</button>
-					<button type="button" class="m24off-segbtn<?php echo 'b2c' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2c">Privat (B2C)</button>
+		<div class="m24off-grid">
+			<div class="m24off-col-main">
+				<div class="m24off-card">
+					<h2>Kunde <span class="m24off-hint2"><a href="#" data-cust-edit>ändern</a></span></h2>
+					<div class="m24off-kunde" data-kunde-view>
+						<div class="m24off-av"><?php echo esc_html( $c_ini ); ?></div>
+						<div class="m24off-kunde-txt"><b><?php echo esc_html( '' !== $c_name ? $c_name : '—' ); ?></b>
+							<div class="kd"><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( '' !== $c_land_nm ? $c_land_nm : '—' ); ?></div></div>
+						<?php if ( '' !== $garageNo ) : ?><div class="m24off-kg"><?php echo esc_html( $garageNo ); ?></div><?php endif; ?>
+					</div>
+					<div class="m24off-kunde-edit" data-kunde-edit hidden>
+						<label class="m24off-f"><span>Name</span><input type="text" data-c="name" value="<?php echo esc_attr( $customer['name'] ); ?>"></label>
+						<label class="m24off-f"><span>E-Mail</span><input type="email" data-c="email" value="<?php echo esc_attr( $customer['email'] ); ?>"></label>
+						<div class="m24off-seg" data-c-kundentyp>
+							<button type="button" class="m24off-segbtn<?php echo 'b2b' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2b">Geschäftskunde (B2B)</button>
+							<button type="button" class="m24off-segbtn<?php echo 'b2c' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2c">Privat (B2C)</button>
+						</div>
+						<label class="m24off-f"><span>Land (ISO)</span><input type="text" data-c="land" maxlength="2" value="<?php echo esc_attr( $customer['land'] ); ?>" placeholder="DE"></label>
+					</div>
 				</div>
-				<label class="m24off-f"><span>Land (ISO)</span><input type="text" data-c="land" maxlength="2" value="<?php echo esc_attr( $customer['land'] ); ?>" placeholder="DE"></label>
-			</section>
 
-			<section class="m24off-card m24off-acc-card">
-				<h2><span class="m24off-step">2</span>Positionen <span class="m24off-h-hint">aus Garage/Anfrage vorbefüllt · Menge/Preis editierbar · × entfernen</span></h2>
-				<div class="m24off-items" data-items></div>
-				<div class="m24off-addrow">
-					<button type="button" class="m24off-add" data-add-pos>+ Teil suchen &amp; hinzufügen</button>
-					<button type="button" class="m24off-add m24off-add-free" data-add-free>+ Freie Position (Bezeichnung + Betrag)</button>
+				<div class="m24off-card">
+					<h2>Positionen <span class="m24off-hint2">Preise aus den Artikeln — anpassbar</span></h2>
+					<div data-items></div>
+					<div class="m24off-stdrow" data-stdrow></div>
+					<p class="m24off-stdnote">„Versicherter Versand" trägt automatisch das Lieferland des Kunden. „Zollabwicklung Deutschland" wird nur bei Drittland-Kunden vorgeschlagen (manuell immer hinzufügbar). Alle Beträge sind nach dem Hinzufügen per Klick editierbar.</p>
 				</div>
-			</section>
 
-			<section class="m24off-card m24off-acc-card">
-				<h2><span class="m24off-step">3</span>Nebenkosten <span class="m24off-h-hint">Häkchen setzen, Betrag anpassbar</span></h2>
-				<div class="m24off-extras" data-extras></div>
-			</section>
-
-			<section class="m24off-card m24off-acc-card">
-				<h2><span class="m24off-step">4</span>Lieferzeit</h2>
-				<label class="m24off-f"><span>Lieferzeit</span><input type="text" data-delivery placeholder="z. B. 2–3 Wochen"></label>
-				<p class="m24off-note">Angebot gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage (automatischer Ablauf).</p>
-			</section>
-
-			<section class="m24off-card m24off-acc-card">
-				<h2><span class="m24off-step">5</span>Steuer-Modus <span class="m24off-h-hint">manuell wählen, nie automatisch</span></h2>
-				<select data-tax-mode class="m24off-select">
-					<option value="">— Steuerfall wählen —</option>
-					<?php foreach ( M24_Offers::tax_modes() as $k => $m ) : ?>
-						<option value="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $m['label'] ); ?></option>
-					<?php endforeach; ?>
-				</select>
-				<label class="m24off-f" data-oss hidden><span>USt-Satz (%) — Pflicht bei OSS, 0–27</span><input type="number" step="0.1" min="0" max="27" data-tax-rate placeholder="z. B. 20"></label>
-				<p class="m24off-taxnote" data-tax-note></p>
-			</section>
-
-			<section class="m24off-card m24off-sum m24off-acc-card">
-				<h2><span class="m24off-step">6</span>Summe</h2>
-				<div class="m24off-sumline"><span>Zwischensumme (netto)</span><strong data-sum-net>0,00 €</strong></div>
-				<div class="m24off-sumline" data-sum-25a-wrap hidden><span>§25a differenzbesteuert</span><strong data-sum-25a>0,00 €</strong></div>
-				<div class="m24off-sumline" data-sum-tax-wrap hidden><span data-tax-label>MwSt</span><strong data-sum-tax>0,00 €</strong></div>
-				<div class="m24off-sumline m24off-total"><span>Gesamt (brutto)</span><strong data-sum-total>0,00 €</strong></div>
-			</section>
-
-			<div class="m24off-actions">
-				<button type="button" class="m24off-btn m24off-btn-blue" data-action="send">Als verbindliches Angebot senden</button>
-				<button type="button" class="m24off-btn m24off-btn-ghost" data-action="text">Mit Text antworten</button>
+				<div class="m24off-card">
+					<h2>Konditionen</h2>
+					<div class="m24off-two">
+						<div class="m24off-fld"><label>Lieferzeit</label><input type="text" data-delivery placeholder="z. B. ca. 2–3 Wochen"></div>
+						<div class="m24off-fld"><label>Angebotssprache</label>
+							<div class="m24off-seg2" data-langseg><span class="on" data-olang="de">Deutsch</span><span data-olang="en">English</span></div></div>
+					</div>
+					<div class="m24off-fld" style="margin-top:14px"><label>Steuer — manuell wählen</label>
+						<div class="m24off-seg2" data-tax-seg>
+							<?php foreach ( self::tax_order() as $k ) : $m = M24_Offers::tax_modes()[ $k ] ?? array( 'note' => '' ); ?><span data-txm="<?php echo esc_attr( $k ); ?>" title="<?php echo esc_attr( $m['note'] ); ?>"><?php echo esc_html( self::tax_short( $k ) ); ?></span><?php endforeach; ?>
+						</div>
+						<div class="m24off-fld" data-oss hidden style="margin-top:10px"><label>USt-Satz (%) — Pflicht bei OSS, 0–27</label><input type="number" step="0.1" min="0" max="27" data-tax-rate placeholder="z. B. 20"></div>
+						<p class="m24off-taxnote" data-tax-note></p>
+					</div>
+				</div>
 			</div>
-			<p class="m24off-status" data-status role="status"></p>
+
+			<div class="m24off-col-side">
+				<div class="m24off-card m24off-sum2 m24off-side">
+					<h2>Angebot <?php echo esc_html( $cfg['nextNo'] ); ?> <span class="m24off-hint2">gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage</span></h2>
+					<div data-sum-rows></div>
+					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
+					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig · §145 BGB</small></button>
+					<a href="#" class="m24off-alt" data-action="text">Stattdessen mit Text antworten</a>
+					<p class="m24off-status" data-status role="status"></p>
+				</div>
+			</div>
+		</div>
+
+		<div class="m24off-mbar">
+			<div><div class="mt">Gesamt brutto</div><div class="ms" data-sum-total-bar>0,00 €</div></div>
+			<button type="button" data-action="send">Angebot senden</button>
 		</div>
 
 		<!-- Mobile Sticky-Bar: Live-Summe + Senden immer sichtbar -->

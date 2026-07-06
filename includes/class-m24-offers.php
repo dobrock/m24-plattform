@@ -142,6 +142,13 @@ class M24_Offers {
 		return sprintf( '%d-%04d', $year, $n );
 	}
 
+	/** Nächste Angebots-Nr. NUR anzeigen (ohne Zähler zu erhöhen) — für die Operator-Vorschau. */
+	public static function peek_number(): string {
+		$year = (int) ( function_exists( 'wp_date' ) ? wp_date( 'Y' ) : gmdate( 'Y' ) );
+		$n    = max( 999, (int) get_option( 'm24_offer_seq_' . $year, 0 ) ) + 1;
+		return sprintf( '%d-%04d', $year, $n );
+	}
+
 	/* ── Steuer (MANUELL) — Modi als Vorlage, nicht auto-detektiert ─────── */
 
 	public static function tax_modes(): array {
@@ -331,6 +338,7 @@ class M24_Offers {
 		}
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		$src['lang'] = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de'; // Angebotssprache (Mail/Kunden-Ansicht/PDF)
 		$totals   = self::compute_totals( $items, $extras, $tax_mode, $tax_rate );
 		$tax_note = $modes[ $tax_mode ]['note'];
 
