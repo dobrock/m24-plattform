@@ -276,9 +276,9 @@ class M24_B2B_Auth {
             . '.m24b2b .req{color:#9a6b25}'
             . '.m24b2b .hp{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden}'
             . '.m24b2b-btn{margin-top:20px;width:100%;background:#1f74c4;color:#fff;border:0;border-radius:8px;padding:14px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)}'
-            . '.m24b2b-note{background:#edf3fb;border:1px solid #cfe0f4;color:#10243a;border-radius:10px;padding:16px 18px;font-size:14.5px;line-height:1.5}'
+            . '.m24b2b-note{color:#5a6474;font-size:15px;line-height:1.6;margin:0}' // CI-konform: kein blauer Kasten, schlichter Text auf weißer Karte
             . '.m24b2b-err{background:#fdf1f3;border:1px solid #f0c4cc;color:#9a2530;border-radius:8px;padding:10px 14px;font-size:13.5px;margin:0 0 16px}'
-            . '.m24b2b-ok{font-size:30px;font-weight:800;color:#9a6b25;margin:0 0 8px}'
+            . '.m24b2b-ok{font-size:24px;font-weight:800;color:#14161a;margin:0 0 10px}' // CI-konform: anthrazit statt Messing/braun
             . '.m24-uid-fb{font-size:12px;margin-top:5px;min-height:16px}'
             . '.m24-uid-fb.checking{color:#5a6474}.m24-uid-fb.ok{color:#1a7a3c;font-weight:600}.m24-uid-fb.bad{color:#c8102e;font-weight:600}.m24-uid-fb.neutral{color:#9aa3b0}'
             // Variante 2 — Anfrageformular-Optik: große Felder, Label als Placeholder INNEN.
