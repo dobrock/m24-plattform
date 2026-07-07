@@ -104,6 +104,8 @@ class M24_Offers_Render {
 			'provider' => 'Anbieter', 'total_price' => 'Gesamtpreis', 'incl_taxes' => '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)',
 			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
 			'your_offer' => 'Dein Angebot',
+			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
+			'warranty_tax' => 'Gewährleistung & Steuer',
 		);
 		$en = array(
 			'hello' => 'Hello', 'intro' => 'thank you for your inquiry. Here is our binding offer:', 'valid' => 'valid until',
@@ -115,6 +117,8 @@ class M24_Offers_Render {
 			'provider' => 'Provider', 'total_price' => 'Total price', 'incl_taxes' => '(incl. any taxes and itemised additional costs)',
 			'variant' => 'Variant', 'artnr' => 'Part no.', 'used' => 'used', 'not_found' => 'This offer could not be found.',
 			'your_offer' => 'Your offer',
+			'tl_received' => 'Received', 'tl_pending' => 'Payment pending', 'tl_shipping' => 'Shipping',
+			'warranty_tax' => 'Warranty & tax',
 		);
 		return 'en' === $lang ? $en : $de;
 	}
@@ -454,10 +458,10 @@ class M24_Offers_Render {
 
 			<!-- Segmentierte Timeline -->
 			<div class="m24off-tl">
-				<span class="m24off-tl-seg is-done">Erhalten</span>
-				<span class="m24off-tl-seg <?php echo esc_attr( $s2 ); ?>">Zahlung offen</span>
-				<span class="m24off-tl-seg <?php echo esc_attr( $s3 ); ?>">Bezahlt</span>
-				<span class="m24off-tl-seg">Versand</span>
+				<span class="m24off-tl-seg is-done"><?php echo esc_html( $L['tl_received'] ); ?></span>
+				<span class="m24off-tl-seg <?php echo esc_attr( $s2 ); ?>"><?php echo esc_html( $L['tl_pending'] ); ?></span>
+				<span class="m24off-tl-seg <?php echo esc_attr( $s3 ); ?>"><?php echo esc_html( $L['paid'] ); ?></span>
+				<span class="m24off-tl-seg"><?php echo esc_html( $L['tl_shipping'] ); ?></span>
 			</div>
 
 			<!-- Positionen als Karten -->
@@ -505,7 +509,7 @@ class M24_Offers_Render {
 				<?php endif; ?>
 				<div class="m24off-sumline m24off-total"><span><?php echo esc_html( $L['total'] ); ?></span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
 				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote() ); ?></p><?php endif; ?>
-				<?php if ( $o->tax_note && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $o->tax_note ); ?></p><?php endif; ?>
+				<?php $tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note; if ( '' !== $tn && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $tn ); ?></p><?php endif; ?>
 			</section>
 
 			<!-- E: Bindungssatz -->
@@ -515,7 +519,7 @@ class M24_Offers_Render {
 			<?php if ( $is_b2c ) : ?>
 			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 			<?php endif; ?>
-			<details class="m24off-acc"><summary>Gewährleistung &amp; Steuer</summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
+			<details class="m24off-acc"><summary><?php echo esc_html( $L['warranty_tax'] ); ?></summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 
 			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
 			<!-- B/D: „Angebot annehmen" → Status angenommen (DB) + Bankdaten (erst nach Klick im DOM) -->
@@ -771,7 +775,8 @@ class M24_Offers_Render {
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
-		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
+		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
+		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
 		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
 		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
 		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
