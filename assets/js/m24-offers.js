@@ -406,17 +406,17 @@
 	}
 	function collectCustomer() {
 		var edit = $('[data-kunde-edit]');
+		// #8: Sichtbare Felder IN das Model synchronisieren (nicht neu aufbauen) → Firma/Telefon/Adresse/USt-ID
+		// bleiben immer erhalten, auch wenn sie im eingeklappten Summary nicht sichtbar sind. Quelle = Model.
 		if (edit && !edit.hidden) {
-			var kt = $('[data-kunde-edit] [data-c-kundentyp] .is-on');
-			// #8: NUR die sichtbaren Felder überschreiben, restlichen Datensatz (Firma/Telefon/Adresse …) behalten.
-			customer = Object.assign({}, customer, {
-				name: ($('[data-c="name"]') || {}).value || customer.name,
-				email: ($('[data-c="email"]') || {}).value || customer.email,
-				kundentyp: kt ? kt.getAttribute('data-kt') : customer.kundentyp,
-				land: ($('[data-c="land"]') || {}).value || customer.land
-			});
+			var kt = $('[data-kunde-edit] [data-c-kundentyp] .is-on'), nv;
+			if ((nv = $('[data-c="name"]'))) { customer.name = nv.value || customer.name; }
+			if ((nv = $('[data-c="email"]'))) { customer.email = nv.value || customer.email; }
+			if (kt) { customer.kundentyp = kt.getAttribute('data-kt'); }
+			if ((nv = $('[data-c="land"]'))) { customer.land = nv.value; }  // verbatim (auch leer)
+			if ((nv = $('[data-c="firma"]'))) { customer.firma = nv.value; } // falls ein Firma-Feld existiert
 		}
-		return customer;
+		return customer; // vollständiger Model-Datensatz
 	}
 
 	/* ── Senden ── */
