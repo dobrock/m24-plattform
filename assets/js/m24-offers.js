@@ -94,22 +94,8 @@
 		});
 	}
 
-	/* ── „+ hinzufügen"-Chips: nur INAKTIVE Std + Freitext + Katalog ── */
-	function renderStdRow() {
-		var box = $('[data-stdrow]'); if (!box) { return; }
-		box.innerHTML = '';
-		extras.forEach(function (ex, i) {
-			if (ex.on) { return; }
-			var s = document.createElement('span');
-			s.className = 'm24off-std' + ('zoll' === ex.key ? ' zoll' : '');
-			s.setAttribute('data-extra-toggle', i);
-			s.innerHTML = '+ ' + esc(chipLabel(ex)) + ' <span class="m24off-std-amt-pre">' + eur(ex.amount) + '</span>';
-			box.appendChild(s);
-		});
-		var free = document.createElement('span'); free.className = 'm24off-std'; free.setAttribute('data-add-free', ''); free.textContent = '+ Freie Position …'; box.appendChild(free);
-		var kat = document.createElement('span'); kat.className = 'm24off-std'; kat.setAttribute('data-add-pos', ''); kat.textContent = '+ Teil aus Katalog suchen'; box.appendChild(kat);
-	}
-	function renderExtras() { renderStdRow(); renderExtraRows(); }
+		/* ── Standard-/Freitext-Chips entfallen — „Hinzufügen" läuft über die angedockte Palette C3 (rechts). ── */
+	function renderExtras() { renderExtraRows(); renderPalette(); }
 
 	/* ── Drag & Drop der Positionen (vanilla, pointer-basiert → Maus + Touch) ── */
 	var dragFrom = -1, dropLine = null;
@@ -158,7 +144,7 @@
 		var oss = $('[data-oss]'); if (oss) { oss.hidden = !(m && m.rate === null); }
 		var tn = $('[data-tax-note]'); if (tn) { tn.textContent = m ? m.note : ''; }
 		var sel = $('[data-tax-mode]'); if (sel && sel.value !== mode) { sel.value = mode; } // Dropdown synchron halten (Prefill/Init)
-		if ('drittland_net' === mode && autoSuggestZoll()) { renderStdRow(); }
+		if ('drittland_net' === mode && autoSuggestZoll()) { renderExtras(); }
 		renderSummary();
 	}
 	function rate() { var m = cfg.taxModes[taxMode]; if (!m) { return 0; } return m.rate === null ? Math.max(0, taxRate) : m.rate; }
@@ -203,63 +189,92 @@
 		$$('[data-langsw] [data-lang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-lang') === offerLang); });
 		$$('[data-langseg] [data-olang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-olang') === offerLang); });
 		salApply(false);
-		renderItems(); renderStdRow(); // #2: EN-Titel/Freitext-EN-Felder + EN-Chip-Labels
+		renderItems(); renderExtras(); // #2: EN-Titel/Freitext-EN-Felder + EN-Chip-Labels
 	}
 
-	/* ── Teile-Picker ── */
-	var cat = '';
-	function openPicker() { var p = $('[data-picker]'); if (p) { p.hidden = false; } searchParts(); }
-	function setCat(btn) { $$('[data-cat]').forEach(function (b) { b.classList.toggle('is-on', b === btn); }); cat = btn.getAttribute('data-cat'); searchParts(); }
-	var searchT;
-	function searchParts() {
-		var q = ($('[data-picker-q]') && $('[data-picker-q]').value || '').trim();
-		var url = cfg.rest + '/parts?modell=' + encodeURIComponent(modell) + '&cat=' + encodeURIComponent(cat) + '&q=' + encodeURIComponent(q);
-		fetch(url, { credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce } })
+	/* ── C3: Angedockte Palette (ersetzt das alte Vollbild-Overlay komplett) ── */
+	var paletteResults = [], paletteTab = 'katalog', paletteT;
+	function isAdded(id) { id = parseInt(id, 10) || 0; return id > 0 && items.some(function (it) { return it.teil_id === id; }); }
+	function flashRow(idx) {
+		var box = $('[data-items]'); if (!box) { return; }
+		var r = $$('.m24off-pos', box)[idx]; if (!r) { return; }
+		r.classList.add('m24off-neu'); try { r.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+		setTimeout(function () { r.classList.remove('m24off-neu'); }, 1200);
+	}
+	function setPTab(tab) { paletteTab = tab; $$('[data-palette-tabs] [data-ptab]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-ptab') === tab); }); renderPalette(); }
+	function searchPalette() {
+		var q = (($('[data-palette-q]') || {}).value || '').trim();
+		if (paletteTab !== 'katalog') { setPTab('katalog'); }
+		if (q.length < 2) { paletteResults = []; renderPalette(); return; }
+		fetch(cfg.rest + '/parts?modell=' + encodeURIComponent(modell) + '&cat=&q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce } })
 			.then(function (r) { return r.json(); })
-			.then(function (d) {
-				var list = $('[data-picker-list]'); if (!list) { return; }
-				list.innerHTML = '';
-				var arr = Array.isArray(d) ? d : ((d && (d.items || (d.data && d.data.items))) || []);
-					var qn = (d && d.qnorm) || '';
-					if (!arr.length) { list.innerHTML = '<p class="m24off-note">Keine Teile gefunden.</p>'; return; }
-					function hl(str) {
-						if (!qn || !str) { return esc(str || ''); }
-						var digs = String(str).replace(/\D/g, ''); var pos = digs.indexOf(qn);
-						if (pos < 0) { return esc(str); }
-						var from = 0, to = str.length, c = 0;
-						for (var k = 0; k < str.length; k++) { if (/\d/.test(str[k])) { c++; if (c === pos + 1) { from = k; } if (c === pos + qn.length) { to = k + 1; break; } } }
-						return esc(str.slice(0, from)) + '<mark>' + esc(str.slice(from, to)) + '</mark>' + esc(str.slice(to));
-					}
-					var lastGrp = '';
-					arr.forEach(function (it) {
-						var grp = ('partnum' === it.match) ? 'Treffer nach BMW-Teilenummer' : 'Treffer nach Artikelname / Art-Nr.';
-						if (grp !== lastGrp) { var g = document.createElement('div'); g.className = 'm24off-pick-grp'; g.textContent = grp; list.appendChild(g); lastGrp = grp; }
-						var sub = ('partnum' === it.match && it.bmw) ? ('BMW ' + hl(it.bmw) + (it.art_nr ? ' · Art.-Nr. ' + esc(it.art_nr) : '')) : (it.art_nr ? 'Art.-Nr.: ' + esc(it.art_nr) : '');
-						var row = document.createElement('div');
-						row.className = 'm24off-pick';
-						row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pick-ph"></span>')
-							+ '<div class="m24off-pick-info"><span>' + esc(it.title) + '</span>'
-							+ (sub ? '<small>' + sub + '</small>' : '')
-							+ '<small>' + (it.price != null ? eur(it.price) : 'Preis auf Anfrage') + (it.tax25a ? ' · §25a' : '') + '</small></div>'
-							+ '<button type="button" class="m24off-pick-add" data-pick data-id="' + it.id + '" data-title="' + esc(it.title) + '" data-title-en="' + esc(it.title_en || '') + '" data-art="' + esc(it.art_nr || '') + '" data-thumb="' + esc(it.thumb || '') + '" data-price="' + (it.price != null ? it.price : 0) + '" data-25a="' + (it.tax25a ? 1 : 0) + '">+</button>';
-						list.appendChild(row);
-					});
+			.then(function (d) { paletteResults = Array.isArray(d) ? d : ((d && (d.items || (d.data && d.data.items))) || []); renderPalette(); })
+			.catch(function () {});
+	}
+	function renderPalette() {
+		var list = $('[data-palette-list]'); if (!list) { return; }
+		list.innerHTML = '';
+		if ('katalog' === paletteTab) {
+			var q = (($('[data-palette-q]') || {}).value || '').trim();
+			if (!paletteResults.length) { list.innerHTML = '<p class="m24off-dnote">' + (q.length >= 2 ? 'Keine Teile gefunden.' : 'Suchbegriff eingeben — Name, Art.-Nr. oder BMW-Teilenummer.') + '</p>'; return; }
+			paletteResults.forEach(function (it) {
+				var done = isAdded(it.id);
+				var sub = ('partnum' === it.match && it.bmw) ? ('BMW <b>' + esc(it.bmw) + '</b>' + (it.art_nr ? ' · ' + esc(it.art_nr) : '')) : (it.art_nr ? 'Art.-Nr. ' + esc(it.art_nr) : '');
+				var card = document.createElement('div');
+				card.className = 'm24off-dit' + (done ? ' done' : ''); card.setAttribute('data-cat-add', it.id);
+				card.innerHTML = '<div class="tt">' + esc(it.title) + '</div>'
+					+ (sub ? '<div class="ss">' + sub + (it.tax25a ? ' · §25a' : '') + '</div>' : '')
+					+ '<div class="row"><span class="pp">' + (it.price != null ? eur(it.price) : 'auf Anfrage') + '</span><span class="add">' + (done ? '✓' : '+') + '</span></div>';
+				list.appendChild(card);
 			});
+		} else if ('standard' === paletteTab) {
+			extras.forEach(function (ex, i) {
+				var card = document.createElement('div');
+				card.className = 'm24off-dit m24off-dit-std' + (ex.on ? ' done' : '');
+				card.innerHTML = '<div class="tt">' + esc(chipLabel(ex)) + '</div>'
+					+ '<div class="ss">Standard-Position' + ('zoll' === ex.key ? ' · Vorschlag bei Drittland' : '') + '</div>'
+					+ '<div class="row"><span class="pp"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-palette-stdprice="' + i + '" autocomplete="off"></span>'
+					+ '<span class="add" data-std-add="' + i + '">' + (ex.on ? '✓' : '+') + '</span></div>';
+				list.appendChild(card);
+			});
+		} else {
+			var wrap = document.createElement('div'); wrap.className = 'm24off-dfree';
+			wrap.innerHTML = '<input type="text" data-palette-freetitle placeholder="Bezeichnung (DE)" autocomplete="off">'
+				+ ('en' === offerLang ? '<input type="text" data-palette-freetitleen placeholder="Bezeichnung (EN)" autocomplete="off">' : '')
+				+ '<input type="text" inputmode="decimal" data-palette-freeprice placeholder="Preis netto, z. B. 250,00" autocomplete="off">'
+				+ '<button type="button" class="m24off-btn m24off-btn-blue" data-palette-freeadd>Freie Position übernehmen</button>';
+			list.appendChild(wrap);
+		}
 	}
-	function addFromPick(btn) {
+	function addCatalog(id) {
+		id = parseInt(id, 10) || 0; if (isAdded(id)) { return; } // ✓ = bereits übernommen → kein Duplikat
+		var it = null;
+		for (var k = 0; k < paletteResults.length; k++) { if ((parseInt(paletteResults[k].id, 10) || 0) === id) { it = paletteResults[k]; break; } }
+		if (!it) { return; }
 		items.push({
-			teil_id: parseInt(btn.getAttribute('data-id'), 10) || 0,
-			title: btn.getAttribute('data-title') || '', title_en: btn.getAttribute('data-title-en') || '',
-			art_nr: btn.getAttribute('data-art') || '',
-			thumb: btn.getAttribute('data-thumb') || '',
-			qty: 1,
-			// Artikelpreis ist BRUTTO (inkl. 19 %); unit_price ist die NETTO-Basis (Steuer je Modus oben drauf).
-			unit_price: Math.round(((parseFloat(btn.getAttribute('data-price')) || 0) / 1.19) * 100) / 100,
-			tax25a: btn.getAttribute('data-25a') === '1',
-			custom: false
+			teil_id: id, title: it.title || '', title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
+			qty: 1, unit_price: Math.round(((it.price != null ? parseFloat(it.price) : 0) / 1.19) * 100) / 100, // Artikelpreis ist BRUTTO → Netto-Basis
+			tax25a: !!it.tax25a, custom: false
 		});
-		renderItems();
+		renderItems(); renderPalette(); flashRow(items.length - 1);
 	}
+	function addStandard(i) { if (!extras[i]) { return; } extras[i].on = true; renderExtras(); renderSummary(); flashLastExtra(); }
+	function flashLastExtra() { var box = $('[data-extra-rows]'); if (!box) { return; } var rows = $$('.m24off-pos', box), r = rows[rows.length - 1]; if (r) { r.classList.add('m24off-neu'); setTimeout(function () { r.classList.remove('m24off-neu'); }, 1200); } }
+	function addFree() {
+		var t = (($('[data-palette-freetitle]') || {}).value || '').trim();
+		var ten = (($('[data-palette-freetitleen]') || {}).value || '').trim();
+		var p = parseNum((($('[data-palette-freeprice]') || {}).value || ''));
+		if (!t) { var fi = $('[data-palette-freetitle]'); if (fi) { fi.focus(); } return; }
+		items.push({ teil_id: 0, title: t, title_de: t, title_en: ten, art_nr: '', qty: 1, unit_price: isNaN(p) ? 0 : p, tax25a: false, custom: false, free: true });
+		renderItems(); renderPalette(); flashRow(items.length - 1);
+	}
+	function dockCollapse(collapsed) {
+		var card = $('[data-poscard]'); if (!card) { return; }
+		card.classList.toggle('dock-collapsed', !!collapsed);
+		var btn = $('[data-dock-collapse]'); if (btn) { btn.textContent = collapsed ? '⇤' : '⇥ Palette einklappen'; btn.title = collapsed ? 'Palette ausklappen' : 'Palette einklappen'; }
+		try { localStorage.setItem('m24off_dock_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+	}
+	function dockOpen(open) { var d = $('[data-dock]'); if (d) { d.classList.toggle('is-open', !!open); } }
 
 	/* ── Kunde (read-only Chip; „ändern" blendet Edit-Felder ein) ── */
 	function segKT(btn) {
@@ -332,21 +347,23 @@
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
 			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
-			else if (t.matches('[data-picker-q]')) { clearTimeout(searchT); searchT = setTimeout(searchParts, 250); }
+			else if (t.matches('[data-palette-q]')) { clearTimeout(paletteT); paletteT = setTimeout(searchPalette, 250); }
+			else if (t.matches('[data-palette-stdprice]')) { var spn = parseNum(t.value); if (!isNaN(spn)) { extras[+t.getAttribute('data-palette-stdprice')].amount = spn; renderSummary(); } }
 	});
 	document.addEventListener('change', function (e) { if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); } });
 	document.addEventListener('click', function (e) {
 		var t = e.target, el;
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
-		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); return; }
+		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
-		if ((el = t.closest('[data-add-free]'))) { items.push({ teil_id: 0, title: '', title_de: '', title_en: '', art_nr: '', qty: 1, unit_price: 0, tax25a: false, custom: false, free: true }); renderItems(); return; }
-		if ((el = t.closest('[data-add-pos]'))) { openPicker(); return; }
-		if ((el = t.closest('[data-pick]'))) { addFromPick(el); return; }
-		if ((el = t.closest('[data-picker-close]'))) { var p = $('[data-picker]'); if (p) { p.hidden = true; } return; }
-		if ((el = t.closest('[data-cat]'))) { setCat(el); return; }
-		if ((el = t.closest('[data-picker-modellchg]'))) { var m = prompt('Modell-Slug (z. B. z4-gt3):', modell); if (m !== null) { modell = m.trim(); var pm = $('[data-picker-modell]'); if (pm) { pm.textContent = modell; } searchParts(); } return; }
+		if ((el = t.closest('[data-ptab]'))) { setPTab(el.getAttribute('data-ptab')); return; }
+		if ((el = t.closest('[data-cat-add]'))) { addCatalog(el.getAttribute('data-cat-add')); return; }
+		if ((el = t.closest('[data-std-add]'))) { addStandard(+el.getAttribute('data-std-add')); return; }
+		if ((el = t.closest('[data-palette-freeadd]'))) { addFree(); return; }
+		if ((el = t.closest('[data-dock-collapse]'))) { var pc = $('[data-poscard]'); dockCollapse(!(pc && pc.classList.contains('dock-collapsed'))); return; }
+		if ((el = t.closest('[data-dock-open]'))) { dockOpen(true); return; }
+		if ((el = t.closest('[data-dock-close]'))) { dockOpen(false); return; }
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
@@ -473,6 +490,8 @@
 	salApply(false);
 	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
 	renderItems();
-	renderStdRow();
+	renderExtras();
 	renderSummary();
+	setPTab('katalog');
+	try { if ('1' === localStorage.getItem('m24off_dock_collapsed')) { dockCollapse(true); } } catch (e) {}
 })();

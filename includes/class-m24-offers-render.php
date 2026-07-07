@@ -267,12 +267,27 @@ class M24_Offers_Render {
 					</div>
 				</div>
 
-				<div class="m24off-card">
-					<h2>Positionen <span class="m24off-hint2">Preise aus den Artikeln — anpassbar · ⠿ ziehen zum Sortieren</span></h2>
-					<div data-items></div>
-					<div data-extra-rows></div>
-					<div class="m24off-stdrow" data-stdrow></div>
-					<p class="m24off-stdnote">„Versicherter Versand" trägt automatisch das Lieferland des Kunden. „Zollabwicklung Deutschland" wird nur bei Drittland-Kunden vorgeschlagen (manuell immer hinzufügbar). Alle Beträge sind nach dem Hinzufügen per Klick editierbar.</p>
+				<div class="m24off-card m24off-poscard" data-poscard>
+					<div class="m24off-poscol">
+						<h2>Positionen <span class="m24off-hint2">⠿ ziehen zum Sortieren · Preise editierbar</span></h2>
+						<div data-items></div>
+						<div data-extra-rows></div>
+						<p class="m24off-stdnote">Rechts in der Palette suchen und übernehmen — Katalog, Standard-Positionen (Empfängerland automatisch) oder freie Position. Neu übernommene Positionen blinken kurz auf.</p>
+						<button type="button" class="m24off-dockopen" data-dock-open>+ Position hinzufügen</button>
+					</div>
+					<div class="m24off-dock" data-dock>
+						<div class="m24off-dhead">
+							<input type="search" data-palette-q placeholder="Name / Art.-Nr. / BMW-Teilenr." autocomplete="off">
+							<button type="button" class="m24off-dclose" data-dock-close aria-label="Palette schließen">✕</button>
+						</div>
+						<div class="m24off-dtabs" data-palette-tabs>
+							<span class="on" data-ptab="katalog">Katalog</span>
+							<span data-ptab="standard">Standard</span>
+							<span data-ptab="frei">Frei</span>
+						</div>
+						<div class="m24off-dlist" data-palette-list></div>
+						<button type="button" class="m24off-dcollapse" data-dock-collapse title="Palette einklappen">⇥ Palette einklappen</button>
+					</div>
 				</div>
 
 				<div class="m24off-card">
@@ -356,21 +371,6 @@ class M24_Offers_Render {
 		<div class="m24off-stickybar">
 			<div class="m24off-stickybar-sum"><span>Gesamt (brutto)</span><strong data-sum-total-bar>0,00 &euro;</strong></div>
 			<button type="button" class="m24off-btn m24off-btn-blue" data-action="send">Angebot senden</button>
-		</div>
-
-		<!-- Teile-Picker (Overlay) -->
-		<div class="m24off-picker" data-picker hidden>
-			<div class="m24off-picker-head">
-				<input type="search" data-picker-q placeholder="Name / Art.-Nr. / BMW-Teilenr.">
-				<button type="button" class="m24off-picker-x" data-picker-close aria-label="Schließen">&times;</button>
-			</div>
-			<div class="m24off-chips" data-picker-cats>
-				<button type="button" class="m24off-chip is-on" data-cat="">Alle</button>
-				<button type="button" class="m24off-chip" data-cat="neu">Neu</button>
-				<button type="button" class="m24off-chip" data-cat="gebraucht">Gebraucht</button>
-			</div>
-			<div class="m24off-modellrow">Modell: <strong data-picker-modell><?php echo esc_html( $src['src_modell'] ); ?></strong> <button type="button" class="m24off-linkbtn" data-picker-modellchg>ändern</button></div>
-			<div class="m24off-picker-list" data-picker-list></div>
 		</div>
 
 		<script>window.M24Offers = <?php echo wp_json_encode( $cfg ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;</script>
