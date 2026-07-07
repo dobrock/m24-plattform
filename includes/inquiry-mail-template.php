@@ -67,8 +67,12 @@ if ( ! function_exists( 'm24_mail_shell' ) ) {
 			. '<div style="margin-top:10px;">Unsere Postanschrift lautet:</div>'
 			. '<div>MOTORSPORT24 GmbH, Scharfe Lanke 109-131, Haus 113a, 13595 Berlin, Deutschland</div>'
 			. '<div style="margin-top:10px;">'
-			. '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
-			. '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
+			// Slim-Variante NUR wenn explizit angefragt (z. B. Angebots-Mail, die eine eigene Legalzeile trägt) —
+			// Kanonischer Default (Garage/Alerts/Anfrage/DOI) behält Impressum · Datenschutz · www UNVERÄNDERT.
+			. ( empty( $opts['footer_legal_slim'] )
+				? '<a href="https://www.motorsport24.de/impressum/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Impressum</a> · '
+					. '<a href="https://www.motorsport24.de/datenschutz/" style="color:#1f74c4;text-decoration:none;' . $stack . '">Datenschutz</a> · '
+				: '' )
 			. '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
 			. '</div>'
 			. $lang_foot

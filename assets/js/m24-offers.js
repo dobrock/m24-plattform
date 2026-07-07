@@ -84,13 +84,13 @@
 			if (it.free) {
 				titleHtml = '<input type="text" class="m24off-pt-in" value="' + esc(it.title_de != null ? it.title_de : (it.title || '')) + '" data-i="' + i + '" data-title placeholder="Bezeichnung (DE)">';
 				if ('en' === offerLang) { titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en placeholder="Bezeichnung (EN) — selbst übersetzen">'; }
+			} else if ('en' === offerLang) {
+				// #7: EN-Angebot — EN-Titel INLINE als Titelzeile (kein zusätzlicher Row; DE-Titel als Placeholder).
+				// on-blur dauerhaft in den Artikel (Override). Layout-Höhe identisch zur DE-Zeile.
+				titleHtml = '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en-cat placeholder="' + esc(it.title || '') + '">'
+					+ '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
 			} else {
 				titleHtml = '<div class="m24off-pt">' + esc(it.title || '') + '</div>';
-				// #7: Katalog-Position im EN-Angebot → editierbares EN-Feld; on-blur dauerhaft in den Artikel (Override).
-				if ('en' === offerLang) {
-					titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en-cat placeholder="EN-Titel — wird dauerhaft im Artikel gespeichert">';
-					titleHtml += '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
-				}
 			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
@@ -408,12 +408,13 @@
 		var edit = $('[data-kunde-edit]');
 		if (edit && !edit.hidden) {
 			var kt = $('[data-kunde-edit] [data-c-kundentyp] .is-on');
-			customer = {
+			// #8: NUR die sichtbaren Felder überschreiben, restlichen Datensatz (Firma/Telefon/Adresse …) behalten.
+			customer = Object.assign({}, customer, {
 				name: ($('[data-c="name"]') || {}).value || customer.name,
 				email: ($('[data-c="email"]') || {}).value || customer.email,
 				kundentyp: kt ? kt.getAttribute('data-kt') : customer.kundentyp,
 				land: ($('[data-c="land"]') || {}).value || customer.land
-			};
+			});
 		}
 		return customer;
 	}
@@ -537,7 +538,7 @@
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
-		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); cxOpen({ id: customer.id || 0, name: customer.name, email: customer.email, kundentyp: customer.kundentyp, land: customer.land }); return; }
+		if ((el = t.closest('[data-cust-edit]'))) { e.preventDefault(); cxOpen(Object.assign({}, customer, { id: customer.id || 0 })); return; } // #8: vollen Datensatz in den Editor
 		if ((el = t.closest('[data-kt]'))) { segKT(el); return; }
 		if ((el = t.closest('[data-cust-search]'))) { e.preventDefault(); cxOpen(); return; }
 		if ((el = t.closest('[data-cx-close]')) || t.matches('[data-cxmodal]')) { cxClose(); return; }
@@ -573,7 +574,14 @@
 	function cxIsDrittland(land) { var iso = cxLandToIso(land); return '' !== iso && CX_EU.indexOf(iso) < 0; } // GB/England seit Brexit = Drittland
 	var cxKt = 'b2c', cxT, cxEditId = 0;
 	function applyCustomer(c) {
-		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''), firma: (c.firma || c.firmenname || '') }; // #6: Land verbatim · #9: Firma mitführen
+		// #8: VOLLER Kundendatensatz mitführen (round-trippt in Editor + Draft; Land verbatim).
+		customer = {
+			id: c.id || 0, name: c.name || '', email: c.email || '',
+			kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''),
+			firma: (c.firma || c.firmenname || ''), vorname: (c.vorname || ''), nachname: (c.nachname || ''),
+			strasse: (c.strasse || ''), adresszusatz: (c.adresszusatz || ''), plz: (c.plz || ''), ort: (c.ort || ''),
+			telefon: (c.telefon || ''), ustid: (c.ustid || ''), eori: (c.eori || '')
+		};
 		// A2: Kundenkarte zeigt {Firmenname bzw. Name} {Flagge} (Fallback Name → E-Mail), konsistent mit der Übersicht.
 		var dispName = customer.firma || customer.name || customer.email || '—';
 		var flag = (window.M24Country && customer.land) ? M24Country.getFlag(customer.land) : '';

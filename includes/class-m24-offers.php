@@ -234,10 +234,14 @@ class M24_Offers {
 
 	public static function tax_modes(): array {
 		return array(
-			'b2b_eu_net'    => array( 'label' => 'B2B EU → netto (Reverse Charge, keine USt)', 'rate' => 0.0, 'note' => 'Innergemeinschaftliche Lieferung – Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge), keine deutsche USt.', 'note_en' => 'Intra-Community supply – reverse charge, the recipient is liable for VAT; no German VAT.' ),
-			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Nettopreis (Ausfuhrlieferung). Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben im Bestimmungsland trägt der Käufer.', 'note_en' => 'Net price (export delivery). The buyer is responsible for any import VAT, customs duties and import charges in the destination country.' ),
-			'b2b_de_19'     => array( 'label' => 'B2B Deutschland → + 19 % MwSt (brutto)', 'rate' => 19.0, 'note' => 'zzgl. 19 % gesetzlicher MwSt.', 'note_en' => 'plus 19% statutory VAT.' ),
-			'b2c_eu_oss'    => array( 'label' => 'Privat B2C EU → OSS-Satz Zielland (manuell)', 'rate' => null, 'note' => 'One-Stop-Shop: USt-Satz des Bestimmungslandes.', 'note_en' => 'One-Stop-Shop: the VAT rate of the destination country applies.' ),
+			'b2b_eu_net'    => array( 'label' => 'B2B EU → netto (Reverse Charge, keine USt)', 'rate' => 0.0, 'note' => 'Innergemeinschaftliche Lieferung – Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge), keine deutsche USt.', 'note_en' => 'Intra-Community supply – reverse charge, the recipient is liable for VAT; no German VAT.',
+				'paren' => '(netto · Reverse Charge; Steuerschuld beim Empfänger)', 'paren_en' => '(net · reverse charge; VAT owed by the recipient)' ),
+			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Nettopreis (Ausfuhrlieferung). Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben im Bestimmungsland trägt der Käufer.', 'note_en' => 'Net price (export delivery). The buyer is responsible for any import VAT, customs duties and import charges in the destination country.',
+				'paren' => '(netto · Ausfuhrlieferung; ausgewiesene Nebenkosten enthalten; Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben trägt der Käufer im Bestimmungsland)', 'paren_en' => '(net · export delivery; itemised additional costs included; import VAT, customs duties and import charges are payable by the buyer in the destination country)' ),
+			'b2b_de_19'     => array( 'label' => 'B2B Deutschland → + 19 % MwSt (brutto)', 'rate' => 19.0, 'note' => 'zzgl. 19 % gesetzlicher MwSt.', 'note_en' => 'plus 19% statutory VAT.',
+				'paren' => '(inkl. 19 % MwSt. und ausgewiesener Nebenkosten)', 'paren_en' => '(incl. 19% VAT and itemised additional costs)' ),
+			'b2c_eu_oss'    => array( 'label' => 'Privat B2C EU → OSS-Satz Zielland (manuell)', 'rate' => null, 'note' => 'One-Stop-Shop: USt-Satz des Bestimmungslandes.', 'note_en' => 'One-Stop-Shop: the VAT rate of the destination country applies.',
+				'paren' => '(inkl. USt. via OSS und ausgewiesener Nebenkosten)', 'paren_en' => '(incl. VAT via OSS and itemised additional costs)' ),
 		);
 	}
 
@@ -247,6 +251,14 @@ class M24_Offers {
 		if ( ! isset( $m[ $tax_mode ] ) ) { return ''; }
 		if ( 'en' === $lang && ! empty( $m[ $tax_mode ]['note_en'] ) ) { return (string) $m[ $tax_mode ]['note_en']; }
 		return (string) ( $m[ $tax_mode ]['note'] ?? '' );
+	}
+
+	/** #1: Steuerfall-abhängige Parenthese hinter „Gesamtpreis/Total price". Nur Brutto-Modi sagen „inkl. … Steuer". */
+	public static function tax_total_paren( string $tax_mode, string $lang ): string {
+		$m = self::tax_modes();
+		if ( ! isset( $m[ $tax_mode ] ) ) { return 'en' === $lang ? '(incl. any taxes and itemised additional costs)' : '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)'; }
+		if ( 'en' === $lang && ! empty( $m[ $tax_mode ]['paren_en'] ) ) { return (string) $m[ $tax_mode ]['paren_en']; }
+		return (string) ( $m[ $tax_mode ]['paren'] ?? '' );
 	}
 
 	/**
@@ -863,6 +875,16 @@ class M24_Offers {
 			'kundentyp' => in_array( ( $c['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $c['kundentyp'] : 'b2c',
 			'firma'     => sanitize_text_field( (string) ( $c['firma'] ?? '' ) ),
 			'land'      => sanitize_text_field( trim( (string) ( $c['land'] ?? '' ) ) ), // #6: Land VERBATIM (ISO/Flagge nur intern abgeleitet)
+			// #8: vollen Kontakt-Datensatz im Snapshot mitführen → Draft-Reload/Editor behält alle Felder.
+			'vorname'      => sanitize_text_field( (string) ( $c['vorname'] ?? '' ) ),
+			'nachname'     => sanitize_text_field( (string) ( $c['nachname'] ?? '' ) ),
+			'strasse'      => sanitize_text_field( (string) ( $c['strasse'] ?? '' ) ),
+			'adresszusatz' => sanitize_text_field( (string) ( $c['adresszusatz'] ?? '' ) ),
+			'plz'          => sanitize_text_field( (string) ( $c['plz'] ?? '' ) ),
+			'ort'          => sanitize_text_field( (string) ( $c['ort'] ?? '' ) ),
+			'telefon'      => sanitize_text_field( (string) ( $c['telefon'] ?? '' ) ),
+			'ustid'        => sanitize_text_field( (string) ( $c['ustid'] ?? '' ) ),
+			'eori'         => sanitize_text_field( (string) ( $c['eori'] ?? '' ) ),
 		);
 	}
 	private static function clean_items( array $items ): array {

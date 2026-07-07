@@ -108,6 +108,7 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
 			'account_hint' => 'Wir haben dir außerdem einen Link zur Konto-Anlage geschickt — nach Bestätigung ist dieses Angebot jederzeit in deiner MOTORSPORT24-Garage verfügbar.',
+			'race_global' => 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.',
 		);
 		$en = array(
 			'hello' => 'Hello', 'intro' => 'thank you for your inquiry. Here is our binding offer:', 'valid' => 'valid until',
@@ -123,6 +124,7 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
 			'account_hint' => 'We\'ve also sent you a link to create an account — once confirmed, this offer will always be available in your MOTORSPORT24 garage.',
+			'race_global' => 'Sold for motorsport use only — no TÜV report, no road registration.',
 		);
 		return 'en' === $lang ? $en : $de;
 	}
@@ -181,12 +183,24 @@ class M24_Offers_Render {
 				$sj   = json_decode( (string) $o->src_json, true );
 				$cj   = is_array( $cj ) ? $cj : array();
 				$sj   = is_array( $sj ) ? $sj : array();
-				$customer = array(
-					'name' => (string) ( $cj['name'] ?? $customer['name'] ),
-					'email' => strtolower( (string) ( $cj['email'] ?? $customer['email'] ) ),
-					'kundentyp' => in_array( ( $cj['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $cj['kundentyp'] : $customer['kundentyp'],
-					'land' => strtoupper( substr( (string) ( $cj['land'] ?? $customer['land'] ), 0, 2 ) ), 'firma' => '',
-				);
+				// #8: VOLLEN Kundendatensatz aus dem Snapshot zurückladen (Firma/Ansprechpartner/Telefon/Adresse,
+				// Land verbatim) → Editor + Aktualisieren behalten alles.
+				$customer = array_merge( $customer, array(
+					'name'         => (string) ( $cj['name'] ?? $customer['name'] ),
+					'email'        => strtolower( (string) ( $cj['email'] ?? $customer['email'] ) ),
+					'kundentyp'    => in_array( ( $cj['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $cj['kundentyp'] : $customer['kundentyp'],
+					'land'         => (string) ( $cj['land'] ?? $customer['land'] ), // verbatim, nicht kürzen
+					'firma'        => (string) ( $cj['firma'] ?? '' ),
+					'vorname'      => (string) ( $cj['vorname'] ?? '' ),
+					'nachname'     => (string) ( $cj['nachname'] ?? '' ),
+					'strasse'      => (string) ( $cj['strasse'] ?? '' ),
+					'adresszusatz' => (string) ( $cj['adresszusatz'] ?? '' ),
+					'plz'          => (string) ( $cj['plz'] ?? '' ),
+					'ort'          => (string) ( $cj['ort'] ?? '' ),
+					'telefon'      => (string) ( $cj['telefon'] ?? '' ),
+					'ustid'        => (string) ( $cj['ustid'] ?? '' ),
+					'eori'         => (string) ( $cj['eori'] ?? '' ),
+				) );
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
 				// #3: Thumb zurück-hydrieren — aus items_json, sonst serverseitig aus dem Teil nachziehen (Alt-Entwürfe).
 				$pf_items = is_array( $its ) ? array_values( $its ) : array();
@@ -512,7 +526,7 @@ class M24_Offers_Render {
 							<span class="m24off-pos-title"><?php echo esc_html( self::item_title( $it, self::offer_lang( $o ) ) ); ?></span>
 							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant">Variante: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
-							<?php if ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ) : ?><span class="m24off-pos-race"><span class="m24off-flag" aria-hidden="true"></span><?php echo esc_html( $it['race_note'] ); ?></span><?php endif; ?>
+<?php /* #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit. */ ?>
 							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
 							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
 						</div>
@@ -524,6 +538,8 @@ class M24_Offers_Render {
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
 				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?> <?php echo esc_html( $L['delivery_paynote'] ); ?></p><?php endif; ?>
+					<?php $has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $has_race = true; break; } } ?>
+					<?php if ( $has_race ) : ?><p class="m24off-note m24off-race-note"><?php echo esc_html( $L['race_global'] ); ?></p><?php endif; ?>
 				<?php
 				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
 				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -547,7 +563,7 @@ class M24_Offers_Render {
 			</section>
 
 			<!-- E: Bindungssatz -->
-			<p class="m24off-binding"><?php echo esc_html( self::bindungssatz() ); ?></p>
+			<p class="m24off-binding"><?php echo esc_html( self::bindungssatz( self::offer_lang( $o ) ) ); ?></p>
 
 			<!-- C: Rechts-Accordions -->
 			<?php if ( $is_b2c ) : ?>
@@ -701,7 +717,11 @@ class M24_Offers_Render {
 		return false;
 	}
 	/** Bindungssatz (alle, ohne Paragraphen — die stehen in den Accordions/Belehrung). */
-	private static function bindungssatz(): string {
+	private static function bindungssatz( string $lang = 'de' ): string {
+		// #4: EN-Fassung FREIGEGEBEN (anwaltlich abgenommen). DE bleibt unverändert.
+		if ( 'en' === $lang ) {
+			return 'Binding offer — upon timely receipt of payment it is deemed accepted and the purchase contract is concluded.';
+		}
 		return 'Verbindliches Angebot – mit fristgerechtem Zahlungseingang gilt es als angenommen und der Kaufvertrag kommt zustande.';
 	}
 	/** Accordion „Widerrufsrecht (Verbraucher)" — nur B2C. Link → /widerruf/ + Muster-Widerrufsformular. */
@@ -780,8 +800,8 @@ class M24_Offers_Render {
 				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'
 					. ( ! empty( $it['art_nr'] ) ? esc_html( $L['artnr'] ) . ': ' . esc_html( $it['art_nr'] ) : '' )
 					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . esc_html( $L['used'] ) : '' ) . '</span>' : '' )
-				. ( ! empty( $it['race'] ) && ! empty( $it['race_note'] ) ? '<br><span style="color:#93762f;font-size:11.5px;">🇩🇪 ' . esc_html( $it['race_note'] ) . '</span>' : '' )
-				. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
+				// #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit.
+					. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
 				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
 				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
 		}
@@ -818,11 +838,15 @@ class M24_Offers_Render {
 			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
+		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
+		$mail_has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $mail_has_race = true; break; } }
+		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#93762f;font-size:12px;">' . esc_html( $L['race_global'] ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
 		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
 		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
 		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
+		$inner .= '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'; // #3: Leerzeile zwischen CTA-Button und „Online: review…"
 		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
 		$inner .= '<div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>'; // E6: Leerzeile nach dem CTA
 		// E3: Gast ohne Konto → Hinweis auf die separat verschickte Konto-Anlage (Garage-Zugriff).
@@ -830,10 +854,10 @@ class M24_Offers_Render {
 			$inner .= '<p style="margin:0 0 6px;text-align:center;font-size:12px;color:#8a929c;line-height:1.6;">' . esc_html( $L['account_hint'] ) . '</p>';
 		}
 		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
-		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz() ) . '</p>';
+		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz( self::offer_lang( $o ) ) ) . '</p>';
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
-			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( $L['incl_taxes'] )
+			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) )
 			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) : '' ) . '</p>';
 		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
 		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
@@ -850,7 +874,8 @@ class M24_Offers_Render {
 		}
 
 		$lang = self::offer_lang( $o );
-		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang ) ) : $inner;
+		// #5: Angebots-Mail trägt eine eigene Legalzeile → im Shell-Footer Impressum/Datenschutz weglassen (nur www).
+		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang, 'footer_legal_slim' => true ) ) : $inner;
 		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
 		wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
