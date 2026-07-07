@@ -63,23 +63,30 @@ class M24_Inquiries_Sidebar {
 
         $submit_path = apply_filters( 'm24_inquiries_sidebar_submit_url', self::DEFAULT_SUBMIT_PATH );
 
+        // Sprache serverseitig auflösen (GTranslate-aware). Der Drawer wird per JS injiziert → GTranslate
+        // erreicht ihn nicht; deshalb die Strings hier in der Anzeige-Sprache einbetten.
+        $lang = class_exists( 'M24_I18n' ) ? M24_I18n::display_lang() : 'de';
+        $t    = static function ( $key, $fallback ) use ( $lang ) {
+            return class_exists( 'M24_I18n' ) ? M24_I18n::t( $key, $lang ) : $fallback;
+        };
+
         wp_localize_script( 'm24-inquiries-sidebar', 'M24SidebarConfig', [
             'submitUrl'        => esc_url( home_url( $submit_path ) ),
             'storageKey'       => 'm24_sidebar_items',
             'maxItems'         => 50,
             'userCanSeePrices' => M24_Inquiries::user_can_see_prices(),
             'i18n'       => [
-                'title'         => __( 'Sammelanfrage', 'm24-plattform' ),
-                'empty'         => __( 'Noch keine Positionen ausgewählt.', 'm24-plattform' ),
-                'emptyHint'     => __( 'Füge Pakete oder Artikel über die jeweilige Detail-Seite hinzu.', 'm24-plattform' ),
-                'qtyLabel'      => __( 'Menge', 'm24-plattform' ),
-                'remove'        => __( 'Entfernen', 'm24-plattform' ),
-                'submit'        => __( 'Sammelanfrage absenden', 'm24-plattform' ),
-                'open'          => __( 'Sammelanfrage öffnen', 'm24-plattform' ),
-                'close'         => __( 'Sammelanfrage schließen', 'm24-plattform' ),
-                'badgeAria'     => __( 'Positionen in Sammelanfrage', 'm24-plattform' ),
-                'addedToast'    => __( 'Zur Anfrage hinzugefügt', 'm24-plattform' ),
-                'maxReached'    => __( 'Maximale Anzahl Positionen erreicht.', 'm24-plattform' ),
+                'title'         => $t( 'cart_title', 'Sammelanfrage' ),
+                'empty'         => $t( 'cart_empty', 'Noch keine Positionen ausgewählt.' ),
+                'emptyHint'     => $t( 'cart_empty_hint', 'Füge Pakete oder Artikel über die jeweilige Detail-Seite hinzu.' ),
+                'qtyLabel'      => $t( 'cart_qty', 'Menge' ),
+                'remove'        => $t( 'cart_remove', 'Entfernen' ),
+                'submit'        => $t( 'cart_submit', 'Sammelanfrage absenden' ),
+                'open'          => $t( 'cart_open', 'Sammelanfrage öffnen' ),
+                'close'         => $t( 'cart_close', 'Sammelanfrage schließen' ),
+                'badgeAria'     => $t( 'cart_badge_aria', 'Positionen in Sammelanfrage' ),
+                'addedToast'    => $t( 'cart_added', 'Zur Anfrage hinzugefügt' ),
+                'maxReached'    => $t( 'cart_max', 'Maximale Anzahl Positionen erreicht.' ),
             ],
         ] );
     }

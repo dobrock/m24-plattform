@@ -107,7 +107,8 @@ class M24_I18n {
      * (Folge-Token in einem notranslate-Span). Nur das Token, umgebende Wörter bleiben übersetzbar.
      */
     public static function wrap_brand_notranslate( $html ) {
-        if ( '' === (string) $html || false === strpos( $html, 'MOTORSPORT24' ) ) { return $html; }
+        $html = (string) $html;
+        if ( '' === $html ) { return $html; }
         // script/style-Blöcke ausklammern (Platzhalter), Rest bearbeiten, dann zurücktauschen.
         $stash = array();
         $html  = preg_replace_callback( '#<(script|style)\b[^>]*>.*?</\1>#is', function ( $m ) use ( &$stash ) {
@@ -115,15 +116,51 @@ class M24_I18n {
             $stash[ $key ] = $m[0];
             return $key;
         }, $html );
-        // Nur Text-Knoten: Token, das NICHT direkt Teil eines Tags/Attributs ist. Bereits gewrappte
-        // (notranslate) überspringen: negativer Lookbehind auf translate="no">.
-        $html = preg_replace(
-            '/(?<!translate="no">)(?<![\w-])MOTORSPORT24(?![\w-])(?![^<]*>)/',
-            '<span class="notranslate" translate="no">MOTORSPORT24</span>',
-            $html
-        );
+
+        // 1) Marke MOTORSPORT24 (Zahlendreher „MOTORSPORT2006 … since 24").
+        $html = self::nt_wrap_literal( $html, 'MOTORSPORT24' );
+
+        // 2) Geschützte Phrasen: Adress-/Straßennamen, Modellcodes … (filterbar). Verhindert „Sharp Lanke /
+        //    Upper Street" und zerübersetzte Modellcodes im Footer/Boilerplate.
+        foreach ( self::notranslate_phrases() as $phrase ) {
+            $html = self::nt_wrap_literal( $html, (string) $phrase );
+        }
+
+        // 3) Uhrzeiten/Zeitspannen (z. B. „10:00–16:00 Uhr") — sonst „10 a.m. – 00 p.m.".
+        $html = self::nt_wrap_times( $html );
+
         if ( ! empty( $stash ) ) { $html = strtr( $html, $stash ); }
         return $html;
+    }
+
+    /**
+     * Literale Phrase in Text-Knoten mit <span class="notranslate"> kapseln. SICHER: nur zwischen >…< (Text),
+     * NICHT in Tags/Attributen (Lookahead (?![^<]*>)) und NICHT doppelt (Lookbehind auf translate="no">).
+     */
+    private static function nt_wrap_literal( string $html, string $needle ): string {
+        if ( '' === $needle || false === strpos( $html, $needle ) ) { return $html; }
+        $q = preg_quote( $needle, '/' );
+        return preg_replace(
+            '/(?<!translate="no">)(?<![\w-])' . $q . '(?![\w-])(?![^<]*>)/u',
+            '<span class="notranslate" translate="no">' . $needle . '</span>',
+            $html
+        );
+    }
+
+    /** Uhrzeiten/Zeitspannen (HH:MM, optional Spanne + „Uhr") in Text-Knoten notranslate-kapseln. */
+    private static function nt_wrap_times( string $html ): string {
+        return preg_replace_callback(
+            '/(?<!translate="no">)\b\d{1,2}:\d{2}(?:\s*[–—-]\s*\d{1,2}:\d{2})?(?:\s*Uhr)?(?![^<]*>)/u',
+            function ( $m ) { return '<span class="notranslate" translate="no">' . $m[0] . '</span>'; },
+            $html
+        );
+    }
+
+    /** Vor GTranslate zu schützende literale Phrasen (Adressen/Modellcodes). Filterbar. */
+    private static function notranslate_phrases(): array {
+        return (array) apply_filters( 'm24_i18n_notranslate_phrases', array(
+            'Scharfe Lanke', 'Obere Straße', 'Obere Str.', 'M3 E30',
+        ) );
     }
 
     /**
@@ -186,6 +223,37 @@ class M24_I18n {
             if ( $l ) { return $l; }
         }
         return self::detect_default_lang();
+    }
+
+    /**
+     * Anzeige-Sprache INKL. GTranslate-Signale (/en/-Pfad im URL-Modus, googtrans-Cookie). Für serverseitig
+     * eingebettete Strings, die GTranslate nicht erreicht (JS-injizierte Drawer-/Sidebar-Texte). Explizite
+     * Wahl (?lang / m24_lang-Cookie) gewinnt vor der GTranslate-Erkennung. Seiteneffektfrei.
+     */
+    public static function display_lang(): string {
+        if ( isset( $_GET['lang'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            $l = self::norm( wp_unslash( $_GET['lang'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+            if ( $l ) { return $l; }
+        }
+        if ( isset( $_COOKIE[ self::COOKIE ] ) ) {
+            $l = self::norm( wp_unslash( $_COOKIE[ self::COOKIE ] ) );
+            if ( $l ) { return $l; }
+        }
+        $g = self::gtranslate_lang();
+        if ( '' !== $g ) { return $g; }
+        return self::detect_default_lang();
+    }
+
+    /** GTranslate-Zielsprache: /en/-Pfad (URL-Modus) oder googtrans-Cookie („/de/en" → Ziel = letztes Segment). */
+    private static function gtranslate_lang(): string {
+        $uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+        $path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+        if ( preg_match( '#^/en(/|$)#', (string) $path ) ) { return 'en'; }
+        if ( isset( $_COOKIE['googtrans'] ) ) {
+            $parts = array_values( array_filter( explode( '/', (string) wp_unslash( $_COOKIE['googtrans'] ) ) ) );
+            if ( $parts ) { return self::norm( (string) end( $parts ) ); } // Ziel = letztes Segment
+        }
+        return '';
     }
 
     /** Primäres Accept-Language-Tag: beginnt mit 'de' → de, sonst en. Isoliert (CDN/GeoIP-ready). */
@@ -354,6 +422,26 @@ class M24_I18n {
                 'mail_footer_imprint'  => 'Impressum',
                 'mail_footer_privacy'  => 'Datenschutz',
                 'mail_hello'           => 'Hallo %s,',
+                // Sammelanfrage-Drawer (JS-injiziert → GTranslate erreicht sie nicht, daher hier lokalisiert)
+                'cart_title'       => 'Sammelanfrage',
+                'cart_empty'       => 'Noch keine Positionen ausgewählt.',
+                'cart_empty_hint'  => 'Füge Pakete oder Artikel über die jeweilige Detail-Seite hinzu.',
+                'cart_qty'         => 'Menge',
+                'cart_remove'      => 'Entfernen',
+                'cart_submit'      => 'Sammelanfrage absenden',
+                'cart_open'        => 'Sammelanfrage öffnen',
+                'cart_close'       => 'Sammelanfrage schließen',
+                'cart_badge_aria'  => 'Positionen in Sammelanfrage',
+                'cart_added'       => 'Zur Anfrage hinzugefügt',
+                'cart_max'         => 'Maximale Anzahl Positionen erreicht.',
+                // Anfrage-Modal (Merkzettel)
+                'iq_email_to_me'   => 'Merkzettel per E-Mail senden',
+                'iq_email_prompt'  => 'Deine E-Mail (für Rückfragen, optional):',
+                'iq_sent'          => 'Gesendet ✓',
+                'iq_added'         => 'Zum Merkzettel hinzugefügt',
+                'iq_generic_err'   => 'Es ist ein Fehler aufgetreten.',
+                'iq_land_unknown'  => 'Bitte ein Land aus der Liste wählen.',
+                'iq_success'       => 'Vielen Dank, deine Anfrage ist eingegangen. Wir melden uns kurzfristig bei dir.',
             ),
             'en' => array(
                 'reg_h1'        => 'Registration',
@@ -412,6 +500,25 @@ class M24_I18n {
                 'mail_footer_imprint'  => 'Imprint',
                 'mail_footer_privacy'  => 'Privacy Policy',
                 'mail_hello'           => 'Hello %s,',
+                // Collective enquiry drawer (JS-injected → not reachable by GTranslate, localized here)
+                'cart_title'       => 'Enquiry list',
+                'cart_empty'       => 'No items selected yet.',
+                'cart_empty_hint'  => 'Add packages or parts from their detail pages.',
+                'cart_qty'         => 'Quantity',
+                'cart_remove'      => 'Remove',
+                'cart_submit'      => 'Send enquiry list',
+                'cart_open'        => 'Open enquiry list',
+                'cart_close'       => 'Close enquiry list',
+                'cart_badge_aria'  => 'Items in enquiry list',
+                'cart_added'       => 'Added to enquiry',
+                'cart_max'         => 'Maximum number of items reached.',
+                'iq_email_to_me'   => 'Email my list',
+                'iq_email_prompt'  => 'Your email (for questions, optional):',
+                'iq_sent'          => 'Sent ✓',
+                'iq_added'         => 'Added to your list',
+                'iq_generic_err'   => 'An error occurred.',
+                'iq_land_unknown'  => 'Please choose a country from the list.',
+                'iq_success'       => 'Thank you, we have received your enquiry. We will get back to you shortly.',
             ),
         );
     }
