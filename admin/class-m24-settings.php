@@ -196,6 +196,21 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // DeepL-API-Key (EN-Angebots-Positionstitel). Leeres Feld = vorhandenen Key behalten. Nur server-seitig.
+        register_setting(
+            'm24_plattform_group',
+            'm24_deepl_api_key',
+            [
+                'type'              => 'string',
+                'sanitize_callback' => static function ( $input ) {
+                    $existing = (string) get_option( 'm24_deepl_api_key', '' );
+                    if ( defined( 'M24_DEEPL_API_KEY' ) ) { return $existing; } // per Konstante gesetzt → DB nie überschreiben
+                    $input = trim( (string) $input );
+                    return ( '' === $input ) ? $existing : sanitize_text_field( $input ); // leer lassen behält Key
+                },
+                'default'           => '',
+            ]
+        );
     }
 
     /**
@@ -560,6 +575,42 @@ class M24_Settings {
                         ?>
                     </span>
                 </p>
+
+                <h2 style="margin-top:24px;"><?php echo esc_html__( 'DeepL — EN-Angebots-Titel', 'm24-plattform' ); ?></h2>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row">
+                            <label for="m24_deepl_api_key"><?php echo esc_html__( 'DeepL API-Key', 'm24-plattform' ); ?></label>
+                        </th>
+                        <td>
+                            <?php
+                            $deepl_locked = defined( 'M24_DEEPL_API_KEY' );
+                            $deepl_saved  = '' !== ( class_exists( 'M24_DeepL' ) ? M24_DeepL::api_key() : (string) get_option( 'm24_deepl_api_key', '' ) );
+                            ?>
+                            <input
+                                type="text"
+                                id="m24_deepl_api_key"
+                                name="m24_deepl_api_key"
+                                value=""
+                                class="regular-text code<?php echo $deepl_locked ? ' m24-config-locked' : ''; ?>"
+                                placeholder="<?php echo esc_attr( $deepl_locked ? __( '(via wp-config.php gesetzt)', 'm24-plattform' ) : ( $deepl_saved ? __( '(Key gespeichert — leer lassen behält ihn)', 'm24-plattform' ) : 'xxxxxxxx-xxxx-…:fx' ) ); ?>"
+                                autocomplete="off"
+                                spellcheck="false"
+                                <?php echo $deepl_locked ? 'readonly' : ''; ?>
+                            />
+                            <p class="description">
+                                <?php echo esc_html__( 'Übersetzt fehlende EN-Positionstitel in EN-Angeboten (on-demand, gecacht). Free-Keys enden auf „:fx" → api-free.deepl.com; Pro-Keys → api.deepl.com. Leer lassen behält den vorhandenen Key.', 'm24-plattform' ); ?>
+                            </p>
+                            <?php if ( $deepl_locked ) : ?>
+                                <p class="m24-config-locked-hint"><span class="dashicons dashicons-lock"></span>
+                                    <?php echo esc_html__( 'Wert via wp-config.php (Konstante M24_DEEPL_API_KEY) gesetzt — DB-Wert wird ignoriert.', 'm24-plattform' ); ?></p>
+                            <?php elseif ( $deepl_saved ) : ?>
+                                <p class="description" style="color:#1a7a3c;font-size:12px;"><span class="dashicons dashicons-yes-alt"></span>
+                                    <?php echo esc_html__( 'Key gespeichert.', 'm24-plattform' ); ?></p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                </table>
 
                 <h2 style="margin-top:24px;"><?php echo esc_html__( 'Test-Modus (Dev)', 'm24-plattform' ); ?></h2>
                 <table class="form-table" role="presentation">

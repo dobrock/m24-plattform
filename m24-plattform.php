@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.328
+ * Version:           0.11.329
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -143,8 +143,10 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-bar.php';    // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-login.php';        // Passwordless Magic-Link-Login „D" (flag-gated, Default aus)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-account.php';      // Konto-/Einstellungsseite (Entwurf 1) im Benachrichtigungen-Tab
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-deepl.php';        // DeepL: EN-Angebots-Positionstitel on-demand (Hash-Cache)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
+M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
 M24_Preis_Altlink::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-unsub.php'; // §7-UWG 1-Klick-Opt-out für Fahrzeug-Alerts (signierter Token)

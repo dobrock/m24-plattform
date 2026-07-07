@@ -571,6 +571,11 @@ class M24_Offers {
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$src['lang'] = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de'; // Angebotssprache (Mail/Kunden-Ansicht/PDF)
+		// EN-Angebot: fehlende EN-Titel der Katalog-Positionen per DeepL füllen (EINE Batch-Anfrage, gecacht).
+		// Wirkt im gespeicherten Snapshot → Mail + Kunden-Ansicht + Druck nutzen die EN-Titel. Fehler → DE-Fallback.
+		if ( 'en' === $src['lang'] && class_exists( 'M24_DeepL' ) ) {
+			$items = M24_DeepL::fill_item_en_titles( $items );
+		}
 		// v3: Anschreiben-Felder + globale Lieferzeit im src_json (Zeilenumbrüche im Freitext erhalten).
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
