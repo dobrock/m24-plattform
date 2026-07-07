@@ -126,8 +126,15 @@ class M24_Catalog_Template_Detail {
 		$leichtbau    = (bool) (int) get_post_meta( $id, '_m24_leichtbau', true );
 		$terms      = get_the_terms( $id, M24_Catalog_CPT::TAXONOMY );
 		$term_names = ( $terms && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'name' ) : array();
-		// Breadcrumb-Kontext: Modell aus dem Herkunfts-Hub (?from={hub-slug}); Fallback = erster/Default-Term.
-		$crumb_term = ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) ? $terms[0] : null;
+		// Hauptrubrik (Breadcrumb & SEO): explizit gewählter Term (_m24_primary_modell), falls dem Teil zugewiesen;
+		// sonst erster Term (Auto-Fallback).
+		$primary      = (int) get_post_meta( $id, '_m24_primary_modell', true );
+		$primary_term = ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) ? $terms[0] : null;
+		if ( $primary > 0 && $terms && ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $t ) { if ( (int) $t->term_id === $primary ) { $primary_term = $t; break; } }
+		}
+		// Breadcrumb-Kontext: Präzedenz ?from-Hub › Hauptrubrik › erster Term. Default = Hauptrubrik.
+		$crumb_term = $primary_term;
 		$from_hub   = isset( $_GET['from'] ) ? sanitize_title( wp_unslash( $_GET['from'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		if ( '' !== $from_hub && $terms && ! is_wp_error( $terms ) && class_exists( 'M24_Catalog_Hub' ) ) {
 			$hub_tids = array_map( 'intval', (array) M24_Catalog_Hub::term_ids( $from_hub ) );
@@ -161,14 +168,31 @@ class M24_Catalog_Template_Detail {
 			}
 		}
 
+		// Kanonische Modell-URL für die Breadcrumb-Modell-Ebene (Schema): Hub-Permalink /modelle/{slug} falls
+		// vorhanden, sonst gefilterte Archiv-URL. Nutzt die Hauptrubrik ($primary_term), NICHT den ?from-Kontext.
+		$model_url = '';
+		if ( $primary_term && class_exists( 'M24_Catalog_Hub' ) ) {
+			$hub = M24_Catalog_Hub::hub_for_term_slug( $primary_term->slug );
+			if ( '' !== $hub ) { $model_url = M24_Catalog_Hub::url( $hub ); }
+		}
+		if ( '' === $model_url && $primary_term ) {
+			$model_url = add_query_arg( 'm24_modell', $primary_term->slug, $typ_url );
+		}
+
+		$crumbs = array(
+			array( '@type' => 'ListItem', 'position' => 1, 'name' => 'Start', 'item' => $home ),
+			array( '@type' => 'ListItem', 'position' => 2, 'name' => $typ_label, 'item' => $typ_url ),
+		);
+		$pos = 3;
+		if ( $primary_term ) { // Modell-Ebene einschieben, Artikel rückt auf die nächste Position
+			$crumbs[] = array( '@type' => 'ListItem', 'position' => $pos, 'name' => $primary_term->name, 'item' => $model_url );
+			$pos++;
+		}
+		$crumbs[] = array( '@type' => 'ListItem', 'position' => $pos, 'name' => get_the_title( $id ) );
 		$ld = array(
 			'@context'        => 'https://schema.org',
 			'@type'           => 'BreadcrumbList',
-			'itemListElement' => array(
-				array( '@type' => 'ListItem', 'position' => 1, 'name' => 'Start', 'item' => $home ),
-				array( '@type' => 'ListItem', 'position' => 2, 'name' => $typ_label, 'item' => $typ_url ),
-				array( '@type' => 'ListItem', 'position' => 3, 'name' => get_the_title( $id ) ),
-			),
+			'itemListElement' => $crumbs,
 		);
 
 		// Product-Structured-Data (Schema.org) — Offer/price/condition/mpn/sku.
@@ -617,7 +641,7 @@ class M24_Catalog_Template_Detail {
 
 			<?php if ( $related ) : ?>
 				<div class="related">
-					<div class="dl"><?php echo ! empty( $term_names ) ? esc_html( 'WEITERE ' . mb_strtoupper( $term_names[0] ) . '-TEILE' ) : esc_html__( 'WEITERE TEILE', 'm24-plattform' ); ?></div>
+					<div class="dl"><?php echo $primary_term ? esc_html( 'WEITERE ' . mb_strtoupper( $primary_term->name ) . '-TEILE' ) : esc_html__( 'WEITERE TEILE', 'm24-plattform' ); ?></div>
 					<div class="related-grid">
 						<?php
 						foreach ( $related as $rp ) :

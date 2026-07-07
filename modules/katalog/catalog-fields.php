@@ -159,6 +159,39 @@ class M24_Catalog_Fields {
 				<option value="verkauft" <?php selected( $status, 'verkauft' ); ?>>Verkauft</option>
 			</select>
 
+			<label>Hauptrubrik (Breadcrumb &amp; SEO)</label>
+			<?php
+			$primary_sel = (int) get_post_meta( $post->ID, '_m24_primary_modell', true );
+			$assigned    = wp_get_post_terms( $post->ID, M24_Catalog_CPT::TAXONOMY );
+			if ( is_wp_error( $assigned ) ) { $assigned = array(); }
+			?>
+			<select name="m24_primary_modell" id="m24_primary_modell">
+				<option value="0" <?php selected( $primary_sel, 0 ); ?>>— automatisch (erster Term) —</option>
+				<?php foreach ( $assigned as $t ) : ?>
+					<option value="<?php echo (int) $t->term_id; ?>" <?php selected( $primary_sel, (int) $t->term_id ); ?>><?php echo esc_html( $t->name ); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<script>
+			/* Beim (Ent-)Haken der Modell-Terms die Hauptrubrik-Optionen live aus den angehakten Labels neu
+			   aufbauen (aktuelle Auswahl erhalten) → kein Doppel-Speicher-Zyklus nötig. */
+			(function () {
+				function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+				function rebuild() {
+					var sel = document.getElementById('m24_primary_modell'); if (!sel) { return; }
+					var cur = sel.value, seen = {}, html = '<option value="0">— automatisch (erster Term) —</option>', found = false;
+					var boxes = document.querySelectorAll('#m24_fahrzeugkatdiv input[type=checkbox]:checked');
+					[].forEach.call(boxes, function (cb) {
+						var id = String(cb.value || '').trim(); if (!id || '0' === id || seen[id]) { return; } seen[id] = 1;
+						var lab = cb.closest('label'); var name = lab ? lab.textContent.trim() : id;
+						if (id === cur) { found = true; }
+						html += '<option value="' + esc(id) + '">' + esc(name) + '</option>';
+					});
+					sel.innerHTML = html; sel.value = found ? cur : '0';
+				}
+				document.addEventListener('change', function (e) { var t = e.target; if (t && t.matches && t.matches('#m24_fahrzeugkatdiv input[type=checkbox]')) { rebuild(); } });
+			})();
+			</script>
+
 			<label>Logo anzeigen</label>
 			<label style="font-weight:400;cursor:pointer">
 				<input type="checkbox" name="m24_logo_anzeigen" value="1" <?php checked( $logo_anzeigen, true ); ?>>
@@ -382,6 +415,21 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_typ', $typ );
 		update_post_meta( $post_id, '_m24_mwst_modus', $modus );
 		update_post_meta( $post_id, '_m24_status', $status );
+
+		// Hauptrubrik (Breadcrumb/SEO): nur speichern, wenn der Term dem Teil tatsächlich zugewiesen ist, sonst
+		// löschen → Auto-Fallback auf den ersten Term. Terms sind hier (save_post, Prio 10) bereits gesetzt
+		// (tax_input wird in wp_insert_post VOR save_post verarbeitet).
+		$primary = isset( $_POST['m24_primary_modell'] ) ? (int) $_POST['m24_primary_modell'] : 0;
+		$assigned_ids = array();
+		if ( $primary > 0 ) {
+			$pterms = wp_get_post_terms( $post_id, M24_Catalog_CPT::TAXONOMY, array( 'fields' => 'ids' ) );
+			$assigned_ids = is_wp_error( $pterms ) ? array() : array_map( 'intval', (array) $pterms );
+		}
+		if ( $primary > 0 && in_array( $primary, $assigned_ids, true ) ) {
+			update_post_meta( $post_id, '_m24_primary_modell', $primary );
+		} else {
+			delete_post_meta( $post_id, '_m24_primary_modell' );
+		}
 		update_post_meta( $post_id, '_m24_logo_anzeigen', isset( $_POST['m24_logo_anzeigen'] ) ? 1 : 0 );
 		// Markenrecht: „Original BMW-Teil"-Badge nur bei explizit markierten Originalteilen ('1').
 		update_post_meta( $post_id, '_m24_original_teil', isset( $_POST['m24_original_teil'] ) ? '1' : '0' );
