@@ -273,27 +273,11 @@ class M24_Offers_Render {
 					</div>
 				</div>
 
-				<div class="m24off-card m24off-poscard" data-poscard>
-					<div class="m24off-poscol">
-						<h2>Positionen <span class="m24off-hint2">⠿ ziehen zum Sortieren · Preise editierbar</span></h2>
-						<div data-items></div>
-						<div data-extra-rows></div>
-						<p class="m24off-stdnote">Rechts in der Palette suchen und übernehmen — Katalog, Standard-Positionen (Empfängerland automatisch) oder freie Position. Neu übernommene Positionen blinken kurz auf.</p>
-						<button type="button" class="m24off-dockopen" data-dock-open>+ Position hinzufügen</button>
-					</div>
-					<div class="m24off-dock" data-dock>
-						<div class="m24off-dhead">
-							<input type="search" data-palette-q placeholder="Name / Art.-Nr. / BMW-Teilenr." autocomplete="off">
-							<button type="button" class="m24off-dclose" data-dock-close aria-label="Palette schließen">✕</button>
-						</div>
-						<div class="m24off-dtabs" data-palette-tabs>
-							<span class="on" data-ptab="katalog">Katalog</span>
-							<span data-ptab="standard">Standard</span>
-							<span data-ptab="frei">Frei</span>
-						</div>
-						<div class="m24off-dlist" data-palette-list></div>
-						<button type="button" class="m24off-dcollapse" data-dock-collapse title="Palette einklappen">⇥ Palette einklappen</button>
-					</div>
+				<div class="m24off-card">
+					<h2>Positionen <span class="m24off-hint2">⠿ ziehen zum Sortieren · Preise editierbar</span></h2>
+					<div data-items></div>
+					<div data-extra-rows></div>
+					<p class="m24off-stdnote">Über die Palette (rechts unter dem Angebotsblock) suchen und übernehmen — Katalog, Standard-Positionen (Empfängerland automatisch) oder freie Position. Neu übernommene Positionen blinken kurz auf.</p>
 				</div>
 
 				<div class="m24off-card">
@@ -332,6 +316,19 @@ class M24_Offers_Render {
 					<a href="#" class="m24off-alt" data-action="text">Stattdessen mit Text antworten</a>
 					<p class="m24off-legal145">Bindungsfrist gem. § 145 BGB: <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage ab Angebotsdatum.</p>
 					<p class="m24off-status" data-status role="status"></p>
+				</div>
+
+				<!-- Artikel-Palette: unter dem Angebotsblock (vertikaler Stack), NICHT daneben/überlappend. -->
+				<div class="m24off-card m24off-dock" data-dock>
+					<div class="m24off-dhead">
+						<input type="search" data-palette-q placeholder="Name / Art.-Nr. / BMW-Teilenr." autocomplete="off">
+					</div>
+					<div class="m24off-dtabs" data-palette-tabs>
+						<span class="on" data-ptab="katalog">Katalog</span>
+						<span data-ptab="standard">Standard</span>
+						<span data-ptab="frei">Frei</span>
+					</div>
+					<div class="m24off-dlist" data-palette-list></div>
 				</div>
 			</div>
 		</div>

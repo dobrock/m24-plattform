@@ -242,7 +242,7 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-seg2 span:last-child{border-right:0}
 .m24off-v2 .m24off-seg2 .on{background:var(--b2);color:#fff}
 .m24off-v2 .m24off-taxnote{font-size:12px;color:var(--mut);margin-top:8px;line-height:1.5}
-.m24off-v2 .m24off-side{position:sticky;top:20px;height:fit-content}
+.m24off-v2 .m24off-side{height:fit-content} /* Sticky liegt jetzt auf der ganzen rechten Spalte (Summary + Palette) */
 .m24off-v2 .m24off-sum2 .row{display:flex;justify-content:space-between;font-size:14px;padding:7px 0}
 .m24off-v2 .m24off-sum2 .row.mut{color:var(--mut);font-size:13px}
 .m24off-v2 .m24off-tot{border-top:2px solid var(--ink);margin-top:8px;padding-top:12px;font-size:17px;font-weight:800;display:flex;justify-content:space-between}
@@ -260,6 +260,7 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-mbar button{margin-left:auto;border:0;border-radius:11px;padding:13px 22px;background:linear-gradient(135deg,var(--b1),var(--b2));color:#fff;font-family:'Saira';font-weight:800;font-size:14.5px}
 @media(max-width:860px){
   .m24off-v2 .m24off-grid{grid-template-columns:1fr}
+  .m24off-v2 .m24off-col-side{position:static;max-height:none;overflow:visible} /* einspaltig: rechte Spalte fließt normal */
   .m24off-v2 .m24off-side{position:static}
   .m24off-v2 .m24off-side .m24off-send,.m24off-v2 .m24off-side .m24off-alt{display:none}
   .m24off-v2 .m24off-mbar{display:flex}
@@ -320,18 +321,16 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 
 .m24off-v2 .m24off-legal145{font-size:11px;color:#8a929c;text-align:center;line-height:1.45;margin:2px 0 0}
 
-/* ── C3: Angedockte Palette (fest, kein Overlay) ── */
-.m24off-v2 .m24off-poscard{padding:0;overflow:hidden;display:grid;grid-template-columns:1fr 300px}
-.m24off-v2 .m24off-poscol{padding:16px;min-width:0}
-.m24off-v2 .m24off-poscard.dock-collapsed{grid-template-columns:1fr 42px}
-.m24off-v2 .m24off-dock{border-left:1px solid var(--line,#e8e8ec);background:#fbfcfd;display:flex;flex-direction:column;min-height:100%}
+/* ── C3: Artikel-Palette — vertikaler Stack im rechten Block, UNTER dem Angebots-Summary (kein Overlay,
+   kein Nebeneinander). Die rechte Spalte klebt als Ganzes und scrollt intern (Summary oben, Palette darunter). */
+.m24off-v2 .m24off-col-side{min-width:0;display:flex;flex-direction:column;gap:14px;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto}
+.m24off-v2 .m24off-dock{padding:0;overflow:hidden;display:flex;flex-direction:column}
 .m24off-v2 .m24off-dhead{padding:12px;border-bottom:1px solid var(--line,#e8e8ec);background:#fff;display:flex;gap:8px;align-items:center}
 .m24off-v2 .m24off-dhead input{flex:1;min-width:0;border:1px solid #d3d8de;border-radius:8px;padding:9px 11px;font-size:16px;font-family:'Saira',Arial,sans-serif}
-.m24off-v2 .m24off-dclose{display:none;border:0;background:none;font-size:20px;line-height:1;color:#9aa3b0;cursor:pointer}
 .m24off-v2 .m24off-dtabs{display:flex;padding:8px 12px 0;gap:4px}
 .m24off-v2 .m24off-dtabs span{flex:1;text-align:center;border-radius:7px;padding:6px 2px;font-size:11px;font-weight:700;color:#787f87;cursor:pointer}
 .m24off-v2 .m24off-dtabs span.on{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}
-.m24off-v2 .m24off-dlist{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px;max-height:520px}
+.m24off-v2 .m24off-dlist{overflow:auto;-webkit-overflow-scrolling:touch;padding:8px;max-height:420px}
 .m24off-v2 .m24off-dnote{font-size:12px;color:#8a929c;padding:10px 6px;line-height:1.5}
 .m24off-v2 .m24off-dit{background:#fff;border:1px solid #e8e8ec;border-radius:9px;padding:9px 10px;margin-bottom:7px;font-size:12px;cursor:pointer}
 .m24off-v2 .m24off-dit:hover{border-color:#1f74c4}
@@ -346,21 +345,18 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-dit.done .add{background:#1a7f37}
 .m24off-v2 .m24off-dfree{display:flex;flex-direction:column;gap:8px;padding:4px}
 .m24off-v2 .m24off-dfree input{border:1px solid #d3d8de;border-radius:8px;padding:9px 11px;font-size:16px;font-family:'Saira',Arial,sans-serif}
-.m24off-v2 .m24off-dcollapse{border:0;border-top:1px solid var(--line,#e8e8ec);background:#fff;padding:9px;text-align:center;font-size:11px;color:#787f87;cursor:pointer;font-family:'Saira',Arial,sans-serif}
-.m24off-v2 .m24off-poscard.dock-collapsed .m24off-dhead,.m24off-v2 .m24off-poscard.dock-collapsed .m24off-dtabs,.m24off-v2 .m24off-poscard.dock-collapsed .m24off-dlist{display:none}
-.m24off-v2 .m24off-poscard.dock-collapsed .m24off-dcollapse{writing-mode:vertical-rl;height:100%;border-top:0;border-left:1px solid var(--line,#e8e8ec)}
-.m24off-v2 .m24off-dockopen{display:none;width:100%;border:1px dashed #1f74c4;background:#f6faff;color:#1f74c4;font:700 14px/1 'Saira',Arial,sans-serif;padding:12px;border-radius:9px;cursor:pointer;margin-top:10px}
 /* neu übernommene Position blinkt kurz auf */
 .m24off-v2 .m24off-pos.m24off-neu{animation:m24flash 1.2s ease}
 @keyframes m24flash{0%{background:#c9ecd3}100%{background:transparent}}
-/* Mobil (<900px): Palette wird Bottomsheet, Trigger „+ Position" */
-@media(max-width:900px){
-  .m24off-v2 .m24off-poscard{display:block}
-  .m24off-v2 .m24off-poscard.dock-collapsed{grid-template-columns:none}
-  .m24off-v2 .m24off-dockopen{display:block}
-  .m24off-v2 .m24off-dcollapse{display:none}
-  .m24off-v2 .m24off-dclose{display:block}
-  .m24off-v2 .m24off-dock{position:fixed;left:0;right:0;bottom:0;top:auto;border-left:0;border-top:1px solid var(--line,#e8e8ec);border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.14);transform:translateY(100%);transition:transform .25s ease;z-index:100060;max-height:82vh}
-  .m24off-v2 .m24off-dock.is-open{transform:none}
-  .m24off-v2 .m24off-dlist{max-height:60vh}
+/* Positionszeile bei schmaler Breite sauber umbrechen: Label oben (volle Breite), Menge/Preis/✕ darunter —
+   kein Überlappen (z. B. „Zollabwicklung Deutschland" × 75 netto). */
+@media(max-width:600px){
+  .m24off-v2 .m24off-pos{flex-wrap:wrap}
+  .m24off-v2 .m24off-pos-main{flex:1 1 100%;order:2}
+  .m24off-v2 .m24off-pos>img,.m24off-v2 .m24off-pos-ph{order:1}
+  .m24off-v2 .m24off-drag{order:0}
+  .m24off-v2 .m24off-qty2{order:3}
+  .m24off-v2 .m24off-pprice{order:4;width:auto;flex:1 1 auto;text-align:left}
+  .m24off-v2 .m24off-pprice input{text-align:left}
+  .m24off-v2 .m24off-posx{order:5;margin-left:auto}
 }
