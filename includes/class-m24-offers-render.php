@@ -460,7 +460,7 @@ class M24_Offers_Render {
 		if ( $vu ) { $days = (int) floor( ( strtotime( $vu . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ); if ( $days < 0 ) { $days = 0; } }
 		$status = (string) $o->status;
 
-		echo self::head( 'Ihr Angebot ' . $o->offer_no ); // phpcs:ignore WordPress.Security.EscapeOutput
+		echo self::head( $L['offer'] . ' ' . $o->offer_no ); // <title> lokalisiert (EN „Offer {nr}", DE „Angebot {nr}") — analog zum Hero
 		?>
 		</head><body class="m24off-cust">
 		<?php
