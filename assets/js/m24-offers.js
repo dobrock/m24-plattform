@@ -232,7 +232,15 @@
 				var done = isAdded(it.id);
 				var sub = ('partnum' === it.match && it.bmw) ? ('BMW <b>' + esc(it.bmw) + '</b>' + (it.art_nr ? ' · ' + esc(it.art_nr) : '')) : (it.art_nr ? 'Art.-Nr. ' + esc(it.art_nr) : '');
 				var card = document.createElement('div');
-				card.className = 'm24off-dit' + (done ? ' done' : ''); card.setAttribute('data-cat-add', it.id);
+				card.className = 'm24off-dit' + (done ? ' done' : '');
+				// Vollständige data-Attribute → Add ist self-contained (unabhängig von paletteResults-Lookup).
+				card.setAttribute('data-cat-add', it.id != null ? it.id : '');
+				card.setAttribute('data-title', it.title || '');
+				card.setAttribute('data-title-en', it.title_en || '');
+				card.setAttribute('data-art', it.art_nr || '');
+				card.setAttribute('data-thumb', it.thumb || '');
+				card.setAttribute('data-price', (it.price != null && '' !== it.price) ? it.price : '');
+				card.setAttribute('data-25a', it.tax25a ? '1' : '0');
 				card.innerHTML = '<div class="tt">' + esc(it.title) + '</div>'
 					+ (sub ? '<div class="ss">' + sub + (it.tax25a ? ' · §25a' : '') + '</div>' : '')
 					+ '<div class="row"><span class="pp">' + (it.price != null ? eur(it.price) : 'auf Anfrage') + '</span><span class="add">' + (done ? '✓' : '+') + '</span></div>';
@@ -257,15 +265,22 @@
 			list.appendChild(wrap);
 		}
 	}
-	function addCatalog(id) {
-		id = parseInt(id, 10) || 0; if (isAdded(id)) { return; } // ✓ = bereits übernommen → kein Duplikat
-		var it = null;
-		for (var k = 0; k < paletteResults.length; k++) { if ((parseInt(paletteResults[k].id, 10) || 0) === id) { it = paletteResults[k]; break; } }
-		if (!it) { return; }
+	function addCatalog(el) {
+		if (!el) { return; }
+		var id = parseInt(el.getAttribute('data-cat-add'), 10) || 0;
+		if (id > 0 && isAdded(id)) { return; } // ✓ = bereits übernommen → kein Duplikat
+		var priceRaw = parseFloat(el.getAttribute('data-price')); if (isNaN(priceRaw)) { priceRaw = 0; }
+		var is25a = ('1' === el.getAttribute('data-25a'));
+		// §25a: Preis ist die differenzbesteuerte Brutto-Basis → NICHT durch 1,19 teilen (keine ausweisbare
+		// MwSt). Regelbesteuert: Artikelpreis ist Brutto inkl. 19 % → Netto-Basis (÷1,19).
+		var unit = is25a ? Math.round(priceRaw * 100) / 100 : Math.round((priceRaw / 1.19) * 100) / 100;
 		items.push({
-			teil_id: id, title: it.title || '', title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
-			qty: 1, unit_price: Math.round(((it.price != null ? parseFloat(it.price) : 0) / 1.19) * 100) / 100, // Artikelpreis ist BRUTTO → Netto-Basis
-			tax25a: !!it.tax25a, custom: false
+			teil_id: id,
+			title: el.getAttribute('data-title') || '',
+			title_en: el.getAttribute('data-title-en') || '',
+			art_nr: el.getAttribute('data-art') || '',
+			thumb: el.getAttribute('data-thumb') || '',
+			qty: 1, unit_price: unit, tax25a: is25a, custom: false
 		});
 		renderItems(); renderPalette(); flashRow(items.length - 1);
 	}
@@ -369,7 +384,7 @@
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
 		if ((el = t.closest('[data-ptab]'))) { setPTab(el.getAttribute('data-ptab')); return; }
-		if ((el = t.closest('[data-cat-add]'))) { addCatalog(el.getAttribute('data-cat-add')); return; }
+		if ((el = t.closest('[data-cat-add]'))) { addCatalog(el); return; }
 		if ((el = t.closest('[data-std-add]'))) { addStandard(+el.getAttribute('data-std-add')); return; }
 		if ((el = t.closest('[data-palette-freeadd]'))) { addFree(); return; }
 		if ((el = t.closest('[data-dock-collapse]'))) { var pc = $('[data-poscard]'); dockCollapse(!(pc && pc.classList.contains('dock-collapsed'))); return; }
