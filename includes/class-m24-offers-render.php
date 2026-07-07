@@ -201,11 +201,25 @@ class M24_Offers_Render {
 					'ustid'        => (string) ( $cj['ustid'] ?? '' ),
 					'eori'         => (string) ( $cj['eori'] ?? '' ),
 				) );
+				// #8: LIVE-Kundendatensatz (per E-Mail) über den Snapshot legen → Edits am Kunden erscheinen auf
+				// ALLEN Reload-Pfaden (from= UND draft=), nicht nur im zuletzt gespeicherten Snapshot.
+				$live = M24_Offers::customer_by_email( (string) ( $customer['email'] ?? '' ) );
+				if ( is_array( $live ) ) {
+					foreach ( $live as $lk => $lv ) {
+						if ( '' !== (string) $lv && null !== $lv ) { $customer[ $lk ] = $lv; } // nur nicht-leere Live-Werte übernehmen (id, firma, land verbatim, Kontakt)
+					}
+				}
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
 				// #3: Thumb zurück-hydrieren — aus items_json, sonst serverseitig aus dem Teil nachziehen (Alt-Entwürfe).
+				// #2: Manuellen EN-Titel (_m24_titel_en_manual) vom Artikel bevorzugen → DeepL überschreibt ihn beim Reload nie.
 				$pf_items = is_array( $its ) ? array_values( $its ) : array();
 				foreach ( $pf_items as $k => $it ) {
-					$pf_items[ $k ]['thumb'] = M24_Offers::item_thumb( (string) ( $it['thumb'] ?? '' ), (int) ( $it['teil_id'] ?? 0 ) );
+					$tid = (int) ( $it['teil_id'] ?? 0 );
+					$pf_items[ $k ]['thumb'] = M24_Offers::item_thumb( (string) ( $it['thumb'] ?? '' ), $tid );
+					if ( $tid > 0 ) {
+						$manual_en = trim( (string) get_post_meta( $tid, '_m24_titel_en_manual', true ) );
+						if ( '' !== $manual_en ) { $pf_items[ $k ]['title_en'] = $manual_en; $pf_items[ $k ]['title_en_manual'] = true; }
+					}
 				}
 				$prefill  = array(
 					'items'      => $pf_items,

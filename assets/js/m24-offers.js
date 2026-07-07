@@ -264,14 +264,14 @@
 	function ensureEnTitles() {
 		if ('en' !== offerLang) { return; }
 		var ids = [];
-		items.forEach(function (it) { var tid = parseInt(it.teil_id, 10) || 0; if (tid > 0 && !(it.title_en && String(it.title_en).trim())) { ids.push(tid); } });
+		items.forEach(function (it) { var tid = parseInt(it.teil_id, 10) || 0; if (tid > 0 && !it.title_en_manual && !(it.title_en && String(it.title_en).trim())) { ids.push(tid); } });
 		if (!ids.length || enTitlesFetching) { return; }
 		enTitlesFetching = true;
 		fetch(cfg.rest + '/en-titles', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify({ ids: ids }) })
 			.then(function (r) { return r.json(); }).then(function (d) {
 				enTitlesFetching = false;
 				if (d && d.ok && d.titles) {
-					items.forEach(function (it) { var k = String(parseInt(it.teil_id, 10) || 0); if (d.titles[k] && !(it.title_en && String(it.title_en).trim())) { it.title_en = d.titles[k]; } });
+					items.forEach(function (it) { var k = String(parseInt(it.teil_id, 10) || 0); if (d.titles[k] && !it.title_en_manual && !(it.title_en && String(it.title_en).trim())) { it.title_en = d.titles[k]; } });
 					if ('en' === offerLang) { renderItems(); }
 				}
 			}).catch(function () { enTitlesFetching = false; });
@@ -282,6 +282,7 @@
 		var it = items[i]; if (!it) { return; }
 		var tid = parseInt(it.teil_id, 10) || 0, val = String(it.title_en || '').trim(), fb = $('[data-ensaved="' + i + '"]');
 		if (!tid || !val) { if (fb) { fb.textContent = ''; } return; } // freie Position → nur Offer-Snapshot
+		it.title_en_manual = true; // #2: ab jetzt manuell → DeepL überschreibt nicht mehr (auch im Snapshot)
 		if (fb) { fb.textContent = '…'; fb.className = 'm24off-ensaved'; }
 		fetch(cfg.rest + '/save-en-title', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify({ teil_id: tid, title_en: val }) })
 			.then(function (r) { return r.json(); }).then(function (d) {
@@ -295,6 +296,7 @@
 		if (t.matches('[data-title-en-cat]')) { var ei = +t.getAttribute('data-i'); items[ei].title_en = t.value; saveEnTitle(ei); enEditIdx = -1; renderItems(); } // #7: manuellen EN-Titel festschreiben + Feld schließen
 		if (t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numFmt(n); } // B3: beim Blur mit Tausenderpunkt formatieren
 	});
+	document.addEventListener('keydown', function (e) { if ('Enter' === e.key && e.target && e.target.matches && e.target.matches('[data-title-en-cat]')) { e.preventDefault(); e.target.blur(); } }); // #2: Enter committet (wie Blur)
 	document.addEventListener('focusin', function (e) { var t = e.target; if (t && t.matches && t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numIn(n); } }); // B3: beim Fokus roh editierbar
 
 	/* #4: Lieferzeit-Dropdown auf die Angebotssprache umstellen (Werte bleiben DE = kanonisch; nur Anzeige). */
@@ -562,6 +564,7 @@
 			return {
 				teil_id: parseInt(it.teil_id, 10) || 0,
 				title: it.title || '', title_de: (it.title_de != null ? it.title_de : (it.title || '')), title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
+				title_en_manual: !!it.title_en_manual, // #2: manuell gesetzter EN-Titel → nie von DeepL überschreiben
 				variant: it.variant || '',
 				qty: parseInt(it.qty, 10) || 1,
 				unit_price: parseFloat(it.unit_price) || 0,

@@ -470,6 +470,14 @@ class M24_Offers {
 	}
 
 	/** WP-User → Operator-Kunde (Desk-kompatible Meta, volles Feldset für den Edit-Modus). */
+	/** #8: Aktueller (Live-)Kundendatensatz zu einer E-Mail — Basis für den from=/draft=-Reload-Merge. */
+	public static function customer_by_email( string $email ): ?array {
+		$email = strtolower( trim( $email ) );
+		if ( '' === $email || ! is_email( $email ) ) { return null; }
+		$u = get_user_by( 'email', $email );
+		return $u ? self::user_to_customer( (int) $u->ID ) : null;
+	}
+
 	private static function user_to_customer( int $uid ): ?array {
 		$u = get_userdata( $uid );
 		if ( ! $u ) { return null; }
@@ -904,6 +912,7 @@ class M24_Offers {
 				'title'      => $title,
 				'title_de'   => sanitize_text_field( (string) ( $it['title_de'] ?? $title ) ), // v3.1: DE-Titel (Freitext)
 				'title_en'   => sanitize_text_field( (string) ( $it['title_en'] ?? '' ) ),      // v3.1: EN-Titel (Katalog/Freitext)
+				'title_en_manual' => ! empty( $it['title_en_manual'] ),                        // #2: manuell gesetzt → DeepL überschreibt nie
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
 				'variant'    => sanitize_text_field( (string) ( $it['variant'] ?? '' ) ), // #6: Varianten-Name im Angebot
 				'thumb'      => self::item_thumb( (string) ( $it['thumb'] ?? '' ), $teil_id ), // #3: Thumb persistieren (für Entwurf-Reload/Ansicht)
