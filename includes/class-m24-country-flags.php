@@ -1,91 +1,268 @@
 <?php
+declare(strict_types=1);
+
 /**
- * M24 Plattform — Länder-Flaggen (Ansatz A: ISO2 + Regional-Indicator-Codepoints).
+ * CountryFlags — Land -> Flagge + Label (framework-neutral, PHP 8.4)
+ * Extrahiert aus MOTORSPORT24 M24 Desk (src/js/utils.js + src/js/state.js).
+ * Benötigt nur die mbstring-Extension (in WordPress/PHP 8.4 Standard).
  *
- * Wandelt eine (auch freie) Länder-Eingabe in ISO2 + Emoji-Flagge um, ohne die Roh-Eingabe zu verändern.
- * Braucht mbstring (WP-Standard). Namens-Auflösung nutzt M24_I18n::countries() (DE/EN) + kuratierte Aliase.
+ * Zwei Ansätze:
+ *   A) ISO2 + Regional-Indicator-Codepoints  (empfohlen, wartbar, keine Emoji-Literale)
+ *   B) 1:1 Literal-Map                        (Desk-treu)
+ *
+ * Verhalten 1:1 wie Desk:
+ *   - Normalisierung: mb_strtolower(trim(input))   (Ansatz A strippt zusätzlich ein
+ *     optional führendes Flaggen-Emoji — im Desk macht das der Aufrufer)
+ *   - Fallback: 5-stellige Zahl -> DE, Wort "bei" -> DE, sonst ''
+ *   - Label = Flagge + ' ' + roher Eingabetext (KEINE Kanonisierung von "USA")
+ *   - leere Eingabe: getFlag('')='' , getFlagAndCountry('')='—'
  */
+final class CountryFlags
+{
+    /** Alias (lowercase, DE+EN+ISO2+Stadt) -> ISO2 ('GB-SCT' = Sonderfall Schottland) */
+    public const ALIAS_TO_ISO2 = [
+        'deutschland'=>'DE','germany'=>'DE','de'=>'DE',
+        'österreich'=>'AT','oesterreich'=>'AT','austria'=>'AT',
+        'schweiz'=>'CH','switzerland'=>'CH',
+        'liechtenstein'=>'LI',
+        'frankreich'=>'FR','france'=>'FR',
+        'luxemburg'=>'LU','luxembourg'=>'LU',
+        'belgien'=>'BE','belgium'=>'BE',
+        'niederlande'=>'NL','netherlands'=>'NL','holland'=>'NL',
+        'dänemark'=>'DK','daenemark'=>'DK','denmark'=>'DK',
+        'tschechien'=>'CZ','czech'=>'CZ','tschechische republik'=>'CZ','czech republic'=>'CZ','czechia'=>'CZ',
+        'polen'=>'PL','poland'=>'PL',
+        'vereinigtes königreich'=>'GB','vereinigtes koenigreich'=>'GB','großbritannien'=>'GB','grossbritannien'=>'GB',
+        'uk'=>'GB','gb'=>'GB','england'=>'GB','great britain'=>'GB','britain'=>'GB','united kingdom'=>'GB',
+        'wales'=>'GB','nordirland'=>'GB','northern ireland'=>'GB',        // Ergänzung ggü. Desk-Lücke
+        'schottland'=>'GB-SCT','scotland'=>'GB-SCT',
+        'irland'=>'IE','ireland'=>'IE',
+        'schweden'=>'SE','sweden'=>'SE',
+        'norwegen'=>'NO','norway'=>'NO',
+        'finnland'=>'FI','finland'=>'FI',
+        'island'=>'IS','iceland'=>'IS',
+        'italien'=>'IT','italy'=>'IT',
+        'spanien'=>'ES','spain'=>'ES',
+        'portugal'=>'PT',
+        'griechenland'=>'GR','greece'=>'GR',
+        'kroatien'=>'HR','croatia'=>'HR',
+        'ungarn'=>'HU','hungary'=>'HU',
+        'rumänien'=>'RO','rumaenien'=>'RO','romania'=>'RO',
+        'slowakei'=>'SK','slovakia'=>'SK',
+        'slowenien'=>'SI','slovenia'=>'SI',
+        'serbien'=>'RS','serbia'=>'RS',
+        'bulgarien'=>'BG','bulgaria'=>'BG','bg'=>'BG',
+        'usa'=>'US','united states'=>'US','us'=>'US','vereinigte staaten'=>'US','vereinigten staaten'=>'US',
+        'kanada'=>'CA','canada'=>'CA',
+        'dubai'=>'AE','vae'=>'AE','uae'=>'AE','vereinigte arabische emirate'=>'AE','emirates'=>'AE','abu dhabi'=>'AE',
+        'qatar'=>'QA','katar'=>'QA',
+        'kuwait'=>'KW',
+        'saudi-arabien'=>'SA','saudi arabia'=>'SA','saudi'=>'SA',
+        'bahrain'=>'BH',
+        'oman'=>'OM',
+        'japan'=>'JP',
+        'china'=>'CN',
+        'südkorea'=>'KR','suedkorea'=>'KR','south korea'=>'KR','korea'=>'KR',
+        'singapur'=>'SG','singapore'=>'SG',
+        'hongkong'=>'HK','hong kong'=>'HK',
+        'taiwan'=>'TW',
+        'indien'=>'IN','india'=>'IN',
+        'australien'=>'AU','australia'=>'AU',
+        'neuseeland'=>'NZ','new zealand'=>'NZ',
+        'namibia'=>'NA',
+        'südafrika'=>'ZA','suedafrika'=>'ZA','south africa'=>'ZA',
+        'türkei'=>'TR','tuerkei'=>'TR','turkey'=>'TR',
+        'mexiko'=>'MX','mexico'=>'MX',
+        'brasilien'=>'BR','brazil'=>'BR',
+        'argentinien'=>'AR','argentina'=>'AR',
+        'thailand'=>'TH',
+        'malaysia'=>'MY',
+        'indonesien'=>'ID','indonesia'=>'ID',
+        'philippinen'=>'PH','philippines'=>'PH',
+        'vietnam'=>'VN',
+        'ukraine'=>'UA',
+        'estland'=>'EE','estonia'=>'EE',
+        'lettland'=>'LV','latvia'=>'LV',
+        'litauen'=>'LT','lithuania'=>'LT',
+        'malta'=>'MT',
+        // optional: EU-Sammelfall (im Desk NICHT vorhanden)
+        'eu'=>'EU','europäische union'=>'EU','europaeische union'=>'EU','european union'=>'EU',
+    ];
 
-if ( ! defined( 'ABSPATH' ) ) { exit; }
+    /** genutzte ISO2-Liste (ohne Sonderfall GB-SCT) */
+    public const ISO2_LIST = [
+        'DE','AT','CH','LI','FR','LU','BE','NL','DK','CZ','PL','GB','IE','SE','NO','FI','IS',
+        'IT','ES','PT','GR','HR','HU','RO','SK','SI','RS','BG','US','CA','AE','QA','KW','SA',
+        'BH','OM','JP','CN','KR','SG','HK','TW','IN','AU','NZ','NA','ZA','TR','MX','BR','AR',
+        'TH','MY','ID','PH','VN','UA','EE','LV','LT','MT','EU',
+    ];
 
-class M24_Country_Flags {
+    /** Schottland-Flagge (Tag-Sequenz) — via Codepoints, encoding-sicher */
+    public static function flagScotland(): string
+    {
+        return "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+    }
 
-	/** Sonderfälle/Aliase (uppercase) → ISO2. Deckt gängige Schreibweisen ab, die nicht 1:1 im I18n-Namen stehen. */
-	private static function aliases(): array {
-		return array(
-			'USA' => 'US', 'U.S.A.' => 'US', 'UNITED STATES' => 'US', 'VEREINIGTE STAATEN' => 'US', 'AMERIKA' => 'US',
-			'UK' => 'GB', 'U.K.' => 'GB', 'ENGLAND' => 'GB', 'GROSSBRITANNIEN' => 'GB', 'GROẞBRITANNIEN' => 'GB',
-			'GREAT BRITAIN' => 'GB', 'UNITED KINGDOM' => 'GB', 'VEREINIGTES KÖNIGREICH' => 'GB', 'VEREINIGTES KOENIGREICH' => 'GB',
-			'DEUTSCHLAND' => 'DE', 'GERMANY' => 'DE', 'BRD' => 'DE',
-			'ÖSTERREICH' => 'AT', 'OESTERREICH' => 'AT', 'AUSTRIA' => 'AT',
-			'SCHWEIZ' => 'CH', 'SWITZERLAND' => 'CH', 'SUISSE' => 'CH',
-			'FRANKREICH' => 'FR', 'FRANCE' => 'FR', 'ITALIEN' => 'IT', 'ITALY' => 'IT', 'SPANIEN' => 'ES', 'SPAIN' => 'ES',
-			'NIEDERLANDE' => 'NL', 'NETHERLANDS' => 'NL', 'HOLLAND' => 'NL', 'BELGIEN' => 'BE', 'BELGIUM' => 'BE',
-			'LUXEMBURG' => 'LU', 'POLEN' => 'PL', 'POLAND' => 'PL', 'TSCHECHIEN' => 'CZ', 'CZECHIA' => 'CZ',
-			'DÄNEMARK' => 'DK', 'DAENEMARK' => 'DK', 'DENMARK' => 'DK', 'SCHWEDEN' => 'SE', 'SWEDEN' => 'SE',
-			'NORWEGEN' => 'NO', 'NORWAY' => 'NO', 'FINNLAND' => 'FI', 'FINLAND' => 'FI', 'PORTUGAL' => 'PT',
-			'GRIECHENLAND' => 'GR', 'GREECE' => 'GR', 'IRLAND' => 'IE', 'IRELAND' => 'IE',
-			'KANADA' => 'CA', 'CANADA' => 'CA', 'AUSTRALIEN' => 'AU', 'AUSTRALIA' => 'AU', 'JAPAN' => 'JP',
-			'CHINA' => 'CN', 'RUSSLAND' => 'RU', 'RUSSIA' => 'RU', 'TÜRKEI' => 'TR', 'TUERKEI' => 'TR', 'TURKEY' => 'TR',
-			'VAE' => 'AE', 'UAE' => 'AE', 'UNITED ARAB EMIRATES' => 'AE', 'VEREINIGTE ARABISCHE EMIRATE' => 'AE',
-		);
-	}
+    /** führendes Flaggen-Emoji entfernen (RI-Paar, Tag-Flag, einzelne Wehflagge) */
+    public static function stripLeadingFlag(string $s): string
+    {
+        $s = preg_replace(
+            '/^(?:[\x{1F1E6}-\x{1F1FF}]{2}|\x{1F3F4}[\x{E0000}-\x{E007F}]+|\x{1F3F4})\s*/u',
+            '', $s
+        ) ?? $s;
+        return ltrim($s);
+    }
 
-	private static function upper( string $s ): string {
-		return function_exists( 'mb_strtoupper' ) ? mb_strtoupper( $s, 'UTF-8' ) : strtoupper( $s );
-	}
+    /** ISO2 -> Emoji via Regional-Indicator-Codepoints (U+1F1E6 = 'A') */
+    public static function isoToFlag(?string $iso2): string
+    {
+        if ($iso2 === null || $iso2 === '') return '';
+        $cc = strtoupper($iso2);
+        if ($cc === 'GB-SCT' || $cc === 'SCT') return self::flagScotland();
+        if (!preg_match('/^[A-Z]{2}$/', $cc)) return '';
+        $base = 0x1F1E6;
+        return mb_chr($base + ord($cc[0]) - 65, 'UTF-8')
+             . mb_chr($base + ord($cc[1]) - 65, 'UTF-8');
+    }
 
-	/** Freie Länder-Eingabe (Name/ISO2/Alias) → ISO2 ('' wenn nicht auflösbar). Verändert die Eingabe NICHT. */
-	public static function countryToIso2( $land ): string {
-		$s = trim( (string) $land );
-		if ( '' === $s ) { return ''; }
-		$u = self::upper( $s );
-		if ( preg_match( '/^[A-Z]{2}$/', $u ) ) { return $u; } // bereits ISO2
-		$alias = self::aliases();
-		if ( isset( $alias[ $u ] ) ) { return $alias[ $u ]; }
-		if ( class_exists( 'M24_I18n' ) ) {
-			foreach ( array( 'de', 'en' ) as $lang ) {
-				foreach ( M24_I18n::countries( $lang ) as $iso => $name ) {
-					if ( self::upper( (string) $name ) === $u ) { return (string) $iso; }
-				}
-			}
-		}
-		return '';
-	}
+    /** Freitext/ISO/Alias -> ISO2 | null (inkl. Fallback-Heuristiken) */
+    public static function countryToIso2(?string $input): ?string
+    {
+        if ($input === null || $input === '') return null;
+        $raw = $input;
+        $key = mb_strtolower(trim(self::stripLeadingFlag($raw)), 'UTF-8');
+        if (isset(self::ALIAS_TO_ISO2[$key])) return self::ALIAS_TO_ISO2[$key];
+        if (preg_match('/^[a-z]{2}$/', $key) && in_array(strtoupper($key), self::ISO2_LIST, true)) {
+            return strtoupper($key);
+        }
+        if (preg_match('/\b\d{5}\b/', $raw)) return 'DE';   // dt. PLZ-Heuristik
+        if (preg_match('/\bbei\b/i', $raw))  return 'DE';   // "bei" im Ortsnamen
+        return null;
+    }
 
-	/** ISO2 → Emoji-Flagge (Regional-Indicator-Codepoints). '' bei ungültigem Code. */
-	public static function iso2ToFlag( $iso2 ): string {
-		$iso2 = strtoupper( trim( (string) $iso2 ) );
-		if ( ! preg_match( '/^[A-Z]{2}$/', $iso2 ) ) { return ''; }
-		$base = 0x1F1E6; // Regional Indicator Symbol Letter A
-		$out  = '';
-		foreach ( str_split( $iso2 ) as $c ) {
-			$cp   = $base + ( ord( $c ) - 65 );
-			$out .= function_exists( 'mb_chr' ) ? mb_chr( $cp, 'UTF-8' ) : self::cp_to_utf8( $cp );
-		}
-		return $out;
-	}
+    /** Land -> Flagge (''=unbekannt) */
+    public static function getFlag(?string $input): string
+    {
+        return self::isoToFlag(self::countryToIso2($input));
+    }
 
-	/** Codepoint → UTF-8 (Fallback ohne mb_chr). */
-	private static function cp_to_utf8( int $cp ): string {
-		if ( $cp < 0x80 ) { return chr( $cp ); }
-		if ( $cp < 0x800 ) { return chr( 0xC0 | $cp >> 6 ) . chr( 0x80 | $cp & 0x3F ); }
-		if ( $cp < 0x10000 ) { return chr( 0xE0 | $cp >> 12 ) . chr( 0x80 | ( $cp >> 6 & 0x3F ) ) . chr( 0x80 | $cp & 0x3F ); }
-		return chr( 0xF0 | $cp >> 18 ) . chr( 0x80 | ( $cp >> 12 & 0x3F ) ) . chr( 0x80 | ( $cp >> 6 & 0x3F ) ) . chr( 0x80 | $cp & 0x3F );
-	}
+    /** Land -> "Flagge Label" (Label = roher Eingabetext); leer -> '—' */
+    public static function getFlagAndCountry(?string $input): string
+    {
+        if ($input === null || $input === '') return '—';
+        $flag = self::getFlag($input);
+        return $flag !== '' ? $flag . ' ' . $input : $input;
+    }
 
-	/** @return array{raw:string,iso2:string,flag:string,name:string} */
-	public static function resolve( $land ): array {
-		$raw  = trim( (string) $land );
-		$iso  = self::countryToIso2( $raw );
-		$flag = '' !== $iso ? self::iso2ToFlag( $iso ) : '';
-		return array( 'raw' => $raw, 'iso2' => $iso, 'flag' => $flag, 'name' => $raw );
-	}
+    /** strukturiert: flag / label / iso2 getrennt */
+    public static function resolve(?string $input): array
+    {
+        $iso2 = self::countryToIso2($input);
+        $flag = self::isoToFlag($iso2);
+        $in   = $input ?? '';
+        return [
+            'input' => $in,
+            'iso2'  => $iso2,
+            'flag'  => $flag,
+            'label' => $flag !== '' ? $flag . ' ' . $in : $in,
+        ];
+    }
 
-	/** „🇺🇸 USA" — Flagge + (verbatim) Land. '' wenn Eingabe leer. */
-	public static function getFlagAndCountry( $land ): string {
-		$r = self::resolve( $land );
-		if ( '' === $r['raw'] ) { return ''; }
-		return trim( ( '' !== $r['flag'] ? $r['flag'] . ' ' : '' ) . $r['name'] );
-	}
+    /* ------------------------------------------------------------------ *
+     * ANSATZ B — 1:1 Literal-Map (exakt wie M24 Desk)
+     * ------------------------------------------------------------------ */
+
+    /** @return array<string,string> lowercase-Alias -> Emoji */
+    public static function countryFlagsMap(): array
+    {
+        return [
+            'deutschland'=>'🇩🇪','germany'=>'🇩🇪','de'=>'🇩🇪',
+            'österreich'=>'🇦🇹','austria'=>'🇦🇹',
+            'schweiz'=>'🇨🇭','switzerland'=>'🇨🇭','liechtenstein'=>'🇱🇮',
+            'frankreich'=>'🇫🇷','france'=>'🇫🇷',
+            'luxemburg'=>'🇱🇺','luxembourg'=>'🇱🇺',
+            'belgien'=>'🇧🇪','belgium'=>'🇧🇪',
+            'niederlande'=>'🇳🇱','netherlands'=>'🇳🇱','holland'=>'🇳🇱',
+            'dänemark'=>'🇩🇰','denmark'=>'🇩🇰',
+            'tschechien'=>'🇨🇿','czech'=>'🇨🇿','tschechische republik'=>'🇨🇿',
+            'polen'=>'🇵🇱','poland'=>'🇵🇱',
+            'vereinigtes königreich'=>'🇬🇧','großbritannien'=>'🇬🇧','uk'=>'🇬🇧','gb'=>'🇬🇧','england'=>'🇬🇧','great britain'=>'🇬🇧','britain'=>'🇬🇧','united kingdom'=>'🇬🇧',
+            'schottland'=>self::flagScotland(),'scotland'=>self::flagScotland(),
+            'irland'=>'🇮🇪','ireland'=>'🇮🇪',
+            'schweden'=>'🇸🇪','sweden'=>'🇸🇪',
+            'norwegen'=>'🇳🇴','norway'=>'🇳🇴',
+            'finnland'=>'🇫🇮','finland'=>'🇫🇮',
+            'island'=>'🇮🇸','iceland'=>'🇮🇸',
+            'italien'=>'🇮🇹','italy'=>'🇮🇹',
+            'spanien'=>'🇪🇸','spain'=>'🇪🇸',
+            'portugal'=>'🇵🇹',
+            'griechenland'=>'🇬🇷','greece'=>'🇬🇷',
+            'kroatien'=>'🇭🇷','croatia'=>'🇭🇷',
+            'ungarn'=>'🇭🇺','hungary'=>'🇭🇺',
+            'rumänien'=>'🇷🇴','romania'=>'🇷🇴',
+            'slowakei'=>'🇸🇰','slovakia'=>'🇸🇰',
+            'slowenien'=>'🇸🇮','slovenia'=>'🇸🇮',
+            'serbien'=>'🇷🇸','serbia'=>'🇷🇸',
+            'bulgarien'=>'🇧🇬','bulgaria'=>'🇧🇬','bg'=>'🇧🇬',
+            'usa'=>'🇺🇸','united states'=>'🇺🇸','us'=>'🇺🇸','vereinigte staaten'=>'🇺🇸','vereinigten staaten'=>'🇺🇸',
+            'kanada'=>'🇨🇦','canada'=>'🇨🇦',
+            'dubai'=>'🇦🇪','vae'=>'🇦🇪','uae'=>'🇦🇪','vereinigte arabische emirate'=>'🇦🇪','emirates'=>'🇦🇪','abu dhabi'=>'🇦🇪',
+            'qatar'=>'🇶🇦','katar'=>'🇶🇦',
+            'kuwait'=>'🇰🇼',
+            'saudi-arabien'=>'🇸🇦','saudi arabia'=>'🇸🇦','saudi'=>'🇸🇦',
+            'bahrain'=>'🇧🇭',
+            'oman'=>'🇴🇲',
+            'japan'=>'🇯🇵',
+            'china'=>'🇨🇳',
+            'südkorea'=>'🇰🇷','south korea'=>'🇰🇷','korea'=>'🇰🇷',
+            'singapur'=>'🇸🇬','singapore'=>'🇸🇬',
+            'hongkong'=>'🇭🇰','hong kong'=>'🇭🇰',
+            'taiwan'=>'🇹🇼',
+            'indien'=>'🇮🇳','india'=>'🇮🇳',
+            'australien'=>'🇦🇺','australia'=>'🇦🇺',
+            'neuseeland'=>'🇳🇿','new zealand'=>'🇳🇿',
+            'namibia'=>'🇳🇦',
+            'südafrika'=>'🇿🇦','south africa'=>'🇿🇦',
+            'türkei'=>'🇹🇷','turkey'=>'🇹🇷',
+            'mexiko'=>'🇲🇽','mexico'=>'🇲🇽',
+            'brasilien'=>'🇧🇷','brazil'=>'🇧🇷',
+            'argentinien'=>'🇦🇷','argentina'=>'🇦🇷',
+            'thailand'=>'🇹🇭',
+            'malaysia'=>'🇲🇾',
+            'indonesien'=>'🇮🇩','indonesia'=>'🇮🇩',
+            'philippinen'=>'🇵🇭','philippines'=>'🇵🇭',
+            'vietnam'=>'🇻🇳',
+            'ukraine'=>'🇺🇦',
+            'estland'=>'🇪🇪','estonia'=>'🇪🇪',
+            'lettland'=>'🇱🇻','latvia'=>'🇱🇻',
+            'litauen'=>'🇱🇹','lithuania'=>'🇱🇹',
+            'malta'=>'🇲🇹',
+        ];
+    }
+
+    /** Desk-treu: Literal-Map + gleiche Heuristik */
+    public static function getFlagLiteral(?string $land): string
+    {
+        if ($land === null || $land === '') return '';
+        $key = mb_strtolower(trim($land), 'UTF-8');
+        $map = self::countryFlagsMap();
+        if (isset($map[$key])) return $map[$key];
+        if (preg_match('/\b\d{5}\b/', $land)) return '🇩🇪';
+        if (preg_match('/\bbei\b/i', $land))  return '🇩🇪';
+        return '';
+    }
 }
+
+/* --- Beispiele ---
+   CountryFlags::getFlag('USA')               -> '🇺🇸'
+   CountryFlags::getFlagAndCountry('USA')     -> '🇺🇸 USA'
+   CountryFlags::getFlagAndCountry('England') -> '🇬🇧 England'
+   CountryFlags::getFlag('Schottland')        -> '🏴󠁧󠁢󠁳󠁣󠁴󠁿'
+   CountryFlags::getFlag('12345 Berlin')      -> '🇩🇪'
+   CountryFlags::getFlag('Neuland')           -> ''
+   CountryFlags::resolve('England')  -> ['input'=>'England','iso2'=>'GB','flag'=>'🇬🇧','label'=>'🇬🇧 England']
+*/
+
+
+// M24-Alias: bestehende Aufrufer nutzen M24_Country_Flags (identische API wie CountryFlags).
+if ( ! class_exists( 'M24_Country_Flags' ) ) { class_alias( 'CountryFlags', 'M24_Country_Flags' ); }

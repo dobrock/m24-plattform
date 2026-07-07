@@ -129,7 +129,7 @@ class M24_Offers_Render {
 	/** Drittland = Land gesetzt und NICHT in der EU (für den Zoll-Auto-Vorschlag). */
 	private static function is_drittland( string $land ): bool {
 		// #6: Land kann verbatim sein („USA") → erst auf ISO2 normalisieren (M24_Country_Flags), sonst 2-Zeichen-Fallback.
-		$iso = class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::countryToIso2( $land ) : strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', $land ), 0, 2 ) );
+		$iso = class_exists( 'M24_Country_Flags' ) ? (string) M24_Country_Flags::countryToIso2( $land ) : strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', $land ), 0, 2 ) ); // ?string → '' bei unbekannt
 		if ( '' === $iso ) { return false; }
 		$land = $iso;
 		$eu = array( 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE' );

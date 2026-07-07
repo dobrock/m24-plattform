@@ -576,7 +576,7 @@
 		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''), firma: (c.firma || c.firmenname || '') }; // #6: Land verbatim · #9: Firma mitführen
 		// A2: Kundenkarte zeigt {Firmenname bzw. Name} {Flagge} (Fallback Name → E-Mail), konsistent mit der Übersicht.
 		var dispName = customer.firma || customer.name || customer.email || '—';
-		var flag = (window.M24Country && customer.land) ? M24Country.flag(M24Country.countryToIso2(customer.land)) : '';
+		var flag = (window.M24Country && customer.land) ? M24Country.getFlag(customer.land) : '';
 		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = dispName + (flag ? ' ' + flag : ''); }
 		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + (customer.land ? ' · ' + customer.land : ''); }
 		var av = $('[data-cust-chip-av]'); if (av) { var pp = String(dispName).trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
@@ -639,7 +639,7 @@
 				items.forEach(function (c) {
 					// A3: Treffer mit Pepp — Firmenname bzw. Name + Flagge, Avatar, klare Trennung.
 					var title = (c.firma || c.name || c.email || '');
-					var flag = (window.M24Country && c.land) ? M24Country.flag(M24Country.countryToIso2(c.land)) : '';
+					var flag = (window.M24Country && c.land) ? M24Country.getFlag(c.land) : '';
 					var ini = (title.trim().split(/\s+/).slice(0, 2).map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K');
 					var sub = [c.email, ('b2b' === c.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)')].filter(Boolean).join(' · ');
 					var row = document.createElement('button'); row.type = 'button'; row.className = 'm24off-cxres';
