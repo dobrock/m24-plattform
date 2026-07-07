@@ -312,7 +312,7 @@ class M24_Offers {
 			. '<li>Summe: <strong>' . esc_html( $sum ) . '</strong></li>'
 			. '</ul>'
 			. '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $reopen ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;">Im Operator öffnen</a></p>'
-			. '<p style="margin:0;color:#5a6474;font-size:13px;">Kunden-Ansicht: <a href="' . esc_url( $view ) . '" style="color:#1f74c4;">' . esc_html( (string) $o->offer_no ) . '</a>. Den Zahlungseingang bestätigst du im M24 Desk (Status → bezahlt).</p>';
+			. '<p style="margin:0;color:#5a6474;font-size:13px;">Kunden-Ansicht: <a href="' . esc_url( $view ) . '" style="color:#1f74c4;">' . esc_html( (string) $o->offer_no ) . '</a>. Den Zahlungseingang bestätigst du in der Angebote-Liste über „Zahlung erhalten ✓“.</p>';
 		$html = function_exists( 'm24_mail_shell' )
 			? m24_mail_shell( 'Angebot ' . $o->offer_no . ' angenommen', $inner, array( 'lang' => 'de' ) )
 			: '<h1>Angebot ' . esc_html( (string) $o->offer_no ) . ' angenommen</h1>' . $inner;
