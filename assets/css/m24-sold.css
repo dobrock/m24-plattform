@@ -57,6 +57,7 @@
 .m24-alt-b { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .m24-alt-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
 .m24-alt-price { font-size: 13px; font-weight: 700; color: #9a6b25; }
+.m24-alt-tax { font-size: 11px; color: #8a929c; }
 .m24-alt-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .m24-alt-badge.is-sold { color: #9e2b2b; }
 .m24-alt-badge.is-avail { color: #2f7d52; }

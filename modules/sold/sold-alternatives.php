@@ -47,6 +47,7 @@ class M24_Sold_Alternatives {
 				'url'   => get_permalink( $p->ID ),
 				'thumb' => self::thumb( $p->ID ),
 				'price' => isset( $pr['brutto_fmt'] ) ? (string) $pr['brutto_fmt'] : '',
+				'tax'   => ( ! $anfrage && isset( $pr['brutto_fmt'] ) ) ? m24_tax_label( $p->ID ) : '', // §25a/19 % aus der EINEN Quelle
 			);
 		}
 		wp_reset_postdata();
@@ -134,6 +135,7 @@ class M24_Sold_Alternatives {
 					<span class="m24-alt-badge <?php echo ! empty( $it['sold'] ) ? 'is-sold' : 'is-avail'; ?>"><?php echo esc_html( $badge ); ?></span>
 				<?php elseif ( ! empty( $it['price'] ) ) : ?>
 					<span class="m24-alt-price"><?php echo esc_html( $it['price'] ); ?></span>
+					<?php if ( ! empty( $it['tax'] ) ) : ?><span class="m24-alt-tax"><?php echo $it['tax']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — kontrolliertes Label-Markup ?></span><?php endif; ?>
 				<?php endif; ?>
 			</span>
 		</a>

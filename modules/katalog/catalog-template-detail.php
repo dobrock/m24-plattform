@@ -381,6 +381,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .ritem h4{font-family:'Saira',sans-serif;font-weight:500;font-size:13.5px;margin:0 0 5px;line-height:1.25}
 		.m24det .ritem .rdesc{display:none}
 		.m24det .ritem .rp{font-family:'Saira',sans-serif;font-weight:700;font-size:14px;color:var(--bronze)}
+		.m24det .ritem .rp-tax{font-family:'Saira',sans-serif;font-size:11px;color:#8a929c;margin-top:2px}
 		@media(max-width:900px){.m24det .related-grid{grid-template-columns:repeat(2,1fr)}}
 		.m24det .related-grid-fz{grid-template-columns:repeat(3,1fr)}
 		@media(max-width:900px){.m24det .related-grid-fz{grid-template-columns:repeat(2,1fr)}}
@@ -636,6 +637,7 @@ class M24_Catalog_Template_Detail {
 									<h4><?php echo esc_html( html_entity_decode( get_the_title( $rp_id ), ENT_QUOTES, 'UTF-8' ) ); ?></h4>
 									<?php if ( '' !== $r_desc ) : ?><div class="rdesc"><?php echo esc_html( $r_desc ); ?></div><?php endif; ?>
 									<div class="rp"><?php echo esc_html( $r_price ); ?></div>
+									<?php if ( ! $r_anfr ) : ?><div class="rp-tax"><?php echo m24_tax_label( $rp_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — kontrolliertes Label-Markup ?></div><?php endif; ?>
 								</div>
 							</a>
 						<?php endforeach; ?>

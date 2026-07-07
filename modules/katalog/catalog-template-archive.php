@@ -231,8 +231,9 @@ class M24_Catalog_Archive {
 		if ( ! ( $p['brutto'] > 0 ) ) {
 			return '<span class="m24-card__price m24-card__price--ask">Preis auf Anfrage</span>';
 		}
-		$is25a = ( 'paragraf25a' === $p['modus'] );
-		$note  = $is25a ? 'inkl. MwSt. (§25a)' : 'inkl. 19&nbsp;% MwSt.';
+		// Steuer-Label aus der EINEN Quelle (m24_tax_label) — nie ad-hoc aus $p['modus'] ableiten. Verhindert
+		// den §25a→19 %-Rückfall in Listen-/Archiv-Loops; kein stiller 19 %-Default bei unbestimmtem Status.
+		$note  = m24_tax_label( $post_id );
 
 		// Mehrere Varianten mit UNTERSCHIEDLICHEN Preisen → „ab {min}" (server-seitig).
 		$vp  = function_exists( 'm24_variant_price_info' ) ? m24_variant_price_info( $post_id ) : array();

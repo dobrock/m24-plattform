@@ -103,6 +103,47 @@ class M24_Catalog_Pricing {
 		);
 	}
 
+	/**
+	 * §25a-Status eines Teils — EINE Quelle der Wahrheit für alle Listen/Karten/Detail.
+	 *   true  = differenzbesteuert (§25a)
+	 *   false = regelbesteuert (19 %)
+	 *   null  = NICHT ermittelbar (kein Steuer-Meta gesetzt) → Aufrufer darf NICHT still 19 % annehmen
+	 *
+	 * Primär: _m24_mwst_modus ('paragraf25a'|'regel'). Fallback für Alt-Importe: veraltete Flag
+	 * _m24_differenzbesteuert. Liest per get_post_meta → funktioniert auch bei fields=>ids-Listen-Queries.
+	 */
+	public static function is_25a( $post_id ) {
+		$post_id = (int) $post_id;
+		$modus   = get_post_meta( $post_id, '_m24_mwst_modus', true );
+		if ( 'paragraf25a' === $modus ) { return true; }
+		if ( 'regel' === $modus )       { return false; }
+		// Modus nicht gesetzt → veraltete Differenzbesteuerungs-Flag prüfen (frühe Importe).
+		$legacy = get_post_meta( $post_id, '_m24_differenzbesteuert', true );
+		if ( '' !== $legacy && null !== $legacy ) { return (bool) $legacy; }
+		return null; // unbestimmt
+	}
+
+	/**
+	 * Fertiges Steuer-Label-Markup für Karten/Listen/Detail — DE (Default) oder EN.
+	 * KEIN stiller 19 %-Default: ist der §25a-Status nicht ermittelbar, wird sichtbar „bitte prüfen"
+	 * ausgegeben UND einmalig geloggt (verhindert genau den Bug, dass §25a-Teile still auf 19 % fallen).
+	 */
+	public static function tax_label( $post_id, $lang = 'de' ) {
+		$en = ( 'en' === $lang );
+		$st = self::is_25a( $post_id );
+		if ( true === $st ) {
+			return $en ? 'incl. VAT (§25a margin scheme)' : 'inkl. MwSt. (§25a)';
+		}
+		if ( false === $st ) {
+			return $en ? 'incl. 19% VAT' : 'inkl. 19&nbsp;% MwSt.';
+		}
+		// Unbestimmt → NICHT still 19 % annehmen, sondern flaggen + loggen.
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'catalog_tax', 'warning', '§25a-Status unbestimmt — kein _m24_mwst_modus/_m24_differenzbesteuert gesetzt', array( 'post_id' => (int) $post_id, 'art_nr' => (string) get_post_meta( (int) $post_id, '_m24_artikelnummer', true ) ) );
+		}
+		return $en ? 'VAT — please verify' : 'MwSt. – bitte prüfen';
+	}
+
 	/** Deutsche Währungsformatierung. */
 	public static function format( $value ) {
 		return number_format( (float) $value, 2, ',', '.' ) . ' €';
@@ -281,6 +322,20 @@ class M24_Catalog_Pricing {
 			'note'          => $data['note'],
 			'netto_hinweis' => ( null !== $default['netto'] ) ? $data['netto_hinweis'] : '',
 		);
+	}
+}
+
+/**
+ * Globaler Helfer: fertiges Steuer-Label-Markup für ein Gebrauchtteil (Single Source of Truth).
+ * In ALLEN Karten-/Listen-Partials verwenden statt eigener 19 %/§25a-Ableitung.
+ *
+ * @param int    $post_id Teil-ID.
+ * @param string $lang    'de' (Default) oder 'en'.
+ * @return string
+ */
+if ( ! function_exists( 'm24_tax_label' ) ) {
+	function m24_tax_label( $post_id, $lang = 'de' ) {
+		return M24_Catalog_Pricing::tax_label( $post_id, $lang );
 	}
 }
 

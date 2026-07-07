@@ -523,10 +523,12 @@ class M24_Offers {
 		return null;
 	}
 
-	/** §25a differenzbesteuert? Auto aus dem ECHTEN Steuermodus _m24_mwst_modus='paragraf25a' (nicht das
-	 * veraltete _m24_differenzbesteuert). Filterbar. */
+	/** §25a differenzbesteuert? EINE Quelle: M24_Catalog_Pricing::is_25a (liest _m24_mwst_modus + veraltete
+	 * _m24_differenzbesteuert-Flag). Unbestimmt → false (Operator kann im Modal übersteuern). Filterbar. */
 	private static function is_tax25a( int $pid ): bool {
-		$is = ( 'paragraf25a' === (string) get_post_meta( $pid, '_m24_mwst_modus', true ) );
+		$is = class_exists( 'M24_Catalog_Pricing' )
+			? ( true === M24_Catalog_Pricing::is_25a( $pid ) )
+			: ( 'paragraf25a' === (string) get_post_meta( $pid, '_m24_mwst_modus', true ) );
 		return (bool) apply_filters( 'm24_offer_teil_tax25a', $is, $pid );
 	}
 
