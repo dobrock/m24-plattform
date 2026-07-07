@@ -45,6 +45,20 @@ class M24_Offers_Render {
 	private static function delivery_options(): array {
 		return array( '', 'Am Lager', '1–2 Wochen', '3–4 Wochen', '4–6 Wochen', '5–7 Wochen', '6–8 Wochen', '8–12 Wochen' );
 	}
+	/** DE→EN-Mapping der Lieferzeit-Werte (kanonisch bleibt DE; EN nur zur Anzeige/im EN-Angebot). */
+	private static function delivery_en_map(): array {
+		return array(
+			'Am Lager'    => 'In stock',
+			'1–2 Wochen'  => '1–2 weeks', '3–4 Wochen' => '3–4 weeks', '4–6 Wochen' => '4–6 weeks',
+			'5–7 Wochen'  => '5–7 weeks', '6–8 Wochen' => '6–8 weeks', '8–12 Wochen' => '8–12 weeks',
+		);
+	}
+	/** Lieferzeit-Wert in der Angebotssprache (EN-Angebot → englischer Wert, sonst DE). */
+	public static function delivery_label( string $de, string $lang ): string {
+		if ( 'en' !== $lang || '' === $de ) { return $de; }
+		$m = self::delivery_en_map();
+		return $m[ $de ] ?? $de;
+	}
 	/** Feste Reihenfolge der Steuer-Segmente (DE zuerst). */
 	private static function tax_order(): array {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
@@ -284,7 +298,7 @@ class M24_Offers_Render {
 					<h2>Konditionen</h2>
 					<div class="m24off-two">
 						<div class="m24off-fld"><label>Lieferzeit (gilt fürs ganze Angebot)</label>
-							<select data-delivery><?php foreach ( self::delivery_options() as $opt ) : ?><option value="<?php echo esc_attr( $opt ); ?>"><?php echo esc_html( '' === $opt ? '—' : $opt ); ?></option><?php endforeach; ?></select>
+							<select data-delivery><?php foreach ( self::delivery_options() as $opt ) : $de = ( '' === $opt ? '—' : $opt ); $en = ( '' === $opt ? '—' : self::delivery_label( $opt, 'en' ) ); ?><option value="<?php echo esc_attr( $opt ); ?>" data-de="<?php echo esc_attr( $de ); ?>" data-en="<?php echo esc_attr( $en ); ?>"><?php echo esc_html( $de ); ?></option><?php endforeach; ?></select>
 						</div>
 						<div class="m24off-fld"><label>Angebotssprache</label>
 							<div class="m24off-seg2" data-langseg><span class="on" data-olang="de">Deutsch</span><span data-olang="en">English</span></div></div>
@@ -471,7 +485,7 @@ class M24_Offers_Render {
 				<?php foreach ( $extras as $ex ) : if ( empty( $ex['on'] ) ) { continue; } ?>
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
-				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( $o->delivery_time ); ?></p><?php endif; ?>
+				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?></p><?php endif; ?>
 				<?php
 				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
 				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -755,7 +769,7 @@ class M24_Offers_Render {
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
 			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
-		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( $o->delivery_time ) . '</p>'; }
+		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		if ( $o->tax_note && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $o->tax_note ) . '</p>'; }
 		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
@@ -766,7 +780,7 @@ class M24_Offers_Render {
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( $L['incl_taxes'] )
-			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( $o->delivery_time ) : '' ) . '</p>';
+			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) : '' ) . '</p>';
 		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
 		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
 			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '

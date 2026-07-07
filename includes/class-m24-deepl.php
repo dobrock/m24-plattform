@@ -108,70 +108,80 @@ class M24_DeepL {
 	/* ── Öffentliche Helfer ─────────────────────────────────────────────── */
 
 	/**
-	 * Frischer EN-Titel für einen Artikel. Manual-Override > Hash-Cache > DeepL. Bei Fehler DE-Titel
-	 * (Angebot nie blockieren) + einmaliges Warning-Log mit Art.-Nr.
+	 * EN-Titel für mehrere Artikel — EINE Batch-DeepL-Anfrage für alle nicht frisch gecachten. Kern für Einzel-
+	 * helfer, Angebots-Fill UND die Operator-Live-Vorschau. @return array<int,string> [post_id => EN-Titel].
+	 * Manual-Override > frischer Hash-Cache > DeepL. Bei Fehler/leer → DE-Titel (Angebot nie blockieren).
 	 */
-	public static function en_title( int $post_id ): string {
-		$post_id = (int) $post_id;
-		$manual  = trim( (string) get_post_meta( $post_id, self::META_MANUAL, true ) );
+	public static function en_titles_for( array $post_ids ): array {
+		$post_ids = array_values( array_unique( array_map( 'intval', $post_ids ) ) );
+		$result   = array();
+		$need      = array(); // post_id => de-title
+		foreach ( $post_ids as $pid ) {
+			if ( $pid <= 0 ) { continue; }
+			$manual = trim( (string) get_post_meta( $pid, self::META_MANUAL, true ) );
+			if ( '' !== $manual ) { $result[ $pid ] = $manual; continue; }
+			$de = (string) get_the_title( $pid );
+			if ( '' === $de ) { $result[ $pid ] = ''; continue; }
+			$cached = (string) get_post_meta( $pid, self::META_EN, true );
+			$src    = (string) get_post_meta( $pid, self::META_SRC, true );
+			if ( '' !== $cached && $src === md5( $de ) ) { $result[ $pid ] = $cached; continue; } // frisch
+			$need[ $pid ] = $de;
+		}
+		if ( empty( $need ) ) { return $result; }
+
+		$res = self::translate_batch( array_values( $need ) );
+		if ( ! is_array( $res ) ) {
+			self::warn_once( 'DeepL-Batch fehlgeschlagen — DE-Titel verwendet', (int) array_key_first( $need ) );
+			foreach ( $need as $pid => $de ) { $result[ $pid ] = $de; } // Graceful Fallback: DE
+			return $result;
+		}
+		$k = 0;
+		foreach ( $need as $pid => $de ) {
+			$en = isset( $res[ $k ] ) ? (string) $res[ $k ] : '';
+			$k++;
+			if ( '' !== $en ) {
+				update_post_meta( $pid, self::META_EN, $en );
+				update_post_meta( $pid, self::META_SRC, md5( $de ) );
+				$result[ $pid ] = $en;
+			} else {
+				$result[ $pid ] = $de; // Fallback
+			}
+		}
+		return $result;
+	}
+
+	/** Nur bereits vorhandener frischer EN-Titel (Manual/Cache) — RUFT NIE DeepL (für Suche/Anzeige ohne Quota).
+	 * Leer, wenn (noch) kein frischer Cache existiert → Aufrufer zeigt „EN fehlt" oder holt on-demand nach. */
+	public static function cached_en_title( int $post_id ): string {
+		$manual = trim( (string) get_post_meta( $post_id, self::META_MANUAL, true ) );
 		if ( '' !== $manual ) { return $manual; }
-
-		$de = (string) get_the_title( $post_id );
-		if ( '' === $de ) { return ''; }
-
+		$de     = (string) get_the_title( $post_id );
 		$cached = (string) get_post_meta( $post_id, self::META_EN, true );
 		$src    = (string) get_post_meta( $post_id, self::META_SRC, true );
-		if ( '' !== $cached && $src === md5( $de ) ) { return $cached; } // frisch
+		return ( '' !== $cached && $src === md5( $de ) ) ? $cached : '';
+	}
 
-		$res = self::translate_batch( array( $de ) );
-		if ( is_array( $res ) && isset( $res[0] ) && '' !== $res[0] ) {
-			update_post_meta( $post_id, self::META_EN, $res[0] );
-			update_post_meta( $post_id, self::META_SRC, md5( $de ) );
-			return $res[0];
-		}
-		self::warn_once( 'DeepL-Übersetzung fehlgeschlagen — DE-Titel verwendet', $post_id );
-		return $de; // Fallback: nie blockieren
+	/** Frischer EN-Titel für EINEN Artikel (Spec-Helfer). DE-Fallback bei Fehler. */
+	public static function en_title( int $post_id ): string {
+		$post_id = (int) $post_id;
+		$map     = self::en_titles_for( array( $post_id ) );
+		$en      = (string) ( $map[ $post_id ] ?? '' );
+		return '' !== $en ? $en : (string) get_the_title( $post_id );
 	}
 
 	/**
-	 * Angebots-Positionen (Snapshot) für EN füllen — EINE Batch-DeepL-Anfrage für ALLE Katalog-Positionen ohne
-	 * frischen EN-Titel. Mutiert und liefert $items zurück. Freitext-Positionen (teil_id=0) bleiben unangetastet
-	 * (deren EN-Titel gibt der Operator selbst ein).
+	 * Angebots-Positionen (Snapshot) für EN füllen: für ALLE Katalog-Positionen (teil_id>0) den frischen EN-Titel
+	 * setzen (Batch) — unabhängig davon, was im Item stand (der Picker liefert nur frisch/leer). Freitext-
+	 * Positionen (teil_id=0) behalten ihren vom Operator eingegebenen EN-Titel.
 	 */
 	public static function fill_item_en_titles( array $items ): array {
-		$need = array(); // item-index => de-title
+		$ids = array();
+		foreach ( $items as $it ) { $tid = (int) ( $it['teil_id'] ?? 0 ); if ( $tid > 0 ) { $ids[] = $tid; } }
+		if ( empty( $ids ) ) { return $items; }
+		$map = self::en_titles_for( $ids );
 		foreach ( $items as $i => $it ) {
 			$tid = (int) ( $it['teil_id'] ?? 0 );
-			if ( $tid <= 0 ) { continue; }                                   // Freitext → kein Katalog-Quelltitel
-			if ( '' !== trim( (string) ( $it['title_en'] ?? '' ) ) ) { continue; } // schon gesetzt (Operator/Prefill)
-
-			$manual = trim( (string) get_post_meta( $tid, self::META_MANUAL, true ) );
-			if ( '' !== $manual ) { $items[ $i ]['title_en'] = $manual; continue; }
-
-			$de = (string) get_the_title( $tid );
-			if ( '' === $de ) { continue; }
-
-			$cached = (string) get_post_meta( $tid, self::META_EN, true );
-			$src    = (string) get_post_meta( $tid, self::META_SRC, true );
-			if ( '' !== $cached && $src === md5( $de ) ) { $items[ $i ]['title_en'] = $cached; continue; } // frisch
-
-			$need[ $i ] = array( 'tid' => $tid, 'de' => $de );
-		}
-		if ( empty( $need ) ) { return $items; }
-
-		$res = self::translate_batch( array_values( wp_list_pluck( $need, 'de' ) ) );
-		if ( ! is_array( $res ) ) {
-			self::warn_once( 'DeepL-Batch fehlgeschlagen — Angebot nutzt DE-Titel', 0 );
-			return $items; // title_en bleibt leer → item_title fällt auf DE zurück
-		}
-		$k = 0;
-		foreach ( $need as $i => $n ) {
-			$en = isset( $res[ $k ] ) ? (string) $res[ $k ] : '';
-			$k++;
-			if ( '' === $en ) { continue; }
-			update_post_meta( $n['tid'], self::META_EN, $en );
-			update_post_meta( $n['tid'], self::META_SRC, md5( $n['de'] ) );
-			$items[ $i ]['title_en'] = $en;
+			if ( $tid > 0 && isset( $map[ $tid ] ) && '' !== $map[ $tid ] ) { $items[ $i ]['title_en'] = $map[ $tid ]; }
 		}
 		return $items;
 	}

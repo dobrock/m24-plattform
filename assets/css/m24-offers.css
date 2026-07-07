@@ -360,3 +360,9 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
   .m24off-v2 .m24off-pprice input{text-align:left}
   .m24off-v2 .m24off-posx{order:5;margin-left:auto}
 }
+
+/* #3: Versand-Position — Inline-Editor (Land + Versandweg) */
+.m24off-v2 .m24off-shiptog{color:#1f74c4;cursor:pointer;font-weight:600}
+.m24off-v2 .m24off-shipedit{display:flex;gap:12px;flex-wrap:wrap;padding:8px 4px 12px 42px;border-bottom:1px solid #eef1f5;margin:0 0 8px}
+.m24off-v2 .m24off-shipedit label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#5a6474;font-weight:600}
+.m24off-v2 .m24off-shipedit input,.m24off-v2 .m24off-shipedit select{height:38px;border:1.5px solid var(--line);border-radius:8px;padding:0 10px;font-size:15px;font-family:'Saira',Arial,sans-serif;min-width:160px}

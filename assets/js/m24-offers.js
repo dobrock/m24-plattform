@@ -19,7 +19,12 @@
 
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
-	var extras = (cfg.presets || []).map(function (p) { return { key: p.key || '', label: p.label, amount: parseFloat(p.amount) || 0, on: false }; });
+	var extras = (cfg.presets || []).map(function (p) {
+		var e = { key: p.key || '', label: p.label, amount: parseFloat(p.amount) || 0, on: false };
+		if ('versand' === e.key) { e.method = 'air'; e.land = ''; } // Versandweg (air/sea/'') + Land-Override (leer = Empfängerland)
+		return e;
+	});
+	var shipOpen = false; // Inline-Editor der Versand-Position offen?
 	var taxMode = '', taxRate = 0, offerLang = 'de';
 	var modell = (cfg.src && cfg.src.src_modell) || '';
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
@@ -35,8 +40,8 @@
 	}
 
 	/* ── EN-Wörterbuch für Standard-Positionen (KEINE Maschinenübersetzung von Katalogtiteln) ── */
-	var STD_DE = { verpackung: 'Transportsicher verpacken', versand_air: 'Versicherter Versand DAP {L} Luftfracht', versand_sea: 'Versicherter Versand DAP {L} Seefracht', zoll: 'Zollabwicklung Deutschland' };
-	var STD_EN = { verpackung: 'Secure transport packaging', versand_air: 'Insured shipping DAP {C} air freight', versand_sea: 'Insured shipping DAP {C} sea freight', zoll: 'Customs handling Germany' };
+	var STD_DE = { verpackung: 'Transportsicher verpacken', zoll: 'Zollabwicklung Deutschland' };
+	var STD_EN = { verpackung: 'Secure transport packaging', zoll: 'Customs handling Germany' };
 	var LANDS_EN = cfg.landsEn || {};
 	function landNameEn(raw) {
 		var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(raw) : String(raw || '').toUpperCase().slice(0, 2);
@@ -44,9 +49,18 @@
 		return LANDS_EN[iso] || landName(raw);
 	}
 	function chipLabel(ex) {
-		var base = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
-		base = base.replace('{L}', landName(customer.land) || '').replace('{C}', landNameEn(customer.land) || ''); // {Empfängerland} live
-		return base.replace(/\s{2,}/g, ' ').trim();
+		// „Versicherter Versand DAP {Land}" — EINE Karte, Versandweg (air/sea/leer) + Land per Position editierbar.
+		if ('versand' === ex.key) {
+			var iso = ex.land || customer.land;
+			var en  = ('en' === offerLang);
+			var base = en ? ('Insured shipping DAP ' + (landNameEn(iso) || '')) : ('Versicherter Versand DAP ' + (landName(iso) || ''));
+			if ('air' === ex.method) { base += en ? ' air freight' : ' Luftfracht'; }
+			else if ('sea' === ex.method) { base += en ? ' sea freight' : ' Seefracht'; }
+			// leer = Landweg → kein Fracht-Suffix
+			return base.replace(/\s{2,}/g, ' ').trim();
+		}
+		var b = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
+		return b.replace(/\s{2,}/g, ' ').trim();
 	}
 	/** Anzeige-Titel je Sprache: Katalog = title_en falls vorhanden, sonst DE; Freitext = title_en/title_de. */
 	function itemTitle(it) {
@@ -93,15 +107,32 @@
 		box.innerHTML = '';
 		extras.forEach(function (ex, i) {
 			if (!ex.on) { return; }
+			var isShip = ('versand' === ex.key);
+			var sub = isShip
+				? '<div class="m24off-pa m24off-shiptog" data-ship-toggle>Land / Versandweg ändern ▾</div>'
+				: '<div class="m24off-pa">Standard-Position</div>';
 			var row = document.createElement('div');
 			row.className = 'm24off-pos m24off-pos-std';
 			row.innerHTML = '<span class="m24off-drag is-static" aria-hidden="true">⠿</span>'
 				+ '<span class="m24off-pos-ph m24off-ph-std">€</span>'
-				+ '<div class="m24off-pos-main"><div class="m24off-pt">' + esc(chipLabel(ex)) + '</div><div class="m24off-pa">Standard-Position</div></div>'
+				+ '<div class="m24off-pos-main"><div class="m24off-pt" data-ship-label="' + i + '">' + esc(chipLabel(ex)) + '</div>' + sub + '</div>'
 				+ '<div class="m24off-qty2"></div>'
 				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-extra-price="' + i + '" autocomplete="off"><div class="m24off-bru2">netto</div></div>'
 				+ '<button type="button" class="m24off-posx" data-extra-toggle="' + i + '" aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
+			// Versand: Inline-Editor (Land + Versandweg) unter der Zeile, wenn aufgeklappt.
+			if (isShip && shipOpen) {
+				var ed = document.createElement('div');
+				ed.className = 'm24off-shipedit';
+				var iso = ex.land || customer.land || '';
+				ed.innerHTML = '<label>Land<input type="text" data-ship-land="' + i + '" value="' + esc(iso) + '" list="m24off-cx-lands" placeholder="' + esc(landName(customer.land) || 'Deutschland') + '" autocomplete="off"></label>'
+					+ '<label>Versandweg<select data-ship-method="' + i + '">'
+					+ '<option value="air"' + ('air' === ex.method ? ' selected' : '') + '>Luftfracht / Air freight</option>'
+					+ '<option value="sea"' + ('sea' === ex.method ? ' selected' : '') + '>Seefracht / Sea freight</option>'
+					+ '<option value=""' + ('' === ex.method ? ' selected' : '') + '>Landweg (ohne Zusatz)</option>'
+					+ '</select></label>';
+				box.appendChild(ed);
+			}
 		});
 	}
 
@@ -200,7 +231,36 @@
 		$$('[data-langsw] [data-lang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-lang') === offerLang); });
 		$$('[data-langseg] [data-olang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-olang') === offerLang); });
 		salApply(false);
+		syncDeliveryLang(); // #4: Lieferzeit-Dropdown DE/EN
 		renderItems(); renderExtras(); // #2: EN-Titel/Freitext-EN-Felder + EN-Chip-Labels
+		ensureEnTitles(); // #2: fehlende EN-Katalogtitel live per DeepL nachziehen
+	}
+
+	/* #2: EN-Titel fehlender Katalog-Positionen on-demand ziehen (Batch-DeepL, gecacht). Graceful: DE-Fallback. */
+	var enTitlesFetching = false;
+	function ensureEnTitles() {
+		if ('en' !== offerLang) { return; }
+		var ids = [];
+		items.forEach(function (it) { var tid = parseInt(it.teil_id, 10) || 0; if (tid > 0 && !(it.title_en && String(it.title_en).trim())) { ids.push(tid); } });
+		if (!ids.length || enTitlesFetching) { return; }
+		enTitlesFetching = true;
+		fetch(cfg.rest + '/en-titles', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify({ ids: ids }) })
+			.then(function (r) { return r.json(); }).then(function (d) {
+				enTitlesFetching = false;
+				if (d && d.ok && d.titles) {
+					items.forEach(function (it) { var k = String(parseInt(it.teil_id, 10) || 0); if (d.titles[k] && !(it.title_en && String(it.title_en).trim())) { it.title_en = d.titles[k]; } });
+					if ('en' === offerLang) { renderItems(); }
+				}
+			}).catch(function () { enTitlesFetching = false; });
+	}
+
+	/* #4: Lieferzeit-Dropdown auf die Angebotssprache umstellen (Werte bleiben DE = kanonisch; nur Anzeige). */
+	function syncDeliveryLang() {
+		var sel = $('[data-delivery]'); if (!sel) { return; }
+		$$('option', sel).forEach(function (o) {
+			var en = o.getAttribute('data-en'), de = o.getAttribute('data-de');
+			if (null !== en && null !== de) { o.textContent = ('en' === offerLang) ? en : de; }
+		});
 	}
 
 	/* ── C3: Angedockte Palette (ersetzt das alte Vollbild-Overlay komplett) ── */
@@ -283,6 +343,7 @@
 			qty: 1, unit_price: unit, tax25a: is25a, custom: false
 		});
 		renderItems(); renderPalette(); flashRow(items.length - 1);
+		ensureEnTitles(); // #2: EN-Titel der neuen Katalog-Position live nachziehen (falls Angebotssprache EN)
 	}
 	function addStandard(i) { if (!extras[i]) { return; } extras[i].on = true; renderExtras(); renderSummary(); flashLastExtra(); }
 	function flashLastExtra() { var box = $('[data-extra-rows]'); if (!box) { return; } var rows = $$('.m24off-pos', box), r = rows[rows.length - 1]; if (r) { r.classList.add('m24off-neu'); setTimeout(function () { r.classList.remove('m24off-neu'); }, 1200); } }
@@ -392,18 +453,23 @@
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
 		else if (t.matches('[data-c="land"]')) { customer.land = cxLandToIso(t.value || ''); cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } renderExtras(); renderSummary(); } // {Empfängerland}: auf ISO normalisieren (England→GB → Label „England")
+		else if (t.matches('[data-ship-land]')) { var si = +t.getAttribute('data-ship-land'); extras[si].land = cxLandToIso(t.value || ''); var lb = $('[data-ship-label="' + si + '"]'); if (lb) { lb.textContent = chipLabel(extras[si]); } renderSummary(); } // ohne Re-Render → Fokus bleibt
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
 			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
 			else if (t.matches('[data-palette-q]')) { clearTimeout(paletteT); paletteT = setTimeout(searchPalette, 250); }
 			else if (t.matches('[data-palette-stdprice]')) { var spn = parseNum(t.value); if (!isNaN(spn)) { extras[+t.getAttribute('data-palette-stdprice')].amount = spn; renderSummary(); } }
 	});
-	document.addEventListener('change', function (e) { if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); } });
+	document.addEventListener('change', function (e) {
+		if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); return; }
+		if (e.target.matches('[data-ship-method]')) { extras[+e.target.getAttribute('data-ship-method')].method = e.target.value; renderExtras(); renderSummary(); return; }
+	});
 	document.addEventListener('click', function (e) {
 		var t = e.target, el;
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
+		if ((el = t.closest('[data-ship-toggle]'))) { shipOpen = !shipOpen; renderExtras(); return; }
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
 		if ((el = t.closest('[data-ptab]'))) { setPTab(el.getAttribute('data-ptab')); return; }
 		if ((el = t.closest('[data-cat-add]'))) { addCatalog(el); return; }

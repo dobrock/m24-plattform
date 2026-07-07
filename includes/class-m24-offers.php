@@ -249,6 +249,10 @@ class M24_Offers {
 		register_rest_route( self::NS, '/offers/save-draft', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_save_draft' ),
 		) );
+		// EN-Titel live im Operator: on-demand DeepL (gecacht) für Katalog-Positionen ohne frischen EN-Titel.
+		register_rest_route( self::NS, '/offers/en-titles', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_en_titles' ),
+		) );
 		// B (v3): Kunden-Schnellanlage — Live-Suche + Neuanlage (Desk-kompatible Felder).
 		register_rest_route( self::NS, '/offers/customers', array(
 			'methods' => 'GET', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_customers_search' ),
@@ -331,7 +335,7 @@ class M24_Offers {
 			return array(
 				'id'     => (int) $p->ID,
 				'title'  => get_the_title( $p ),
-				'title_en' => (string) get_post_meta( $p->ID, '_m24_titel_en', true ), // v3.1: EN-Titel falls gepflegt, sonst „EN fehlt"
+				'title_en' => class_exists( 'M24_DeepL' ) ? M24_DeepL::cached_en_title( (int) $p->ID ) : (string) get_post_meta( $p->ID, '_m24_titel_en', true ), // NUR frischer Cache (keine DeepL-Quota bei Suche); Operator holt fehlende live nach
 				'art_nr' => (string) get_post_meta( $p->ID, '_m24_artikelnummer', true ),
 				'bmw'    => (string) get_post_meta( $p->ID, '_m24_bmw_teilenummer', true ),
 				'price'  => ( null !== $price ) ? $price : null,
@@ -723,6 +727,24 @@ class M24_Offers {
 		) );
 	}
 
+	/** Operator-Live-Vorschau: EN-Titel für Katalog-Positionen on-demand (Batch-DeepL, gecacht). {id: en}. */
+	public static function handle_en_titles( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		$body = (array) $req->get_json_params();
+		$ids  = array();
+		foreach ( (array) ( $body['ids'] ?? array() ) as $id ) {
+			$id = (int) $id;
+			if ( $id > 0 && 'm24_teil' === get_post_type( $id ) ) { $ids[] = $id; }
+		}
+		$map = ( ! empty( $ids ) && class_exists( 'M24_DeepL' ) ) ? M24_DeepL::en_titles_for( $ids ) : array();
+		// Als string-Keys ausgeben (JSON-Objekt); leere Werte → DE-Titel als Fallback, damit die Vorschau nie „fehlt" zeigt.
+		$out = array();
+		foreach ( $ids as $id ) { $out[ (string) $id ] = (string) ( '' !== ( $map[ $id ] ?? '' ) ? $map[ $id ] : get_the_title( $id ) ); }
+		return rest_ensure_response( array( 'ok' => true, 'titles' => $out ) );
+	}
+
 	/* ── Sanitizer ──────────────────────────────────────────────────────── */
 
 	private static function clean_customer( array $c ): array {
@@ -820,10 +842,9 @@ class M24_Offers {
 
 	public static function extra_presets(): array {
 		$def = array(
-			array( 'key' => 'verpackung',  'label' => 'Transportsicher verpacken', 'amount' => (float) get_option( 'm24_offer_preset_verpackung', 25 ) ),
-			array( 'key' => 'versand_air',  'label' => 'Versicherter Versand DAP Luftfracht', 'amount' => (float) get_option( 'm24_offer_preset_versand', 49 ) ),
-			array( 'key' => 'versand_sea',  'label' => 'Versicherter Versand DAP Seefracht', 'amount' => (float) get_option( 'm24_offer_preset_versand_sea', 49 ) ),
-			array( 'key' => 'zoll',         'label' => 'Zollabwicklung Deutschland', 'amount' => (float) get_option( 'm24_offer_preset_zoll', 75 ) ),
+			array( 'key' => 'verpackung', 'label' => 'Transportsicher verpacken', 'amount' => (float) get_option( 'm24_offer_preset_verpackung', 25 ) ),
+			array( 'key' => 'versand',    'label' => 'Versicherter Versand DAP', 'amount' => (float) get_option( 'm24_offer_preset_versand', 49 ) ), // EINE Karte; Versandweg (Luft/See/Land) + Land in der Position
+			array( 'key' => 'zoll',       'label' => 'Zollabwicklung Deutschland', 'amount' => (float) get_option( 'm24_offer_preset_zoll', 75 ) ),
 		);
 		return apply_filters( 'm24_offer_extra_presets', $def );
 	}
