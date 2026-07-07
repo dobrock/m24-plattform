@@ -475,7 +475,14 @@
 				body: JSON.stringify(offerPayload())
 			}).then(function (r) { return r.json(); }).then(function (d) {
 				busy(false);
-				if (d && d.ok) { currentDraftId = d.draft_id || currentDraftId; st.innerHTML = esc((d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.') + backLinkHtml(); st.className = 'm24off-status is-ok'; }
+				if (d && d.ok) {
+					currentDraftId = d.draft_id || currentDraftId;
+					// 0.11.342: URL auf ?draft={id} umschreiben → ein Reload restauriert genau diesen Entwurf (nicht die from=-Quelle).
+					if (currentDraftId && window.history && history.replaceState) {
+						try { history.replaceState(null, '', '?page=m24-offers&draft=' + currentDraftId); } catch (e) {}
+					}
+					st.innerHTML = esc((d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.') + backLinkHtml(); st.className = 'm24off-status is-ok';
+				}
 				else { st.textContent = (d && (d.message || d.error)) || 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; }
 			}).catch(function () { busy(false); st.textContent = 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; });
 			return;
@@ -558,9 +565,12 @@
 		if ((el = t.closest('[data-action]'))) { doAction(el.getAttribute('data-action')); return; }
 	});
 
-	/* ── Prefill (aus Anfrage/Garage) ── */
-	if (cfg.prefill && cfg.prefill.items && cfg.prefill.items.length) {
-		items = cfg.prefill.items.map(function (it) {
+	/* ── Prefill / Draft-Restore (Snapshot = Source of Truth) ── */
+	// 0.11.342: kompletter gespeicherter Zustand wird restauriert — Positionen (inkl. EN-Titel + manual-Flag),
+	// Nebenkosten/Versand (Incoterm/Weg/Land), Lieferzeit, Steuerfall/-satz, Sprache, Anschreiben, Freitext.
+	var initLang = 'de';
+	if (cfg.prefill) {
+		items = (cfg.prefill.items || []).map(function (it) {
 			return {
 				teil_id: parseInt(it.teil_id, 10) || 0,
 				title: it.title || '', title_de: (it.title_de != null ? it.title_de : (it.title || '')), title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
@@ -571,11 +581,29 @@
 				tax25a: !!it.tax25a, custom: !!it.custom
 			};
 		});
+		// Nebenkosten/Versand nach key auf die Presets mappen; Freitext-Kosten (ohne key) anhängen.
+		if (cfg.prefill.extras && cfg.prefill.extras.length) {
+			cfg.prefill.extras.forEach(function (se) {
+				var key = se.key || '', tgt = key ? extras.filter(function (x) { return x.key === key; })[0] : null;
+				if (tgt) {
+					tgt.on = !!se.on;
+					if (se.amount != null && se.amount !== '') { tgt.amount = parseFloat(se.amount) || 0; }
+					if ('versand' === key) {
+						if (se.incoterm) { tgt.incoterm = se.incoterm; }
+						if (se.method) { tgt.method = se.method; }
+						tgt.land = (se.ship_land != null ? se.ship_land : (se.land != null ? se.land : (tgt.land || '')));
+					}
+				} else if (se.label) {
+					extras.push({ key: '', label: se.label, amount: parseFloat(se.amount) || 0, on: !!se.on });
+				}
+			});
+		}
 		var dEl = $('[data-delivery]'); if (dEl && cfg.prefill.delivery) { dEl.value = cfg.prefill.delivery; }
 		if (cfg.prefill.tax_mode) { setTaxMode(cfg.prefill.tax_mode); }
 		if (cfg.prefill.tax_rate) { taxRate = parseFloat(cfg.prefill.tax_rate) || 0; var rr = $('[data-tax-rate]'); if (rr) { rr.value = cfg.prefill.tax_rate; } }
-		if (cfg.prefill.salutation) { var se = $('[data-salutation]'); if (se) { se.value = cfg.prefill.salutation; salTouched = true; } }
+		if (cfg.prefill.salutation) { var se2 = $('[data-salutation]'); if (se2) { se2.value = cfg.prefill.salutation; salTouched = true; } }
 		if (cfg.prefill.note) { var ne = $('[data-note]'); if (ne) { ne.value = cfg.prefill.note; } }
+		if (cfg.prefill.lang) { initLang = ('en' === cfg.prefill.lang) ? 'en' : 'de'; }
 	}
 
 	/* ── B: Kunden-Schnellanlage / -Bearbeitung (Modal) ── */
@@ -684,7 +712,7 @@
 	}
 	function cxVatCheck() { var el = $('[data-cx="ustid"]'), st = $('[data-cx-status]'); if (!el || !st) { return; } var v = el.value.replace(/\s/g, '').toUpperCase(); var ok = /^[A-Z]{2}[0-9A-Z]{2,12}$/.test(v); st.textContent = ok ? ('USt-IdNr. ' + v + ' — Format gültig (Live-VIES-Prüfung folgt).') : 'USt-IdNr.-Format unplausibel (z. B. DE123456789).'; st.className = 'm24off-cxstatus ' + (ok ? 'is-ok' : 'is-error'); }
 
-	setLang('de');
+	setLang(initLang); // 0.11.342: gespeicherte Angebotssprache restaurieren (Default de)
 	salApply(false);
 	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
 	renderItems();

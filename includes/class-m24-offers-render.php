@@ -201,13 +201,12 @@ class M24_Offers_Render {
 					'ustid'        => (string) ( $cj['ustid'] ?? '' ),
 					'eori'         => (string) ( $cj['eori'] ?? '' ),
 				) );
-				// #8: LIVE-Kundendatensatz (per E-Mail) über den Snapshot legen → Edits am Kunden erscheinen auf
-				// ALLEN Reload-Pfaden (from= UND draft=), nicht nur im zuletzt gespeicherten Snapshot.
-				$live = M24_Offers::customer_by_email( (string) ( $customer['email'] ?? '' ) );
-				if ( is_array( $live ) ) {
-					foreach ( $live as $lk => $lv ) {
-						if ( '' !== (string) $lv && null !== $lv ) { $customer[ $lk ] = $lv; } // nur nicht-leere Live-Werte übernehmen (id, firma, land verbatim, Kontakt)
-					}
+				// #8 (0.11.342): KEIN automatisches Live-Overlay mehr — der gespeicherte Snapshot ist Source of Truth.
+				// Nur die id aus dem Live-Record ergänzen (falls der Snapshot keine trägt), damit „ändern" den
+				// richtigen Kundendatensatz per id aktualisiert; Werte (Name/Firma/Land/Kontakt) bleiben Draft-Werte.
+				if ( empty( $customer['id'] ) ) {
+					$live = M24_Offers::customer_by_email( (string) ( $customer['email'] ?? '' ) );
+					if ( is_array( $live ) && ! empty( $live['id'] ) ) { $customer['id'] = (int) $live['id']; }
 				}
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
 				// #3: Thumb zurück-hydrieren — aus items_json, sonst serverseitig aus dem Teil nachziehen (Alt-Entwürfe).
@@ -221,11 +220,15 @@ class M24_Offers_Render {
 						if ( '' !== $manual_en ) { $pf_items[ $k ]['title_en'] = $manual_en; $pf_items[ $k ]['title_en_manual'] = true; }
 					}
 				}
+				$ej_pf   = json_decode( (string) ( $o->extras_json ?? '' ), true ); // 0.11.342: Nebenkosten/Versand (Incoterm/Land) round-trippen
 				$prefill  = array(
 					'items'      => $pf_items,
+					'extras'     => is_array( $ej_pf ) ? array_values( $ej_pf ) : array(),
 					'delivery'   => (string) $o->delivery_time,
 					'tax_mode'   => (string) $o->tax_mode,
 					'tax_rate'   => (float) $o->tax_rate,
+					'lang'       => ( 'en' === ( $sj['lang'] ?? (string) ( $o->offer_lang ?? '' ) ) ) ? 'en' : 'de', // Draft speichert lang in src_json
+
 					'salutation' => (string) ( $sj['salutation'] ?? '' ), // v3: Anschreiben aus src_json
 					'note'       => (string) ( $sj['note'] ?? '' ),
 					'offer_id'   => $from,
