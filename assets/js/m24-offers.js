@@ -322,10 +322,39 @@
 	}
 
 	/* ── Senden ── */
+	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
+	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
+	function offerPayload() {
+		return {
+			customer: collectCustomer(), items: items,
+			extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on }; }), // Label in Angebotssprache einfrieren
+			tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
+			delivery_time: ($('[data-delivery]') || {}).value || '',
+			salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
+			inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
+			draft_id: currentDraftId,
+			src: cfg.src || {}
+		};
+	}
 	function doAction(action) {
 		var st = $('[data-status]'), cust = collectCustomer();
 		if ('text' === action) {
 			window.location.href = 'mailto:' + encodeURIComponent(cust.email) + '?subject=' + encodeURIComponent('Ihre Anfrage bei MOTORSPORT24');
+			return;
+		}
+		if ('draft' === action) {
+			// Entwurf: nur E-Mail Pflicht (Positionen/Steuer optional → Weiterarbeiten möglich). Keine Mail.
+			if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cust.email)) { st.textContent = 'Für einen Entwurf bitte eine gültige Kunden-E-Mail angeben.'; st.className = 'm24off-status is-error'; return; }
+			busy(true); st.textContent = 'Entwurf wird gespeichert …'; st.className = 'm24off-status';
+			fetch(cfg.rest + '/save-draft', {
+				method: 'POST', credentials: 'same-origin',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
+				body: JSON.stringify(offerPayload())
+			}).then(function (r) { return r.json(); }).then(function (d) {
+				busy(false);
+				if (d && d.ok) { currentDraftId = d.draft_id || currentDraftId; st.textContent = (d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.'; st.className = 'm24off-status is-ok'; }
+				else { st.textContent = (d && (d.message || d.error)) || 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; }
+			}).catch(function () { busy(false); st.textContent = 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; });
 			return;
 		}
 		if (!items.length) { st.textContent = 'Bitte mindestens eine Position hinzufügen.'; st.className = 'm24off-status is-error'; return; }
@@ -335,30 +364,23 @@
 			var rEl = $('[data-tax-rate]'), rv = rEl && rEl.value.trim();
 			if (rv === '' || !(taxRate >= 0 && taxRate <= 27)) { st.textContent = 'Bitte einen USt-Satz (0–27 %) angeben.'; st.className = 'm24off-status is-error'; return; }
 		}
-		$$('[data-action="send"]').forEach(function (b) { b.disabled = true; });
+		busy(true);
 		st.textContent = 'Wird gesendet …'; st.className = 'm24off-status';
 		fetch(cfg.rest + '/send', {
 			method: 'POST', credentials: 'same-origin',
 			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
-			body: JSON.stringify({
-				customer: cust, items: items,
-				extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on }; }), // Label in Angebotssprache einfrieren
-				tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
-				delivery_time: ($('[data-delivery]') || {}).value || '',
-				salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
-				inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
-				src: cfg.src || {}
-			})
+			body: JSON.stringify(offerPayload())
 		}).then(function (r) { return r.json(); }).then(function (d) {
-			$$('[data-action="send"]').forEach(function (b) { b.disabled = false; });
+			busy(false);
 			if (d && d.ok) {
+				currentDraftId = 0; // Entwurf wurde zum verbindlichen Angebot → keine weitere Entwurf-Bindung
 				st.textContent = d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '');
 				st.className = 'm24off-status is-ok';
 			} else {
 				st.textContent = (d && (d.message || d.error)) || 'Senden fehlgeschlagen.';
 				st.className = 'm24off-status is-error';
 			}
-		}).catch(function () { $$('[data-action="send"]').forEach(function (b) { b.disabled = false; }); st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
+		}).catch(function () { busy(false); st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
 	}
 
 	/* ── Delegierte Events ── */

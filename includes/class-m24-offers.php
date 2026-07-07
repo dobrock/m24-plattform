@@ -130,7 +130,7 @@ class M24_Offers {
 		$base = admin_url( 'admin.php?page=' . $page );
 		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
 		echo '<div class="flt">' . $chip( '', 'Alle' );
-		foreach ( array( 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
+		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); } // Statistik-Panel rechts
 		if ( empty( $rows ) ) {
@@ -154,12 +154,21 @@ class M24_Offers {
 			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
-			$cnt = count( $items );
-			echo '<div class="card"><div class="crow"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $name ) . '</b><div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div></div><div class="meta"><span class="no">' . esc_html( (string) $o->offer_no ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sum">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . '&nbsp;€</span></div></div>';
-			echo '<div class="foot"><a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
-			if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
-			if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
-			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
+			$cnt      = count( $items );
+			$is_draft = ( 'entwurf' === (string) $o->status );
+			$no_disp  = $is_draft ? '—' : (string) $o->offer_no; // Entwürfe tragen einen Platzhalter → nicht zeigen
+			echo '<div class="card"><div class="crow"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $name ) . '</b><div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div></div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sum">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . '&nbsp;€</span></div></div>';
+			echo '<div class="foot">';
+			if ( $is_draft ) {
+				// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
+				$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
+				echo '<a href="' . esc_url( $edit ) . '" target="_blank" rel="noopener" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>';
+			} else {
+				echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+				if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
+				if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
+			}
+			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
 		}
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
@@ -235,6 +244,10 @@ class M24_Offers {
 		) );
 		register_rest_route( self::NS, '/offers/send', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_send' ),
+		) );
+		// „Als Entwurf speichern": Status entwurf, KEINE Mail, KEIN Nummernkreis-Verbrauch (Nummer erst beim Senden).
+		register_rest_route( self::NS, '/offers/save-draft', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_save_draft' ),
 		) );
 		// B (v3): Kunden-Schnellanlage — Live-Suche + Neuanlage (Desk-kompatible Felder).
 		register_rest_route( self::NS, '/offers/customers', array(
@@ -566,13 +579,9 @@ class M24_Offers {
 		$tax_note = $modes[ $tax_mode ]['note'];
 
 		$account_id = self::account_for_email( $customer['email'] );
-		$token      = bin2hex( random_bytes( 16 ) );
-		$offer_no   = self::next_number();
-		$valid_dt   = gmdate( 'Y-m-d', time() + self::VALID_DAYS * DAY_IN_SECONDS );
+		$valid_dt   = gmdate( 'Y-m-d', time() + self::VALID_DAYS * DAY_IN_SECONDS ); // Gültigkeit AB SENDEDATUM
 
-		$wpdb->insert( self::table(), array(
-			'offer_no'     => $offer_no,
-			'token'        => $token,
+		$row = array(
 			'account_id'   => $account_id,
 			'status'       => 'offen',
 			'customer_json'=> wp_json_encode( $customer ),
@@ -589,8 +598,27 @@ class M24_Offers {
 			'valid_until'  => $valid_dt,
 			'src_json'     => wp_json_encode( $src ),
 			'sent_at'      => current_time( 'mysql', true ),
-		) );
-		$offer_id = (int) $wpdb->insert_id;
+		);
+
+		// Entwurf → beim Senden AKTUALISIEREN (keine Dublette): jetzt erst die echte Nummer ziehen, Gültigkeit
+		// ab heute. Sonst Neuanlage mit frischem Token + Nummer.
+		$draft_id = (int) ( $p['draft_id'] ?? 0 );
+		$draft    = $draft_id > 0 ? self::get_by_id( $draft_id ) : null;
+		if ( $draft && 'entwurf' === (string) $draft->status ) {
+			$token           = (string) $draft->token ?: bin2hex( random_bytes( 16 ) );
+			$offer_no        = self::next_number();
+			$row['token']    = $token;
+			$row['offer_no'] = $offer_no;
+			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) );
+			$offer_id = $draft_id;
+		} else {
+			$token           = bin2hex( random_bytes( 16 ) );
+			$offer_no        = self::next_number();
+			$row['token']    = $token;
+			$row['offer_no'] = $offer_no;
+			$wpdb->insert( self::table(), $row );
+			$offer_id = (int) $wpdb->insert_id;
+		}
 		self::log( 'sent', $offer_id, $offer_no );
 
 		// Paket H: stammt das Angebot aus einer Anfrage → diese als „Beantwortet → {Nr}" markieren (To-do-Liste).
@@ -615,6 +643,78 @@ class M24_Offers {
 			'view_url' => self::view_url( $token ),
 			'register_link' => $register_link,
 			'message' => 'Angebot ' . $offer_no . ' gesendet.',
+		) );
+	}
+
+	/**
+	 * „Als Entwurf speichern": speichert das komplette Angebot (Kunde, Positionen inkl. Reihenfolge, Steuer,
+	 * Lieferzeit, Sprache, Anrede, Freitext) mit Status „entwurf" — OHNE Mail. KEIN Nummernkreis-Verbrauch:
+	 * offer_no bleibt ein eindeutiger Platzhalter (die UNIQUE-Spalte erlaubt kein doppeltes ''); die echte
+	 * Nummer wird erst beim Senden via next_number() gezogen. Vorhandener Entwurf (draft_id) → Update.
+	 */
+	public static function handle_save_draft( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		global $wpdb;
+		$p        = $req->get_json_params();
+		$customer = self::clean_customer( (array) ( $p['customer'] ?? array() ) );
+		if ( ! is_email( $customer['email'] ) ) {
+			return new WP_Error( 'm24off_bad', 'Für einen Entwurf ist mindestens eine gültige Kunden-E-Mail nötig.', array( 'status' => 400 ) );
+		}
+		$items    = self::clean_items( (array) ( $p['items'] ?? array() ) );
+		$extras   = self::clean_extras( (array) ( $p['extras'] ?? array() ) );
+		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
+		$modes    = self::tax_modes();
+		$has_mode = isset( $modes[ $tax_mode ] );
+		$tax_rate = (float) ( $p['tax_rate'] ?? 0 );
+		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
+		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		$src['lang']       = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de';
+		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
+		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
+		$src['delivery']   = $delivery;
+		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0 );
+		$tax_note = $has_mode ? $modes[ $tax_mode ]['note'] : '';
+
+		$row = array(
+			'account_id'   => self::account_for_email( $customer['email'] ),
+			'status'       => 'entwurf',
+			'customer_json'=> wp_json_encode( $customer ),
+			'items_json'   => wp_json_encode( $items ),
+			'extras_json'  => wp_json_encode( $extras ),
+			'delivery_time'=> $delivery,
+			'tax_mode'     => $tax_mode,
+			'tax_rate'     => $has_mode ? self::rate_for( $tax_mode, $tax_rate ) : 0,
+			'tax_note'     => $tax_note,
+			'subtotal_net' => $totals['net'] + $totals['st25a'],
+			'tax_amount'   => $totals['tax'],
+			'total_gross'  => $totals['total'],
+			'currency'     => 'EUR',
+			'valid_until'  => null, // Entwurf hat keine Gültigkeit — läuft erst ab Sendedatum
+			'src_json'     => wp_json_encode( $src ),
+			'sent_at'      => null,
+		);
+
+		$draft_id = (int) ( $p['draft_id'] ?? 0 );
+		$existing = $draft_id > 0 ? self::get_by_id( $draft_id ) : null;
+		if ( $existing && 'entwurf' === (string) $existing->status ) {
+			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) ); // offer_no/token unverändert
+			$id = $draft_id;
+		} else {
+			// Eindeutiger Platzhalter statt '' (UNIQUE-Spalte) — KEIN next_number(), also kein Sequenz-Verbrauch.
+			$row['offer_no'] = 'E-' . bin2hex( random_bytes( 8 ) );
+			$row['token']    = bin2hex( random_bytes( 16 ) );
+			$wpdb->insert( self::table(), $row );
+			$id = (int) $wpdb->insert_id;
+		}
+		self::log( 'draft_saved', $id, '' );
+
+		return rest_ensure_response( array(
+			'ok'       => true,
+			'draft_id' => $id,
+			'edit_url' => add_query_arg( array( self::QV_NEW => 1, 'draft' => $id ), home_url( '/' ) ),
+			'message'  => 'Entwurf gespeichert.',
 		) );
 	}
 
@@ -755,12 +855,12 @@ class M24_Offers {
 		if ( '' !== $email && is_email( $email ) ) {
 			$like = '%' . $wpdb->esc_like( '"email":"' . $email . '"' ) . '%';
 			$rows = $wpdb->get_results( $wpdb->prepare(
-				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE account_id = %d OR ( account_id = 0 AND customer_json LIKE %s ) ORDER BY created_at DESC, id DESC LIMIT 200",
+				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE status <> 'entwurf' AND ( account_id = %d OR ( account_id = 0 AND customer_json LIKE %s ) ) ORDER BY created_at DESC, id DESC LIMIT 200",
 				$account_id, $like
 			) );
 		} else {
 			$rows = $wpdb->get_results( $wpdb->prepare(
-				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE account_id = %d ORDER BY created_at DESC, id DESC LIMIT 200",
+				"SELECT offer_no, token, total_gross, status, created_at, paid_at FROM $t WHERE status <> 'entwurf' AND account_id = %d ORDER BY created_at DESC, id DESC LIMIT 200",
 				$account_id
 			) );
 		}

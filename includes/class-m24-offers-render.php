@@ -141,12 +141,17 @@ class M24_Offers_Render {
 		);
 
 		// Paket 1E: ?from=<offer_id> → Positionen/Kunde/Lieferzeit/Steuer + Garagen-Nr. aus dem (Entwurfs-)Angebot laden.
+		// ?draft=<id> ist derselbe Ladepfad, markiert aber „Entwurf weiterbearbeiten" (Senden aktualisiert den Datensatz).
 		$prefill  = null;
 		$garageNo = '';
+		$draftId  = 0; // >0 → dieser Datensatz ist ein Entwurf und wird beim Senden aktualisiert (keine Dublette)
 		$from     = (int) $g( 'from' );
+		$draft_qv = (int) $g( 'draft' );
+		if ( $draft_qv > 0 ) { $from = $draft_qv; }
 		if ( $from > 0 ) {
 			$o = M24_Offers::get_by_id( $from );
 			if ( $o ) {
+				if ( 'entwurf' === (string) $o->status ) { $draftId = $from; } // nur echte Entwürfe (Re-Quote eines gesendeten Angebots bleibt Neuanlage)
 				$its  = json_decode( (string) $o->items_json, true );
 				$cj   = json_decode( (string) $o->customer_json, true );
 				$sj   = json_decode( (string) $o->src_json, true );
@@ -218,6 +223,7 @@ class M24_Offers_Render {
 			'src'      => $src,
 			'validDays'=> M24_Offers::VALID_DAYS,
 			'prefill'  => $prefill,
+			'draftId'  => $draftId, // >0 → Operator im „Entwurf weiterbearbeiten"-Modus
 			'garageNo' => $garageNo,
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
 			'landsEn'  => self::lands_en(), // englische Landesnamen für die EN-Versandzeile ({country})
@@ -322,6 +328,7 @@ class M24_Offers_Render {
 					<div data-sum-rows></div>
 					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
 					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig</small></button>
+					<button type="button" class="m24off-btn m24off-btn-ghost m24off-draftbtn" data-action="draft">Als Entwurf speichern<small>Ohne Mail · Nummer erst beim Senden</small></button>
 					<a href="#" class="m24off-alt" data-action="text">Stattdessen mit Text antworten</a>
 					<p class="m24off-legal145">Bindungsfrist gem. § 145 BGB: <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage ab Angebotsdatum.</p>
 					<p class="m24off-status" data-status role="status"></p>
@@ -389,6 +396,8 @@ class M24_Offers_Render {
 		nocache_headers();
 		while ( ob_get_level() > 0 ) { ob_end_clean(); }
 		if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
+		// Entwürfe haben zwar einen Token, sind aber noch nicht versendet → Kunden-Ansicht inaktiv (wie „nicht gefunden").
+		if ( $o && 'entwurf' === (string) $o->status ) { $o = null; }
 		if ( ! $o ) {
 			echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			exit;
