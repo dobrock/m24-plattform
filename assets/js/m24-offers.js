@@ -25,13 +25,24 @@
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
 	var LANDS = cfg.lands || {};
 	// GB → „England" (Daniels kanonisches Label; die Länderliste liefert sonst „Großbritannien"). Gilt DE + EN.
-	function landName(iso) { iso = (iso || '').toUpperCase(); if ('GB' === iso) { return 'England'; } return LANDS[iso] || iso || ''; }
+	// Kanonischer Ländername in ORIGINAL-Schreibweise (Title-Case aus der Mapping-Tabelle). Nie den Eingabewert
+	// uppercasen — sonst würde ein voller Name („England") als „ENGLAND" durchschlagen. Normalisiert Aliase
+	// (England/UK/Schweiz …) erst auf ISO, dann Lookup; unbekannt → Original-Schreibweise unverändert.
+	function landName(raw) {
+		var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(raw) : String(raw || '').toUpperCase().slice(0, 2);
+		if ('GB' === iso) { return 'England'; } // Daniels kanonisches Label
+		return LANDS[iso] || (raw ? String(raw).trim() : '');
+	}
 
 	/* ── EN-Wörterbuch für Standard-Positionen (KEINE Maschinenübersetzung von Katalogtiteln) ── */
 	var STD_DE = { verpackung: 'Transportsicher verpacken', versand_air: 'Versicherter Versand DAP {L} Luftfracht', versand_sea: 'Versicherter Versand DAP {L} Seefracht', zoll: 'Zollabwicklung Deutschland' };
 	var STD_EN = { verpackung: 'Secure transport packaging', versand_air: 'Insured shipping DAP {C} air freight', versand_sea: 'Insured shipping DAP {C} sea freight', zoll: 'Customs handling Germany' };
 	var LANDS_EN = cfg.landsEn || {};
-	function landNameEn(iso) { iso = (iso || '').toUpperCase(); if ('GB' === iso) { return 'England'; } return LANDS_EN[iso] || landName(iso); }
+	function landNameEn(raw) {
+		var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(raw) : String(raw || '').toUpperCase().slice(0, 2);
+		if ('GB' === iso) { return 'England'; }
+		return LANDS_EN[iso] || landName(raw);
+	}
 	function chipLabel(ex) {
 		var base = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
 		base = base.replace('{L}', landName(customer.land) || '').replace('{C}', landNameEn(customer.land) || ''); // {Empfängerland} live
