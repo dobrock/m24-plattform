@@ -414,3 +414,10 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-pvframe{flex:1;border:0;width:100%;background:#fafafa}
 /* E1: Thumbnails in der Online-Ansicht */
 .m24off-cust .m24off-pos-img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#eef0f2;flex:0 0 auto}
+
+/* #2: Rennsport-Hinweis (globale Zeile unter Lieferzeit) — Brass, fett, Größe wie Delivery-time */
+.m24off-cust .m24off-race-note{color:#9a6b25;font-weight:700}
+
+/* #7: EN-Titel als klickbarer Text (Layout identisch DE); Klick öffnet das Feld */
+.m24off-v2 .m24off-pt-editable{cursor:text;border-bottom:1px dashed transparent}
+.m24off-v2 .m24off-pt-editable:hover{border-bottom-color:#c3c8ce}

@@ -28,6 +28,7 @@
 		return e;
 	});
 	var shipOpen = false; // Inline-Editor der Versand-Position offen?
+	var enEditIdx = -1;   // #7: Index der Position, deren EN-Titel gerade inline editiert wird (-1 = keiner)
 	var taxMode = '', taxRate = 0, offerLang = 'de';
 	var modell = (cfg.src && cfg.src.src_modell) || '';
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
@@ -85,10 +86,16 @@
 				titleHtml = '<input type="text" class="m24off-pt-in" value="' + esc(it.title_de != null ? it.title_de : (it.title || '')) + '" data-i="' + i + '" data-title placeholder="Bezeichnung (DE)">';
 				if ('en' === offerLang) { titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en placeholder="Bezeichnung (EN) — selbst übersetzen">'; }
 			} else if ('en' === offerLang) {
-				// #7: EN-Angebot — EN-Titel INLINE als Titelzeile (kein zusätzlicher Row; DE-Titel als Placeholder).
-				// on-blur dauerhaft in den Artikel (Override). Layout-Höhe identisch zur DE-Zeile.
-				titleHtml = '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en-cat placeholder="' + esc(it.title || '') + '">'
-					+ '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
+				// #7: EN-Titel per Default als TEXT (Layout identisch DE, kein Dauer-Input/Umbruch). Klick öffnet
+				// inline das Feld; bei Blur wird der manuelle EN-Titel festgeschrieben (DeepL überschreibt danach nicht).
+				if (enEditIdx === i) {
+					titleHtml = '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en-cat placeholder="' + esc(it.title || '') + '">'
+						+ '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
+				} else {
+					var enShown = (it.title_en && String(it.title_en).trim()) ? it.title_en : (it.title || '');
+					titleHtml = '<div class="m24off-pt m24off-pt-editable" data-en-edit="' + i + '" title="Klicken, um den EN-Titel zu bearbeiten">' + esc(enShown) + '</div>'
+						+ '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
+				}
 			} else {
 				titleHtml = '<div class="m24off-pt">' + esc(it.title || '') + '</div>';
 			}
@@ -285,7 +292,7 @@
 	}
 	document.addEventListener('focusout', function (e) {
 		var t = e.target; if (!t || !t.matches) { return; }
-		if (t.matches('[data-title-en-cat]')) { saveEnTitle(+t.getAttribute('data-i')); }
+		if (t.matches('[data-title-en-cat]')) { var ei = +t.getAttribute('data-i'); items[ei].title_en = t.value; saveEnTitle(ei); enEditIdx = -1; renderItems(); } // #7: manuellen EN-Titel festschreiben + Feld schließen
 		if (t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numFmt(n); } // B3: beim Blur mit Tausenderpunkt formatieren
 	});
 	document.addEventListener('focusin', function (e) { var t = e.target; if (t && t.matches && t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numIn(n); } }); // B3: beim Fokus roh editierbar
@@ -525,6 +532,7 @@
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
 		if ((el = t.closest('[data-ship-toggle]'))) { shipOpen = !shipOpen; renderExtras(); return; }
+		if ((el = t.closest('[data-en-edit]'))) { enEditIdx = +el.getAttribute('data-en-edit'); renderItems(); var enin = $('[data-title-en-cat][data-i="' + enEditIdx + '"]'); if (enin) { enin.focus(); enin.select(); } return; } // #7: Titel → Feld öffnen
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
 		if ((el = t.closest('[data-ptab]'))) { setPTab(el.getAttribute('data-ptab')); return; }
 		if ((el = t.closest('[data-cat-add]'))) { addCatalog(el); return; }

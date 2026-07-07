@@ -574,13 +574,13 @@ class M24_Offers_Render {
 			<?php if ( $is_b2c ) : ?>
 			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 			<?php endif; ?>
-			<details class="m24off-acc"><summary><?php echo esc_html( $L['warranty_tax'] ); ?></summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
+			<details class="m24off-acc"><summary><?php echo esc_html( $L['warranty_tax'] ); ?></summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ), self::offer_lang( $o ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 
 			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
 			<!-- B/D: „Angebot annehmen" → Status angenommen (DB) + Bankdaten (erst nach Klick im DOM) -->
 			<section class="m24off-card m24off-gate">
 				<?php if ( 'offen' === $status ) : ?>
-					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used ) ); ?></span></label>
+					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used, self::offer_lang( $o ) ) ); ?></span></label>
 					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled><?php echo esc_html( $L['accept'] ); ?></button>
 				<?php else : ?>
 					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
@@ -725,7 +725,7 @@ class M24_Offers_Render {
 	private static function bindungssatz( string $lang = 'de' ): string {
 		// #4: EN-Fassung FREIGEGEBEN (anwaltlich abgenommen). DE bleibt unverändert.
 		if ( 'en' === $lang ) {
-			return 'Binding offer — upon timely receipt of payment it is deemed accepted and the purchase contract is concluded.';
+			return 'Binding offer — if payment is received within the offer\'s validity period, it is deemed accepted and a purchase contract is concluded.';
 		}
 		return 'Verbindliches Angebot – mit fristgerechtem Zahlungseingang gilt es als angenommen und der Kaufvertrag kommt zustande.';
 	}
@@ -741,21 +741,26 @@ class M24_Offers_Render {
 		return $h;
 	}
 	/** Accordion „Gewährleistung & Steuer" — modusabhängig. */
-	private static function gewaehr_accordion( bool $is_b2c, bool $has_used, bool $has_25a = false ): string {
-		$h = '';
+	private static function gewaehr_accordion( bool $is_b2c, bool $has_used, bool $has_25a = false, string $lang = 'de' ): string {
+		$en = ( 'en' === $lang ); // Wortlaut unter Anwaltsvorbehalt
+		$h  = '';
 		if ( ! $is_b2c ) {
-			$h .= '<p><strong>Gewährleistung.</strong> Verkauf im Rahmen eines Handelsgeschäfts unter Ausschluss der Sachmängelhaftung. Ausgenommen sind Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
+			$h .= $en
+				? '<p><strong>Warranty.</strong> Sale in the course of a commercial transaction with liability for defects excluded. Excepted are fraudulent concealment, expressly assumed guarantees, and damage arising from intent, gross negligence, or injury to life, body, or health.</p>'
+				: '<p><strong>Gewährleistung.</strong> Verkauf im Rahmen eines Handelsgeschäfts unter Ausschluss der Sachmängelhaftung. Ausgenommen sind Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
 		} elseif ( $has_used ) {
 			// Mixed-safe: Klausel nur für die als gebraucht gekennzeichneten Artikel (nicht „Es handelt sich um
 			// gebrauchte Ware"). Bei reinen Neuware-Angeboten wird dieser Zweig gar nicht erreicht (has_used=false).
-			$h .= '<p><strong>Gewährleistung.</strong> Für als gebraucht gekennzeichnete Artikel wird die Verjährungsfrist für Mängelansprüche auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
+			$h .= $en
+				? '<p><strong>Warranty.</strong> For items marked as used, the limitation period for claims for defects is shortened to one year from delivery. This does not apply to fraudulent concealment, expressly assumed guarantees, or damage arising from intent, gross negligence, or injury to life, body, or health.</p>'
+				: '<p><strong>Gewährleistung.</strong> Für als gebraucht gekennzeichnete Artikel wird die Verjährungsfrist für Mängelansprüche auf ein Jahr ab Ablieferung verkürzt. Dies gilt nicht für Arglist, ausdrücklich übernommene Garantien sowie Schäden aus Vorsatz, grober Fahrlässigkeit oder der Verletzung von Leben, Körper und Gesundheit.</p>';
 		}
 		// §25a-Satz NUR, wenn tatsächlich ≥1 Position differenzbesteuert ist. Bei reinen regelbesteuerten
 		// Angeboten (z. B. DE 19 % ohne §25a) weglassen — sonst widersprüchlich neben „USt 19 %".
 		if ( $has_25a ) {
-			$h .= '<p>' . esc_html( self::st25a_line() ) . ' (bei entsprechend gekennzeichneten Positionen).</p>';
+			$h .= '<p>' . esc_html( self::st25a_line() ) . ( $en ? ' (for correspondingly marked items).' : ' (bei entsprechend gekennzeichneten Positionen).' ) . '</p>';
 		}
-		$h .= '<p><strong>Anbieter:</strong> ' . esc_html( self::company_line() ) . '</p>';
+		$h .= '<p><strong>' . ( $en ? 'Provider:' : 'Anbieter:' ) . '</strong> ' . esc_html( self::company_line() ) . '</p>';
 		$links = array(); $ll = self::legal_links();
 		foreach ( array( 'Impressum', 'AGB', 'Datenschutz' ) as $k ) {
 			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( $k ) . '</a>'; }
@@ -764,14 +769,19 @@ class M24_Offers_Render {
 		return $h;
 	}
 	/** Gate-Checkbox-Text (trägt die gesonderte Vereinbarung bei B2C + Gebrauchtware). */
-	private static function checkbox_text( bool $is_b2c, bool $has_used ): string {
+	private static function checkbox_text( bool $is_b2c, bool $has_used, string $lang = 'de' ): string {
+		$en = ( 'en' === $lang ); // Wortlaut unter Anwaltsvorbehalt
 		if ( $is_b2c && $has_used ) {
-			return 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen. Bei gebrauchten Artikeln stimme ich der Verkürzung der Verjährung für Mängelansprüche auf ein Jahr ausdrücklich und gesondert zu.';
+			return $en
+				? 'I have read the right-of-withdrawal notice and the payment and warranty terms. For used items, I expressly and separately agree to the reduction of the limitation period for claims for defects to one year.'
+				: 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen. Bei gebrauchten Artikeln stimme ich der Verkürzung der Verjährung für Mängelansprüche auf ein Jahr ausdrücklich und gesondert zu.';
 		}
 		if ( $is_b2c ) {
-			return 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen.';
+			return $en
+				? 'I have read the right-of-withdrawal notice and the payment and warranty terms.'
+				: 'Ich habe die Widerrufsbelehrung sowie die Zahlungs- und Gewährleistungsbedingungen gelesen.';
 		}
-		return 'Ich habe die Zahlungs- und Gewährleistungsbedingungen gelesen.';
+		return $en ? 'I have read the payment and warranty terms.' : 'Ich habe die Zahlungs- und Gewährleistungsbedingungen gelesen.';
 	}
 
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
@@ -845,7 +855,7 @@ class M24_Offers_Render {
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
 		$mail_has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $mail_has_race = true; break; } }
-		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#93762f;font-size:12px;">' . esc_html( $L['race_global'] ) . '</p>'; }
+		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#9a6b25;font-weight:700;">' . esc_html( $L['race_global'] ) . '</p>'; } // #2: Brass, fett, Delivery-Time-Größe
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
 		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
