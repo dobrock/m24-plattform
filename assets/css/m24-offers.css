@@ -314,11 +314,10 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-cxsep::before{left:0}.m24off-cxsep::after{right:0}
 .m24off-cxgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
 .m24off-cx-wide{grid-column:1 / -1}
-/* B2B-Felder: Sichtbarkeit an EINER Stelle (Grid-Klasse .is-b2b) — opacity + max-height konsistent, KEIN
-   display-Toggle (umgeht jede [hidden]-/display-Override-Falle). Höhere Spezifität als .m24off-f. Kollabiert
-   nimmt der Container 0 Höhe ein → nicht bedien-/fokussierbar; .is-b2b faded in ~200 ms. */
-.m24off-cxgrid .m24off-cx-b2b{opacity:0;max-height:0;overflow:hidden;margin:0;pointer-events:none;transition:opacity .2s ease,max-height .2s ease}
-.m24off-cxgrid.is-b2b .m24off-cx-b2b{opacity:1;max-height:220px;overflow:visible;pointer-events:auto}
+/* B2B-Felder: Sichtbarkeit wird KOMPLETT inline in cxSetKt gesteuert (display + opacity + max-height) — das ist
+   RUCSS-immun (WP Rocket „Unused CSS entfernen" kann Inline-Styles nicht strippen). CSS liefert hier NUR die
+   Transition; bewusst keine display:none-/opacity-Default-Regel, die mit den Inline-Styles konkurrieren würde. */
+.m24off-cxgrid .m24off-cx-b2b{margin:0;transition:opacity .2s ease,max-height .2s ease}
 .m24off-cxgrid .m24off-f{margin:0}
 .m24off-cxgrid .m24off-f>span{display:block;font-size:12px;font-weight:600;color:#5a6474;margin:0 0 4px}
 .m24off-cxgrid .m24off-f input{width:100%;box-sizing:border-box;height:42px;border:1.5px solid #d3d8de;border-radius:8px;padding:0 10px;font-size:16px;font-family:'Saira',Arial,sans-serif}

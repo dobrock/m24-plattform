@@ -24,13 +24,14 @@
 	var modell = (cfg.src && cfg.src.src_modell) || '';
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
 	var LANDS = cfg.lands || {};
-	function landName(iso) { iso = (iso || '').toUpperCase(); return LANDS[iso] || iso || ''; }
+	// GB → „England" (Daniels kanonisches Label; die Länderliste liefert sonst „Großbritannien"). Gilt DE + EN.
+	function landName(iso) { iso = (iso || '').toUpperCase(); if ('GB' === iso) { return 'England'; } return LANDS[iso] || iso || ''; }
 
 	/* ── EN-Wörterbuch für Standard-Positionen (KEINE Maschinenübersetzung von Katalogtiteln) ── */
 	var STD_DE = { verpackung: 'Transportsicher verpacken', versand_air: 'Versicherter Versand DAP {L} Luftfracht', versand_sea: 'Versicherter Versand DAP {L} Seefracht', zoll: 'Zollabwicklung Deutschland' };
 	var STD_EN = { verpackung: 'Secure transport packaging', versand_air: 'Insured shipping DAP {C} air freight', versand_sea: 'Insured shipping DAP {C} sea freight', zoll: 'Customs handling Germany' };
 	var LANDS_EN = cfg.landsEn || {};
-	function landNameEn(iso) { iso = (iso || '').toUpperCase(); return LANDS_EN[iso] || landName(iso); }
+	function landNameEn(iso) { iso = (iso || '').toUpperCase(); if ('GB' === iso) { return 'England'; } return LANDS_EN[iso] || landName(iso); }
 	function chipLabel(ex) {
 		var base = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
 		base = base.replace('{L}', landName(customer.land) || '').replace('{C}', landNameEn(customer.land) || ''); // {Empfängerland} live
@@ -327,6 +328,7 @@
 		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
+		else if (t.matches('[data-c="land"]')) { customer.land = (t.value || '').toUpperCase(); cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } renderExtras(); renderSummary(); } // {Empfängerland} bei manueller Land-Änderung
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
 			else if (t.matches('[data-cx-q]')) { clearTimeout(cxT); cxT = setTimeout(cxSearch, 250); }
@@ -393,8 +395,9 @@
 		var fl = $('[data-c="land"]'); if (fl) { fl.value = customer.land; }
 		salApply(false);
 		cfg.custIsDrittland = cxIsDrittland(customer.land);
-		if (cfg.custIsDrittland && autoSuggestZoll()) { renderStdRow(); }
-		renderStdRow(); renderSummary();
+		if (cfg.custIsDrittland) { autoSuggestZoll(); } // England/Drittland → Zoll-Chip anspringen lassen
+		// {Empfängerland} live: Chips UND bereits aktivierte Versand-Positionen neu labeln (Preis unangetastet).
+		renderExtras(); renderSummary();
 	}
 	function cxTitle(t, b) { var e = $('[data-cx-title]'); if (e) { e.textContent = t; } var bt = $('[data-cx-create]'); if (bt) { bt.textContent = b; } }
 	function cxSetKt(kt) {
@@ -402,17 +405,18 @@
 		$$('[data-cx-kt] .m24off-segbtn').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-cxkt') === cxKt); });
 		var grid = $('[data-cx-grid]'); if (grid) { grid.classList.toggle('is-b2b', 'b2b' === cxKt); }
 		var show = ('b2b' === cxKt);
-		// Sichtbarkeit an EINER Stelle: Inline-Styles (opacity + max-height, Transition kommt aus dem CSS-Basis-
-		// Regel). BEWUSST inline statt nur per Klasse — sonst würde WP-Rockets „Unused CSS entfernen" die
-		// .is-b2b-Show-Regel strippen (Klasse steht nur per JS im DOM, nicht im statischen HTML) → Felder blieben
-		// dauerhaft ausgeblendet (genau der Bug seit 0.11.315). Inline-Styles sind davon immun.
+		// Sichtbarkeit KOMPLETT inline (RUCSS-immun) — inkl. display. Ohne display würde eine verbliebene
+		// display:none-Regel (RUCSS-Rest/Cache) trotz opacity:1 gewinnen → offsetParent bleibt null. Inline-
+		// display schlägt jede CSS-Regel; CSS liefert nur noch die Transition.
 		$$('.m24off-cx-b2b').forEach(function (el) {
+			el.style.display = show ? 'block' : 'none';
 			el.style.opacity = show ? '1' : '0';
-			el.style.maxHeight = show ? '240px' : '0';
+			el.style.maxHeight = show ? '260px' : '0';
 			el.style.overflow = show ? 'visible' : 'hidden';
 			el.style.pointerEvents = show ? 'auto' : 'none';
 		});
-		if (!show) { ['firmenname', 'ustid', 'eori'].forEach(function (k) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = ''; } }); } // B2C: keine USt-ID an den Datensatz
+		// B2C: Firmenname/USt-ID/EORI leeren + input-Event feuern (interne States/Validierung ziehen nach).
+		if (!show) { ['firmenname', 'ustid', 'eori'].forEach(function (k) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); } }); }
 	}
 	function cxReset() { $$('[data-cx]').forEach(function (el) { el.value = ''; }); cxEditId = 0; cxSetKt('b2c'); var st = $('[data-cx-status]'); if (st) { st.textContent = ''; st.className = 'm24off-cxstatus'; } }
 	function cxLoadForEdit(c) {
