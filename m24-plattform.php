@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.333
+ * Version:           0.11.334
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -145,6 +145,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-login.php';        // Passw
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-account.php';      // Konto-/Einstellungsseite (Entwurf 1) im Benachrichtigungen-Tab
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-cleanup.php'; // Admin: RCB-„erneut scannen"-Notice unterdrücken
 M24_Admin_Cleanup::init();
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-country-flags.php'; // Länder → ISO2 + Emoji-Flagge (Ansatz A)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-deepl.php';        // DeepL: EN-Angebots-Positionstitel on-demand (Hash-Cache)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail

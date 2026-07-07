@@ -125,8 +125,9 @@ class M24_Offers {
 
 				echo '<div class="wrap m24offl"><h1 class="wp-heading-inline">Angebote</h1> <a href="' . esc_url( add_query_arg( array( self::QV_NEW => 1 ), home_url( '/' ) ) ) . '" target="_blank" rel="noopener" class="page-title-action" style="background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:0;">+ Neues Angebot</a><hr class="wp-header-end">';
 		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
-		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS', 'drittland_net' => 'Drittland · netto' );
+		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS' ); // #9: „Drittland · netto" raus
 		echo '<style>.m24offl .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}.m24offl .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}.m24offl .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}.m24offl .srch{margin-left:auto;display:flex;gap:6px}.m24offl .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}.m24offl .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;max-width:1000px;padding:16px 18px}.m24offl .crow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.m24offl .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}.m24offl .who b{font-size:15px}.m24offl .who div{color:#6b7280;font-size:12.5px}.m24offl .meta{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}.m24offl .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#9a6b25;font-size:15px}.m24offl .tx{color:#6b7280;font-size:12px}.m24offl .sum{font-weight:800;font-size:16px}.m24offl .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;color:#fff}.m24offl .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24offl .foot a{text-decoration:none}@media(max-width:700px){.m24offl .meta{width:100%;margin-left:58px}}</style>';
+		echo '<style>.m24offl .crow{cursor:pointer}.m24offl .who b{margin-right:2px}.m24offl .flagc{font-size:13px;color:#374151}.m24offl .sentat{color:#8a929c;font-size:12px;margin-top:2px}.m24offl .sumwrap{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.m24offl .sum em{font-style:normal;font-weight:600;color:#6b7280;font-size:12px}.m24offl .sum2{font-size:12.5px;color:#6b7280;font-weight:600}.m24offl .m24offl-pos{border-top:1px dashed #e5e7eb;margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:8px}.m24offl .m24offl-pos .pl-row{display:flex;align-items:center;gap:10px;font-size:13px}.m24offl .m24offl-pos img,.m24offl .m24offl-pos .pl-ph{width:34px;height:34px;border-radius:6px;object-fit:cover;background:#eef0f2;flex:0 0 auto}.m24offl .m24offl-pos .pl-t{flex:1;min-width:0}.m24offl .m24offl-pos .pl-q{color:#6b7280;white-space:nowrap}.m24offl .m24offl-pos .pl-p{font-weight:700;color:#111;white-space:nowrap}</style>';
 		$base = admin_url( 'admin.php?page=' . $page );
 		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
 		echo '<div class="flt">' . $chip( '', 'Alle' );
@@ -140,9 +141,14 @@ class M24_Offers {
 		}
 		foreach ( (array) $rows as $o ) {
 			$cust = json_decode( (string) $o->customer_json, true ) ?: array();
-			$name = trim( (string) ( $cust['name'] ?? '' ) ); if ( '' === $name ) { $name = (string) ( $cust['email'] ?? '—' ); }
-			$ini  = ''; foreach ( array_slice( array_values( array_filter( explode( ' ', $name ) ) ), 0, 2 ) as $w ) { $ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
+			// #9: Firmenname bevorzugt (falls bekannt), sonst Personenname, sonst E-Mail.
+			$company = trim( (string) ( $cust['firma'] ?? $cust['company'] ?? '' ) );
+			$person  = trim( (string) ( $cust['name'] ?? '' ) );
+			$disp    = '' !== $company ? $company : ( '' !== $person ? $person : (string) ( $cust['email'] ?? '—' ) );
+			$ini  = ''; foreach ( array_slice( array_values( array_filter( explode( ' ', $disp ) ) ), 0, 2 ) as $w ) { $ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
 			if ( '' === $ini ) { $ini = 'K'; }
+			// #9: Flagge + Land (verbatim) hinter dem Namen.
+			$flagc = class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::getFlagAndCountry( (string) ( $cust['land'] ?? '' ) ) : '';
 			$stb   = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
 			$items = json_decode( (string) $o->items_json, true ); $items = is_array( $items ) ? $items : array();
 			$vu_ts = $o->valid_until ? strtotime( (string) $o->valid_until . ' 23:59:59' ) : 0;
@@ -156,8 +162,37 @@ class M24_Offers {
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$cnt      = count( $items );
 			$is_draft = ( 'entwurf' === (string) $o->status );
-			$no_disp  = $is_draft ? '—' : (string) $o->offer_no; // Entwürfe tragen einen Platzhalter → nicht zeigen
-			echo '<div class="card"><div class="crow"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $name ) . '</b><div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div></div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sum">' . esc_html( number_format( (float) $o->total_gross, 2, ',', '.' ) ) . '&nbsp;€</span></div></div>';
+			$no_disp  = $is_draft ? '—' : (string) $o->offer_no;
+			// #9: Betrag — immer Netto; Brutto zusätzlich, wenn USt>0 bzw. brutto≠netto.
+			$net_v   = (float) $o->subtotal_net;
+			$gross_v = (float) $o->total_gross;
+			$sum_html = '<span class="sum">' . esc_html( number_format( $net_v, 2, ',', '.' ) ) . '&nbsp;€ <em>netto</em></span>';
+			if ( (float) $o->tax_amount > 0 || abs( $gross_v - $net_v ) >= 0.01 ) {
+				$sum_html .= '<span class="sum2">' . esc_html( number_format( $gross_v, 2, ',', '.' ) ) . '&nbsp;€ brutto</span>';
+			}
+			// #9: „Gesendet am {Datum} · vor {N} Tagen" aus sent_at (nicht bei Entwürfen).
+			$sent_html = '';
+			if ( ! $is_draft && ! empty( $o->sent_at ) ) {
+				$sts = strtotime( (string) $o->sent_at . ' UTC' );
+				if ( $sts ) {
+					$d_ago = max( 0, (int) floor( ( time() - $sts ) / DAY_IN_SECONDS ) );
+					$ago   = 0 === $d_ago ? 'heute' : ( 1 === $d_ago ? 'vor 1 Tag' : 'vor ' . $d_ago . ' Tagen' );
+					$sent_html = '<div class="sentat">Gesendet am ' . esc_html( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $sts ) : gmdate( 'd.m.Y', $sts ) ) . ' · ' . esc_html( $ago ) . '</div>';
+				}
+			}
+			// #10: eingeklappte Positionsliste (aus items_json).
+			$pos_html = '';
+			foreach ( $items as $it ) {
+				$t = (string) ( $it['title'] ?? '' ); if ( '' === $t ) { continue; }
+				$q  = max( 1, (int) ( $it['qty'] ?? 1 ) );
+				$up = number_format( (float) ( $it['unit_price'] ?? 0 ), 2, ',', '.' ) . ' €';
+				$th = (string) ( $it['thumb'] ?? '' );
+				$pos_html .= '<div class="pl-row">' . ( '' !== $th ? '<img src="' . esc_url( $th ) . '" alt="">' : '<span class="pl-ph"></span>' )
+					. '<span class="pl-t">' . esc_html( $t ) . '</span><span class="pl-q">' . (int) $q . ' ×</span><span class="pl-p">' . esc_html( $up ) . '</span></div>';
+			}
+			echo '<div class="card">';
+			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
 			echo '<div class="foot">';
 			if ( $is_draft ) {
 				// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
@@ -170,6 +205,8 @@ class M24_Offers {
 			}
 			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
 		}
+		// #10: Karte anklickbar → Positionsliste ein-/ausklappen (Delegated-Toggle, aria-expanded).
+		echo '<script>(function(){document.addEventListener("click",function(e){var h=e.target.closest?e.target.closest("[data-offer-toggle]"):null;if(!h)return;var pl=h.parentNode&&h.parentNode.querySelector(".m24offl-pos");if(!pl)return;var wasHidden=pl.hasAttribute("hidden");if(wasHidden){pl.removeAttribute("hidden");}else{pl.setAttribute("hidden","");}h.setAttribute("aria-expanded",wasHidden?"true":"false");});})();</script>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
 	}
@@ -260,6 +297,14 @@ class M24_Offers {
 		// EN-Titel live im Operator: on-demand DeepL (gecacht) für Katalog-Positionen ohne frischen EN-Titel.
 		register_rest_route( self::NS, '/offers/en-titles', array(
 			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_en_titles' ),
+		) );
+		// #7: EN-Titel-Korrektur dauerhaft in den Artikel schreiben (manueller Override, DeepL-fest).
+		register_rest_route( self::NS, '/offers/save-en-title', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_save_en_title' ),
+		) );
+		// #11: Vorschau (Mail-HTML + Kunden-Ansicht) aus dem aktuellen, ungespeicherten Stand — kein DB-Write.
+		register_rest_route( self::NS, '/offers/preview', array(
+			'methods' => 'POST', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_preview' ),
 		) );
 		// B (v3): Kunden-Schnellanlage — Live-Suche + Neuanlage (Desk-kompatible Felder).
 		register_rest_route( self::NS, '/offers/customers', array(
@@ -753,6 +798,61 @@ class M24_Offers {
 		return rest_ensure_response( array( 'ok' => true, 'titles' => $out ) );
 	}
 
+	/** #7: EN-Titel-Korrektur einer Katalog-Position dauerhaft in den Artikel schreiben (Override, DeepL-fest). */
+	public static function handle_save_en_title( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		$p     = (array) $req->get_json_params();
+		$tid   = (int) ( $p['teil_id'] ?? 0 );
+		$title = sanitize_text_field( (string) ( $p['title_en'] ?? '' ) );
+		if ( $tid <= 0 || 'm24_teil' !== get_post_type( $tid ) ) { return new WP_Error( 'm24off_bad', 'Ungültige Position.', array( 'status' => 400 ) ); }
+		if ( '' === $title ) { delete_post_meta( $tid, '_m24_titel_en_manual' ); }
+		else { update_post_meta( $tid, '_m24_titel_en_manual', $title ); } // Vorrang vor DeepL (M24_DeepL respektiert das Flag)
+		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/** #11: Mail-HTML + Kunden-Ansicht-HTML aus dem aktuellen, ungespeicherten Stand rendern (kein DB-Write). */
+	public static function handle_preview( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		$p        = (array) $req->get_json_params();
+		$customer = self::clean_customer( (array) ( $p['customer'] ?? array() ) );
+		$items    = self::clean_items( (array) ( $p['items'] ?? array() ) );
+		$extras   = self::clean_extras( (array) ( $p['extras'] ?? array() ) );
+		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
+		$modes    = self::tax_modes();
+		$has_mode = isset( $modes[ $tax_mode ] );
+		$tax_rate = (float) ( $p['tax_rate'] ?? 0 );
+		$lang     = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de';
+		if ( 'en' === $lang && class_exists( 'M24_DeepL' ) ) { $items = M24_DeepL::fill_item_en_titles( $items ); }
+		$src              = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		$src['lang']       = $lang;
+		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
+		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
+		$src['delivery']   = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
+		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0 );
+		$tax_note = $has_mode ? $modes[ $tax_mode ]['note'] : '';
+
+		$o = (object) array(
+			'id' => 0, 'offer_no' => self::peek_number(), 'token' => str_repeat( '0', 32 ), 'account_id' => 0, 'status' => 'offen',
+			'customer_json' => wp_json_encode( $customer ), 'items_json' => wp_json_encode( $items ), 'extras_json' => wp_json_encode( $extras ),
+			'delivery_time' => sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) ),
+			'tax_mode' => $tax_mode, 'tax_rate' => $has_mode ? self::rate_for( $tax_mode, $tax_rate ) : 0, 'tax_note' => $tax_note,
+			'subtotal_net' => $totals['net'] + $totals['st25a'], 'tax_amount' => $totals['tax'], 'total_gross' => $totals['total'],
+			'currency' => 'EUR', 'valid_until' => gmdate( 'Y-m-d', time() + self::VALID_DAYS * DAY_IN_SECONDS ),
+			'src_json' => wp_json_encode( $src ), 'sent_at' => current_time( 'mysql', true ), 'paid_at' => null, 'desk_order_id' => '',
+		);
+
+		$mail_html = (string) M24_Offers_Render::mail( $o, true );
+		ob_start();
+		M24_Offers_Render::customer( $o );
+		$cust_html = (string) ob_get_clean();
+
+		return rest_ensure_response( array( 'ok' => true, 'mail_html' => $mail_html, 'customer_html' => $cust_html ) );
+	}
+
 	/* ── Sanitizer ──────────────────────────────────────────────────────── */
 
 	private static function clean_customer( array $c ): array {
@@ -761,7 +861,7 @@ class M24_Offers {
 			'email'     => strtolower( sanitize_email( (string) ( $c['email'] ?? '' ) ) ),
 			'kundentyp' => in_array( ( $c['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $c['kundentyp'] : 'b2c',
 			'firma'     => sanitize_text_field( (string) ( $c['firma'] ?? '' ) ),
-			'land'      => strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', (string) ( $c['land'] ?? '' ) ), 0, 2 ) ),
+			'land'      => sanitize_text_field( trim( (string) ( $c['land'] ?? '' ) ) ), // #6: Land VERBATIM (ISO/Flagge nur intern abgeleitet)
 		);
 	}
 	private static function clean_items( array $items ): array {
@@ -783,6 +883,7 @@ class M24_Offers {
 				'title_en'   => sanitize_text_field( (string) ( $it['title_en'] ?? '' ) ),      // v3.1: EN-Titel (Katalog/Freitext)
 				'art_nr'     => sanitize_text_field( (string) ( $it['art_nr'] ?? '' ) ),
 				'variant'    => sanitize_text_field( (string) ( $it['variant'] ?? '' ) ), // #6: Varianten-Name im Angebot
+				'thumb'      => self::item_thumb( (string) ( $it['thumb'] ?? '' ), $teil_id ), // #3: Thumb persistieren (für Entwurf-Reload/Ansicht)
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
 				'tax25a'     => $tax25a,            // Differenzbesteuerung (unabhängig von used)
@@ -823,12 +924,28 @@ class M24_Offers {
 		}
 		return $out;
 	}
+	/** #3: Thumb-URL einer Position — gegebene URL, sonst aus dem verknüpften Teil (thumbnail). */
+	public static function item_thumb( string $thumb, int $teil_id ): string {
+		$thumb = esc_url_raw( trim( $thumb ) );
+		if ( '' !== $thumb ) { return $thumb; }
+		if ( $teil_id > 0 ) { $u = get_the_post_thumbnail_url( $teil_id, 'thumbnail' ); if ( $u ) { return (string) $u; } }
+		return '';
+	}
+
 	private static function clean_extras( array $extras ): array {
 		$out = array();
 		foreach ( $extras as $ex ) {
 			$label = sanitize_text_field( (string) ( $ex['label'] ?? '' ) );
 			if ( '' === $label ) { continue; }
-			$out[] = array( 'key' => sanitize_key( (string) ( $ex['key'] ?? '' ) ), 'label' => $label, 'amount' => round( (float) ( $ex['amount'] ?? 0 ), 2 ), 'on' => ! empty( $ex['on'] ) );
+			$out[] = array(
+				'key'      => sanitize_key( (string) ( $ex['key'] ?? '' ) ),
+				'label'    => $label,
+				'amount'   => round( (float) ( $ex['amount'] ?? 0 ), 2 ),
+				'on'       => ! empty( $ex['on'] ),
+				'incoterm' => in_array( (string) ( $ex['incoterm'] ?? '' ), array( 'DAP', 'CIF', 'CIP' ), true ) ? (string) $ex['incoterm'] : '', // #8: Snapshot
+				'method'   => in_array( (string) ( $ex['method'] ?? '' ), array( 'sea', 'air' ), true ) ? (string) $ex['method'] : '',
+				'ship_land' => sanitize_text_field( (string) ( $ex['land'] ?? '' ) ),
+			);
 		}
 		return $out;
 	}

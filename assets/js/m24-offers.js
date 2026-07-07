@@ -11,7 +11,7 @@
 	var $ = function (s, r) { return (r || document).querySelector(s); };
 	var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
 	function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-	function eur(v) { return (Math.round(v * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+	function eur(v) { return (Number(v) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
 	// Deutsches Dezimalkomma robust parsen: „77,50" · „1.234,56" (Tausenderpunkt) · „77.50" · „77" → Number.
 	// Ungültige Eingabe → NaN (Aufrufer behält den letzten gültigen Wert statt auf 0 zu fallen).
 	function parseNum(s) { s = String(s == null ? '' : s).trim(); if (!s) { return NaN; } if (s.indexOf(',') > -1) { s = s.replace(/\./g, '').replace(',', '.'); } var n = parseFloat(s); return isNaN(n) ? NaN : n; }
@@ -21,7 +21,7 @@
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
 	var extras = (cfg.presets || []).map(function (p) {
 		var e = { key: p.key || '', label: p.label, amount: parseFloat(p.amount) || 0, on: false };
-		if ('versand' === e.key) { e.method = 'air'; e.land = ''; } // Versandweg (air/sea/'') + Land-Override (leer = Empfängerland)
+		if ('versand' === e.key) { e.incoterm = 'DAP'; e.method = 'sea'; e.land = ''; } // #8: Incoterm + Versandweg + Land-Override (leer = Empfängerland)
 		return e;
 	});
 	var shipOpen = false; // Inline-Editor der Versand-Position offen?
@@ -49,15 +49,16 @@
 		return LANDS_EN[iso] || landName(raw);
 	}
 	function chipLabel(ex) {
-		// „Versicherter Versand DAP {Land}" — EINE Karte, Versandweg (air/sea/leer) + Land per Position editierbar.
+		// #8: „Insured Shipping — {INCOTERM}[, {Ortslabel}] · {Land}" — Incoterm (DAP/CIF/CIP) + Versandweg + Land (verbatim).
 		if ('versand' === ex.key) {
-			var iso = ex.land || customer.land;
-			var en  = ('en' === offerLang);
-			var base = en ? ('Insured shipping DAP ' + (landNameEn(iso) || '')) : ('Versicherter Versand DAP ' + (landName(iso) || ''));
-			if ('air' === ex.method) { base += en ? ' air freight' : ' Luftfracht'; }
-			else if ('sea' === ex.method) { base += en ? ' sea freight' : ' Seefracht'; }
-			// leer = Landweg → kein Fracht-Suffix
-			return base.replace(/\s{2,}/g, ' ').trim();
+			var en   = ('en' === offerLang);
+			var inco = ex.incoterm || 'DAP';
+			var land = (ex.land || customer.land || '');
+			var ort  = ''; // Seefracht → Zielhafen, Luftfracht → Zielflughafen, Landweg → kein Zusatz
+			if ('sea' === ex.method) { ort = en ? 'port of destination' : 'Zielhafen'; }
+			else if ('air' === ex.method) { ort = en ? 'airport of destination' : 'Zielflughafen'; }
+			var base = (en ? 'Insured Shipping — ' : 'Versicherter Versand — ') + inco + (ort ? ', ' + ort : '') + ' · ' + land;
+			return base.replace(/\s{2,}/g, ' ').replace(/\s·\s$/, '').trim();
 		}
 		var b = ('en' === offerLang) ? (STD_EN[ex.key] || ex.label) : (STD_DE[ex.key] || ex.label);
 		return b.replace(/\s{2,}/g, ' ').trim();
@@ -81,8 +82,12 @@
 				titleHtml = '<input type="text" class="m24off-pt-in" value="' + esc(it.title_de != null ? it.title_de : (it.title || '')) + '" data-i="' + i + '" data-title placeholder="Bezeichnung (DE)">';
 				if ('en' === offerLang) { titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en placeholder="Bezeichnung (EN) — selbst übersetzen">'; }
 			} else {
-				titleHtml = '<div class="m24off-pt">' + esc(itemTitle(it)) + '</div>';
-				if ('en' === offerLang && !(it.title_en && String(it.title_en).trim())) { titleHtml += '<div class="m24off-pa m24off-enmiss">EN-Titel fehlt</div>'; }
+				titleHtml = '<div class="m24off-pt">' + esc(it.title || '') + '</div>';
+				// #7: Katalog-Position im EN-Angebot → editierbares EN-Feld; on-blur dauerhaft in den Artikel (Override).
+				if ('en' === offerLang) {
+					titleHtml += '<input type="text" class="m24off-pt-in m24off-pt-en" value="' + esc(it.title_en || '') + '" data-i="' + i + '" data-title-en-cat placeholder="EN-Titel — wird dauerhaft im Artikel gespeichert">';
+					titleHtml += '<span class="m24off-ensaved" data-ensaved="' + i + '"></span>';
+				}
 			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
@@ -120,17 +125,23 @@
 				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-extra-price="' + i + '" autocomplete="off"><div class="m24off-bru2">netto</div></div>'
 				+ '<button type="button" class="m24off-posx" data-extra-toggle="' + i + '" aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
-			// Versand: Inline-Editor (Land + Versandweg) unter der Zeile, wenn aufgeklappt.
+			// Versand: Inline-Editor (Incoterm + Versandweg + Land) unter der Zeile, wenn aufgeklappt.
 			if (isShip && shipOpen) {
 				var ed = document.createElement('div');
 				ed.className = 'm24off-shipedit';
-				var iso = ex.land || customer.land || '';
-				ed.innerHTML = '<label>Land<input type="text" data-ship-land="' + i + '" value="' + esc(iso) + '" list="m24off-cx-lands" placeholder="' + esc(landName(customer.land) || 'Deutschland') + '" autocomplete="off"></label>'
+				var inco = ex.incoterm || 'DAP';
+				var cif  = ('CIF' === inco); // CIF nur Seefracht → Luft/Landweg deaktivieren
+				ed.innerHTML = '<label>Incoterm<select data-ship-incoterm="' + i + '">'
+					+ '<option value="DAP"' + ('DAP' === inco ? ' selected' : '') + '>DAP</option>'
+					+ '<option value="CIF"' + ('CIF' === inco ? ' selected' : '') + '>CIF</option>'
+					+ '<option value="CIP"' + ('CIP' === inco ? ' selected' : '') + '>CIP</option>'
+					+ '</select></label>'
 					+ '<label>Versandweg<select data-ship-method="' + i + '">'
-					+ '<option value="air"' + ('air' === ex.method ? ' selected' : '') + '>Luftfracht / Air freight</option>'
 					+ '<option value="sea"' + ('sea' === ex.method ? ' selected' : '') + '>Seefracht / Sea freight</option>'
-					+ '<option value=""' + ('' === ex.method ? ' selected' : '') + '>Landweg (ohne Zusatz)</option>'
-					+ '</select></label>';
+					+ '<option value="air"' + ('air' === ex.method ? ' selected' : '') + (cif ? ' disabled' : '') + '>Luftfracht / Air freight</option>'
+					+ '<option value=""' + ('' === ex.method ? ' selected' : '') + (cif ? ' disabled' : '') + '>Landweg (ohne Zusatz)</option>'
+					+ '</select></label>'
+					+ '<label>Land<input type="text" data-ship-land="' + i + '" value="' + esc(ex.land || customer.land || '') + '" placeholder="' + esc(customer.land || 'Deutschland') + '" autocomplete="off"></label>';
 				box.appendChild(ed);
 			}
 		});
@@ -253,6 +264,21 @@
 				}
 			}).catch(function () { enTitlesFetching = false; });
 	}
+
+	/* #7: EN-Titel einer Katalog-Position dauerhaft in den Artikel schreiben (_m24_titel_en_manual, DeepL-fest). */
+	function saveEnTitle(i) {
+		var it = items[i]; if (!it) { return; }
+		var tid = parseInt(it.teil_id, 10) || 0, val = String(it.title_en || '').trim(), fb = $('[data-ensaved="' + i + '"]');
+		if (!tid || !val) { if (fb) { fb.textContent = ''; } return; } // freie Position → nur Offer-Snapshot
+		if (fb) { fb.textContent = '…'; fb.className = 'm24off-ensaved'; }
+		fetch(cfg.rest + '/save-en-title', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify({ teil_id: tid, title_en: val }) })
+			.then(function (r) { return r.json(); }).then(function (d) {
+				if (!fb) { return; }
+				if (d && d.ok) { fb.textContent = '✓ dauerhaft gespeichert'; fb.className = 'm24off-ensaved is-ok'; }
+				else { fb.textContent = 'nicht gespeichert'; fb.className = 'm24off-ensaved is-err'; }
+			}).catch(function () { if (fb) { fb.textContent = 'nicht gespeichert'; fb.className = 'm24off-ensaved is-err'; } });
+	}
+	document.addEventListener('focusout', function (e) { if (e.target && e.target.matches && e.target.matches('[data-title-en-cat]')) { saveEnTitle(+e.target.getAttribute('data-i')); } });
 
 	/* #4: Lieferzeit-Dropdown auf die Angebotssprache umstellen (Werte bleiben DE = kanonisch; nur Anzeige). */
 	function syncDeliveryLang() {
@@ -385,10 +411,11 @@
 	/* ── Senden ── */
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
 	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
+	function backLinkHtml() { return cfg.listUrl ? ' <a class="m24off-backlink" href="' + esc(cfg.listUrl) + '">← Zurück zur Übersicht</a>' : ''; } // #4
 	function offerPayload() {
 		return {
 			customer: collectCustomer(), items: items,
-			extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on }; }), // Label in Angebotssprache einfrieren
+			extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on, incoterm: e.incoterm || '', method: e.method || '', land: e.land || '' }; }), // Label eingefroren + #8 Incoterm/Weg/Land im Snapshot
 			tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
 			delivery_time: ($('[data-delivery]') || {}).value || '',
 			salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
@@ -403,6 +430,22 @@
 			window.location.href = 'mailto:' + encodeURIComponent(cust.email) + '?subject=' + encodeURIComponent('Ihre Anfrage bei MOTORSPORT24');
 			return;
 		}
+		if ('preview-mail' === action || 'preview-view' === action) { // #11: Vorschau aus dem aktuellen Stand (kein DB-Write)
+			var wantMail = ('preview-mail' === action);
+			var pw = window.open('', '_blank'); // vor dem async-Call öffnen (Popup-Blocker)
+			if (pw) { try { pw.document.write('<!doctype html><meta charset="utf-8"><title>Vorschau…</title><p style="font-family:sans-serif;padding:20px;color:#666">Vorschau wird erzeugt …</p>'); } catch (e) {} }
+			busy(true); st.textContent = 'Vorschau wird erzeugt …'; st.className = 'm24off-status';
+			fetch(cfg.previewUrl || (cfg.rest + '/preview'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(offerPayload()) })
+				.then(function (r) { return r.json(); }).then(function (d) {
+					busy(false);
+					if (d && d.ok) {
+						st.textContent = ''; st.className = 'm24off-status';
+						var html = wantMail ? d.mail_html : d.customer_html;
+						if (pw) { pw.document.open(); pw.document.write(html); pw.document.close(); }
+					} else { if (pw) { try { pw.close(); } catch (e) {} } st.textContent = (d && (d.message || d.error)) || 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; }
+				}).catch(function () { busy(false); if (pw) { try { pw.close(); } catch (e) {} } st.textContent = 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
+			return;
+		}
 		if ('draft' === action) {
 			// Entwurf: nur E-Mail Pflicht (Positionen/Steuer optional → Weiterarbeiten möglich). Keine Mail.
 			if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cust.email)) { st.textContent = 'Für einen Entwurf bitte eine gültige Kunden-E-Mail angeben.'; st.className = 'm24off-status is-error'; return; }
@@ -413,7 +456,7 @@
 				body: JSON.stringify(offerPayload())
 			}).then(function (r) { return r.json(); }).then(function (d) {
 				busy(false);
-				if (d && d.ok) { currentDraftId = d.draft_id || currentDraftId; st.textContent = (d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.'; st.className = 'm24off-status is-ok'; }
+				if (d && d.ok) { currentDraftId = d.draft_id || currentDraftId; st.innerHTML = esc((d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.') + backLinkHtml(); st.className = 'm24off-status is-ok'; }
 				else { st.textContent = (d && (d.message || d.error)) || 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; }
 			}).catch(function () { busy(false); st.textContent = 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; });
 			return;
@@ -435,7 +478,7 @@
 			busy(false);
 			if (d && d.ok) {
 				currentDraftId = 0; // Entwurf wurde zum verbindlichen Angebot → keine weitere Entwurf-Bindung
-				st.textContent = d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '');
+				st.innerHTML = esc(d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '')) + backLinkHtml();
 				st.className = 'm24off-status is-ok';
 			} else {
 				st.textContent = (d && (d.message || d.error)) || 'Senden fehlgeschlagen.';
@@ -451,8 +494,9 @@
 		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) { items[pi].unit_price = pn; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(pn * 1.19) + ' brutto'; } renderSummary(); } }
 		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
+			else if (t.matches('[data-title-en-cat]')) { items[+t.getAttribute('data-i')].title_en = t.value; } // #7: Katalog-EN live
 			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
-		else if (t.matches('[data-c="land"]')) { customer.land = cxLandToIso(t.value || ''); cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } renderExtras(); renderSummary(); } // {Empfängerland}: auf ISO normalisieren (England→GB → Label „England")
+		else if (t.matches('[data-c="land"]')) { customer.land = t.value; cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } renderExtras(); renderSummary(); } // #6: Land VERBATIM übernehmen (ISO/Flagge nur intern via M24Country)
 		else if (t.matches('[data-ship-land]')) { var si = +t.getAttribute('data-ship-land'); extras[si].land = cxLandToIso(t.value || ''); var lb = $('[data-ship-label="' + si + '"]'); if (lb) { lb.textContent = chipLabel(extras[si]); } renderSummary(); } // ohne Re-Render → Fokus bleibt
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
@@ -463,6 +507,7 @@
 	document.addEventListener('change', function (e) {
 		if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); return; }
 		if (e.target.matches('[data-ship-method]')) { extras[+e.target.getAttribute('data-ship-method')].method = e.target.value; renderExtras(); renderSummary(); return; }
+		if (e.target.matches('[data-ship-incoterm]')) { var xi = +e.target.getAttribute('data-ship-incoterm'); extras[xi].incoterm = e.target.value; if ('CIF' === extras[xi].incoterm) { extras[xi].method = 'sea'; } renderExtras(); renderSummary(); return; } // #8: CIF nur Seefracht
 	});
 	document.addEventListener('click', function (e) {
 		var t = e.target, el;
@@ -517,9 +562,10 @@
 	function cxIsDrittland(land) { var iso = cxLandToIso(land); return '' !== iso && CX_EU.indexOf(iso) < 0; } // GB/England seit Brexit = Drittland
 	var cxKt = 'b2c', cxT, cxEditId = 0;
 	function applyCustomer(c) {
-		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: cxLandToIso(c.land) };
+		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''), firma: (c.firma || c.firmenname || '') }; // #6: Land verbatim · #9: Firma mitführen
 		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = customer.name || '—'; }
-		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + ' · ' + (customer.land || '—'); }
+		var landChip = (window.M24Country && customer.land) ? M24Country.getFlagAndCountry(customer.land) : (customer.land || '—');
+		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + ' · ' + (landChip || '—'); }
 		var av = $('[data-cust-chip-av]'); if (av) { var pp = (customer.name || '').trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
 		var fn = $('[data-c="name"]'); if (fn) { fn.value = customer.name; }
 		var fe = $('[data-c="email"]'); if (fe) { fe.value = customer.email; }

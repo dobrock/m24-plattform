@@ -124,8 +124,10 @@ class M24_Offers_Render {
 	}
 	/** Drittland = Land gesetzt und NICHT in der EU (für den Zoll-Auto-Vorschlag). */
 	private static function is_drittland( string $land ): bool {
-		$land = strtoupper( trim( $land ) );
-		if ( '' === $land ) { return false; }
+		// #6: Land kann verbatim sein („USA") → erst auf ISO2 normalisieren (M24_Country_Flags), sonst 2-Zeichen-Fallback.
+		$iso = class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::countryToIso2( $land ) : strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', $land ), 0, 2 ) );
+		if ( '' === $iso ) { return false; }
+		$land = $iso;
 		$eu = array( 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE' );
 		return ! in_array( $land, $eu, true );
 	}
@@ -182,8 +184,13 @@ class M24_Offers_Render {
 					'land' => strtoupper( substr( (string) ( $cj['land'] ?? $customer['land'] ), 0, 2 ) ), 'firma' => '',
 				);
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
+				// #3: Thumb zurück-hydrieren — aus items_json, sonst serverseitig aus dem Teil nachziehen (Alt-Entwürfe).
+				$pf_items = is_array( $its ) ? array_values( $its ) : array();
+				foreach ( $pf_items as $k => $it ) {
+					$pf_items[ $k ]['thumb'] = M24_Offers::item_thumb( (string) ( $it['thumb'] ?? '' ), (int) ( $it['teil_id'] ?? 0 ) );
+				}
 				$prefill  = array(
-					'items'      => is_array( $its ) ? array_values( $its ) : array(),
+					'items'      => $pf_items,
 					'delivery'   => (string) $o->delivery_time,
 					'tax_mode'   => (string) $o->tax_mode,
 					'tax_rate'   => (float) $o->tax_rate,
@@ -246,6 +253,8 @@ class M24_Offers_Render {
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
 			'landsEn'  => self::lands_en(), // englische Landesnamen für die EN-Versandzeile ({country})
 			'nextNo'   => M24_Offers::peek_number(),
+			'listUrl'  => admin_url( 'admin.php?page=m24-offers' ), // #4: „Zurück zur Übersicht"
+			'previewUrl' => esc_url_raw( rest_url( M24_Offers::NS . '/offers/preview' ) ), // #11
 			// #2: Zoll-Chip automatisch vorschlagen, wenn Kunden-Land ≠ EU (Drittland). Manuell bleibt immer möglich.
 			'custIsDrittland' => self::is_drittland( (string) $customer['land'] ),
 		);
@@ -265,9 +274,8 @@ class M24_Offers_Render {
 		$who = ( $prefill ? 'aus Anfrage' : 'Neues Angebot' ) . ( '' !== $c_name ? ' · ' . $c_name : '' ) . ( '' !== $garageNo ? ' · ' . $garageNo : '' );
 		?>
 		<div class="m24off-top"><div class="m24off-top-in">
+			<a class="m24off-back" href="<?php echo esc_url( admin_url( 'admin.php?page=m24-offers' ) ); ?>">← Zurück zur Übersicht</a>
 			<h1>Angebot erstellen</h1>
-			<span class="m24off-who"><?php echo esc_html( $who ); ?></span>
-			<div class="m24off-langsw" data-langsw><span class="on" data-lang="de">DE</span><span data-lang="en">EN</span></div>
 		</div></div>
 
 		<div class="m24off-grid">
@@ -287,7 +295,7 @@ class M24_Offers_Render {
 							<button type="button" class="m24off-segbtn<?php echo 'b2b' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2b">Geschäftskunde (B2B)</button>
 							<button type="button" class="m24off-segbtn<?php echo 'b2c' === $customer['kundentyp'] ? ' is-on' : ''; ?>" data-kt="b2c">Privat (B2C)</button>
 						</div>
-						<label class="m24off-f"><span>Land (ISO)</span><input type="text" data-c="land" maxlength="2" value="<?php echo esc_attr( $customer['land'] ); ?>" placeholder="DE"></label>
+						<label class="m24off-f"><span>Land</span><input type="text" data-c="land" value="<?php echo esc_attr( $customer['land'] ); ?>" placeholder="z. B. Deutschland, USA, Schweiz" autocomplete="off"></label>
 					</div>
 				</div>
 
@@ -331,6 +339,10 @@ class M24_Offers_Render {
 					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
 					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig</small></button>
 					<button type="button" class="m24off-btn m24off-btn-ghost m24off-draftbtn" data-action="draft">Als Entwurf speichern<small>Ohne Mail · Nummer erst beim Senden</small></button>
+					<div class="m24off-previews">
+						<button type="button" class="m24off-btn m24off-btn-ghost" data-action="preview-mail">E-Mail-Vorschau</button>
+						<button type="button" class="m24off-btn m24off-btn-ghost" data-action="preview-view">Angebots-Link-Vorschau</button>
+					</div>
 					<a href="#" class="m24off-alt" data-action="text">Stattdessen mit Text antworten</a>
 					<p class="m24off-legal145">Bindungsfrist gem. § 145 BGB: <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage ab Angebotsdatum.</p>
 					<p class="m24off-status" data-status role="status"></p>
@@ -396,6 +408,7 @@ class M24_Offers_Render {
 		</div>
 
 		<script>window.M24Offers = <?php echo wp_json_encode( $cfg ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;</script>
+		<script src="<?php echo esc_url( self::assets_url( 'assets/js/m24-country-flags.js' ) ); ?>"></script>
 		<script src="<?php echo esc_url( self::assets_url( 'assets/js/m24-offers.js' ) ); ?>"></script>
 		</body></html>
 		<?php
@@ -404,18 +417,23 @@ class M24_Offers_Render {
 
 	/* ── Kunden-Ansicht (?m24_angebot={token}) ─────────────────────────── */
 
-	public static function customer() {
-		if ( empty( $_GET[ M24_Offers::QV_VIEW ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
-		$token = preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_GET[ M24_Offers::QV_VIEW ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
-		$o = M24_Offers::get_by_token( $token );
-		nocache_headers();
-		while ( ob_get_level() > 0 ) { ob_end_clean(); }
-		if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
-		// Entwürfe haben zwar einen Token, sind aber noch nicht versendet → Kunden-Ansicht inaktiv (wie „nicht gefunden").
-		if ( $o && 'entwurf' === (string) $o->status ) { $o = null; }
-		if ( ! $o ) {
-			echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
-			exit;
+	public static function customer( $inject = null ) {
+		$preview = ( null !== $inject ); // #11: Vorschau aus temporärem Objekt — kein Token, kein Header/exit
+		if ( $preview ) {
+			$o = $inject;
+		} else {
+			if ( empty( $_GET[ M24_Offers::QV_VIEW ] ) ) { return; } // phpcs:ignore WordPress.Security.NonceVerification
+			$token = preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_GET[ M24_Offers::QV_VIEW ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+			$o = M24_Offers::get_by_token( $token );
+			nocache_headers();
+			while ( ob_get_level() > 0 ) { ob_end_clean(); }
+			if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
+			// Entwürfe haben zwar einen Token, sind aber noch nicht versendet → Kunden-Ansicht inaktiv (wie „nicht gefunden").
+			if ( $o && 'entwurf' === (string) $o->status ) { $o = null; }
+			if ( ! $o ) {
+				echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
+				exit;
+			}
 		}
 		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
 		$items  = json_decode( (string) $o->items_json, true ) ?: array();
@@ -577,6 +595,7 @@ class M24_Offers_Render {
 		</script>
 		</body></html>
 		<?php
+		if ( $preview ) { return; } // #11: Vorschau — Ausgabe puffert der Aufrufer, kein exit
 		exit;
 	}
 
@@ -707,14 +726,14 @@ class M24_Offers_Render {
 
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
 
-	public static function mail( int $offer_id ) {
-		$o = M24_Offers::get_by_id( $offer_id );
-		if ( ! $o ) { return; }
+	public static function mail( $offer_id, bool $return_html = false ) {
+		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id ); // #11: Objekt (Vorschau) oder ID
+		if ( ! $o ) { return $return_html ? '' : null; }
 		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
 		$items  = json_decode( (string) $o->items_json, true ) ?: array();
 		$extras = json_decode( (string) $o->extras_json, true ) ?: array();
 		$email  = (string) ( $cust['email'] ?? '' );
-		if ( ! is_email( $email ) ) { return; }
+		if ( ! is_email( $email ) && ! $return_html ) { return; }
 		$vu = self::date_de( (string) $o->valid_until );
 		$L  = self::ol( self::offer_lang( $o ) ); // #1: Angebotssprache-Labels (Rechtstexte bleiben DE)
 		$sj   = json_decode( (string) $o->src_json, true ) ?: array();
@@ -802,6 +821,7 @@ class M24_Offers_Render {
 
 		$lang = self::offer_lang( $o );
 		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang ) ) : $inner;
+		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
 		wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
 	}
