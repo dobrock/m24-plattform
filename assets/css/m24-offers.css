@@ -369,7 +369,7 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 
 /* Sammel-Update 0.11.334: Header-Back-Link, EN-Save-Feedback, Vorschau-Buttons */
 .m24off-v2 .m24off-top-in{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.m24off-v2 .m24off-back{color:var(--b1);text-decoration:none;font-weight:600;font-size:13.5px}
+.m24off-v2 .m24off-back{color:#fff;text-decoration:none;font-weight:600;font-size:13.5px}
 .m24off-v2 .m24off-back:hover{text-decoration:underline}
 .m24off-v2 .m24off-backlink{display:inline-block;margin-left:8px;color:var(--b1);font-weight:700;text-decoration:none}
 .m24off-v2 .m24off-backlink:hover{text-decoration:underline}
