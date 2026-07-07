@@ -12,7 +12,19 @@
 	'use strict';
 
 	var Config = (typeof window.M24InquiryConfig === 'object' && window.M24InquiryConfig) || {};
-	var T = Config.i18n || {};
+
+	// Clientseitige Sprachwahl (GTranslate-Proxy verbirgt /en/ vor dem Server): echte Browser-URL/<html lang>/
+	// googtrans-Cookie entscheidet. Beide Sprach-Sets (i18nDe/i18nEn) sind eingebettet; sonst Server-Fallback.
+	function m24DisplayIsEn() {
+		try {
+			if (/^\/en(\/|$)/.test(location.pathname)) { return true; }
+			var h = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+			if (0 === h.indexOf('en')) { return true; }
+			if (/(?:^|;)\s*googtrans=\/[a-z]{2}\/en\b/.test(document.cookie)) { return true; }
+		} catch (e) {}
+		return false;
+	}
+	var T = (m24DisplayIsEn() ? Config.i18nEn : Config.i18nDe) || Config.i18n || {};
 	var currentItem = null;
 
 	function $(sel, ctx) { return (ctx || document).querySelector(sel); }

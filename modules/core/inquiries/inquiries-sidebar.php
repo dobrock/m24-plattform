@@ -63,31 +63,39 @@ class M24_Inquiries_Sidebar {
 
         $submit_path = apply_filters( 'm24_inquiries_sidebar_submit_url', self::DEFAULT_SUBMIT_PATH );
 
-        // Sprache serverseitig auflösen (GTranslate-aware). Der Drawer wird per JS injiziert → GTranslate
-        // erreicht ihn nicht; deshalb die Strings hier in der Anzeige-Sprache einbetten.
-        $lang = class_exists( 'M24_I18n' ) ? M24_I18n::display_lang() : 'de';
-        $t    = static function ( $key, $fallback ) use ( $lang ) {
-            return class_exists( 'M24_I18n' ) ? M24_I18n::t( $key, $lang ) : $fallback;
-        };
+        // Drawer wird per JS injiziert → GTranslate erreicht ihn nicht. Serverseitige /en/-Erkennung ist in
+        // GTranslates URL-/Proxy-Modus unzuverlässig (Origin-Render sieht oft kein /en/, kein googtrans-Cookie).
+        // Robust: BEIDE Sprachen einbetten; das JS wählt clientseitig nach der echten Browser-URL (location).
+        $keymap = array(
+            'title' => 'cart_title', 'empty' => 'cart_empty', 'emptyHint' => 'cart_empty_hint',
+            'qtyLabel' => 'cart_qty', 'remove' => 'cart_remove', 'submit' => 'cart_submit',
+            'open' => 'cart_open', 'close' => 'cart_close', 'badgeAria' => 'cart_badge_aria',
+            'addedToast' => 'cart_added', 'maxReached' => 'cart_max',
+        );
+        $have_i18n = class_exists( 'M24_I18n' );
+        $lang_de   = $have_i18n ? M24_I18n::js_strings( $keymap, 'de' ) : array();
+        $lang_en   = $have_i18n ? M24_I18n::js_strings( $keymap, 'en' ) : array();
+        $srv_lang  = $have_i18n ? M24_I18n::display_lang() : 'de';
+
+        // Diagnose (opt-in via M24_I18N_DEBUG): was liefert die serverseitige Sprach-Erkennung im Drawer-Render?
+        if ( defined( 'M24_I18N_DEBUG' ) && M24_I18N_DEBUG ) {
+            error_log( sprintf(
+                'M24 i18n drawer: display_lang=%s REQUEST_URI=%s googtrans=%s',
+                $srv_lang,
+                isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '(none)',
+                isset( $_COOKIE['googtrans'] ) ? (string) $_COOKIE['googtrans'] : '(none)'
+            ) );
+        }
 
         wp_localize_script( 'm24-inquiries-sidebar', 'M24SidebarConfig', [
             'submitUrl'        => esc_url( home_url( $submit_path ) ),
             'storageKey'       => 'm24_sidebar_items',
             'maxItems'         => 50,
             'userCanSeePrices' => M24_Inquiries::user_can_see_prices(),
-            'i18n'       => [
-                'title'         => $t( 'cart_title', 'Sammelanfrage' ),
-                'empty'         => $t( 'cart_empty', 'Noch keine Positionen ausgewählt.' ),
-                'emptyHint'     => $t( 'cart_empty_hint', 'Füge Pakete oder Artikel über die jeweilige Detail-Seite hinzu.' ),
-                'qtyLabel'      => $t( 'cart_qty', 'Menge' ),
-                'remove'        => $t( 'cart_remove', 'Entfernen' ),
-                'submit'        => $t( 'cart_submit', 'Sammelanfrage absenden' ),
-                'open'          => $t( 'cart_open', 'Sammelanfrage öffnen' ),
-                'close'         => $t( 'cart_close', 'Sammelanfrage schließen' ),
-                'badgeAria'     => $t( 'cart_badge_aria', 'Positionen in Sammelanfrage' ),
-                'addedToast'    => $t( 'cart_added', 'Zur Anfrage hinzugefügt' ),
-                'maxReached'    => $t( 'cart_max', 'Maximale Anzahl Positionen erreicht.' ),
-            ],
+            'srvLang'          => $srv_lang,       // serverseitige Best-Guess-Sprache (Fallback)
+            'i18n'             => ( 'en' === $srv_lang ) ? $lang_en : $lang_de, // Basis (Nicht-Proxy-Setups)
+            'i18nDe'           => $lang_de,        // vollständige DE-/EN-Sets für die clientseitige Auswahl
+            'i18nEn'           => $lang_en,
         ] );
     }
 

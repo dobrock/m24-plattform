@@ -274,6 +274,19 @@ class M24_I18n {
         return $key;
     }
 
+    /**
+     * Baut eine JS-i18n-Map {js_key => Text} für EINE Sprache aus dem Katalog.
+     * $keymap: js_key => catalog_key. Für bilinguale Configs (Client wählt bei /en/) je Sprache aufrufen.
+     */
+    public static function js_strings( array $keymap, ?string $lang = null ): array {
+        $lang = $lang ?: self::resolve_lang();
+        $out  = array();
+        foreach ( $keymap as $js => $catalog_key ) {
+            $out[ $js ] = self::t( (string) $catalog_key, $lang );
+        }
+        return $out;
+    }
+
     /** Länder ISO-2 ⇒ Klarname je Sprache. DE/AT/CH oben, Rest alphabetisch. Filterbar. */
     public static function countries( ?string $lang = null ): array {
         $lang = $lang ?: self::resolve_lang();

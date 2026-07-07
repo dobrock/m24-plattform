@@ -25,7 +25,20 @@
     };
 
     if (!Config.sessionKey) Config.sessionKey = 'm24_sidebar_session_id';
-    var T = Config.i18n || {};
+
+    // Clientseitige Sprachwahl: die ECHTE Browser-URL/<html lang>/googtrans-Cookie ist maßgeblich. Im
+    // GTranslate-Proxy-Modus sieht der Server oft kein /en/ → Server-Best-Guess kann daneben liegen. Sind beide
+    // Sprach-Sets eingebettet (i18nDe/i18nEn), hier nach der Anzeige-Sprache wählen; sonst Server-Fallback (i18n).
+    function m24DisplayIsEn() {
+        try {
+            if (/^\/en(\/|$)/.test(location.pathname)) { return true; }
+            var h = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+            if (0 === h.indexOf('en')) { return true; }
+            if (/(?:^|;)\s*googtrans=\/[a-z]{2}\/en\b/.test(document.cookie)) { return true; }
+        } catch (e) {}
+        return false;
+    }
+    var T = (m24DisplayIsEn() ? Config.i18nEn : Config.i18nDe) || Config.i18n || {};
 
     var VALID_PILLARS = ['gebrauchtteile', 'katalog', 'fahrzeug', 'blog'];
 

@@ -68,11 +68,17 @@ class M24_Inquiry_Frontend {
 		wp_enqueue_style( 'm24-inquiry-modal', $base . 'assets/css/inquiry-modal.css', array( 'm24-inquiry-fields' ), $version );
 		wp_enqueue_script( 'm24-inquiry-modal', $base . 'assets/js/inquiry-modal.js', array( 'm24-inquiry-fields' ), $version, true );
 
-		// Sprache serverseitig auflösen (GTranslate-aware); Modal-Strings werden per JS gesetzt.
-		$lang = class_exists( 'M24_I18n' ) ? M24_I18n::display_lang() : 'de';
-		$t    = static function ( $key, $fallback ) use ( $lang ) {
-			return class_exists( 'M24_I18n' ) ? M24_I18n::t( $key, $lang ) : $fallback;
-		};
+		// Modal-Strings werden per JS gesetzt → GTranslate erreicht sie nicht. Serverseitige /en/-Erkennung ist
+		// im GTranslate-Proxy-Modus unzuverlässig → BEIDE Sprachen einbetten, JS wählt clientseitig (Browser-URL).
+		$iq_keymap = array(
+			'emailToMe' => 'iq_email_to_me', 'emailPrompt' => 'iq_email_prompt', 'sent' => 'iq_sent',
+			'added' => 'iq_added', 'genericErr' => 'iq_generic_err', 'landUnknown' => 'iq_land_unknown',
+			'success' => 'iq_success',
+		);
+		$iq_have = class_exists( 'M24_I18n' );
+		$iq_de   = $iq_have ? M24_I18n::js_strings( $iq_keymap, 'de' ) : array();
+		$iq_en   = $iq_have ? M24_I18n::js_strings( $iq_keymap, 'en' ) : array();
+		$iq_srv  = $iq_have ? M24_I18n::display_lang() : 'de';
 
 		wp_localize_script( 'm24-inquiry-modal', 'M24InquiryConfig', array(
 			'restUrl'          => esc_url_raw( rest_url( M24_Inquiry_Submit::NS . '/' ) ),
@@ -80,15 +86,10 @@ class M24_Inquiry_Frontend {
 			'ppwr'             => class_exists( 'M24_PPWR' ) ? M24_PPWR::js_data() : array(),
 			'lands'            => self::lands(),
 			'userCanSeePrices' => class_exists( 'M24_Inquiries' ) ? M24_Inquiries::user_can_see_prices() : false,
-			'i18n'             => array(
-				'emailToMe'   => $t( 'iq_email_to_me', 'Merkzettel per E-Mail senden' ),
-				'emailPrompt' => $t( 'iq_email_prompt', 'Deine E-Mail (für Rückfragen, optional):' ),
-				'sent'        => $t( 'iq_sent', 'Gesendet ✓' ),
-				'added'       => $t( 'iq_added', 'Zum Merkzettel hinzugefügt' ),
-				'genericErr'  => $t( 'iq_generic_err', 'Es ist ein Fehler aufgetreten.' ),
-				'landUnknown' => $t( 'iq_land_unknown', 'Bitte ein Land aus der Liste wählen.' ),
-				'success'     => $t( 'iq_success', 'Vielen Dank, deine Anfrage ist eingegangen. Wir melden uns kurzfristig bei dir.' ),
-			),
+			'srvLang'          => $iq_srv,
+			'i18n'             => ( 'en' === $iq_srv ) ? $iq_en : $iq_de, // Basis (Nicht-Proxy-Setups)
+			'i18nDe'           => $iq_de,
+			'i18nEn'           => $iq_en,
 		) );
 	}
 
