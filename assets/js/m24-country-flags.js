@@ -22,13 +22,23 @@
 	// Fallback-Namen (falls die Seite keine eigene Länder-Map mitgibt).
 	var NAMES = window.M24CountryNames || {};
 
+	// Reverse-Map NAME(uppercase)→ISO aus den vom Operator übergebenen Länder-Listen (DE + EN) — Parität zu PHP.
+	function reverseLands() {
+		if (window.__m24flagRev) { return window.__m24flagRev; }
+		var rev = {}, o = window.M24Offers || {};
+		['lands', 'landsEn'].forEach(function (k) { var m = o[k] || {}; for (var iso in m) { if (m.hasOwnProperty(iso)) { rev[String(m[iso]).toUpperCase()] = iso; } } });
+		for (var i in NAMES) { if (NAMES.hasOwnProperty(i)) { rev[String(NAMES[i]).toUpperCase()] = i; } }
+		window.__m24flagRev = rev; return rev;
+	}
+
 	function countryToIso2(land) {
 		var s = String(land == null ? '' : land).trim();
 		if (!s) { return ''; }
 		var u = s.toUpperCase();
 		if (/^[A-Z]{2}$/.test(u)) { return u; }
 		if (ALIAS[u]) { return ALIAS[u]; }
-		for (var iso in NAMES) { if (NAMES.hasOwnProperty(iso) && String(NAMES[iso]).toUpperCase() === u) { return iso; } }
+		var rev = reverseLands();
+		if (rev[u]) { return rev[u]; }
 		return '';
 	}
 	function flag(iso2) {

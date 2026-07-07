@@ -15,7 +15,10 @@
 	// Deutsches Dezimalkomma robust parsen: „77,50" · „1.234,56" (Tausenderpunkt) · „77.50" · „77" → Number.
 	// Ungültige Eingabe → NaN (Aufrufer behält den letzten gültigen Wert statt auf 0 zu fallen).
 	function parseNum(s) { s = String(s == null ? '' : s).trim(); if (!s) { return NaN; } if (s.indexOf(',') > -1) { s = s.replace(/\./g, '').replace(',', '.'); } var n = parseFloat(s); return isNaN(n) ? NaN : n; }
-	function numIn(n) { return (n == null || isNaN(n)) ? '' : String(n).replace('.', ','); } // Anzeige im Feld mit Komma
+	function numIn(n) { return (n == null || isNaN(n)) ? '' : String(n).replace('.', ','); } // roh (zum Editieren)
+	function numFmt(n) { return (n == null || isNaN(n)) ? '' : (Number(n)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } // B3: Anzeige mit Tausenderpunkt
+	var priceMode = 'netto'; // B2: Netto/Brutto-Eingabemodus (global)
+	function setPriceMode(pm) { priceMode = ('brutto' === pm) ? 'brutto' : 'netto'; $$('[data-pricemode] [data-pm]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-pm') === priceMode); }); renderItems(); }
 
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
@@ -91,14 +94,16 @@
 			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
+			// B2: Netto/Brutto-Modus — Feld zeigt den aktiven Wert, der andere steht INLINE davor (eine Zeile).
+			var net = it.unit_price || 0, brutto = Math.round(net * 1.19 * 100) / 100;
+			var isNet = ('netto' === priceMode);
+			var fieldVal = isNet ? net : brutto, calcVal = isNet ? brutto : net, calcLbl = isNet ? 'brutto' : 'netto';
 			row.innerHTML = '<span class="m24off-drag" data-drag title="Ziehen zum Sortieren" aria-label="Sortieren">⠿</span>'
 				+ (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pos-ph"></span>')
 				+ '<div class="m24off-pos-main">' + titleHtml + metaHtml + varHtml + '</div>'
-				+ '<div class="m24off-qty2"><button type="button" data-i="' + i + '" data-qdec aria-label="weniger">−</button>'
-				+ '<input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric">'
-				+ '<button type="button" data-i="' + i + '" data-qinc aria-label="mehr">+</button></div>'
-				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(it.unit_price) + '" data-i="' + i + '" data-price autocomplete="off">'
-				+ '<div class="m24off-bru2" data-brutto>= ' + eur((it.unit_price || 0) * 1.19) + ' brutto</div></div>'
+				+ '<div class="m24off-qty2"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric"></div>' // B1: native Spinner, keine −/+
+				+ '<div class="m24off-pprice"><span class="m24off-pcalc" data-pcalc="' + i + '">' + eur(calcVal) + ' <em>' + calcLbl + '</em></span>'
+				+ '<input type="text" inputmode="decimal" value="' + numFmt(fieldVal) + '" data-i="' + i + '" data-price autocomplete="off"></div>'
 				+ '<button type="button" class="m24off-posx" data-i="' + i + '" data-rm aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
 		});
@@ -122,7 +127,7 @@
 				+ '<span class="m24off-pos-ph m24off-ph-std">€</span>'
 				+ '<div class="m24off-pos-main"><div class="m24off-pt" data-ship-label="' + i + '">' + esc(chipLabel(ex)) + '</div>' + sub + '</div>'
 				+ '<div class="m24off-qty2"></div>'
-				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-extra-price="' + i + '" autocomplete="off"><div class="m24off-bru2">netto</div></div>'
+				+ '<div class="m24off-pprice"><input type="text" inputmode="decimal" value="' + numFmt(ex.amount) + '" data-extra-price="' + i + '" autocomplete="off"><div class="m24off-bru2">netto</div></div>'
 				+ '<button type="button" class="m24off-posx" data-extra-toggle="' + i + '" aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
 			// Versand: Inline-Editor (Incoterm + Versandweg + Land) unter der Zeile, wenn aufgeklappt.
@@ -278,7 +283,12 @@
 				else { fb.textContent = 'nicht gespeichert'; fb.className = 'm24off-ensaved is-err'; }
 			}).catch(function () { if (fb) { fb.textContent = 'nicht gespeichert'; fb.className = 'm24off-ensaved is-err'; } });
 	}
-	document.addEventListener('focusout', function (e) { if (e.target && e.target.matches && e.target.matches('[data-title-en-cat]')) { saveEnTitle(+e.target.getAttribute('data-i')); } });
+	document.addEventListener('focusout', function (e) {
+		var t = e.target; if (!t || !t.matches) { return; }
+		if (t.matches('[data-title-en-cat]')) { saveEnTitle(+t.getAttribute('data-i')); }
+		if (t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numFmt(n); } // B3: beim Blur mit Tausenderpunkt formatieren
+	});
+	document.addEventListener('focusin', function (e) { var t = e.target; if (t && t.matches && t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numIn(n); } }); // B3: beim Fokus roh editierbar
 
 	/* #4: Lieferzeit-Dropdown auf die Angebotssprache umstellen (Werte bleiben DE = kanonisch; nur Anzeige). */
 	function syncDeliveryLang() {
@@ -338,7 +348,7 @@
 				card.className = 'm24off-dit m24off-dit-std' + (ex.on ? ' done' : '');
 				card.innerHTML = '<div class="tt">' + esc(chipLabel(ex)) + '</div>'
 					+ '<div class="ss">Standard-Position' + ('zoll' === ex.key ? ' · Vorschlag bei Drittland' : '') + '</div>'
-					+ '<div class="row"><span class="pp"><input type="text" inputmode="decimal" value="' + numIn(ex.amount) + '" data-palette-stdprice="' + i + '" autocomplete="off"></span>'
+					+ '<div class="row"><span class="pp"><input type="text" inputmode="decimal" value="' + numFmt(ex.amount) + '" data-palette-stdprice="' + i + '" autocomplete="off"></span>'
 					+ '<span class="add" data-std-add="' + i + '">' + (ex.on ? '✓' : '+') + '</span></div>';
 				list.appendChild(card);
 			});
@@ -412,6 +422,8 @@
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
 	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
 	function backLinkHtml() { return cfg.listUrl ? ' <a class="m24off-backlink" href="' + esc(cfg.listUrl) + '">← Zurück zur Übersicht</a>' : ''; } // #4
+	function openPreview(title, html) { var m = $('[data-pvmodal]'), fr = $('[data-pvframe]'), tt = $('[data-pvtitle]'); if (!m || !fr) { return; } if (tt) { tt.textContent = title; } fr.srcdoc = html || ''; m.hidden = false; } // C2
+	function closePreview() { var m = $('[data-pvmodal]'); if (m) { m.hidden = true; } var fr = $('[data-pvframe]'); if (fr) { fr.srcdoc = ''; } }
 	function offerPayload() {
 		return {
 			customer: collectCustomer(), items: items,
@@ -430,20 +442,17 @@
 			window.location.href = 'mailto:' + encodeURIComponent(cust.email) + '?subject=' + encodeURIComponent('Ihre Anfrage bei MOTORSPORT24');
 			return;
 		}
-		if ('preview-mail' === action || 'preview-view' === action) { // #11: Vorschau aus dem aktuellen Stand (kein DB-Write)
+		if ('preview-mail' === action || 'preview-view' === action) { // #11/C2: Vorschau in Lightbox (kein DB-Write, kein neuer Tab)
 			var wantMail = ('preview-mail' === action);
-			var pw = window.open('', '_blank'); // vor dem async-Call öffnen (Popup-Blocker)
-			if (pw) { try { pw.document.write('<!doctype html><meta charset="utf-8"><title>Vorschau…</title><p style="font-family:sans-serif;padding:20px;color:#666">Vorschau wird erzeugt …</p>'); } catch (e) {} }
 			busy(true); st.textContent = 'Vorschau wird erzeugt …'; st.className = 'm24off-status';
 			fetch(cfg.previewUrl || (cfg.rest + '/preview'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(offerPayload()) })
 				.then(function (r) { return r.json(); }).then(function (d) {
 					busy(false);
 					if (d && d.ok) {
 						st.textContent = ''; st.className = 'm24off-status';
-						var html = wantMail ? d.mail_html : d.customer_html;
-						if (pw) { pw.document.open(); pw.document.write(html); pw.document.close(); }
-					} else { if (pw) { try { pw.close(); } catch (e) {} } st.textContent = (d && (d.message || d.error)) || 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; }
-				}).catch(function () { busy(false); if (pw) { try { pw.close(); } catch (e) {} } st.textContent = 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
+						openPreview(wantMail ? 'E-Mail-Vorschau' : 'Angebots-Link-Vorschau', wantMail ? d.mail_html : d.customer_html);
+					} else { st.textContent = (d && (d.message || d.error)) || 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; }
+				}).catch(function () { busy(false); st.textContent = 'Vorschau fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
 			return;
 		}
 		if ('draft' === action) {
@@ -491,7 +500,7 @@
 	document.addEventListener('input', function (e) {
 		var t = e.target;
 		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); renderSummary(); }
-		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) { items[pi].unit_price = pn; var bw = t.parentNode.querySelector('[data-brutto]'); if (bw) { bw.textContent = '= ' + eur(pn * 1.19) + ' brutto'; } renderSummary(); } }
+		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) { var netv = ('brutto' === priceMode) ? Math.round((pn / 1.19) * 100) / 100 : pn; items[pi].unit_price = netv; var pc = $('[data-pcalc="' + pi + '"]'); if (pc) { var cv = ('netto' === priceMode) ? netv * 1.19 : netv; pc.innerHTML = esc(eur(cv)) + ' <em>' + ('netto' === priceMode ? 'brutto' : 'netto') + '</em>'; } renderSummary(); } }
 		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-title-en-cat]')) { items[+t.getAttribute('data-i')].title_en = t.value; } // #7: Katalog-EN live
@@ -523,6 +532,8 @@
 		if ((el = t.closest('[data-dock-collapse]'))) { var pc = $('[data-poscard]'); dockCollapse(!(pc && pc.classList.contains('dock-collapsed'))); return; }
 		if ((el = t.closest('[data-dock-open]'))) { dockOpen(true); return; }
 		if ((el = t.closest('[data-dock-close]'))) { dockOpen(false); return; }
+		if ((el = t.closest('[data-pvclose]')) || t.matches('[data-pvmodal]')) { closePreview(); return; } // C2: Vorschau schließen
+		if ((el = t.closest('[data-pm]'))) { setPriceMode(el.getAttribute('data-pm')); return; } // B2: Netto/Brutto-Modus
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
@@ -563,10 +574,12 @@
 	var cxKt = 'b2c', cxT, cxEditId = 0;
 	function applyCustomer(c) {
 		customer = { id: c.id || 0, name: c.name || '', email: c.email || '', kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''), firma: (c.firma || c.firmenname || '') }; // #6: Land verbatim · #9: Firma mitführen
-		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = customer.name || '—'; }
-		var landChip = (window.M24Country && customer.land) ? M24Country.getFlagAndCountry(customer.land) : (customer.land || '—');
-		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + ' · ' + (landChip || '—'); }
-		var av = $('[data-cust-chip-av]'); if (av) { var pp = (customer.name || '').trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
+		// A2: Kundenkarte zeigt {Firmenname bzw. Name} {Flagge} (Fallback Name → E-Mail), konsistent mit der Übersicht.
+		var dispName = customer.firma || customer.name || customer.email || '—';
+		var flag = (window.M24Country && customer.land) ? M24Country.flag(M24Country.countryToIso2(customer.land)) : '';
+		var nm = $('[data-cust-chip-name]'); if (nm) { nm.textContent = dispName + (flag ? ' ' + flag : ''); }
+		var sub = $('[data-cust-chip-sub]'); if (sub) { sub.textContent = (customer.email || '') + ' · ' + ('b2b' === customer.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)') + (customer.land ? ' · ' + customer.land : ''); }
+		var av = $('[data-cust-chip-av]'); if (av) { var pp = String(dispName).trim().split(/\s+/).slice(0, 2); av.textContent = pp.map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K'; }
 		var fn = $('[data-c="name"]'); if (fn) { fn.value = customer.name; }
 		var fe = $('[data-c="email"]'); if (fe) { fe.value = customer.email; }
 		var fl = $('[data-c="land"]'); if (fl) { fl.value = customer.land; }
@@ -624,9 +637,15 @@
 				var items = (d && d.items) || []; r.innerHTML = '';
 				if (!items.length) { r.innerHTML = '<div class="m24off-cxempty">Kein Treffer — unten neu anlegen.</div>'; return; }
 				items.forEach(function (c) {
+					// A3: Treffer mit Pepp — Firmenname bzw. Name + Flagge, Avatar, klare Trennung.
+					var title = (c.firma || c.name || c.email || '');
+					var flag = (window.M24Country && c.land) ? M24Country.flag(M24Country.countryToIso2(c.land)) : '';
+					var ini = (title.trim().split(/\s+/).slice(0, 2).map(function (w) { return (w[0] || '').toUpperCase(); }).join('') || 'K');
+					var sub = [c.email, ('b2b' === c.kundentyp ? 'Geschäftskunde (B2B)' : 'Privat (B2C)')].filter(Boolean).join(' · ');
 					var row = document.createElement('button'); row.type = 'button'; row.className = 'm24off-cxres';
-					row.innerHTML = '<b>' + esc(c.name || c.email) + '</b><small>' + esc(c.email) + (c.firma ? ' · ' + esc(c.firma) : '') + ' · ' + ('b2b' === c.kundentyp ? 'B2B' : 'B2C') + (c.land ? ' · ' + esc(c.land) : '') + '</small>';
-					row.addEventListener('click', function () { cxLoadForEdit(c); }); // #4: Treffer in die Felder laden (Edit-Modus)
+					row.innerHTML = '<span class="m24off-cxres-av">' + esc(ini) + '</span>'
+						+ '<span class="m24off-cxres-main"><b>' + esc(title) + (flag ? ' ' + flag : '') + '</b><small>' + esc(sub) + '</small></span>';
+					row.addEventListener('click', function () { cxLoadForEdit(c); });
 					r.appendChild(row);
 				});
 			}).catch(function () {});
@@ -635,7 +654,7 @@
 		var st = $('[data-cx-status]');
 		var g = function (k) { var el = $('[data-cx="' + k + '"]'); return el ? el.value.trim() : ''; };
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g('email'))) { if (st) { st.textContent = 'Bitte eine gültige E-Mail angeben (Pflicht).'; st.className = 'm24off-cxstatus is-error'; } return; }
-		var payload = { id: cxEditId || 0, kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: cxLandToIso(g('land')), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') };
+		var payload = { id: cxEditId || 0, kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: g('land'), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') }; // A1: Land VERBATIM
 		var btn = $('[data-cx-create]'); if (btn) { btn.disabled = true; } if (st) { st.textContent = cxEditId ? 'Wird aktualisiert …' : 'Wird angelegt …'; st.className = 'm24off-cxstatus'; }
 		fetch(cfg.rest + '/customer-create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(payload) })
 			.then(function (x) { return x.json(); }).then(function (d) {

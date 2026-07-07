@@ -186,7 +186,7 @@ class M24_Offers {
 				$t = (string) ( $it['title'] ?? '' ); if ( '' === $t ) { continue; }
 				$q  = max( 1, (int) ( $it['qty'] ?? 1 ) );
 				$up = number_format( (float) ( $it['unit_price'] ?? 0 ), 2, ',', '.' ) . ' €';
-				$th = (string) ( $it['thumb'] ?? '' );
+				$th = self::item_thumb( (string) ( $it['thumb'] ?? '' ), (int) ( $it['teil_id'] ?? 0 ) ); // D2: Fallback aus teil_id
 				$pos_html .= '<div class="pl-row">' . ( '' !== $th ? '<img src="' . esc_url( $th ) . '" alt="">' : '<span class="pl-ph"></span>' )
 					. '<span class="pl-t">' . esc_html( $t ) . '</span><span class="pl-q">' . (int) $q . ' ×</span><span class="pl-p">' . esc_html( $up ) . '</span></div>';
 			}
@@ -197,7 +197,7 @@ class M24_Offers {
 			if ( $is_draft ) {
 				// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
 				$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
-				echo '<a href="' . esc_url( $edit ) . '" target="_blank" rel="noopener" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>';
+				echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>'; // D3: gleiches Fenster
 			} else {
 				echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
 				if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
@@ -234,7 +234,7 @@ class M24_Offers {
 	public static function tax_modes(): array {
 		return array(
 			'b2b_eu_net'    => array( 'label' => 'B2B EU → netto (Reverse Charge, keine USt)', 'rate' => 0.0, 'note' => 'Innergemeinschaftliche Lieferung – Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge), keine deutsche USt.', 'note_en' => 'Intra-Community supply – reverse charge, the recipient is liable for VAT; no German VAT.' ),
-			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Nettopreis (Ausfuhrlieferung). Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben im Bestimmungsland trägt der Käufer.', 'note_en' => 'Net price (export delivery). Import VAT, customs duties and import charges in the destination country are borne by the buyer.' ),
+			'drittland_net' => array( 'label' => 'Drittland (B2B/B2C) → netto + Export/Zoll', 'rate' => 0.0, 'note' => 'Nettopreis (Ausfuhrlieferung). Einfuhrumsatzsteuer, Zölle und Einfuhrabgaben im Bestimmungsland trägt der Käufer.', 'note_en' => 'Net price (export delivery). The buyer is responsible for any import VAT, customs duties and import charges in the destination country.' ),
 			'b2b_de_19'     => array( 'label' => 'B2B Deutschland → + 19 % MwSt (brutto)', 'rate' => 19.0, 'note' => 'zzgl. 19 % gesetzlicher MwSt.', 'note_en' => 'plus 19% statutory VAT.' ),
 			'b2c_eu_oss'    => array( 'label' => 'Privat B2C EU → OSS-Satz Zielland (manuell)', 'rate' => null, 'note' => 'One-Stop-Shop: USt-Satz des Bestimmungslandes.', 'note_en' => 'One-Stop-Shop: the VAT rate of the destination country applies.' ),
 		);
@@ -485,7 +485,7 @@ class M24_Offers {
 			'telefon'      => (string) get_user_meta( $uid, '_m24_telefon', true ),
 			'ustid'        => (string) get_user_meta( $uid, '_m24_ustid', true ),
 			'eori'         => (string) get_user_meta( $uid, '_m24_eori', true ),
-			'land'  => strtoupper( substr( (string) get_user_meta( $uid, '_m24_land', true ), 0, 2 ) ),
+			'land'  => (string) get_user_meta( $uid, '_m24_land', true ), // A1: verbatim (nicht auf ISO2 kürzen)
 		);
 	}
 
@@ -525,7 +525,7 @@ class M24_Offers {
 		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
 		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
 		$kt       = ( 'b2b' === ( $p['kundentyp'] ?? '' ) ) ? 'b2b' : 'b2c';
-		$land     = self::normalize_land( (string) ( $p['land'] ?? '' ) ); if ( '' === $land ) { $land = 'DE'; } // #5: Default DE
+		$land     = sanitize_text_field( trim( (string) ( $p['land'] ?? '' ) ) ); if ( '' === $land ) { $land = 'Deutschland'; } // A1: Land VERBATIM speichern (ISO/Flagge nur intern abgeleitet)
 		$display  = trim( $vorname . ' ' . $nachname ); if ( '' === $display ) { $display = $email; }
 		$edit_id  = (int) ( $p['id'] ?? 0 );
 		$existed  = false;

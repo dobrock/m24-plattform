@@ -105,7 +105,9 @@ class M24_Offers_Render {
 			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
 			'your_offer' => 'Dein Angebot',
 			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
-			'warranty_tax' => 'Gewährleistung & Steuer',
+			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
+			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
+			'account_hint' => 'Wir haben dir außerdem einen Link zur Konto-Anlage geschickt — nach Bestätigung ist dieses Angebot jederzeit in deiner MOTORSPORT24-Garage verfügbar.',
 		);
 		$en = array(
 			'hello' => 'Hello', 'intro' => 'thank you for your inquiry. Here is our binding offer:', 'valid' => 'valid until',
@@ -118,7 +120,9 @@ class M24_Offers_Render {
 			'variant' => 'Variant', 'artnr' => 'Part no.', 'used' => 'used', 'not_found' => 'This offer could not be found.',
 			'your_offer' => 'Your offer',
 			'tl_received' => 'Received', 'tl_pending' => 'Payment pending', 'tl_shipping' => 'Shipping',
-			'warranty_tax' => 'Warranty & tax',
+			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
+			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
+			'account_hint' => 'We\'ve also sent you a link to create an account — once confirmed, this offer will always be available in your MOTORSPORT24 garage.',
 		);
 		return 'en' === $lang ? $en : $de;
 	}
@@ -300,7 +304,9 @@ class M24_Offers_Render {
 				</div>
 
 				<div class="m24off-card">
-					<h2>Positionen <span class="m24off-hint2">⠿ ziehen zum Sortieren · Preise editierbar</span></h2>
+					<h2>Positionen <span class="m24off-hint2">⠿ ziehen · Preise editierbar</span>
+						<span class="m24off-pricemode" data-pricemode><span class="on" data-pm="netto">Netto</span><span data-pm="brutto">Brutto</span></span>
+					</h2>
 					<div data-items></div>
 					<div data-extra-rows></div>
 					<p class="m24off-stdnote">Über die Palette (rechts unter dem Angebotsblock) suchen und übernehmen — Katalog, Standard-Positionen (Empfängerland automatisch) oder freie Position. Neu übernommene Positionen blinken kurz auf.</p>
@@ -407,6 +413,14 @@ class M24_Offers_Render {
 			<button type="button" class="m24off-btn m24off-btn-blue" data-action="send">Angebot senden</button>
 		</div>
 
+		<!-- C2: Vorschau-Lightbox (Mail / Kunden-Ansicht) -->
+		<div class="m24off-pvmodal" data-pvmodal hidden>
+			<div class="m24off-pvbox">
+				<div class="m24off-pvhead"><b data-pvtitle>Vorschau</b><button type="button" class="m24off-pvclose" data-pvclose aria-label="Schließen">✕</button></div>
+				<iframe class="m24off-pvframe" data-pvframe title="Vorschau"></iframe>
+			</div>
+		</div>
+
 		<script>window.M24Offers = <?php echo wp_json_encode( $cfg ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;</script>
 		<script src="<?php echo esc_url( self::assets_url( 'assets/js/m24-country-flags.js' ) ); ?>"></script>
 		<script src="<?php echo esc_url( self::assets_url( 'assets/js/m24-offers.js' ) ); ?>"></script>
@@ -492,6 +506,8 @@ class M24_Offers_Render {
 					$att  = '' !== $url ? ' href="' . esc_url( $url ) . '" target="_blank" rel="noopener"' : '';
 					?>
 					<<?php echo $tag; ?> class="m24off-pos<?php echo '' !== $url ? ' is-link' : ''; ?>"<?php echo $att; // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+						<?php $pthumb = M24_Offers::item_thumb( (string) ( $it['thumb'] ?? '' ), (int) ( $it['teil_id'] ?? 0 ) ); ?>
+						<?php if ( '' !== $pthumb ) : ?><img class="m24off-pos-img" src="<?php echo esc_url( $pthumb ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24off-pos-img m24off-pos-imgph"></span><?php endif; ?>
 						<div class="m24off-pos-main">
 							<span class="m24off-pos-title"><?php echo esc_html( self::item_title( $it, self::offer_lang( $o ) ) ); ?></span>
 							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant">Variante: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
@@ -507,7 +523,7 @@ class M24_Offers_Render {
 				<?php foreach ( $extras as $ex ) : if ( empty( $ex['on'] ) ) { continue; } ?>
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
-				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?></p><?php endif; ?>
+				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?> <?php echo esc_html( $L['delivery_paynote'] ); ?></p><?php endif; ?>
 				<?php
 				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
 				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
@@ -562,27 +578,36 @@ class M24_Offers_Render {
 				'inhaber' => $bank['inhaber'], 'iban' => $bank['iban'], 'bic' => $bank['bic'],
 				'zweck'   => (string) $o->offer_no, 'betrag' => self::fmt( (float) $o->total_gross ),
 			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
+			<?php $en_view = ( 'en' === self::offer_lang( $o ) ); ?>
+			var BLBL=<?php echo wp_json_encode( array(
+				'title'     => $en_view ? 'Payment by bank transfer' : 'Zahlung per Überweisung',
+				'amount'    => $en_view ? 'Amount' : 'Betrag',
+				'recipient' => $en_view ? 'Recipient' : 'Empfänger',
+				'ref'       => (string) $L['bank_ref'],
+				'accepting' => $en_view ? 'Accepting offer …' : 'Angebot wird angenommen …',
+				'copy'      => $en_view ? 'copy' : 'kopieren',
+			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
 			function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 			function renderBank(){
-				box.innerHTML='<h3>Zahlung per Überweisung</h3>'
-					+row('Betrag',BANK.betrag,false)
-					+row('Empfänger',BANK.inhaber,false)
+				box.innerHTML='<h3>'+esc(BLBL.title)+'</h3>'
+					+row(BLBL.amount,BANK.betrag,false)
+					+row(BLBL.recipient,BANK.inhaber,false)
 					+row('IBAN',BANK.iban,true)
 					+row('BIC',BANK.bic,false)
-					+row('Verwendungszweck',BANK.zweck,true);
+					+row(BLBL.ref,BANK.zweck,true);
 				box.hidden=false; box.scrollIntoView({behavior:'smooth',block:'nearest'});
 			}
 			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
 			if(acc&&box){ acc.addEventListener('click',function(){
 				if(acc.disabled) return;
-				acc.disabled=true; acc.textContent='Angebot wird angenommen …';
+				acc.disabled=true; acc.textContent=BLBL.accepting;
 				var finish=function(){ if(acc.parentNode){acc.style.display='none';} renderBank(); };
 				fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/accept' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})})
 					.then(function(r){return r.json();}).then(finish).catch(finish); // Bankdaten auch bei Fehler zeigen (Annahme ist Signal für Daniel, kein Zahlungs-Gate)
 			}); }
 			if(box && !box.hidden){ renderBank(); } // bereits angenommenes Angebot: Bankdaten direkt anzeigen
 			function row(label,val,copy){
-				return '<div class="m24off-payrow"><span>'+esc(label)+'</span><strong'+(copy?' class="m24off-copy" data-copy="'+esc(val)+'" role="button" tabindex="0" title="Antippen zum Kopieren"':'')+'>'+esc(val)+(copy?' <em class="m24off-copyhint">kopieren</em>':'')+'</strong></div>';
+				return '<div class="m24off-payrow"><span>'+esc(label)+'</span><strong'+(copy?' class="m24off-copy" data-copy="'+esc(val)+'" role="button" tabindex="0" title="Antippen zum Kopieren"':'')+'>'+esc(val)+(copy?' <em class="m24off-copyhint">'+esc(BLBL.copy)+'</em>':'')+'</strong></div>';
 			}
 			document.addEventListener('click',function(e){
 				var c=e.target.closest?e.target.closest('[data-copy]'):null; if(!c) return;
@@ -792,19 +817,24 @@ class M24_Offers_Render {
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
 			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
-		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . '</p>'; }
+		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
 		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
 		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
 		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
 		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
+		$inner .= '<div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>'; // E6: Leerzeile nach dem CTA
+		// E3: Gast ohne Konto → Hinweis auf die separat verschickte Konto-Anlage (Garage-Zugriff).
+		if ( ! get_user_by( 'email', $email ) ) {
+			$inner .= '<p style="margin:0 0 6px;text-align:center;font-size:12px;color:#8a929c;line-height:1.6;">' . esc_html( $L['account_hint'] ) . '</p>';
+		}
 		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
 		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz() ) . '</p>';
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( $L['incl_taxes'] )
-			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) : '' ) . '</p>';
+			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) : '' ) . '</p>';
 		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
 		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
 			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '
