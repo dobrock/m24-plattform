@@ -23,7 +23,10 @@ class M24_Inquiry_Frontend {
 	 * EU-27 + EFTA (CH/NO/IS/LI) + UK + weitere europaeische Staaten.
 	 */
 	public static function lands() {
-		return array(
+		// Rohliste (ISO => Name). Alphabetisch sortiert + Deutschland gepinnt an der EINEN Quelle, damit ALLE
+		// Konsumenten die richtige Reihenfolge sehen — inkl. M24InquiryConfig.lands (wp_localize_script) und der
+		// server-gerenderten Selects. Sortierung deutsch (Collator/DIN 5007-1) via m24_inquiry_sort_countries().
+		$raw = array(
 			'AL' => 'Albanien', 'AD' => 'Andorra', 'AT' => 'Österreich', 'BE' => 'Belgien',
 			'BA' => 'Bosnien und Herzegowina', 'BG' => 'Bulgarien', 'HR' => 'Kroatien',
 			'CY' => 'Zypern', 'CZ' => 'Tschechien', 'DK' => 'Dänemark', 'DE' => 'Deutschland',
@@ -37,6 +40,7 @@ class M24_Inquiry_Frontend {
 			'SK' => 'Slowakei', 'SI' => 'Slowenien', 'ES' => 'Spanien', 'TR' => 'Türkei',
 			'UA' => 'Ukraine',
 		);
+		return function_exists( 'm24_inquiry_sort_countries' ) ? m24_inquiry_sort_countries( $raw ) : $raw;
 	}
 
 	/**
