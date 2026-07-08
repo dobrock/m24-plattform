@@ -46,6 +46,32 @@
 	var trigger = buildTrigger();
 	place(trigger);
 
+	/* ── b) Mobiler Header: dezentes Person-Umriss-Icon LINKS neben der Lupe (nur ausgeloggt).
+	   Der Desktop-Text-Pill bleibt unverändert; auf Mobil ersetzt dieses Icon den „Anmelden"-Button. ── */
+	var PERSON_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20c0-3.6 3.4-5.6 7-5.6s7 2 7 5.6"></path></svg>';
+	var MSEARCH = ['.tdb_mobile_search', '.tdb-header-search-button-mob', '.tdb-mobile-search-icon', '#td-mobile-nav .td-icon-search', '.td-mobile-content .td-icon-search', '.td-header-mobile-wrap .td-icon-search'];
+	function visibleMobileSearch() {
+		for (var i = 0; i < MSEARCH.length; i++) {
+			var nodes = document.querySelectorAll(MSEARCH[i]);
+			for (var j = 0; j < nodes.length; j++) { var n = nodes[j]; if (n && n.offsetParent !== null) { return n; } }
+		}
+		return null;
+	}
+	var placedMobile = false;
+	function placeMobileIcon() {
+		if (placedMobile || cfg.loggedIn) { return; } // nur der ausgeloggte „Login"-Zustand wird zum Icon
+		var s = visibleMobileSearch(); if (!s || !s.parentNode) { return; }
+		if (s.parentNode.querySelector('.m24lg-micon')) { placedMobile = true; return; }
+		var btn = document.createElement('button');
+		btn.type = 'button'; btn.className = 'm24lg-micon'; btn.setAttribute('data-m24lg-open', ''); btn.setAttribute('aria-label', 'Anmelden');
+		btn.innerHTML = PERSON_SVG;
+		s.parentNode.insertBefore(btn, s); // links neben der Lupe
+		placedMobile = true;
+	}
+	placeMobileIcon();
+	var mtries = 0;
+	var miv = setInterval(function () { mtries++; if (!placedMobile) { placeMobileIcon(); } if (placedMobile || mtries >= 8) { clearInterval(miv); } }, 350);
+
 	/* ── Modal öffnen/schließen (Focus-Trap, ESC, Overlay-Klick) ── */
 	var lastFocus = null;
 	function openModal() {

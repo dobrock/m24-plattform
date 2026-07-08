@@ -13,12 +13,36 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-/** Lieferländer (ISO => Name) — eine Liste für beide Formulare. */
+/** Lieferländer (ISO => Name) — eine Liste für alle Anfrage-Formulare (Frage/Teile/Fahrzeug). */
 function m24_inquiry_countries() {
 	if ( class_exists( 'M24_Inquiry_Frontend' ) ) {
-		return M24_Inquiry_Frontend::lands();
+		$list = M24_Inquiry_Frontend::lands();
+	} else {
+		$list = array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' );
 	}
-	return array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' );
+	return m24_inquiry_sort_countries( (array) $list );
+}
+
+/**
+ * c) Liste alphabetisch nach Ländername (deutsche Kollation, DIN 5007-1: ä=a, ö=o, ü=u, ß=ss)
+ * und Deutschland als ersten Eintrag über die alphabetische Liste pinnen.
+ */
+function m24_inquiry_sort_countries( array $list ) {
+	$de = array();
+	if ( isset( $list['DE'] ) ) { $de['DE'] = $list['DE']; unset( $list['DE'] ); } // Deutschland fix an die Spitze
+	if ( class_exists( 'Collator' ) ) {
+		$col = collator_create( 'de_DE' );
+		if ( $col ) {
+			uasort( $list, static function ( $a, $b ) use ( $col ) { return (int) collator_compare( $col, (string) $a, (string) $b ); } );
+			return $de + $list;
+		}
+	}
+	$key = static function ( $s ) {
+		$s = function_exists( 'mb_strtolower' ) ? mb_strtolower( (string) $s, 'UTF-8' ) : strtolower( (string) $s );
+		return strtr( $s, array( 'ä' => 'a', 'ö' => 'o', 'ü' => 'u', 'ß' => 'ss', 'é' => 'e', 'è' => 'e', 'ç' => 'c', 'å' => 'a', 'ø' => 'o' ) );
+	};
+	uasort( $list, static function ( $a, $b ) use ( $key ) { return strcmp( $key( $a ), $key( $b ) ); } );
+	return $de + $list;
 }
 
 /** ISO-Code → lesbarer Ländername (für Mail/Desk/Brevo). Unbekannt → Eingabe unverändert. */

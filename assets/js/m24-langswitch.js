@@ -115,10 +115,8 @@
 				if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
 			}
 		}
-		if (!placed.mobile) {
-			var m = pickMobile();
-			if (m) { m.appendChild(makeSwitch('mobile')); placed.mobile = true; }
-		}
+		// b) DE/EN-Switch NICHT mehr in den mobilen Header injizieren — Sprachwechsel bleibt über Footer/Menü
+		// (Desktop-Header + der bestehende mobile Menü-/Footer-Switch) erreichbar.
 		// Fallback: gibt es KEINE sichtbare Desktop-Instanz → fixe Ecke, damit der Switch nie ganz fehlt.
 		if (!placed.desktop && !document.querySelector('.m24langsw--float')) {
 			var f = makeSwitch('float'); f.classList.remove('m24langsw--inhdr'); f.classList.add('m24langsw--float');

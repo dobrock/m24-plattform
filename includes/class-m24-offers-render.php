@@ -107,7 +107,6 @@ class M24_Offers_Render {
 			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
-			'account_hint' => 'Wir haben dir außerdem einen Link zur Konto-Anlage geschickt — nach Bestätigung ist dieses Angebot jederzeit in deiner MOTORSPORT24-Garage verfügbar.',
 			'race_global' => 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.',
 		);
 		$en = array(
@@ -123,7 +122,6 @@ class M24_Offers_Render {
 			'tl_received' => 'Received', 'tl_pending' => 'Payment pending', 'tl_shipping' => 'Shipping',
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
-			'account_hint' => 'We\'ve also sent you a link to create an account — once confirmed, this offer will always be available in your MOTORSPORT24 garage.',
 			'race_global' => 'Sold for motorsport use only — no TÜV report, no road registration.',
 		);
 		return 'en' === $lang ? $en : $de;
@@ -881,10 +879,7 @@ class M24_Offers_Render {
 		$inner .= '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'; // #3: Leerzeile zwischen CTA-Button und „Online: review…"
 		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
 		$inner .= '<div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>'; // E6: Leerzeile nach dem CTA
-		// E3: Gast ohne Konto → Hinweis auf die separat verschickte Konto-Anlage (Garage-Zugriff).
-		if ( ! get_user_by( 'email', $email ) ) {
-			$inner .= '<p style="margin:0 0 6px;text-align:center;font-size:12px;color:#8a929c;line-height:1.6;">' . esc_html( $L['account_hint'] ) . '</p>';
-		}
+		// a) Garagen-Hinweiszeile (account_hint) komplett entfernt — Mail + Vorschau konsistent ohne diesen Absatz.
 		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
 		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz( self::offer_lang( $o ) ) ) . '</p>';
 		// Pflichtangaben.
