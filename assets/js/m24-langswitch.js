@@ -106,40 +106,41 @@
 		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || document.querySelector('.tdb_mobile_search'));
 	}
 
-	var placed = { desktop: false, mobile: false };
-	function place() {
-		if (!placed.desktop) {
-			// Bevorzugt: als SIBLING VOR den Such-BUTTON (nicht in ihn hinein) → gleiche Header-Actions-Zeile,
-			// vertikal auf Navi-Höhe. Vom gefundenen Icon zum Button-Wrapper hochklettern.
-			var icon = visibleSearchIcon();
-			var btn  = icon && icon.closest ? ( icon.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || icon ) : icon;
-			if (btn && btn.parentNode) {
-				btn.parentNode.insertBefore(makeSwitch('desktop'), btn);
-				placed.desktop = true;
-			} else {
-				var host = firstVisible(DESKTOP);
-				if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
+	// Genau eine Instanz je Kontext; Referenzen halten, um bei Moduswechsel sauber aufzuräumen.
+	var els = { desktop: null, mobile: null, float: null };
+	function removeEl(k) { if (els[k] && els[k].parentNode) { els[k].parentNode.removeChild(els[k]); } els[k] = null; }
+	function placeDesktopSwitch() {
+		var icon = visibleSearchIcon();
+		var btn  = icon && icon.closest ? ( icon.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || icon ) : icon;
+		if (btn && btn.parentNode) { els.desktop = makeSwitch('desktop'); btn.parentNode.insertBefore(els.desktop, btn); return true; }
+		var host = firstVisible(DESKTOP);
+		if (host) { els.desktop = makeSwitch('desktop'); host.appendChild(els.desktop); return true; }
+		return false;
+	}
+	// Autoritative Entscheidung — jederzeit erneut aufrufbar (Race-fest): mobil ⇒ NUR Hamburger, nie Balken/Float.
+	function evaluate() {
+		if (mobileHeaderActive()) {
+			removeEl('desktop'); removeEl('float'); // falsch vorplatzierte Balken-Instanzen entfernen
+			if (!els.mobile || !els.mobile.parentNode) {
+				removeEl('mobile');
+				var ham = document.querySelector('#td-mobile-nav .td-menu-login, #td-mobile-nav ul, #td-mobile-nav');
+				if (ham) { els.mobile = makeSwitch('mobile'); ham.appendChild(els.mobile); }
 			}
+			return;
 		}
-		// (2) DE/EN mobil NUR in den Hamburger (#td-mobile-nav) — NIE in den oberen mobilen Balken.
-		if (!placed.mobile) {
-			var ham = document.querySelector('#td-mobile-nav .td-menu-login, #td-mobile-nav ul, #td-mobile-nav');
-			if (ham) { ham.appendChild(makeSwitch('mobile')); placed.mobile = true; }
-		}
-		// (3) Float-Fallback NUR, wenn KEIN mobiler Header aktiv ist (sonst schwebt der Switch über dem Balken).
-		//     Im Mobile-Fall lieber WEGLASSEN (Hamburger deckt es ab) als floaten.
-		if (!placed.desktop && !mobileHeaderActive() && !document.querySelector('.m24langsw--float')) {
-			var f = makeSwitch('float'); f.classList.remove('m24langsw--inhdr'); f.classList.add('m24langsw--float');
-			document.body.appendChild(f);
-		}
+		// Desktop: Hamburger-Instanz raus; im Balken platzieren; Float NUR wenn gar kein Desktop-Host da ist.
+		removeEl('mobile');
+		if (els.desktop && els.desktop.parentNode) { removeEl('float'); return; }
+		removeEl('desktop');
+		if (placeDesktopSwitch()) { removeEl('float'); return; }
+		if (!els.float) { els.float = makeSwitch('float'); els.float.classList.remove('m24langsw--inhdr'); els.float.classList.add('m24langsw--float'); document.body.appendChild(els.float); }
 	}
 
-	// Sofort + Retries: tdb baut den Header teils per JS nach dem DOMContentLoaded.
-	place();
+	// Sofort + Retries (tdb baut den Header async nach) + Neuentscheidung auf load & resize (debounced).
+	evaluate();
 	var tries = 0;
-	var iv = setInterval(function () {
-		tries++;
-		if (!placed.desktop || !placed.mobile) { place(); }
-		if (placed.desktop || tries >= 6) { clearInterval(iv); }
-	}, 350);
+	var iv = setInterval(function () { tries++; evaluate(); if (tries >= 8) { clearInterval(iv); } }, 300);
+	window.addEventListener('load', evaluate);
+	var rz;
+	window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(evaluate, 150); });
 })();
