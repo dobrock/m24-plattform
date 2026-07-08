@@ -338,6 +338,73 @@ class M24_Offers {
 		register_rest_route( self::NS, '/offers/accept', array(
 			'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'handle_accept' ),
 		) );
+		// Garage-Karte (Lösung A): Gast legt passwortlos ein Konto an (DOI). Zuordnung nur über die Offer-E-Mail + Token.
+		register_rest_route( self::NS, '/offers/claim', array(
+			'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'handle_claim' ),
+		) );
+	}
+
+	/**
+	 * Garage-Übernahme: passwortloses Konto zur Offer-E-Mail anlegen (bestehende DOI-Strecke) + Bestätigungslink.
+	 * Die E-Mail kommt AUSSCHLIESSLICH aus dem Offer-Snapshot (Token) — kein Client-Override, damit ein fremder
+	 * Link-Besitzer das Angebot nicht auf eine andere Adresse ziehen kann.
+	 */
+	public static function handle_claim( WP_REST_Request $req ) {
+		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_Error( 'm24off_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) );
+		}
+		if ( ! class_exists( 'M24_Login' ) || ! M24_Login::enabled() ) {
+			return new WP_Error( 'm24off_off', 'Nicht verfügbar.', array( 'status' => 400 ) );
+		}
+		$o = self::get_by_token( (string) $req->get_param( 'token' ) );
+		if ( ! $o || 'entwurf' === (string) $o->status ) {
+			return new WP_Error( 'm24off_nf', 'Angebot nicht gefunden.', array( 'status' => 404 ) );
+		}
+		$cust  = json_decode( (string) $o->customer_json, true ) ?: array();
+		$email = strtolower( trim( (string) ( $cust['email'] ?? '' ) ) );
+		if ( '' === $email || ! is_email( $email ) ) {
+			return new WP_Error( 'm24off_mail', 'Keine gültige E-Mail am Angebot.', array( 'status' => 400 ) );
+		}
+		$ok = M24_Login::create_account_and_send_link( $email, trim( (string) ( $cust['name'] ?? '' ) ), false );
+		if ( ! $ok ) { return new WP_Error( 'm24off_send', 'Versand fehlgeschlagen.', array( 'status' => 429 ) ); }
+		// Existiert das Konto bereits (Edge-Case „E-Mail bekannt"), Angebot sofort idempotent zuordnen.
+		$u = get_user_by( 'email', $email );
+		if ( $u ) { self::claim_for_account( (int) $o->id, (int) $u->ID, $cust ); }
+		return array( 'ok' => true );
+	}
+
+	/**
+	 * Angebot einem Konto zuordnen (idempotent) + leere Konto-Stammdaten aus dem Offer-Snapshot füllen
+	 * (non-destruktiv — vorhandene Konto-Werte werden nie überschrieben). Wird beim Rendern von Zustand 2 aufgerufen.
+	 */
+	public static function claim_for_account( int $offer_id, int $uid, array $cust = array() ): void {
+		if ( $offer_id <= 0 || $uid <= 0 ) { return; }
+		global $wpdb; $t = self::table();
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET account_id = %d WHERE id = %d AND account_id = 0 AND status <> 'entwurf'", $uid, $offer_id ) ); // phpcs:ignore WordPress.DB
+		if ( empty( $cust ) ) { return; }
+		$meta = array(
+			'_m24_land'         => (string) ( $cust['land'] ?? '' ),
+			'_m24_firmenname'   => (string) ( $cust['firma'] ?? ( $cust['firmenname'] ?? '' ) ),
+			'_m24_telefon'      => (string) ( $cust['telefon'] ?? '' ),
+			'_m24_strasse'      => (string) ( $cust['strasse'] ?? '' ),
+			'_m24_adresszusatz' => (string) ( $cust['adresszusatz'] ?? '' ),
+			'_m24_plz'          => (string) ( $cust['plz'] ?? '' ),
+			'_m24_ort'          => (string) ( $cust['ort'] ?? '' ),
+			'_m24_ustid'        => (string) ( $cust['ustid'] ?? '' ),
+			'_m24_eori'         => (string) ( $cust['eori'] ?? '' ),
+		);
+		foreach ( $meta as $k => $v ) {
+			if ( '' !== $v && '' === (string) get_user_meta( $uid, $k, true ) ) { update_user_meta( $uid, $k, $v ); }
+		}
+		if ( '' === (string) get_user_meta( $uid, '_m24_kundentyp', true ) ) {
+			update_user_meta( $uid, '_m24_kundentyp', ( 'b2b' === ( $cust['kundentyp'] ?? '' ) ) ? 'b2b' : 'b2c' );
+		}
+		$vn = (string) ( $cust['vorname'] ?? '' ); $nn = (string) ( $cust['nachname'] ?? '' );
+		if ( '' === $vn && '' === $nn && '' !== (string) ( $cust['name'] ?? '' ) ) {
+			$parts = explode( ' ', trim( (string) $cust['name'] ), 2 ); $vn = (string) $parts[0]; $nn = (string) ( $parts[1] ?? '' );
+		}
+		if ( '' !== $vn && '' === (string) get_user_meta( $uid, 'first_name', true ) ) { update_user_meta( $uid, 'first_name', $vn ); }
+		if ( '' !== $nn && '' === (string) get_user_meta( $uid, 'last_name', true ) ) { update_user_meta( $uid, 'last_name', $nn ); }
 	}
 
 	public static function handle_accept( WP_REST_Request $req ) {

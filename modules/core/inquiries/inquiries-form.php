@@ -229,7 +229,7 @@ class M24_Inquiries_Form {
                 <fieldset class="m24-form__section m24-form__section--notes">
                     <legend class="m24-form__legend"><?php esc_html_e( 'Notiz an uns', 'm24-plattform' ); ?></legend>
                     <div class="m24-form__field">
-                        <textarea name="notes" id="m24-notes" rows="4" placeholder="<?php esc_attr_e( 'Optional: zusätzliche Informationen zu Ihrer Anfrage', 'm24-plattform' ); ?>"><?php echo esc_textarea( isset( $_POST['notes'] ) ? wp_unslash( (string) $_POST['notes'] ) : '' ); ?></textarea>
+                        <textarea name="notes" id="m24-notes" rows="4" placeholder="<?php esc_attr_e( 'Optional: zusätzliche Informationen zu deiner Anfrage', 'm24-plattform' ); ?>"><?php echo esc_textarea( isset( $_POST['notes'] ) ? wp_unslash( (string) $_POST['notes'] ) : '' ); ?></textarea>
                     </div>
                 </fieldset>
 

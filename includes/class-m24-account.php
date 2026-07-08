@@ -389,7 +389,7 @@ class M24_Account {
 				<div class="m24acc-col">
 					<!-- 4) Fahrzeug-Alerts -->
 					<section class="m24acc-card" data-m24acc-alerts>
-						<h3 class="m24acc-h">Fahrzeug-Alerts <span class="m24acc-sub">Sie erfahren es zuerst</span></h3>
+						<h3 class="m24acc-h">Fahrzeug-Alerts <span class="m24acc-sub">Du erfährst es zuerst</span></h3>
 						<div class="m24acc-chips">
 							<?php foreach ( self::chip_map() as $key => $m ) : ?>
 							<button type="button" class="m24acc-chip<?php echo in_array( $key, $chips_on, true ) ? ' is-on' : ''; ?>" data-chip="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $m['label'] ); ?></button>

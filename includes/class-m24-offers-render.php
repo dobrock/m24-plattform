@@ -108,6 +108,19 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
 			'race_global' => 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.',
+			// Garage-Karte (Lösung A) — Online-Ansicht, beide Zustände; Texte auf Du.
+			'g_title'     => 'Dieses Angebot in meine Garage übernehmen',
+			'g_sub'       => 'Kostenloses Konto — in einer Minute angelegt.',
+			'g_btn'       => 'In meine Garage',
+			'g_in_title'  => 'Angebot zu deiner Garage bereits hinzugefügt',
+			'g_in_sub'    => 'Du findest Angebot %1$s vom %2$s jederzeit in deinem Garagen-Bereich.',
+			'g_in_link'   => 'Zur Garage →',
+			'g_m_title'   => 'Konto anlegen & Angebot sichern',
+			'g_m_email'   => 'E-Mail',
+			'g_m_consent' => 'Ich habe die Datenschutzerklärung gelesen und bin einverstanden.',
+			'g_m_submit'  => 'Konto anlegen',
+			'g_m_sent'    => 'Fast geschafft — wir haben dir einen Bestätigungslink geschickt. Öffne ihn, um dein Konto zu aktivieren.',
+			'g_m_err'     => 'Das hat nicht geklappt. Bitte versuche es später erneut.',
 		);
 		$en = array(
 			'hello' => 'Hello', 'intro' => 'thank you for your inquiry. Here is our binding offer:', 'valid' => 'valid until',
@@ -123,6 +136,18 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
 			'race_global' => 'Sold for motorsport use only — no TÜV report, no road registration.',
+			'g_title'     => 'Save this offer to my garage',
+			'g_sub'       => 'Free account — set up in a minute.',
+			'g_btn'       => 'Add to my garage',
+			'g_in_title'  => 'This offer is already in your garage',
+			'g_in_sub'    => 'You can access offer %1$s from %2$s anytime in your garage.',
+			'g_in_link'   => 'Go to garage →',
+			'g_m_title'   => 'Create account & save this offer',
+			'g_m_email'   => 'Email',
+			'g_m_consent' => 'I have read and accept the privacy policy.',
+			'g_m_submit'  => 'Create account',
+			'g_m_sent'    => 'Almost done — we\'ve sent you a confirmation link. Open it to activate your account.',
+			'g_m_err'     => 'That didn\'t work. Please try again later.',
 		);
 		return 'en' === $lang ? $en : $de;
 	}
@@ -585,6 +610,8 @@ class M24_Offers_Render {
 			<!-- E: Bindungssatz -->
 			<p class="m24off-binding"><?php echo esc_html( self::bindungssatz( self::offer_lang( $o ) ) ); ?></p>
 
+			<?php echo self::garage_card_html( $o, $cust, $L, $preview ); // phpcs:ignore WordPress.Security.EscapeOutput — intern escaped ?>
+
 			<!-- C: Rechts-Accordions -->
 			<?php if ( $is_b2c ) : ?>
 			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
@@ -606,6 +633,25 @@ class M24_Offers_Render {
 
 			<footer class="m24off-cfoot"><?php echo esc_html( self::company_line() ); ?> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></footer>
 		</div>
+		<?php if ( class_exists( 'M24_Login' ) && M24_Login::enabled() && '' !== (string) ( $cust['email'] ?? '' ) ) :
+			$ds_url = function_exists( 'm24_datenschutz_url' ) ? m24_datenschutz_url() : '';
+			$consent = esc_html( $L['g_m_consent'] );
+			if ( '' !== $ds_url ) { $consent = esc_html( $L['g_m_consent'] ) . ' <a href="' . esc_url( $ds_url ) . '" target="_blank" rel="noopener">' . esc_html( 'en' === self::offer_lang( $o ) ? 'Privacy policy' : 'Datenschutz' ) . '</a>'; }
+		?>
+		<!-- Garage: Registrier-Modal (passwortlos, DOI) -->
+		<div class="m24off-gmodal" data-garage-modal hidden>
+			<div class="m24off-gmbox" role="dialog" aria-modal="true" aria-labelledby="m24off-gmt">
+				<button type="button" class="m24off-gmclose" data-garage-close aria-label="&times;">&times;</button>
+				<h2 id="m24off-gmt"><?php echo esc_html( $L['g_m_title'] ); ?></h2>
+				<form data-garage-form novalidate>
+					<label class="m24off-gmf"><span><?php echo esc_html( $L['g_m_email'] ); ?></span><input type="email" value="<?php echo esc_attr( (string) $cust['email'] ); ?>" readonly></label>
+					<label class="m24off-gmc"><input type="checkbox" data-garage-consent> <span><?php echo wp_kses_post( $consent ); ?></span></label>
+					<button type="submit" class="m24off-btn m24off-btn-blue" data-garage-submit><?php echo esc_html( $L['g_m_submit'] ); ?></button>
+					<p class="m24off-gmstatus" data-garage-status></p>
+				</form>
+			</div>
+		</div>
+		<?php endif; ?>
 		<script>
 		(function(){
 			// B: „Angebot annehmen" → Status angenommen (best-effort) + Bankdaten in den DOM injizieren.
@@ -652,6 +698,28 @@ class M24_Offers_Render {
 				if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(done); }
 				else { var t=document.createElement('textarea'); t.value=v; document.body.appendChild(t); t.select(); try{document.execCommand('copy');}catch(x){} document.body.removeChild(t); done(); }
 			});
+
+			/* Garage-Karte: passwortloses Registrier-Modal. Zuordnung server-seitig ausschließlich über die Offer-E-Mail + DOI. */
+			var GTOKEN='<?php echo esc_js( $preview ? '' : ( $token ?? '' ) ); ?>';
+			var gmodal=document.querySelector('[data-garage-modal]'), gform=document.querySelector('[data-garage-form]');
+			var G_SENT=<?php echo wp_json_encode( $L['g_m_sent'] ); ?>, G_ERR=<?php echo wp_json_encode( $L['g_m_err'] ); ?>, G_CONSENT=<?php echo wp_json_encode( 'en' === self::offer_lang( $o ) ? 'Please accept the privacy policy.' : 'Bitte stimme der Datenschutzerklärung zu.' ); ?>;
+			document.addEventListener('click',function(e){
+				if(e.target.closest&&e.target.closest('[data-garage-open]')){ e.preventDefault(); if(gmodal){gmodal.hidden=false;} return; }
+				if(e.target.closest&&e.target.closest('[data-garage-close]')){ e.preventDefault(); if(gmodal){gmodal.hidden=true;} return; }
+				if(gmodal&&e.target===gmodal){ gmodal.hidden=true; }
+			});
+			document.addEventListener('keydown',function(e){ if('Escape'===e.key&&gmodal&&!gmodal.hidden){ gmodal.hidden=true; } });
+			if(gform){ gform.addEventListener('submit',function(e){
+				e.preventDefault();
+				var cs=gform.querySelector('[data-garage-consent]'), sb=gform.querySelector('[data-garage-submit]'), stt=gform.querySelector('[data-garage-status]');
+				if(cs&&!cs.checked){ if(stt){stt.textContent=G_CONSENT; stt.className='m24off-gmstatus is-err';} return; }
+				var done=function(msg,ok){ if(stt){stt.textContent=msg; stt.className='m24off-gmstatus '+(ok?'is-ok':'is-err');} if(ok){ ['.m24off-gmf','.m24off-gmc','[data-garage-submit]'].forEach(function(s){ var n=gform.querySelector(s); if(n){n.style.display='none';} }); } };
+				if(!GTOKEN){ done(G_SENT,true); return; } // Vorschau: kein echter Token → nur Bestätigungstext
+				if(sb){ sb.disabled=true; }
+				fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/claim' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:GTOKEN})})
+					.then(function(r){return r.json();}).then(function(d){ if(sb){sb.disabled=false;} if(d&&d.ok){ done(G_SENT,true); } else { done(G_ERR,false); } })
+					.catch(function(){ if(sb){sb.disabled=false;} done(G_ERR,false); });
+			}); }
 		})();
 		</script>
 		</body></html>
@@ -736,6 +804,50 @@ class M24_Offers_Render {
 		foreach ( $items as $it ) { if ( ! empty( $it['used'] ) ) { return true; } }
 		return false;
 	}
+	/** Kurzes Datum je Sprache (DE d.m.Y, EN „M j, Y"). Leer bei ungültigem Input. */
+	private static function fmt_date( string $mysql, string $lang = 'de' ): string {
+		$ts = strtotime( $mysql );
+		if ( ! $ts ) { return ''; }
+		return 'en' === $lang ? gmdate( 'M j, Y', $ts ) : ( function_exists( 'date_i18n' ) ? date_i18n( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) );
+	}
+
+	/**
+	 * Garage-Karte (Lösung A) — nur Online-Ansicht. Konto-Erkennung server-seitig über die Offer-E-Mail
+	 * (kein E-Mail-Leak ins JS). Zustand 1 = Gast (gestrichelt-blau, Button → Registrier-Modal),
+	 * Zustand 2 = Konto vorhanden (grün, Textlink zur Garage) + idempotente Zuordnung beim Rendern.
+	 */
+	private static function garage_card_html( $o, array $cust, array $L, bool $preview ): string {
+		if ( ! class_exists( 'M24_Login' ) || ! M24_Login::enabled() ) { return ''; }
+		$email = strtolower( trim( (string) ( $cust['email'] ?? '' ) ) );
+		if ( '' === $email || ! is_email( $email ) ) { return ''; }
+		$lang       = self::offer_lang( $o );
+		$garage_url = class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' );
+
+		// Zustand 2: existiert bereits ein Konto zur Offer-E-Mail? (in der Vorschau immer Zustand 1 zeigen, ohne Writes)
+		$user = $preview ? null : get_user_by( 'email', $email );
+		if ( $user ) {
+			if ( class_exists( 'M24_Offers' ) && ! empty( $o->id ) ) {
+				M24_Offers::claim_for_account( (int) $o->id, (int) $user->ID, $cust ); // idempotente Zuordnung beim Rendern
+			}
+			$date = self::fmt_date( (string) $o->created_at, $lang );
+			$sub  = sprintf( $L['g_in_sub'], esc_html( (string) $o->offer_no ), esc_html( $date ) );
+			$svg  = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
+			return '<div class="m24off-gcard is-in">'
+				. '<div class="m24off-gcard-ic">' . $svg . '</div>'
+				. '<div class="m24off-gcard-tx"><b>' . esc_html( $L['g_in_title'] ) . '</b><span>' . $sub . '</span></div>'
+				. '<a class="m24off-gcard-lnk" href="' . esc_url( $garage_url ) . '">' . esc_html( $L['g_in_link'] ) . '</a>'
+				. '</div>';
+		}
+
+		// Zustand 1: Gast — Karte mit Sekundär-Button → Registrier-Modal.
+		$svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 9v12h7v-6h6v6h7V9L12 3z"/></svg>';
+		return '<div class="m24off-gcard">'
+			. '<div class="m24off-gcard-ic">' . $svg . '</div>'
+			. '<div class="m24off-gcard-tx"><b>' . esc_html( $L['g_title'] ) . '</b><span>' . esc_html( $L['g_sub'] ) . '</span></div>'
+			. '<button type="button" class="m24off-gcard-btn" data-garage-open>' . esc_html( $L['g_btn'] ) . '</button>'
+			. '</div>';
+	}
+
 	/** Bindungssatz (alle, ohne Paragraphen — die stehen in den Accordions/Belehrung). */
 	private static function bindungssatz( string $lang = 'de' ): string {
 		// #4: EN-Fassung FREIGEGEBEN (anwaltlich abgenommen). DE bleibt unverändert.
@@ -896,9 +1008,7 @@ class M24_Offers_Render {
 		$links = array();
 		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( $lbl ) . '</a>'; }
 		$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;text-align:center;">' . implode( ' &middot; ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput — Links escaped
-		if ( (int) $o->account_id <= 0 ) {
-			$inner .= '<p style="margin:14px 0 0;font-size:13px;">Wir haben Ihnen zusätzlich einen Link zur <strong>Konto-Anlage</strong> geschickt — nach Bestätigung liegt dieses Angebot jederzeit in Ihrer MOTORSPORT24-Garage bereit.</p>';
-		}
+		// Garage-Hinweis NICHT in die Mail — die Garage-Übernahme läuft ausschließlich über die Karte in der Online-Ansicht.
 
 		$lang = self::offer_lang( $o );
 		// #5: Angebots-Mail trägt eine eigene Legalzeile → im Shell-Footer Impressum/Datenschutz weglassen (nur www).

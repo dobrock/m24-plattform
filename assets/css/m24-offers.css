@@ -421,3 +421,35 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 /* #7: EN-Titel als klickbarer Text (Layout identisch DE); Klick öffnet das Feld */
 .m24off-v2 .m24off-pt-editable{cursor:text;border-bottom:1px dashed transparent}
 .m24off-v2 .m24off-pt-editable:hover{border-bottom-color:#c3c8ce}
+
+/* ── Garage-Karte (Lösung A) — Online-Angebotsansicht ── */
+.m24off-cust .m24off-gcard{display:flex;align-items:center;gap:14px;background:#fff;border:1px dashed #1f74c4;border-radius:13px;margin:14px 0;padding:14px 18px}
+.m24off-cust .m24off-gcard-ic{flex:0 0 42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#1f74c4,#0e447e);display:flex;align-items:center;justify-content:center}
+.m24off-cust .m24off-gcard-ic svg{width:22px;height:22px;fill:#fff}
+.m24off-cust .m24off-gcard-tx{flex:1;min-width:0}
+.m24off-cust .m24off-gcard-tx b{display:block;font-size:14px;font-weight:700;color:#1c2430}
+.m24off-cust .m24off-gcard-tx span{font-size:12.5px;color:#6b7684;line-height:1.4}
+.m24off-cust .m24off-gcard-btn{flex:0 0 auto;background:#fff;color:#1f74c4;border:2px solid #1f74c4;font-family:inherit;font-weight:700;font-size:13.5px;border-radius:9px;padding:9px 16px;cursor:pointer;white-space:nowrap}
+.m24off-cust .m24off-gcard-btn:hover{background:#1f74c4;color:#fff}
+.m24off-cust .m24off-gcard.is-in{border:1px solid #cfe8d8;background:#e9f6ee}
+.m24off-cust .m24off-gcard.is-in .m24off-gcard-ic{background:#1e7e46}
+.m24off-cust .m24off-gcard.is-in .m24off-gcard-tx b{color:#1e7e46}
+.m24off-cust .m24off-gcard-lnk{flex:0 0 auto;font-size:13px;font-weight:700;color:#1e7e46;text-decoration:none;white-space:nowrap}
+.m24off-cust .m24off-gcard-lnk:hover{text-decoration:underline}
+@media(max-width:520px){.m24off-cust .m24off-gcard{flex-wrap:wrap}.m24off-cust .m24off-gcard-btn,.m24off-cust .m24off-gcard-lnk{width:100%;text-align:center;margin-top:4px}}
+/* Registrier-Modal */
+.m24off-gmodal{position:fixed;inset:0;z-index:100090;background:rgba(20,22,26,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+.m24off-gmodal[hidden]{display:none!important}
+.m24off-gmbox{position:relative;background:#fff;border-radius:14px;width:min(420px,96vw);padding:24px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:'Saira',Arial,sans-serif}
+.m24off-gmclose{position:absolute;top:10px;right:12px;border:0;background:none;font-size:22px;line-height:1;color:#9aa3b0;cursor:pointer}
+.m24off-gmbox h2{font-size:17px;font-weight:800;margin:0 0 14px;color:#1c2430}
+.m24off-gmf{display:block;margin-bottom:12px}
+.m24off-gmf span{display:block;font-size:12px;font-weight:700;color:#6b7684;margin-bottom:4px}
+.m24off-gmf input{width:100%;padding:10px 12px;border:1px solid #e6e9ee;border-radius:9px;font-size:15px;background:#f7f8fa;color:#5a6474}
+.m24off-gmc{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#5a6474;line-height:1.45;margin-bottom:16px;cursor:pointer}
+.m24off-gmc input{margin-top:2px;flex:0 0 auto}
+.m24off-gmc a{color:#1f74c4}
+.m24off-gmbox .m24off-btn{width:100%}
+.m24off-gmstatus{font-size:12.5px;margin:12px 0 0;text-align:center}
+.m24off-gmstatus.is-ok{color:#1e7e46}
+.m24off-gmstatus.is-err{color:#c0392b}

@@ -947,7 +947,7 @@ class M24_Garage_Cart {
 			. '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.</p>'
 			. '<div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e6e9ee;"><p style="margin:0 0 10px;">Möchtest Du daraus ein verbindliches Kaufangebot machen? Melde Dich einfach bei uns — wir ergänzen Verpackung, Versand und (falls nötig) die Zollabwicklung und senden Dir ein verbindliches Angebot zurück. Deine Auswahl übernehmen wir dabei automatisch, Du musst nichts erneut eingeben.</p>'
 			. '<p style="margin:0;"><a href="' . esc_url( add_query_arg( 'angebot', 'start', $share_url ) ) . '" style="color:#1f74c4;font-weight:600;text-decoration:underline;">→ Zum Kontaktformular</a></p></div>';
-		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( 'Ihre Teile-Auswahl', $inner ) : '<h1>Ihre Teile-Auswahl</h1>' . $inner;
+		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( 'Deine Teile-Auswahl', $inner ) : '<h1>Deine Teile-Auswahl</h1>' . $inner;
 
 		$attachments = array();
 		$tmp_dir     = '';
@@ -968,7 +968,7 @@ class M24_Garage_Cart {
 			'From: MOTORSPORT24 <' . apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host ) . '>',
 			'Reply-To: MOTORSPORT24 <info@motorsport24.de>',
 		);
-		$ok = (bool) wp_mail( $to, '[TEST] Ihre Teile-Auswahl – MOTORSPORT24', $html, $headers, $attachments );
+		$ok = (bool) wp_mail( $to, '[TEST] Deine Teile-Auswahl – MOTORSPORT24', $html, $headers, $attachments );
 		foreach ( $attachments as $f ) { if ( is_file( $f ) ) { @unlink( $f ); } } // phpcs:ignore
 		if ( '' !== $tmp_dir && is_dir( $tmp_dir ) ) { @rmdir( $tmp_dir ); } // phpcs:ignore
 		return $ok;
