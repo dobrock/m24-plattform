@@ -86,6 +86,12 @@ class M24_I18n {
 .m24langsw-lnk{position:relative;color:#fff;opacity:.7;text-decoration:none;padding:2px 1px}
 .m24langsw-lnk:hover,.m24langsw-lnk:focus{opacity:1;color:#fff}
 .m24langsw-lnk.is-active{opacity:1;font-weight:700;border-bottom:2px solid #9a6b25}
+/* Top-Leiste (Menü-<li> neben Kontakt/Impressum): Farbe/Größe vom Menü erben statt hart weiß */
+.m24langsw-li{display:flex!important;align-items:center}
+.m24langsw--topbar{margin:0;font-size:inherit;line-height:inherit;vertical-align:middle}
+.m24langsw--topbar .m24langsw-lnk{color:inherit;opacity:.75}
+.m24langsw--topbar .m24langsw-lnk:hover,.m24langsw--topbar .m24langsw-lnk:focus{color:inherit;opacity:1}
+.m24langsw--topbar .m24langsw-lnk.is-active{opacity:1;font-weight:700;border-bottom:2px solid #9a6b25}
 .m24langsw-tip{display:none!important}
 </style>
         <?php

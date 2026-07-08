@@ -109,13 +109,30 @@
 	// Genau eine Instanz je Kontext; Referenzen halten, um bei Moduswechsel sauber aufzuräumen.
 	var els = { desktop: null, mobile: null, float: null };
 	function removeEl(k) { if (els[k] && els[k].parentNode) { els[k].parentNode.removeChild(els[k]); } els[k] = null; }
+	// Site-weit stabile Top-Leiste: ul#menu-td_demo_top (Kontakt/Impressum). Fallback: horizontales Menü per Textmatch.
+	function topbarMenu() {
+		var m = document.querySelector('ul#menu-td_demo_top');
+		if (m) { return m; }
+		var lists = document.querySelectorAll('ul.tdb-horiz-menu, .td-header-sp-top-menu ul, .top-header-menu, ul.sf-menu');
+		for (var i = 0; i < lists.length; i++) {
+			var t = (lists[i].textContent || '').toLowerCase();
+			if (t.indexOf('kontakt') > -1 || t.indexOf('impressum') > -1) { return lists[i]; }
+		}
+		return null;
+	}
+	// DESKTOP: Switch als Menü-<li> in die Top-Leiste (erstes Item links), NICHT mehr in den Haupt-Header.
 	function placeDesktopSwitch() {
-		var icon = visibleSearchIcon();
-		var btn  = icon && icon.closest ? ( icon.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || icon ) : icon;
-		if (btn && btn.parentNode) { els.desktop = makeSwitch('desktop'); btn.parentNode.insertBefore(els.desktop, btn); return true; }
-		var host = firstVisible(DESKTOP);
-		if (host) { els.desktop = makeSwitch('desktop'); host.appendChild(els.desktop); return true; }
-		return false;
+		var menu = topbarMenu();
+		if (!menu) { return false; }
+		if (menu.querySelector('.m24langsw')) { return true; } // Kein Doppel-Switch
+		var li = document.createElement('li');
+		li.className = 'menu-item menu-item-type-custom m24langsw-li';
+		var sw = makeSwitch('topbar'); sw.classList.remove('m24langsw--inhdr'); sw.classList.add('m24langsw--topbar');
+		li.appendChild(sw);
+		var first = menu.querySelector('li');
+		if (first) { menu.insertBefore(li, first); } else { menu.appendChild(li); }
+		els.desktop = li;
+		return true;
 	}
 	// Autoritative Entscheidung — jederzeit erneut aufrufbar (Race-fest): mobil ⇒ NUR Hamburger, nie Balken/Float.
 	function evaluate() {
