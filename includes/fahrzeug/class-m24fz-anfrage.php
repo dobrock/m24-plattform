@@ -165,6 +165,15 @@ class M24FZ_Anfrage {
 			self::register_interessent( $pid, array( 'name' => $name, 'email' => $mail, 'kundentyp' => $kundentyp, 'lieferland' => $lieferland ) );
 		}
 
+		// „Konto anlegen"-Opt-in (geteilte register-Checkbox, nur Gäste): passwortloses Konto + DOI-Magic-Link —
+		// 1:1 wie der Teile-Handler (inquiry-submit.php). il_optin fließt als Newsletter-Präferenz ins Konto.
+		if ( ! empty( $p['register'] ) && ! is_user_logged_in() && class_exists( 'M24_Login' ) ) {
+			$reg_ok = M24_Login::create_account_and_send_link( $mail, $name, ! empty( $p['il_optin'] ) );
+			if ( class_exists( 'M24_Logger' ) ) {
+				M24_Logger::info( 'register', $reg_ok ? 'account-created+mail-queued' : 'account-create-FAILED', array( 'ctx' => 'fahrzeug-anfrage' ) );
+			}
+		}
+
 		// Erst bei erfolgreichem Submit zählen (§2).
 		if ( class_exists( 'M24FZ_Tracking' ) ) { M24FZ_Tracking::increment( $pid, 'anfrage' ); }
 
