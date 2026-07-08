@@ -113,6 +113,13 @@ class M24_B2B_Header_Login {
 			. '.m24hl-acct--inhdr{margin:0 24px 0 0!important;align-self:center!important}' // Abstand Pill↔DE ≈ DE↔EN
 			. '.m24hl-acct.is-in{margin-right:24px!important}' // gleicher Abstand für die EINGELOGGTE Konto-Pill
 			. '.m24hl-acct--float{position:fixed!important;top:10px;right:14px;z-index:99999}'
+			// Mobil: dezentes Personen-Icon direkt links neben der Such-Lupe (kein „Login"-Text-Oval, kein Float)
+			. '.m24hl-acct--mob{margin:0!important;align-self:center!important}'
+			. '.m24hl-acct--mob .m24hl-chip{border:0;background:transparent;padding:6px;color:#fff;line-height:0}'
+			. '.m24hl-acct--mob .m24hl-chip:hover{background:transparent}'
+			. '.m24hl-acct--mob .m24hl-chip svg{display:block}'
+			. '.m24hl-acct--mob .m24hl-acclabel,.m24hl-acct--mob .m24hl-caret{display:none}' // eingeloggt mobil: nur Avatar-Icon
+			. '.m24hl-acct--mob .m24hl-accbtn{padding:4px}'
 			// Ausgeloggt: Outline-Chip
 			. '.m24hl-chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:999px;padding:6px 14px;font:600 13px/1 \'Saira\',Arial,sans-serif;text-decoration:none;white-space:nowrap}'
 			. '.m24hl-chip:hover{border-color:#fff;background:rgba(255,255,255,.10);color:#fff}'

@@ -24,6 +24,31 @@
 		}
 		return null;
 	}
+	// Sichtbares MOBILES Such-Element (die Lupe im oberen mobilen Balken).
+	function visibleMobileSearch() {
+		var sels = ['.tdb-header-search-button-mob', '.tdb-mobile-search-icon', '.tdb_mobile_search'];
+		for (var i = 0; i < sels.length; i++) {
+			var nodes = document.querySelectorAll(sels[i]);
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+		}
+		return null;
+	}
+	// Mobiler tagDiv-Header aktiv? Dann nie floaten (überlappt sonst den Balken).
+	function mobileHeaderActive() {
+		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
+		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || visibleMobileSearch());
+	}
+	// Kein Doppel-Icon: sitzt neben der Lupe schon ein M24-Login-/Personen-Icon (auch aus m24-login.js)?
+	function mobileIconAlreadyThere(msearch) {
+		var p = msearch && msearch.parentNode;
+		return !!(p && p.querySelector('.m24hl-acct--mob, .m24lg-micon'));
+	}
+	// Ausgeloggten „Login"-Text-Chip zu einem dezenten Personen-Umriss-Icon machen (Mobile).
+	var PERSON_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20c0-3.6 3.4-5.6 7-5.6s7 2 7 5.6"></path></svg>';
+	function toPersonIcon(el) {
+		var chip = el.querySelector('.m24hl-chip');
+		if (chip) { chip.innerHTML = PERSON_SVG; chip.setAttribute('aria-label', 'Login'); }
+	}
 	function firstVisible(sels) {
 		for (var i = 0; i < sels.length; i++) {
 			var nodes = document.querySelectorAll(sels[i]);
@@ -50,29 +75,43 @@
 	}
 
 	var placed = false;
+	function finish(el) {
+		wireDropdown(el);
+		if (tpl.parentNode) { tpl.parentNode.removeChild(tpl); }
+	}
 	function place() {
 		if (placed) { return; }
-		// Als SIBLING VOR den Such-Button (gleiche Header-Actions-Zeile, Navi-Höhe).
+		var el = acct;
+		// (1) Desktop: als SIBLING VOR den sichtbaren Desktop-Such-Button (gleiche Header-Actions-Zeile, Navi-Höhe).
 		var icon = visibleSearchIcon();
 		var btn = icon && icon.closest ? (icon.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || icon) : icon;
-		var el = acct;
-		el.classList.add('m24hl-acct--inhdr');
 		if (btn && btn.parentNode) {
+			el.classList.add('m24hl-acct--inhdr');
 			btn.parentNode.insertBefore(el, btn);
 			placed = true;
 		} else {
 			var host = firstVisible(['.td-header-menu-social', '.td-header-sp-top-menu', '.tdb-header-align']);
-			if (host) { host.appendChild(el); placed = true; }
+			if (host) { el.classList.add('m24hl-acct--inhdr'); host.appendChild(el); placed = true; }
 		}
+		// (2) Mobile: kein sichtbares Desktop-Icon → Personen-Icon DIREKT LINKS neben die mobile Such-Lupe.
+		if (!placed) {
+			var msearch = visibleMobileSearch();
+			if (msearch && msearch.parentNode && !mobileIconAlreadyThere(msearch)) {
+				el.classList.remove('m24hl-acct--inhdr');
+				el.classList.add('m24hl-acct--mob');
+				toPersonIcon(el); // ausgeloggter „Login"-Text → Personen-Umriss
+				msearch.parentNode.insertBefore(el, msearch);
+				placed = true;
+			}
+		}
+		// (3) Float-Fallback NUR, wenn KEIN mobiler Header aktiv ist (sonst überlappt das schwebende Oval den Balken).
 		if (placed) {
-			wireDropdown(el);
-			if (tpl.parentNode) { tpl.parentNode.removeChild(tpl); }
-		} else if (!document.querySelector('.m24hl-acct--float')) {
+			finish(el);
+		} else if (!mobileHeaderActive() && !document.querySelector('.m24hl-acct--float')) {
 			el.classList.remove('m24hl-acct--inhdr');
 			el.classList.add('m24hl-acct--float');
 			document.body.appendChild(el);
-			wireDropdown(el);
-			if (tpl.parentNode) { tpl.parentNode.removeChild(tpl); }
+			finish(el);
 		}
 	}
 

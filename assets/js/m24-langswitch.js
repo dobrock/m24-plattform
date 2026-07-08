@@ -100,6 +100,12 @@
 		return null;
 	}
 
+	// Ist der mobile tagDiv-Header aktiv? Dann darf der Switch NIE als Float im oberen Balken landen.
+	function mobileHeaderActive() {
+		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
+		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || document.querySelector('.tdb_mobile_search'));
+	}
+
 	var placed = { desktop: false, mobile: false };
 	function place() {
 		if (!placed.desktop) {
@@ -115,10 +121,14 @@
 				if (host) { host.appendChild(makeSwitch('desktop')); placed.desktop = true; }
 			}
 		}
-		// b) DE/EN-Switch NICHT mehr in den mobilen Header injizieren — Sprachwechsel bleibt über Footer/Menü
-		// (Desktop-Header + der bestehende mobile Menü-/Footer-Switch) erreichbar.
-		// Fallback: gibt es KEINE sichtbare Desktop-Instanz → fixe Ecke, damit der Switch nie ganz fehlt.
-		if (!placed.desktop && !document.querySelector('.m24langsw--float')) {
+		// (2) DE/EN mobil NUR in den Hamburger (#td-mobile-nav) — NIE in den oberen mobilen Balken.
+		if (!placed.mobile) {
+			var ham = document.querySelector('#td-mobile-nav .td-menu-login, #td-mobile-nav ul, #td-mobile-nav');
+			if (ham) { ham.appendChild(makeSwitch('mobile')); placed.mobile = true; }
+		}
+		// (3) Float-Fallback NUR, wenn KEIN mobiler Header aktiv ist (sonst schwebt der Switch über dem Balken).
+		//     Im Mobile-Fall lieber WEGLASSEN (Hamburger deckt es ab) als floaten.
+		if (!placed.desktop && !mobileHeaderActive() && !document.querySelector('.m24langsw--float')) {
 			var f = makeSwitch('float'); f.classList.remove('m24langsw--inhdr'); f.classList.add('m24langsw--float');
 			document.body.appendChild(f);
 		}
@@ -129,7 +139,7 @@
 	var tries = 0;
 	var iv = setInterval(function () {
 		tries++;
-		if (!placed.desktop) { place(); }
+		if (!placed.desktop || !placed.mobile) { place(); }
 		if (placed.desktop || tries >= 6) { clearInterval(iv); }
 	}, 350);
 })();
