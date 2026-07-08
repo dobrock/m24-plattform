@@ -195,6 +195,8 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		$anfrage_id = isset( $a['anfrage_id'] ) ? (int) $a['anfrage_id'] : 0;
 		$datum_ts   = isset( $a['datum_ts'] ) ? (int) $a['datum_ts'] : time();
 		$positionen = isset( $a['positionen'] ) && is_array( $a['positionen'] ) ? $a['positionen'] : array();
+		// Optionaler Sektions-Titel (z. B. „Fahrzeug" statt „Position"); Default = Position/Positionen.
+		$pos_label  = isset( $a['pos_label'] ) && '' !== $a['pos_label'] ? (string) $a['pos_label'] : ( count( $positionen ) > 1 ? 'Positionen' : 'Position' );
 
 		$datum = wp_date( 'd.m.Y H:i', $datum_ts ); // Site-Zeitzone (CEST/CET), ohne Sekunden
 
@@ -226,22 +228,28 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 		$last = count( $positionen ) - 1;
 		foreach ( $positionen as $i => $p ) {
 			$p_titel = isset( $p['titel'] ) ? trim( (string) $p['titel'] ) : '';
-			$p_menge = isset( $p['menge'] ) ? (int) $p['menge'] : 1;
+			// Menge nur zeigen, wenn der Aufrufer sie mitgibt (Teileanfrage: immer; Fahrzeug-Anfrage: nie).
+			$has_menge = array_key_exists( 'menge', $p ) && '' !== $p['menge'] && null !== $p['menge'];
+			$p_menge = $has_menge ? (int) $p['menge'] : 0;
 			$p_preis = isset( $p['preis'] ) ? trim( (string) $p['preis'] ) : '';
 			$p_link  = isset( $p['link'] ) ? trim( (string) $p['link'] ) : '';
 			$p_art   = isset( $p['artikelnummer'] ) ? trim( (string) $p['artikelnummer'] ) : '';
+			// ID-Label je Kontext: „Artikelnummer" (Teil) bzw. „Inserat-ID" (Fahrzeug).
+			$art_label = isset( $p['art_label'] ) && '' !== $p['art_label'] ? (string) $p['art_label'] : 'Artikelnummer';
 
-			// „Menge X · Preis" (Preis nur wenn vorhanden)
-			$meta = 'Menge ' . max( 1, $p_menge );
+			// „Menge X · Preis" — Menge nur bei has_menge, Preis nur wenn vorhanden; ganz weglassen, wenn beides fehlt.
+			$meta = $has_menge ? ( 'Menge ' . max( 1, $p_menge ) ) : '';
 			if ( $p_preis !== '' ) {
-				$meta .= ' &middot; ' . esc_html( $p_preis );
+				$meta = ( '' !== $meta ? $meta . ' &middot; ' : '' ) . esc_html( $p_preis );
 			}
 
 			$rows = '';
 			if ( $p_titel !== '' ) {
 				$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:15px;line-height:20px;font-weight:bold;color:' . $ANTHRAZIT . ';">' . esc_html( $p_titel ) . '</td></tr>';
 			}
-			$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">' . $meta . '</td></tr>';
+			if ( '' !== $meta ) {
+				$rows .= '<tr><td style="padding:0 0 4px;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">' . $meta . '</td></tr>';
+			}
 			if ( $p_link !== '' ) {
 				// src_url als eigene Zeile über die volle Breite (kein schmaler Umbruch): kein nowrap, vollständige
 				// URL, lange Links brechen innerhalb der Zeile um (word-break) statt abgeschnitten/einzeilig zu bleiben.
@@ -250,7 +258,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 					. '</td></tr>';
 			}
 			if ( $p_art !== '' ) {
-				$rows .= '<tr><td style="padding:0;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">Artikelnummer: ' . esc_html( $p_art ) . '</td></tr>';
+				$rows .= '<tr><td style="padding:0;font-family:' . $FF . ';font-size:13px;line-height:18px;color:' . $MUTED . ';">' . esc_html( $art_label ) . ': ' . esc_html( $p_art ) . '</td></tr>';
 			}
 
 			// Trenn-Haarlinie zwischen mehreren Positionen (Sammelanfrage)
@@ -322,7 +330,7 @@ if ( ! function_exists( 'm24_render_inquiry_email' ) ) {
 			. '<tr><td style="padding:0 22px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $kontakt_rows . '</table></td></tr>'
 			// POSITION(EN)
 			. '<tr><td style="padding:0 22px;">' . $hairline . '</td></tr>'
-			. '<tr><td style="padding:16px 22px 6px;">' . $section_label( count( $positionen ) > 1 ? 'Positionen' : 'Position' ) . '</td></tr>'
+			. '<tr><td style="padding:16px 22px 6px;">' . $section_label( $pos_label ) . '</td></tr>'
 			. '<tr><td style="padding:0 22px 16px;">' . $pos_blocks . '</td></tr>'
 			// NACHRICHT (optional)
 			. $nachricht_section

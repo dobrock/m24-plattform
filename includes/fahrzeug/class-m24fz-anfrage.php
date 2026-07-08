@@ -87,14 +87,62 @@ class M24FZ_Anfrage {
 		$url   = get_permalink( $pid );
 		$to    = apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) );
 
-		$body  = "Neue Fahrzeug-Anfrage\n\n";
-		$body .= "Fahrzeug: {$title}\n{$url}\nInserat-ID: {$pid}\n\n";
-		$body .= "Name: {$name}\nE-Mail: {$mail}\nKundentyp: {$kundentyp}\n";
-		if ( '' !== $lieferland ) { $body .= "Lieferland: {$lieferland}\n"; }
-		if ( '' !== $msg )        { $body .= "\nNachricht:\n{$msg}\n"; }
+		// Kundentyp auf das Template-Vokabular normalisieren (→ „Geschäftlich (B2B)" / „Privat", wie die Teileanfrage).
+		$kt_norm = ( 'Geschäftskunde' === $kundentyp ) ? 'business' : 'private';
+
+		if ( function_exists( 'm24_render_inquiry_email' ) ) {
+			// Dasselbe designte Shell wie die Teileanfrage: Blau-Header + Logo, KONTAKT/FAHRZEUG/NACHRICHT, „eingegangen …".
+			$body  = m24_render_inquiry_email( array(
+				'titel'      => 'Neue Fahrzeug-Anfrage',
+				'name'       => $name,
+				'email'      => $mail,
+				'land'       => $land_iso,   // ISO2 → im Template ausgeschrieben
+				'kundentyp'  => $kt_norm,
+				'pos_label'  => 'Fahrzeug',  // Sektions-Titel statt „Position"
+				'positionen' => array( array(
+					'titel'         => $title,
+					'link'          => $url,
+					'artikelnummer' => (string) $pid,
+					'art_label'     => 'Inserat-ID', // analog zur Artikelnummer-Zeile
+					// keine Menge/kein Preis → Meta-Zeile entfällt
+				) ),
+				'nachricht'  => $msg,
+				'anfrage_id' => 0,           // kein m24_inquiry-Post; die Inserats-ID steht in der Fahrzeug-Karte
+				'datum_ts'   => time(),
+			) );
+			// Brass „Angebot erstellen →"-CTA (nur wenn Angebote aktiv) — wie in der Teileanfrage vor </body> injizieren.
+			$op_links = apply_filters( 'm24_inquiry_operator_links', array(), array(
+				'email'      => $mail,
+				'name'       => $name,
+				'kundentyp'  => ( 'business' === $kt_norm ) ? 'b2b' : 'b2c',
+				'land'       => $land_iso,
+				'src_modell' => $title,
+				'src_pid'    => (string) $pid,
+				'src_pillar' => 'fahrzeug',
+				'src_url'    => $url,
+			) );
+			if ( ! empty( $op_links ) ) {
+				$cta = '<div style="text-align:center;margin:18px 0;">';
+				foreach ( $op_links as $l ) {
+					$cta .= '<a href="' . esc_url( $l['url'] ) . '" style="display:inline-block;background:#9a6b25;color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:8px;margin:4px;">' . esc_html( $l['label'] ) . '</a>';
+				}
+				$cta .= '</div>';
+				$body = ( false !== strpos( $body, '</body>' ) ) ? str_replace( '</body>', $cta . '</body>', $body ) : $body . $cta;
+			}
+			$ctype = 'text/html; charset=UTF-8';
+		} else {
+			// Fallback (Template nicht geladen): bisheriger Plain-Text.
+			$body  = "Neue Fahrzeug-Anfrage\n\n";
+			$body .= "Fahrzeug: {$title}\n{$url}\nInserat-ID: {$pid}\n\n";
+			$body .= "Name: {$name}\nE-Mail: {$mail}\nKundentyp: {$kundentyp}\n";
+			if ( '' !== $lieferland ) { $body .= "Lieferland: {$lieferland}\n"; }
+			if ( '' !== $msg )        { $body .= "\nNachricht:\n{$msg}\n"; }
+			$ctype = 'text/plain; charset=UTF-8';
+		}
 
 		// From-Name = Kunde, From-Adresse = Domain (SPF/DKIM); Reply-To = Kunde, damit „Antworten" passt.
 		$headers = array(
+			'Content-Type: ' . $ctype,
 			'From: ' . self::from_header( $name, self::from_email() ),
 			'Reply-To: ' . $name . ' <' . $mail . '>',
 		);
