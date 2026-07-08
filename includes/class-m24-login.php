@@ -147,6 +147,7 @@ class M24_Login {
 		}
 
 		wp_set_auth_cookie( $uid, true );
+		delete_user_meta( $uid, '_m24_doi_pending' ); // DOI bestätigt → aus dem Claim-Stub wird ein echtes Konto (Garage-Karte)
 		self::log( 'verify:ok', $uid );
 
 		$dest = $is_admin ? admin_url() : self::garage_url();

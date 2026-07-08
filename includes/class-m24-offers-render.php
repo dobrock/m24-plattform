@@ -612,10 +612,8 @@ class M24_Offers_Render {
 
 			<?php echo self::garage_card_html( $o, $cust, $L, $preview ); // phpcs:ignore WordPress.Security.EscapeOutput — intern escaped ?>
 
-			<!-- C: Rechts-Accordions — DE-Widerrufsbelehrung nur bei offer_lang=de (gesetzlich für DE-B2C), in EN unterdrückt -->
-			<?php if ( $is_b2c && 'de' === self::offer_lang( $o ) ) : ?>
-			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
-			<?php endif; ?>
+			<!-- C: Rechts-Accordions — Widerrufs-Absatz/-Belehrung hier NICHT rendern (EN + DE); vollständige
+			     Belehrung bleibt unter /widerruf/ erreichbar (Impressum·AGB·Datenschutz-Legalzeile/Footer). -->
 			<details class="m24off-acc"><summary><?php echo esc_html( $L['warranty_tax'] ); ?></summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ), self::offer_lang( $o ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 
 			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
@@ -804,42 +802,33 @@ class M24_Offers_Render {
 		foreach ( $items as $it ) { if ( ! empty( $it['used'] ) ) { return true; } }
 		return false;
 	}
-	/** Kurzes Datum je Sprache (DE d.m.Y, EN „M j, Y"). Leer bei ungültigem Input. */
-	private static function fmt_date( string $mysql, string $lang = 'de' ): string {
-		$ts = strtotime( $mysql );
-		if ( ! $ts ) { return ''; }
-		return 'en' === $lang ? gmdate( 'M j, Y', $ts ) : ( function_exists( 'date_i18n' ) ? date_i18n( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) );
-	}
-
 	/**
-	 * Garage-Karte (Lösung A) — nur Online-Ansicht. Konto-Erkennung server-seitig über die Offer-E-Mail
-	 * (kein E-Mail-Leak ins JS). Zustand 1 = Gast (gestrichelt-blau, Button → Registrier-Modal),
-	 * Zustand 2 = Konto vorhanden (grün, Textlink zur Garage) + idempotente Zuordnung beim Rendern.
+	 * Garage-Karte (Lösung A) — nur Online-Ansicht. Zustandslogik:
+	 *  - Existiert bereits ein ECHTES, vorbestehendes Konto zur Offer-E-Mail (nicht render-erzeugt, kein pending
+	 *    Claim-Stub) → KEINE Karte einblenden; das Angebot still in dessen Garage ablegen (account_id-Link).
+	 *  - Sonst (kein Konto / nur pending Stub) → Gast-Karte (gestrichelt blau) mit Registrier-Button. KEIN Auto-Claim,
+	 *    KEIN Stub beim Rendern. Die grüne „already in your garage"-Karte gibt es nicht mehr.
+	 * Konto-Erkennung server-seitig über die Offer-E-Mail (kein E-Mail-Leak ins JS). get_user_by legt nichts an.
 	 */
 	private static function garage_card_html( $o, array $cust, array $L, bool $preview ): string {
 		if ( ! class_exists( 'M24_Login' ) || ! M24_Login::enabled() ) { return ''; }
 		$email = strtolower( trim( (string) ( $cust['email'] ?? '' ) ) );
 		if ( '' === $email || ! is_email( $email ) ) { return ''; }
-		$lang       = self::offer_lang( $o );
-		$garage_url = class_exists( 'M24_Garage_Cart' ) ? M24_Garage_Cart::page_url() : home_url( '/meine-garage/' );
 
-		// Zustand 2: existiert bereits ein Konto zur Offer-E-Mail? (in der Vorschau immer Zustand 1 zeigen, ohne Writes)
-		$user = $preview ? null : get_user_by( 'email', $email );
-		if ( $user ) {
+		// „Registriert?" = vorbestehendes ECHTES Konto. Ein per Gast-Claim frisch angelegter, noch nicht per DOI
+		// bestätigter Stub (Meta _m24_doi_pending) zählt NICHT als echtes Konto → bleibt Gast-Zustand.
+		$user    = $preview ? null : get_user_by( 'email', $email );
+		$is_real = $user && ! get_user_meta( (int) $user->ID, '_m24_doi_pending', true );
+
+		if ( $is_real ) {
+			// Echtes Konto → Angebot still ablegen (account_id-Link), KEINE Karte. Kein grüner Bestätigungs-Block.
 			if ( class_exists( 'M24_Offers' ) && ! empty( $o->id ) ) {
-				M24_Offers::claim_for_account( (int) $o->id, (int) $user->ID, $cust ); // idempotente Zuordnung beim Rendern
+				M24_Offers::claim_for_account( (int) $o->id, (int) $user->ID, $cust );
 			}
-			$date = self::fmt_date( (string) $o->created_at, $lang );
-			$sub  = sprintf( $L['g_in_sub'], esc_html( (string) $o->offer_no ), esc_html( $date ) );
-			$svg  = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
-			return '<div class="m24off-gcard is-in">'
-				. '<div class="m24off-gcard-ic">' . $svg . '</div>'
-				. '<div class="m24off-gcard-tx"><b>' . esc_html( $L['g_in_title'] ) . '</b><span>' . $sub . '</span></div>'
-				. '<a class="m24off-gcard-lnk" href="' . esc_url( $garage_url ) . '">' . esc_html( $L['g_in_link'] ) . '</a>'
-				. '</div>';
+			return '';
 		}
 
-		// Zustand 1: Gast — Karte mit Sekundär-Button → Registrier-Modal.
+		// Kein (echtes) Konto → Gast-Karte. KEIN Claim, KEIN Stub beim Rendern.
 		$svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 9v12h7v-6h6v6h7V9L12 3z"/></svg>';
 		return '<div class="m24off-gcard">'
 			. '<div class="m24off-gcard-ic">' . $svg . '</div>'
@@ -889,7 +878,8 @@ class M24_Offers_Render {
 		}
 		$h .= '<p><strong>' . ( $en ? 'Provider:' : 'Anbieter:' ) . '</strong> ' . esc_html( self::company_line() ) . '</p>';
 		$links = array(); $ll = self::legal_links();
-		foreach ( array( 'Impressum', 'AGB', 'Datenschutz' ) as $k ) {
+		// Widerruf-Link bleibt in der Legalzeile (der Belehrungs-Absatz selbst wird nicht mehr gerendert) → Belehrung 1 Klick entfernt.
+		foreach ( array( 'Impressum', 'AGB', 'Datenschutz', 'Widerruf' ) as $k ) {
 			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( $k ) . '</a>'; }
 		}
 		$h .= '<p style="text-align:center;">' . implode( ' · ', $links ) . '</p>';
@@ -998,13 +988,8 @@ class M24_Offers_Render {
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) )
 			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) : '' ) . '</p>';
-		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort). Nur DE (gesetzlich für
-		// DE-B2C erforderlich); bei offer_lang=en unterdrückt — kein deutscher Rechtsabsatz in der EN-Mail.
-		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) && 'de' === self::offer_lang( $o ) ) {
-			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '
-				. '<a href="' . esc_url( self::widerruf_url() ) . '" target="_blank" style="color:#1f74c4;">Widerrufsbelehrung &amp; Muster-Widerrufsformular</a>.'
-				. ( self::has_custom( $items ) ? ' Für Sonderanfertigungen besteht kein Widerrufsrecht (§ 312g Abs. 2 BGB).' : '' ) . '</p>';
-		}
+		// B2C-Widerruf-Absatz in der Mail NICHT rendern (EN + DE) — die vollständige Belehrung steht unter /widerruf/
+		// (in der Pflicht-Links-Zeile unten verlinkt).
 		// Pflicht-Links.
 		$links = array();
 		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( $lbl ) . '</a>'; }

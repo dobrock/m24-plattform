@@ -365,11 +365,17 @@ class M24_Offers {
 		if ( '' === $email || ! is_email( $email ) ) {
 			return new WP_Error( 'm24off_mail', 'Keine gültige E-Mail am Angebot.', array( 'status' => 400 ) );
 		}
-		$ok = M24_Login::create_account_and_send_link( $email, trim( (string) ( $cust['name'] ?? '' ) ), false );
+		// Wird durch diesen Aufruf ein NEUES Konto angelegt (E-Mail war unbekannt), ist es bis zur DOI-Bestätigung
+		// nur ein Stub — als solcher markieren, damit die Angebotsansicht es NICHT als echtes Konto behandelt
+		// (kein grüner Zustand, kein Auto-Claim). Bestand bereits ein echtes Konto, wird nichts markiert.
+		$existed = (bool) get_user_by( 'email', $email );
+		$ok      = M24_Login::create_account_and_send_link( $email, trim( (string) ( $cust['name'] ?? '' ) ), false );
 		if ( ! $ok ) { return new WP_Error( 'm24off_send', 'Versand fehlgeschlagen.', array( 'status' => 429 ) ); }
-		// Existiert das Konto bereits (Edge-Case „E-Mail bekannt"), Angebot sofort idempotent zuordnen.
-		$u = get_user_by( 'email', $email );
-		if ( $u ) { self::claim_for_account( (int) $o->id, (int) $u->ID, $cust ); }
+		if ( ! $existed ) {
+			$u = get_user_by( 'email', $email );
+			if ( $u ) { update_user_meta( (int) $u->ID, '_m24_doi_pending', 1 ); } // erst nach DOI wird daraus ein echtes Konto
+		}
+		// KEIN Auto-Claim hier: das Angebot landet erst NACH der DOI-Bestätigung in der Garage (Render als echtes Konto).
 		return array( 'ok' => true );
 	}
 
