@@ -141,41 +141,48 @@
 		o.querySelectorAll('.m24iq-biz').forEach(function (el) { el.hidden = !on; });
 	}
 
-	function submitModal(e) {
+	// Submit-Handler FORM-SCOPED (nicht overlay-gekoppelt) → funktioniert für jedes [data-m24iq="form"]
+	// unabhängig vom Render-Kontext (inline/Sidebar/Modal). Bindung per Delegation auf document (siehe init).
+	function scopeOf(form) { return form.closest('#m24iq-overlay') || form.parentNode || document; }
+	function handleSubmit(e) {
+		var form = e.target && e.target.closest ? e.target.closest('[data-m24iq="form"]') : null;
+		if (!form) { return; } // fremdes Formular (z. B. Fahrzeuganfrage) — nicht anfassen
 		e.preventDefault();
-		var o = overlay(); if (!o || !currentItem) { return; }
-		var form = o.querySelector('[data-m24iq="form"]');
-		var btn = o.querySelector('[data-m24iq="submit"]');
-		var notice = o.querySelector('[data-m24iq="notice"]');
+		var sc     = scopeOf(form);
+		var notice = sc.querySelector('[data-m24iq="notice"]') || form.querySelector('[data-m24iq="notice"]');
+		var success = sc.querySelector('[data-m24iq="success"]');
+		var btn    = sc.querySelector('[data-m24iq="submit"]') || form.querySelector('[data-m24iq="submit"], button[type="submit"]');
 		if (notice) { notice.hidden = true; }
-		// Gemeinsame Client-Validierung (name, email, kundentyp, lieferland, consent).
-		if (window.M24IqFields) { var v = M24IqFields.validate(form); if (!v.ok) { return; } }
-		var val = function (n) { var f = field(n); return f ? f.value : ''; };
+		// Gemeinsame Client-Validierung (name, email, kundentyp, lieferland, consent) am konkreten Formular.
+		if (window.M24IqFields && M24IqFields.validate) { var v = M24IqFields.validate(form); if (!v.ok) { return; } }
+		var val = function (n) { var f = form.querySelector('[name="' + n + '"]'); return f ? f.value : ''; };
+		var chk = function (n) { var f = form.querySelector('[name="' + n + '"]'); return f && f.checked ? '1' : ''; };
 		var land = val('lieferland');
 		if (ppwrBlocked(land)) { if (notice) { notice.hidden = false; notice.textContent = (Config.ppwr && Config.ppwr.notice) || ''; } return; }
+		// Item-Kontext: im Modal aus currentItem (via .m24-frage gesetzt); sonst Hidden-Feld items_json am Formular.
+		var items = [];
+		if (form.closest('#m24iq-overlay') && currentItem) { items = [currentItem]; }
+		else { var hj = form.querySelector('[name="items_json"]'); if (hj && hj.value) { try { items = JSON.parse(hj.value) || []; } catch (x) { items = []; } } }
 		var payload = {
 			name: val('name'), email: val('email'), kundentyp: val('kundentyp'),
 			lieferland: land, nachricht: val('nachricht'),
-			consent: field('consent') && field('consent').checked ? '1' : '',
-			il_optin: field('il_optin') && field('il_optin').checked ? '1' : '',
-			register: field('register') && field('register').checked ? '1' : '',
+			consent: chk('consent'), il_optin: chk('il_optin'), register: chk('register'),
 			website_confirm: val('website_confirm'),
 			inquiry_source: 'product_inquiry',
-			items_json: JSON.stringify([currentItem])
+			items_json: JSON.stringify(items)
 		};
 		if (btn) { btn.disabled = true; }
 		api('inquiry', payload).then(function (res) {
 			if (res.status === 200 && res.body && res.body.ok) {
-				var form = o.querySelector('[data-m24iq="form"]');
-				var success = o.querySelector('[data-m24iq="success"]');
-				if (form) { form.hidden = true; }
+				form.hidden = true;
 				if (success) { success.hidden = false; success.textContent = T.success || 'Danke!'; }
+				else if (notice) { notice.hidden = false; notice.className = 'm24iq-notice is-ok'; notice.textContent = T.success || 'Danke!'; } // Inline ohne Success-Container: nie silent
 			} else {
-				if (notice) { notice.hidden = false; notice.textContent = (res.body && res.body.error) || (T.genericErr || 'Fehler'); }
+				if (notice) { notice.hidden = false; notice.className = 'm24iq-notice is-error'; notice.textContent = (res.body && res.body.error) || (T.genericErr || 'Es ist ein Fehler aufgetreten.'); }
 				if (btn) { btn.disabled = false; }
 			}
 		}).catch(function () {
-			if (notice) { notice.hidden = false; notice.textContent = T.genericErr || 'Fehler'; }
+			if (notice) { notice.hidden = false; notice.className = 'm24iq-notice is-error'; notice.textContent = T.genericErr || 'Es ist ein Fehler aufgetreten.'; }
 			if (btn) { btn.disabled = false; }
 		});
 	}
@@ -237,8 +244,9 @@
 
 	function init() {
 		injectEmailAction();
-		var form = document.querySelector('[data-m24iq="form"]');
-		if (form) { form.addEventListener('submit', submitModal); }
+		// Delegation auf document: jedes [data-m24iq="form"] bekommt den Submit-Handler, egal wann/wo es gerendert
+		// wird (inline/Sidebar/Modal, auch nachträglich per JS). submit bubbelt → ein Listener genügt, nie silent.
+		document.addEventListener('submit', handleSubmit);
 		var bizCb = field('biz'); if (bizCb) { bizCb.addEventListener('change', toggleBiz); }
 		document.addEventListener('click', onClick);
 		document.addEventListener('change', function (e) {
