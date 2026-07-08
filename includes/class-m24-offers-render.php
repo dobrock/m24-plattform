@@ -612,8 +612,8 @@ class M24_Offers_Render {
 
 			<?php echo self::garage_card_html( $o, $cust, $L, $preview ); // phpcs:ignore WordPress.Security.EscapeOutput — intern escaped ?>
 
-			<!-- C: Rechts-Accordions -->
-			<?php if ( $is_b2c ) : ?>
+			<!-- C: Rechts-Accordions — DE-Widerrufsbelehrung nur bei offer_lang=de (gesetzlich für DE-B2C), in EN unterdrückt -->
+			<?php if ( $is_b2c && 'de' === self::offer_lang( $o ) ) : ?>
 			<details class="m24off-acc"><summary>Widerrufsrecht (Verbraucher)</summary><div class="m24off-acc-body"><?php echo self::widerruf_accordion( $items ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
 			<?php endif; ?>
 			<details class="m24off-acc"><summary><?php echo esc_html( $L['warranty_tax'] ); ?></summary><div class="m24off-acc-body"><?php echo self::gewaehr_accordion( $is_b2c, $has_used, self::has_tax25a( $items ), self::offer_lang( $o ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></div></details>
@@ -998,8 +998,9 @@ class M24_Offers_Render {
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) )
 			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) : '' ) . '</p>';
-		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort).
-		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) ) {
+		// B2C: kurzer Widerruf-Hinweis + Link auf /widerruf/ (vollständige Belehrung dort). Nur DE (gesetzlich für
+		// DE-B2C erforderlich); bei offer_lang=en unterdrückt — kein deutscher Rechtsabsatz in der EN-Mail.
+		if ( 'b2c' === ( $cust['kundentyp'] ?? 'b2c' ) && 'de' === self::offer_lang( $o ) ) {
 			$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;line-height:1.6;">Als Verbraucher steht Ihnen ein 14-tägiges Widerrufsrecht (Fristbeginn mit Warenerhalt) zu — '
 				. '<a href="' . esc_url( self::widerruf_url() ) . '" target="_blank" style="color:#1f74c4;">Widerrufsbelehrung &amp; Muster-Widerrufsformular</a>.'
 				. ( self::has_custom( $items ) ? ' Für Sonderanfertigungen besteht kein Widerrufsrecht (§ 312g Abs. 2 BGB).' : '' ) . '</p>';
