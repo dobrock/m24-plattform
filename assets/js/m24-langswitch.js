@@ -103,7 +103,7 @@
 	// Ist der mobile tagDiv-Header aktiv? Dann darf der Switch NIE als Float im oberen Balken landen.
 	function mobileHeaderActive() {
 		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
-		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || document.querySelector('.tdb_mobile_search'));
+		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || isVisible(document.querySelector('.tdb_mobile_search')));
 	}
 
 	// Genau eine Instanz je Kontext; Referenzen halten, um bei Moduswechsel sauber aufzuräumen.
@@ -136,6 +136,7 @@
 	}
 	// Autoritative Entscheidung — jederzeit erneut aufrufbar (Race-fest): mobil ⇒ NUR Hamburger, nie Balken/Float.
 	function evaluate() {
+		var host = 'none';
 		if (mobileHeaderActive()) {
 			removeEl('desktop'); removeEl('float'); // falsch vorplatzierte Balken-Instanzen entfernen
 			if (!els.mobile || !els.mobile.parentNode) {
@@ -143,14 +144,46 @@
 				var ham = document.querySelector('#td-mobile-nav .td-menu-login, #td-mobile-nav ul, #td-mobile-nav');
 				if (ham) { els.mobile = makeSwitch('mobile'); ham.appendChild(els.mobile); }
 			}
-			return;
+			host = els.mobile ? 'mobile' : 'none';
+		} else {
+			// Desktop: Hamburger-Instanz raus; in die Top-Leiste; Float NUR wenn gar kein Desktop-Host da ist.
+			removeEl('mobile');
+			if (els.desktop && els.desktop.parentNode) { removeEl('float'); host = 'topbar'; }
+			else {
+				removeEl('desktop');
+				if (placeDesktopSwitch()) { removeEl('float'); host = 'topbar'; }
+				else {
+					if (!els.float) { els.float = makeSwitch('float'); els.float.classList.remove('m24langsw--inhdr'); els.float.classList.add('m24langsw--float'); document.body.appendChild(els.float); }
+					host = 'float';
+				}
+			}
 		}
-		// Desktop: Hamburger-Instanz raus; im Balken platzieren; Float NUR wenn gar kein Desktop-Host da ist.
-		removeEl('mobile');
-		if (els.desktop && els.desktop.parentNode) { removeEl('float'); return; }
-		removeEl('desktop');
-		if (placeDesktopSwitch()) { removeEl('float'); return; }
-		if (!els.float) { els.float = makeSwitch('float'); els.float.classList.remove('m24langsw--inhdr'); els.float.classList.add('m24langsw--float'); document.body.appendChild(els.float); }
+		m24dbgBadge(host);
+	}
+
+	// Debug-Badge nur bei ?m24dbg=1 — Live-Laufzeitwerte zur Mobil-/Desktop-Verifikation. Ohne den Param: #m24dbg entfernen.
+	function m24dbgBadge(host) {
+		var on = new URLSearchParams(location.search).get('m24dbg') === '1';
+		var box = document.getElementById('m24dbg');
+		if (!on) { if (box && box.parentNode) { box.parentNode.removeChild(box); } return; }
+		if (!box) {
+			box = document.createElement('div');
+			box.id = 'm24dbg';
+			box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.82);color:#fff;font:11px/1.4 monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none';
+			(document.body || document.documentElement).appendChild(box);
+		}
+		var mm = false; try { mm = window.matchMedia('(max-width:1018px)').matches; } catch (e) {}
+		box.textContent = [
+			'iw=' + window.innerWidth,
+			'mm1018=' + mm,
+			'mobwrapVis=' + isVisible(document.querySelector('.td-header-mobile-wrap')),
+			'searchVis=' + isVisible(document.querySelector('.tdb_mobile_search')),
+			'mobileActive=' + mobileHeaderActive(),
+			'host=' + host,
+			'inTopbar=' + !!document.querySelector('ul#menu-td_demo_top .m24langsw'),
+			'inMobileNav=' + !!document.querySelector('#td-mobile-nav .m24langsw'),
+			'count=' + document.querySelectorAll('.m24langsw').length
+		].join('\n');
 	}
 
 	// Sofort + Retries (tdb baut den Header async nach) + Neuentscheidung auf load & resize (debounced).
