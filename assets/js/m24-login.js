@@ -36,14 +36,23 @@
 		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
 		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || isVisible(document.querySelector('.tdb_mobile_search')));
 	}
-	// Desktop-Host: ERSTER SICHTBARER Treffer gewinnt (nicht der erste existierende).
-	var DESKTOP_HOSTS = ['.td-header-menu-social', '.tdb-header-align .tdb-block-inner', '.td-header-sp-top-menu', '.top-header-menu'];
-	function firstVisibleHost() {
-		for (var i = 0; i < DESKTOP_HOSTS.length; i++) {
-			var nodes = document.querySelectorAll(DESKTOP_HOSTS[i]);
-			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
+	function inMobile(el) { return !!(el && el.closest && el.closest('.tdb_mobile_search, .tdb-header-search-button-mob, .tdb-mobile-search-icon, .td-header-mobile-wrap, #td-mobile-nav, .td-mobile-content')); }
+	// Desktop-Platzierung SUCH-VERANKERT (1:1 aus m24-header-login.js, das nachweislich neben der Lupe landet):
+	// erstes sichtbares Desktop-Such-Icon → dessen Button-Wrapper → Account-Element als SIBLING davor.
+	var SEARCH_ICONS = ['.tdb-head-search-btn', '.tdb-search-icon', '.td-icon-search', '.tdb_header_search a', '.td-search-opener'];
+	function desktopSearchAnchor() {
+		for (var i = 0; i < SEARCH_ICONS.length; i++) {
+			var nodes = document.querySelectorAll(SEARCH_ICONS[i]);
+			for (var j = 0; j < nodes.length; j++) {
+				var ic = nodes[j];
+				if (!isVisible(ic) || inMobile(ic)) { continue; }
+				var btn = (ic.closest && (ic.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || ic)) || ic;
+				if (!btn || !btn.parentNode) { continue; }
+				if (btn.closest && btn.closest('.tdb_header_logo')) { continue; } // NIE in den Logo-Block (Ursache des Doppel-/Logo-Bugs)
+				return btn;
+			}
 		}
-		return null;
+		return null; // kein sichtbares Such-Icon → NICHTS platzieren (kein Float)
 	}
 	function removeNode(el) { if (el && el.parentNode) { el.parentNode.removeChild(el); } }
 
@@ -95,14 +104,15 @@
 			}
 			host = mobileEl.parentNode ? 'mobile-icon' : 'none';
 		} else {
-			// Desktop: Chip in den ersten SICHTBAREN Host; Mobil-Icon raus; Float NUR ohne sichtbaren Host.
+			// Desktop: Chip/Konto als SIBLING vor das sichtbare Such-Icon; Mobil-Icon raus. KEIN Float — findet sich
+			// kein sichtbares Such-Icon, wird NICHTS platziert (der Float war die Ursache des „Anmelden"-Pills).
 			removeNode(mobileEl);
 			if (!desktopEl.parentNode) {
-				var h = firstVisibleHost();
-				if (h) { desktopEl.classList.remove('m24lg-acct--float'); desktopEl.classList.add('m24lg-acct--inhdr'); h.appendChild(desktopEl); host = 'inhdr'; }
-				else { desktopEl.classList.remove('m24lg-acct--inhdr'); desktopEl.classList.add('m24lg-acct--float'); document.body.appendChild(desktopEl); host = 'float'; }
+				var anchor = desktopSearchAnchor();
+				if (anchor && anchor.parentNode) { desktopEl.classList.add('m24lg-acct--inhdr'); anchor.parentNode.insertBefore(desktopEl, anchor); host = 'inhdr'; }
+				else { host = 'none'; }
 			} else {
-				host = desktopEl.classList.contains('m24lg-acct--float') ? 'float' : 'inhdr';
+				host = 'inhdr';
 			}
 		}
 		loginDbgBadge(host);

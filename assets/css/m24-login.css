@@ -17,7 +17,9 @@
 .m24lg-micon svg,.m24lg-micon svg path,.m24lg-micon svg circle{fill:none!important;stroke:#fff!important}
 .m24lg-micon:hover{opacity:.75}
 .m24lg-micon,.m24lg-micon:hover,.m24lg-micon:focus{text-decoration:none}
-/* Lösung A: eingeloggt = dasselbe Icon gefüllt + blauer Statuspunkt (identische 24×24-Box → kein Header-Sprung) */
+/* Lösung A: eingeloggt = dasselbe Icon gefüllt + blauer Statuspunkt (identische 24×24-Box → kein Header-Sprung).
+   WICHTIG: Diese Filled-Regel hat DIESELBE Spezifität wie die Outline-Regel oben (fill:none!important) und gewinnt
+   NUR durch die Quellreihenfolge → muss IMMER NACH der Outline-Regel stehen. Nicht davor umsortieren. */
 .m24lg-micon--in svg,.m24lg-micon--in svg path,.m24lg-micon--in svg circle{fill:#fff!important;stroke:none!important}
 .m24lg-micon--in{position:relative}
 .m24lg-micon--in::after{content:"";position:absolute;right:-1px;top:-1px;width:7px;height:7px;border-radius:50%;background:#1f74c4;border:1.5px solid #0d0d0d}
