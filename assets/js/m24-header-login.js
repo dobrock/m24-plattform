@@ -70,6 +70,8 @@
 	}
 	function place() {
 		if (placed) { return; }
+		// Mobil injiziert m24-header-login.js NICHTS in den Header — dort liefert m24-login.js das einzige Icon (.m24lg-micon).
+		if (mobileHeaderActive()) { return; }
 		var el = acct;
 		// (1) Desktop: als SIBLING VOR den sichtbaren Desktop-Such-Button (gleiche Header-Actions-Zeile, Navi-Höhe).
 		var icon = visibleSearchIcon();

@@ -30,53 +30,114 @@
 		return wrap;
 	}
 
-	function place(el) {
-		// tagDiv-Header-Actions (rechts, neben Suche). Mehrere Selektoren, erster Treffer gewinnt.
-		var host = document.querySelector('.td-header-menu-social, .tdb-header-align .tdb-block-inner, .td-header-sp-top-menu, .top-header-menu');
-		if (!host) {
-			// Fallback: fixe Ecke oben rechts, damit das Element nie ganz fehlt.
-			el.classList.add('m24lg-acct--float');
-			document.body.appendChild(el);
-			return;
-		}
-		el.classList.add('m24lg-acct--inhdr');
-		host.appendChild(el);
+	/* ── Sichtbarkeits-Gating (analog m24-langswitch.js): mobil ⇒ NUR Icon, desktop ⇒ Chip; kein Float im mobilen Balken. ── */
+	function isVisible(el) { return !!el && (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)); }
+	function mobileHeaderActive() {
+		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
+		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || isVisible(document.querySelector('.tdb_mobile_search')));
 	}
-
-	var trigger = buildTrigger();
-	place(trigger);
-
-	/* ── b) Mobiler Header: dezentes Person-Umriss-Icon LINKS neben der Lupe (nur ausgeloggt).
-	   Der Desktop-Text-Pill bleibt unverändert; auf Mobil ersetzt dieses Icon den „Anmelden"-Button. ── */
-	var PERSON_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20c0-3.6 3.4-5.6 7-5.6s7 2 7 5.6"></path></svg>';
-	// Ziel = die INLINE Lupe (der Button/Span), NICHT der äußere .tdb_mobile_search-Block (sonst Block-Umbruch).
-	function visibleLupe() {
-		var n, nodes, i, j;
-		// Bevorzugt der Button-Span selbst.
-		nodes = document.querySelectorAll('.tdb-header-search-button-mob');
-		for (i = 0; i < nodes.length; i++) { n = nodes[i]; if (n && n.offsetParent !== null) { return n; } }
-		// Sonst das Lupen-Icon (<i>) → auf seinen Button/Span hochbrechen.
-		nodes = document.querySelectorAll('.tdb-mobile-search-icon, .td-header-mobile-wrap .td-icon-search, .td-mobile-content .td-icon-search');
-		for (j = 0; j < nodes.length; j++) {
-			n = nodes[j];
-			if (n && n.offsetParent !== null) { return n.closest('.tdb-header-search-button-mob') || n.parentNode || n; }
+	// Desktop-Host: ERSTER SICHTBARER Treffer gewinnt (nicht der erste existierende).
+	var DESKTOP_HOSTS = ['.td-header-menu-social', '.tdb-header-align .tdb-block-inner', '.td-header-sp-top-menu', '.top-header-menu'];
+	function firstVisibleHost() {
+		for (var i = 0; i < DESKTOP_HOSTS.length; i++) {
+			var nodes = document.querySelectorAll(DESKTOP_HOSTS[i]);
+			for (var j = 0; j < nodes.length; j++) { if (isVisible(nodes[j])) { return nodes[j]; } }
 		}
 		return null;
 	}
-	var placedMobile = false;
-	function placeMobileIcon() {
-		if (placedMobile || cfg.loggedIn) { return; } // nur der ausgeloggte „Login"-Zustand wird zum Icon
-		var lupe = visibleLupe(); if (!lupe || !lupe.parentNode) { return; }
-		if (lupe.parentNode.querySelector('.m24lg-micon')) { placedMobile = true; return; } // Dedup im selben Inline-Container
-		var btn = document.createElement('button');
-		btn.type = 'button'; btn.className = 'm24lg-micon'; btn.setAttribute('data-m24lg-open', ''); btn.setAttribute('aria-label', 'Anmelden');
-		btn.innerHTML = PERSON_SVG;
-		lupe.parentNode.insertBefore(btn, lupe); // inline direkt LINKS neben der Lupe (gleiche Zeile)
-		placedMobile = true;
+	function removeNode(el) { if (el && el.parentNode) { el.parentNode.removeChild(el); } }
+
+	// Personen-Icon (mobil, BEIDE Zustände, identische 24×24-Box → kein Header-Sprung beim Login/Logout).
+	var PERSON_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20c0-3.6 3.4-5.6 7-5.6s7 2 7 5.6"></path></svg>';
+	function buildMobileIcon() {
+		var el;
+		if (cfg.loggedIn) {
+			// Eingeloggt: gefülltes Icon + Statuspunkt, direkter Link in die Garage (kein Modal).
+			el = document.createElement('a');
+			el.href = cfg.garageUrl || '/meine-garage/';
+			el.className = 'm24lg-micon m24lg-micon--in';
+			el.setAttribute('aria-label', 'Meine Garage');
+		} else {
+			// Ausgeloggt: Umriss-Icon, öffnet das Login-Modal (delegierter data-m24lg-open-Klick).
+			el = document.createElement('button');
+			el.type = 'button';
+			el.className = 'm24lg-micon';
+			el.setAttribute('data-m24lg-open', '');
+			el.setAttribute('aria-label', 'Anmelden');
+		}
+		el.innerHTML = PERSON_SVG;
+		return el;
 	}
-	placeMobileIcon();
-	var mtries = 0;
-	var miv = setInterval(function () { mtries++; if (!placedMobile) { placeMobileIcon(); } if (placedMobile || mtries >= 8) { clearInterval(miv); } }, 350);
+	// Ziel = die INLINE Lupe (Button/Span), NICHT der äußere .tdb_mobile_search-Block (sonst Block-Umbruch).
+	function visibleLupe() {
+		var n, nodes, i, j;
+		nodes = document.querySelectorAll('.tdb-header-search-button-mob');
+		for (i = 0; i < nodes.length; i++) { n = nodes[i]; if (isVisible(n)) { return n; } }
+		nodes = document.querySelectorAll('.tdb-mobile-search-icon, .td-header-mobile-wrap .td-icon-search, .td-mobile-content .td-icon-search');
+		for (j = 0; j < nodes.length; j++) { n = nodes[j]; if (isVisible(n)) { return n.closest('.tdb-header-search-button-mob') || n.parentNode || n; } }
+		return null;
+	}
+
+	var desktopEl = buildTrigger(); // Desktop-Chip/Konto-Button
+	var mobileEl  = buildMobileIcon(); // Mobil-Icon (beide Zustände)
+
+	// Autoritative Entscheidung — jederzeit erneut aufrufbar (Race-fest). tagDiv baut den Header async nach.
+	function evaluate() {
+		var host = 'none';
+		if (mobileHeaderActive()) {
+			// Mobil: NUR das Icon neben der Lupe. Desktop-Chip nie im mobilen Header, nie Float.
+			removeNode(desktopEl);
+			if (!mobileEl.parentNode) {
+				var lupe = visibleLupe();
+				if (lupe && lupe.parentNode && !lupe.parentNode.querySelector('.m24lg-micon')) {
+					lupe.parentNode.insertBefore(mobileEl, lupe);
+				}
+			}
+			host = mobileEl.parentNode ? 'mobile-icon' : 'none';
+		} else {
+			// Desktop: Chip in den ersten SICHTBAREN Host; Mobil-Icon raus; Float NUR ohne sichtbaren Host.
+			removeNode(mobileEl);
+			if (!desktopEl.parentNode) {
+				var h = firstVisibleHost();
+				if (h) { desktopEl.classList.remove('m24lg-acct--float'); desktopEl.classList.add('m24lg-acct--inhdr'); h.appendChild(desktopEl); host = 'inhdr'; }
+				else { desktopEl.classList.remove('m24lg-acct--inhdr'); desktopEl.classList.add('m24lg-acct--float'); document.body.appendChild(desktopEl); host = 'float'; }
+			} else {
+				host = desktopEl.classList.contains('m24lg-acct--float') ? 'float' : 'inhdr';
+			}
+		}
+		loginDbgBadge(host);
+	}
+
+	// Debug-Badge nur bei ?m24dbg=1 (eigenes Feld rechts-unten, überlagert den langswitch-Badge nicht).
+	function loginDbgBadge(host) {
+		var on = false; try { on = new URLSearchParams(location.search).get('m24dbg') === '1'; } catch (e) {}
+		var box = document.getElementById('m24dbg-login');
+		if (!on) { removeNode(box); return; }
+		if (!box) {
+			box = document.createElement('div');
+			box.id = 'm24dbg-login';
+			box.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.82);color:#fff;font:11px/1.4 monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none';
+			(document.body || document.documentElement).appendChild(box);
+		}
+		function vcount(sel) { var n = document.querySelectorAll(sel), c = 0; for (var i = 0; i < n.length; i++) { if (isVisible(n[i])) { c++; } } return c; }
+		box.textContent = [
+			'loggedIn=' + !!cfg.loggedIn,
+			'host=' + host,
+			'chip=' + vcount('.m24lg-chip'),
+			'float=' + vcount('.m24lg-acct--float'),
+			'micon=' + vcount('.m24lg-micon'),
+			'lgAcct=' + vcount('.m24lg-acct'),
+			'hlAcct=' + vcount('.m24hl-acct'),
+			'themeLogin=' + vcount('.td-menu-login, .tdb-header-login')
+		].join('\n');
+	}
+
+	evaluate();
+	var tries = 0;
+	var iv = setInterval(function () { tries++; evaluate(); if (tries >= 8) { clearInterval(iv); } }, 300);
+	window.addEventListener('load', evaluate);
+	var rz;
+	window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(evaluate, 150); });
 
 	/* ── Modal öffnen/schließen (Focus-Trap, ESC, Overlay-Klick) ── */
 	var lastFocus = null;

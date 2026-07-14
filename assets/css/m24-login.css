@@ -16,8 +16,15 @@
 /* Farbe/Füllung hart absichern gegen Theme-Blau/-Fill (kein currentColor-Erben) */
 .m24lg-micon svg,.m24lg-micon svg path,.m24lg-micon svg circle{fill:none!important;stroke:#fff!important}
 .m24lg-micon:hover{opacity:.75}
+.m24lg-micon,.m24lg-micon:hover,.m24lg-micon:focus{text-decoration:none}
+/* Lösung A: eingeloggt = dasselbe Icon gefüllt + blauer Statuspunkt (identische 24×24-Box → kein Header-Sprung) */
+.m24lg-micon--in svg,.m24lg-micon--in svg path,.m24lg-micon--in svg circle{fill:#fff!important;stroke:none!important}
+.m24lg-micon--in{position:relative}
+.m24lg-micon--in::after{content:"";position:absolute;right:-1px;top:-1px;width:7px;height:7px;border-radius:50%;background:#1f74c4;border:1.5px solid #0d0d0d}
 /* Redundanten „Anmelden"-Pill nie im mobilen Header zeigen (falls er dort landet) */
 .td-header-mobile-wrap .m24lg-acct,#td-mobile-nav .m24lg-acct,.td-mobile-content .m24lg-acct{display:none!important}
+/* Sicherheitsnetz gegen JS-Races: im mobilen Header nie ein Float-Pill */
+@media (max-width:1018px){.m24lg-acct--float{display:none!important}}
 .m24lg-acct--float .m24lg-chip{border-color:#1f74c4;color:#1f74c4;background:#fff;box-shadow:0 2px 8px rgba(10,12,16,.18)}
 
 /* Eingeloggt: Messing-Avatar + „Mein Konto" ▾ */
