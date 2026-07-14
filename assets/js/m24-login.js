@@ -77,14 +77,26 @@
 		el.innerHTML = PERSON_SVG;
 		return el;
 	}
-	// Ziel = die INLINE Lupe (Button/Span), NICHT der äußere .tdb_mobile_search-Block (sonst Block-Umbruch).
+	// Anker für das Mobil-Icon = die SICHTBARE Lupe. Diese Site hat KEINEN klassischen tagDiv-Mobil-Header
+	// (.tdb-header-search-button-mob/.tdb_mobile_search/.td-header-mobile-wrap sind auf allen Viewports unsichtbar) —
+	// sichtbar ist auf Mobil wie Desktop dasselbe Cloud-Library-Element .tdb-head-search-btn in .tdb_header_search.
+	// Darum gemeinsame Anker-Liste (Mobil-Klassen zuerst, dann der Cloud-Library-Fall), erster SICHTBARER gewinnt.
+	var SEARCH_ANCHORS = ['.tdb-header-search-button-mob', '.tdb-mobile-search-icon', '.tdb-head-search-btn', '.tdb-search-icon', '.tdb_header_search a', '.td-icon-search'];
 	function visibleLupe() {
-		var n, nodes, i, j;
-		nodes = document.querySelectorAll('.tdb-header-search-button-mob');
-		for (i = 0; i < nodes.length; i++) { n = nodes[i]; if (isVisible(n)) { return n; } }
-		nodes = document.querySelectorAll('.tdb-mobile-search-icon, .td-header-mobile-wrap .td-icon-search, .td-mobile-content .td-icon-search');
-		for (j = 0; j < nodes.length; j++) { n = nodes[j]; if (isVisible(n)) { return n.closest('.tdb-header-search-button-mob') || n.parentNode || n; } }
-		return null;
+		for (var i = 0; i < SEARCH_ANCHORS.length; i++) {
+			var nodes = document.querySelectorAll(SEARCH_ANCHORS[i]);
+			for (var j = 0; j < nodes.length; j++) {
+				var cand = nodes[j];
+				if (!isVisible(cand)) { continue; }
+				// <i>-Treffer (.tdb-search-icon/.td-icon-search) auf den äußeren klickbaren Button auflösen — sonst
+				// landet das Icon IN den Such-Button statt daneben.
+				var anchor = (cand.closest && cand.closest('.tdb-head-search-btn, .tdb-header-search-button-mob')) || cand;
+				if (!anchor || !anchor.parentNode) { continue; }
+				if (anchor.closest && anchor.closest('.tdb_header_logo')) { continue; } // nie in den Logo-Block
+				return anchor;
+			}
+		}
+		return null; // kein sichtbarer Anker → nichts platzieren (kein Float)
 	}
 
 	var desktopEl = buildTrigger(); // Desktop-Chip/Konto-Button
@@ -133,6 +145,7 @@
 		box.textContent = [
 			'loggedIn=' + !!cfg.loggedIn,
 			'host=' + host,
+			'anchor=' + (visibleLupe() ? 'gefunden' : 'none'),
 			'chip=' + vcount('.m24lg-chip'),
 			'float=' + vcount('.m24lg-acct--float'),
 			'micon=' + vcount('.m24lg-micon'),
@@ -143,8 +156,9 @@
 	}
 
 	evaluate();
+	// tagDiv baut den Header asynchron auf (u. a. verschiebt die WP-Adminleiste das Layout) → länger nachfassen.
 	var tries = 0;
-	var iv = setInterval(function () { tries++; evaluate(); if (tries >= 8) { clearInterval(iv); } }, 300);
+	var iv = setInterval(function () { tries++; evaluate(); if (tries >= 15) { clearInterval(iv); } }, 250);
 	window.addEventListener('load', evaluate);
 	var rz;
 	window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(evaluate, 150); });
