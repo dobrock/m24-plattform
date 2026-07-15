@@ -120,7 +120,7 @@ class M24_Offers_Render {
 	private static function ol( string $lang, string $form = 'sie' ): array {
 		$sie = ( 'du' !== $form ); // DE-Anredeform pro Angebot; EN kennt kein du/sie (bleibt unverändert)
 		$de = array(
-			'hello' => 'Hallo', 'intro' => $sie ? 'vielen Dank für Ihre Anfrage. Hier ist unser verbindliches Angebot:' : 'vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:', 'valid' => 'gültig bis',
+			'hello' => 'Hallo', 'intro' => $sie ? 'vielen Dank für die Anfrage. Gerne übersenden wir Ihnen das nachfolgende, verbindliche Angebot:' : 'vielen Dank für die Anfrage. Gerne übersenden wir dir das nachfolgende, verbindliche Angebot:', 'valid' => 'gültig bis',
 			'valid_line' => 'Gültig bis %1$s — noch %2$d Tag%3$s', 'cta_sub' => 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt',
 			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
 			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
@@ -1005,7 +1005,9 @@ class M24_Offers_Render {
 		}
 		foreach ( $extras as $ex ) {
 			if ( empty( $ex['on'] ) ) { continue; }
-			$rows .= '<tr><td style="padding:6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
+			// Nebenkosten: Label spannt über Thumbnail- + Titel-Spalte (volle Breite, einzeilig, nicht in die schmale
+			// Spalte gequetscht); Betrag rechtsbündig in DERSELBEN Preisspalte wie die Artikelpreise (colspan wg. Thumb).
+			$rows .= '<tr><td colspan="2" style="padding:6px 12px 6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;white-space:nowrap;color:#5a6474;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
 		}
 
 		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( sprintf( $L['valid_line'], $vu, $mdays, $mplural ) ) . '</p>' : '';
