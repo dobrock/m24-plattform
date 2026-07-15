@@ -1520,6 +1520,10 @@ class M24_Garage_Cart {
 					<p class="m24gt-nudge" data-m24gt-nudge hidden>Deine Garage ist <b>temporär</b> gespeichert. <a data-m24gt-login href="#">Einloggen / registrieren</a>, um sie dauerhaft zu sichern.</p>
 					<div class="m24gt-sumrow"><span>Gesamt inkl. 19&nbsp;% MwSt</span><b data-m24gt-sum>0,00&nbsp;€</b></div>
 					<a class="m24gt-btn m24gt-btn-blue" data-m24gt-cta-garage href="<?php echo esc_url( self::page_url() ); ?>">Zur Garage</a>
+					<?php // Nur Operatoren (serverseitiges Gate, gleiche Logik wie der „Angebot erstellen"-Swap): Link zur Angebotsübersicht.
+					if ( class_exists( 'M24_Garage_Offer_Bridge' ) && M24_Garage_Offer_Bridge::is_operator() ) : ?>
+					<a class="m24gt-btn m24gt-btn-ghost" href="<?php echo esc_url( admin_url( 'admin.php?page=m24-offers' ) ); ?>">Angebotsübersicht</a>
+					<?php endif; ?>
 					<a class="m24gt-btn m24gt-btn-ghost" data-m24gt-cta-inquire href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
 					<button type="button" class="m24gt-btn m24gt-btn-share" data-m24gt-share hidden>Garage teilen (7 Tage)</button>
 					<div class="m24gt-sharebox" data-m24gt-sharebox hidden><input type="text" readonly data-m24gt-shareurl><button type="button" data-m24gt-copy>Kopieren</button></div>

@@ -49,12 +49,27 @@ class M24_Offers {
 		add_action( 'm24_offer_sent', array( __CLASS__, 'push_to_desk' ) );
 		// Admin-Angebotsliste (Übersicht + Reopen-Links).
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 20 );
+		// NUR auf der Angebote-Seite: plugin-fremde Admin-Notices abräumen (WPBakery-„Security release", Core-Nags …).
+		add_action( 'in_admin_header', array( __CLASS__, 'suppress_foreign_admin_notices' ) );
 	}
 
 	/* ── Admin-Angebotsliste ────────────────────────────────────────────── */
 
 	public static function admin_menu() {
 		add_submenu_page( 'm24-plattform', 'Angebote', 'Angebote', 'manage_options', 'm24-offers', array( __CLASS__, 'render_admin_list' ) );
+	}
+
+	/**
+	 * Fremde Admin-Notices AUSSCHLIESSLICH auf admin.php?page=m24-offers unterdrücken. M24-eigene Meldungen
+	 * (z. B. „Angebot … gelöscht") laufen NICHT über diese Hooks — render_admin_list echot sie inline in den
+	 * Seiteninhalt → sie bleiben erhalten. Läuft vor der Notice-Ausgabe (in_admin_header) und nur auf dieser Seite.
+	 */
+	public static function suppress_foreign_admin_notices() {
+		if ( ! is_admin() || empty( $_GET['page'] ) || 'm24-offers' !== $_GET['page'] ) { return; } // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		remove_all_actions( 'admin_notices' );
+		remove_all_actions( 'all_admin_notices' );
+		remove_all_actions( 'network_admin_notices' );
+		remove_all_actions( 'user_admin_notices' );
 	}
 
 	/** Operator-Modal mit dem Kontext eines bestehenden Angebots vorbefüllt wieder öffnen (Re-Quote). */
