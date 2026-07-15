@@ -11,7 +11,7 @@
 .m24lg-chip:hover{border-color:#fff;background:rgba(255,255,255,.10)}
 .m24lg-chip-i{font-size:9px;line-height:1}
 /* b) Mobiler Header: Person-Umriss-Icon INLINE dicht links neben der Lupe — rein weiß, ohne Füllung */
-.m24lg-micon{color:#fff!important;position:relative;top:-5px;left:13px;display:inline-flex;align-items:center;vertical-align:middle;padding:0;margin:0 4px 0 0;background:none;border:0;cursor:pointer;line-height:1}
+.m24lg-micon{color:#fff!important;position:relative;display:inline-flex;align-items:center;vertical-align:middle;padding:0;margin:0 10px 0 0;background:none;border:0;cursor:pointer;line-height:1}
 .m24lg-micon svg{width:24px;height:24px;transform-origin:right bottom}
 /* Farbe/Füllung hart absichern gegen Theme-Blau/-Fill (kein currentColor-Erben) */
 .m24lg-micon svg,.m24lg-micon svg path,.m24lg-micon svg circle{fill:none!important;stroke:#fff!important}
