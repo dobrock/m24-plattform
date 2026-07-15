@@ -783,6 +783,9 @@ class M24_Offers_Render {
 				// Schritt 2 (bzw. Gast ohne Formular): senden.
 				submitAccept();
 			}); }
+			// Rückkehr nach Magic-Link-Login (?accept=1) + eingeloggt & E-Mail-Match (addrEl vorhanden) → Adressformular
+			// SOFORT einblenden (Annahme nahtlos fortsetzen, keine erneute Login-/Mismatch-Wand).
+			if(acc && addrEl && !formRevealed && /[?&]accept=1(?:&|$)/.test(location.search)){ acc.click(); }
 			if(box && !box.hidden){ renderBank(); } // bereits angenommenes Angebot: Bankdaten direkt anzeigen
 			function row(label,val,copy){
 				return '<div class="m24off-payrow"><span>'+esc(label)+'</span><strong'+(copy?' class="m24off-copy" data-copy="'+esc(val)+'" role="button" tabindex="0" title="Antippen zum Kopieren"':'')+'>'+esc(val)+(copy?' <em class="m24off-copyhint">'+esc(BLBL.copy)+'</em>':'')+'</strong></div>';

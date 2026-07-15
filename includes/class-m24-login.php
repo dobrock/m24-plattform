@@ -52,7 +52,7 @@ class M24_Login {
 	 * Guest-Registrierung aus dem Anfrage-Modal: WP-User (customer/subscriber) OHNE Passwort anlegen (falls
 	 * neu) + ersten Magic-Link schicken. Unabhängig vom UI-Flag. @return bool true = Link verschickt.
 	 */
-	public static function create_account_and_send_link( string $email, string $name = '', bool $newsletter_optin = false ): bool {
+	public static function create_account_and_send_link( string $email, string $name = '', bool $newsletter_optin = false, string $redirect_to = '' ): bool {
 		$email = strtolower( sanitize_email( $email ) );
 		if ( ! is_email( $email ) ) { return false; }
 
@@ -97,7 +97,7 @@ class M24_Login {
 		}
 
 		$raw = M24_B2B::issue_token( $email, self::PURPOSE, $user_id, self::TTL );
-		self::send_login_mail( $email, $raw );
+		self::send_login_mail( $email, $raw, $redirect_to );
 		self::log( 'register:link_sent', $user_id );
 		return true;
 	}
@@ -151,9 +151,13 @@ class M24_Login {
 		self::log( 'verify:ok', $uid );
 
 		$dest = $is_admin ? admin_url() : self::garage_url();
-		// Rückkehr-Ziel überschreibbar (z. B. Angebots-Annahme → zurück auf ?m24_angebot={token}). wp_safe_redirect
-		// erzwingt Same-Host → keine Open-Redirects. Nicht-Admins nur; Admin bleibt beim Admin-Dashboard.
-		if ( ! $is_admin ) { $dest = (string) apply_filters( 'm24_login_verify_dest', $dest, $uid ); }
+		// Rückkehr-Ziel (Nicht-Admin): PRIMÄR aus dem Link selbst (?rt=, an genau diesen Klick gebunden), SEKUNDÄR
+		// über den Filter (User-Meta-Fallback). Beides Same-Host-geprüft; wp_safe_redirect erzwingt es zusätzlich.
+		if ( ! $is_admin ) {
+			$rt = isset( $_GET['rt'] ) ? esc_url_raw( wp_unslash( (string) $_GET['rt'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( '' !== $rt && wp_parse_url( $rt, PHP_URL_HOST ) === wp_parse_url( home_url(), PHP_URL_HOST ) ) { $dest = $rt; }
+			$dest = (string) apply_filters( 'm24_login_verify_dest', $dest, $uid );
+		}
 		wp_safe_redirect( $dest );
 		exit;
 	}
@@ -239,8 +243,11 @@ class M24_Login {
 		return hash( 'sha256', ( isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '' ) . wp_salt( 'auth' ) );
 	}
 
-	private static function send_login_mail( string $email, string $raw ): void {
+	private static function send_login_mail( string $email, string $raw, string $redirect_to = '' ): void {
 		$url  = home_url( '/m24-login/' . rawurlencode( $raw ) . '/' ); // Token NUR im Pfad, nie geloggt
+		// Rückkehr-Ziel FEST am Link (robust, an genau diesen Klick gebunden — kein Verlass auf mutable User-Meta).
+		// wp_safe_redirect im Verify erzwingt Same-Host → kein Open-Redirect.
+		if ( '' !== $redirect_to ) { $url = add_query_arg( 'rt', rawurlencode( $redirect_to ), $url ); }
 		$btn  = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:13px 28px;border-radius:8px;font-size:15px;">Jetzt anmelden</a></p>';
 		$inner = '<p style="margin:0 0 14px;">Hallo,</p>'
 			. '<p style="margin:0 0 14px;">klicke auf den Button, um dich bei MOTORSPORT24 anzumelden. Der Link ist einmalig gültig und läuft nach kurzer Zeit ab.</p>'
