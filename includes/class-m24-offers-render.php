@@ -623,6 +623,7 @@ class M24_Offers_Render {
 				<?php if ( 'offen' === $status ) : ?>
 					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used, self::offer_lang( $o ) ) ); ?></span></label>
 					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled><?php echo esc_html( $L['accept'] ); ?></button>
+					<p class="m24off-acceptmsg" data-accept-msg role="status" hidden></p>
 				<?php else : ?>
 					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
 				<?php endif; ?>
@@ -678,13 +679,35 @@ class M24_Offers_Render {
 					+row(BLBL.ref,BANK.zweck,true);
 				box.hidden=false; box.scrollIntoView({behavior:'smooth',block:'nearest'});
 			}
+			var ACCEPT_URL='<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/accept' ) ); ?>';
+			var LOGIN_URL='<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/request-login' ) ); ?>';
+			var NONCE='<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>', TOKEN='<?php echo esc_js( $token ); ?>';
+			var ACCEPT_LABEL=<?php echo wp_json_encode( (string) $L['accept'] ); ?>;
+			<?php $en_view2 = ( 'en' === self::offer_lang( $o ) ); ?>
+			var MSG=<?php echo wp_json_encode( array(
+				'login'   => $en_view2 ? 'Please log in to accept — we\'ve sent a login link to your email.' : 'Bitte zum Annehmen einloggen — wir haben dir einen Login-Link an deine E-Mail geschickt.',
+				'sent'    => $en_view2 ? 'We\'ve sent you a login link. Open it to accept this offer.' : 'Wir haben dir einen Login-Link an deine E-Mail geschickt. Öffne ihn, um das Angebot anzunehmen.',
+				'mismatch'=> $en_view2 ? 'This offer can only be accepted from the account of the email it was sent to.' : 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.',
+				'err'     => $en_view2 ? 'That didn\'t work. Please try again later.' : 'Das hat nicht geklappt. Bitte versuche es später erneut.',
+			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
+			var msgEl=document.querySelector('[data-accept-msg]');
+			function setMsg(txt,ok){ if(!msgEl){return;} msgEl.hidden=false; msgEl.textContent=txt; msgEl.className='m24off-acceptmsg '+(ok?'is-ok':'is-error'); }
+			function reqLogin(){ return fetch(LOGIN_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify({token:TOKEN})}).then(function(r){return r.json();}); }
 			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
 			if(acc&&box){ acc.addEventListener('click',function(){
 				if(acc.disabled) return;
 				acc.disabled=true; acc.textContent=BLBL.accepting;
-				var finish=function(){ if(acc.parentNode){acc.style.display='none';} renderBank(); };
-				fetch('<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/accept' ) ); ?>',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':'<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'},body:JSON.stringify({token:'<?php echo esc_js( $token ); ?>'})})
-					.then(function(r){return r.json();}).then(finish).catch(finish); // Bankdaten auch bei Fehler zeigen (Annahme ist Signal für Daniel, kein Zahlungs-Gate)
+				fetch(ACCEPT_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify({token:TOKEN})})
+					.then(function(r){ return r.json().then(function(d){ return {status:r.status,d:d}; }, function(){ return {status:r.status,d:{}}; }); })
+					.then(function(res){
+						if(200===res.status && res.d && res.d.ok){ if(acc.parentNode){acc.style.display='none';} renderBank(); return; }
+						if(401===res.status){ // Teil 2: nicht eingeloggt → Magic-Link an die Angebots-E-Mail
+							return reqLogin().then(function(d2){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg((d2&&d2.ok)?MSG.sent:MSG.err,!!(d2&&d2.ok)); });
+						}
+						acc.disabled=false; acc.textContent=ACCEPT_LABEL;
+						setMsg(403===res.status?MSG.mismatch:((res.d&&(res.d.message||res.d.error))||MSG.err),false);
+					})
+					.catch(function(){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg(MSG.err,false); });
 			}); }
 			if(box && !box.hidden){ renderBank(); } // bereits angenommenes Angebot: Bankdaten direkt anzeigen
 			function row(label,val,copy){

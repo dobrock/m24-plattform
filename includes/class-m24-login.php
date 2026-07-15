@@ -151,6 +151,9 @@ class M24_Login {
 		self::log( 'verify:ok', $uid );
 
 		$dest = $is_admin ? admin_url() : self::garage_url();
+		// Rückkehr-Ziel überschreibbar (z. B. Angebots-Annahme → zurück auf ?m24_angebot={token}). wp_safe_redirect
+		// erzwingt Same-Host → keine Open-Redirects. Nicht-Admins nur; Admin bleibt beim Admin-Dashboard.
+		if ( ! $is_admin ) { $dest = (string) apply_filters( 'm24_login_verify_dest', $dest, $uid ); }
 		wp_safe_redirect( $dest );
 		exit;
 	}

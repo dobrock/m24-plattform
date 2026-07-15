@@ -434,10 +434,21 @@ class M24_Offers {
 		}
 		$o = self::get_by_token( (string) $req->get_param( 'token' ) );
 		if ( ! $o ) { return new WP_Error( 'm24off_nf', 'Angebot nicht gefunden.', array( 'status' => 404 ) ); }
+		// Teil 1: KEINE Gastannahme mehr. Verbindliche Annahme (= Kaufvertrag) nur mit eingeloggtem Nutzer, dessen
+		// E-Mail der Angebots-Kunden-E-Mail entspricht (schützt gegen Annahme über weitergeleitete Links).
+		if ( ! is_user_logged_in() ) {
+			return new WP_Error( 'm24off_login', 'Bitte zuerst einloggen, um das Angebot anzunehmen.', array( 'status' => 401 ) );
+		}
+		if ( class_exists( 'M24_Offer_Accept' ) && ! M24_Offer_Accept::may_accept( $o ) ) {
+			return new WP_Error( 'm24off_mismatch', 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.', array( 'status' => 403 ) );
+		}
 		// Nur ein offenes Angebot annehmen (idempotent, wenn bereits angenommen). Zahlung bestätigt Daniel im Desk.
 		if ( 'offen' === (string) $o->status ) {
 			global $wpdb;
-			$wpdb->update( self::table(), array( 'status' => 'angenommen' ), array( 'id' => (int) $o->id ) );
+			$acc = get_current_user_id();
+			$row = array( 'status' => 'angenommen' );
+			if ( (int) $o->account_id <= 0 && $acc > 0 ) { $row['account_id'] = $acc; } // Auftrag ans annehmende Konto binden
+			$wpdb->update( self::table(), $row, array( 'id' => (int) $o->id ) );
 			self::log( 'accepted', (int) $o->id, (string) $o->offer_no );
 			if ( class_exists( 'M24_Error_Log' ) ) {
 				M24_Error_Log::capture( 'offer_accept', 'info', 'Angebot vom Kunden angenommen', array( 'offer_no' => (string) $o->offer_no ) );
