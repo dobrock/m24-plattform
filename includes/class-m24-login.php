@@ -52,7 +52,7 @@ class M24_Login {
 	 * Guest-Registrierung aus dem Anfrage-Modal: WP-User (customer/subscriber) OHNE Passwort anlegen (falls
 	 * neu) + ersten Magic-Link schicken. Unabhängig vom UI-Flag. @return bool true = Link verschickt.
 	 */
-	public static function create_account_and_send_link( string $email, string $name = '', bool $newsletter_optin = false, string $redirect_to = '' ): bool {
+	public static function create_account_and_send_link( string $email, string $name = '', bool $newsletter_optin = false, string $redirect_to = '', string $signup_source = 'magic_link' ): bool {
 		$email = strtolower( sanitize_email( $email ) );
 		if ( ! is_email( $email ) ) { return false; }
 
@@ -83,6 +83,8 @@ class M24_Login {
 			) );
 			if ( is_wp_error( $uid ) ) { self::log( 'register:insert_failed' ); return false; }
 			$user_id = (int) $uid;
+			// Herkunft NUR bei echter Neuanlage festschreiben (Bestandskonten behalten ihre — ggf. leere — Quelle).
+			if ( class_exists( 'M24_User_Activity' ) ) { M24_User_Activity::set_source( $user_id, $signup_source ); }
 			self::log( 'register:created', $user_id );
 		}
 
@@ -148,6 +150,7 @@ class M24_Login {
 
 		wp_set_auth_cookie( $uid, true );
 		delete_user_meta( $uid, '_m24_doi_pending' ); // DOI bestätigt → aus dem Claim-Stub wird ein echtes Konto (Garage-Karte)
+		if ( class_exists( 'M24_User_Activity' ) ) { M24_User_Activity::mark_login( $uid ); } // Last-Login (kein wp_login-Event bei Magic-Link)
 		self::log( 'verify:ok', $uid );
 
 		$dest = $is_admin ? admin_url() : self::garage_url();

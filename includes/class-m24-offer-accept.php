@@ -75,7 +75,7 @@ class M24_Offer_Accept {
 		// Rückkehr-Ziel = diese Angebotsseite + accept=1 (der Client setzt nach der Rückkehr sofort das Adressformular fort).
 		$return = add_query_arg( 'accept', '1', M24_Offers::view_url( (string) $o->token ) );
 		// PRIMÄR: Ziel FEST im Magic-Link (?rt=, an genau diesen Klick gebunden). SEKUNDÄR: User-Meta-Fallback.
-		$ok = M24_Login::create_account_and_send_link( $email, trim( (string) ( $cust['name'] ?? '' ) ), false, $return );
+		$ok = M24_Login::create_account_and_send_link( $email, trim( (string) ( $cust['name'] ?? '' ) ), false, $return, 'offer' );
 		if ( ! $ok ) { return new WP_Error( 'm24oa_send', 'Versand fehlgeschlagen. Bitte später erneut.', array( 'status' => 429 ) ); }
 		$u = get_user_by( 'email', $email );
 		if ( $u ) { update_user_meta( (int) $u->ID, self::RT_META, esc_url_raw( $return ) ); }
