@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.379
+ * Version:           0.11.380
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '017' );
+define( 'M24_PLATTFORM_DB_VERSION',  '018' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -150,6 +150,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-deepl.php';        // DeepL
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-offer-bridge.php'; // Garage → Angebot: Operator-Einstieg (manage_options)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        // Angebots-Annahme: Login-Gate + Magic-Link-Rückkehr (keine Gastannahme)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-address.php';       // Angebots-Annahme Teil 3/4: Adressformular + Validierung/VIES + Persistenz (Spalten + User-Meta)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)

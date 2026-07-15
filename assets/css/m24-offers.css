@@ -455,3 +455,16 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-gmstatus{font-size:12.5px;margin:12px 0 0;text-align:center}
 .m24off-gmstatus.is-ok{color:#1e7e46}
 .m24off-gmstatus.is-err{color:#c0392b}
+
+/* ── Angebots-Annahme: Adressformular (Teil 3/4) ── */
+.m24off-cust .m24off-addr{margin:0 0 14px}
+.m24off-cust .m24off-addr-h{font-size:14px;font-weight:800;margin:0 0 10px}
+.m24off-cust .m24off-af-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m24off-cust .m24off-af{display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.m24off-cust .m24off-af>span{color:#5a6474;font-weight:600}
+.m24off-cust .m24off-req{color:#c0392b}
+.m24off-cust .m24off-af input,.m24off-cust .m24off-af select{height:40px;padding:0 10px;border:1px solid #d3d8de;border-radius:8px;font-size:15px;background:#fff;font-family:inherit}
+.m24off-cust .m24off-af input:focus,.m24off-cust .m24off-af select:focus{outline:none;border-color:#1f74c4;box-shadow:0 0 0 3px rgba(31,116,196,.14)}
+.m24off-cust [data-af-field].is-err{border-color:#c0392b;box-shadow:0 0 0 3px rgba(192,57,43,.12)}
+.m24off-cust .m24off-addr-diff{margin:12px 0 0}
+@media(max-width:520px){.m24off-cust .m24off-af-grid{grid-template-columns:1fr}}

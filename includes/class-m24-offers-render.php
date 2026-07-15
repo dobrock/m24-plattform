@@ -654,6 +654,14 @@ class M24_Offers_Render {
 			<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
 			<!-- B/D: „Angebot annehmen" → Status angenommen (DB) + Bankdaten (erst nach Klick im DOM) -->
 			<section class="m24off-card m24off-gate">
+				<?php
+				// Teil 3/4: Adressformular NUR fuer eingeloggte Nutzer mit passender E-Mail (server-seitig). Gaeste sehen
+				// zuerst den Login-Trigger (Button -> 401 -> Magic-Link); nach Login laedt die Seite mit dem Formular.
+				$can_accept = ( 'offen' === $status ) && is_user_logged_in() && class_exists( 'M24_Offer_Accept' ) && M24_Offer_Accept::may_accept( $o );
+				if ( $can_accept && class_exists( 'M24_Offer_Address' ) ) {
+					echo M24_Offer_Address::render_form( $cust, M24_Offer_Address::prefill( get_current_user_id() ), self::offer_lang( $o ) ); // phpcs:ignore WordPress.Security.EscapeOutput
+				}
+				?>
 				<?php if ( 'offen' === $status ) : ?>
 					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used, self::offer_lang( $o ) ) ); ?></span></label>
 					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled><?php echo esc_html( $L['accept'] ); ?></button>
@@ -723,22 +731,34 @@ class M24_Offers_Render {
 				'sent'    => $en_view2 ? 'We\'ve sent you a login link. Open it to accept this offer.' : ( $sie2 ? 'Wir haben Ihnen einen Login-Link an Ihre E-Mail geschickt. Öffnen Sie ihn, um das Angebot anzunehmen.' : 'Wir haben dir einen Login-Link an deine E-Mail geschickt. Öffne ihn, um das Angebot anzunehmen.' ),
 				'mismatch'=> $en_view2 ? 'This offer can only be accepted from the account of the email it was sent to.' : ( $sie2 ? 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.' : 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.' ),
 				'err'     => $en_view2 ? 'That didn\'t work. Please try again later.' : ( $sie2 ? 'Das hat nicht geklappt. Bitte versuchen Sie es später erneut.' : 'Das hat nicht geklappt. Bitte versuche es später erneut.' ),
+				'addr'    => $en_view2 ? 'Please complete the highlighted billing-address fields.' : 'Bitte die markierten Felder der Rechnungsadresse vollständig ausfüllen.',
 			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
 			var msgEl=document.querySelector('[data-accept-msg]');
 			function setMsg(txt,ok){ if(!msgEl){return;} msgEl.hidden=false; msgEl.textContent=txt; msgEl.className='m24off-acceptmsg '+(ok?'is-ok':'is-error'); }
 			function reqLogin(){ return fetch(LOGIN_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify({token:TOKEN})}).then(function(r){return r.json();}); }
+			// Teil 3/4: „Lieferadresse abweichend" ein-/ausblenden.
+			var shipDiffEl=document.querySelector('[data-ship-diff]'), shipBlock=document.querySelector('[data-addr-shipping]');
+			if(shipDiffEl&&shipBlock){ shipDiffEl.addEventListener('change',function(){ shipBlock.hidden=!shipDiffEl.checked; }); }
+			// Adressblock aus den Feldern eines Scopes (bill|ship) einsammeln.
+			function collectBlock(scope){ var o={}, keys=['anrede','vorname','nachname','firma','ustid','strasse','plz','ort','land','telefon'];
+				keys.forEach(function(k){ var el=document.querySelector('[data-af-field="'+scope+'_'+k+'"]'); o[k]=el?el.value:''; }); return o; }
+			function markInvalid(fields){ document.querySelectorAll('[data-af-field].is-err').forEach(function(el){el.classList.remove('is-err');});
+				(fields||[]).forEach(function(f){ var m=String(f).split('.'); var scope=('billing'===m[0]?'bill':'ship'); var el=document.querySelector('[data-af-field="'+scope+'_'+m[1]+'"]'); if(el){el.classList.add('is-err');} }); }
 			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
 			if(acc&&box){ acc.addEventListener('click',function(){
 				if(acc.disabled) return;
 				acc.disabled=true; acc.textContent=BLBL.accepting;
-				fetch(ACCEPT_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify({token:TOKEN})})
+				var payload={token:TOKEN};
+				if(document.querySelector('[data-addr]')){ payload.billing=collectBlock('bill'); payload.ship_diff=!!(shipDiffEl&&shipDiffEl.checked); if(payload.ship_diff){ payload.shipping=collectBlock('ship'); } }
+				fetch(ACCEPT_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify(payload)})
 					.then(function(r){ return r.json().then(function(d){ return {status:r.status,d:d}; }, function(){ return {status:r.status,d:{}}; }); })
 					.then(function(res){
-						if(200===res.status && res.d && res.d.ok){ if(acc.parentNode){acc.style.display='none';} renderBank(); return; }
+						if(200===res.status && res.d && res.d.ok){ if(acc.parentNode){acc.style.display='none';} var af=document.querySelector('[data-addr]'); if(af){af.style.display='none';} renderBank(); return; }
 						if(401===res.status){ // Teil 2: nicht eingeloggt → Magic-Link an die Angebots-E-Mail
 							return reqLogin().then(function(d2){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg((d2&&d2.ok)?MSG.sent:MSG.err,!!(d2&&d2.ok)); });
 						}
 						acc.disabled=false; acc.textContent=ACCEPT_LABEL;
+						if(422===res.status){ markInvalid(res.d&&res.d.data&&res.d.data.fields); setMsg(MSG.addr,false); return; } // Teil 3: Pflichtfelder
 						setMsg(403===res.status?MSG.mismatch:((res.d&&(res.d.message||res.d.error))||MSG.err),false);
 					})
 					.catch(function(){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg(MSG.err,false); });

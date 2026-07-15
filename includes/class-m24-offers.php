@@ -442,6 +442,14 @@ class M24_Offers {
 		if ( class_exists( 'M24_Offer_Accept' ) && ! M24_Offer_Accept::may_accept( $o ) ) {
 			return new WP_Error( 'm24off_mismatch', 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.', array( 'status' => 403 ) );
 		}
+		// Teil 3/4: vollständige, gültige Rechnungsadresse ist Pflicht (serverseitig, nicht nur Client). Bei fehlenden
+		// Pflichtfeldern → 422 mit Feldliste; die Checkbox („gelesen") prüft der Client wie gehabt vor dem Senden.
+		$p    = (array) $req->get_json_params();
+		$cust = json_decode( (string) $o->customer_json, true ); $cust = is_array( $cust ) ? $cust : array();
+		$val  = class_exists( 'M24_Offer_Address' ) ? M24_Offer_Address::validate( $p, (string) ( $cust['kundentyp'] ?? 'b2c' ) ) : array( 'ok' => true );
+		if ( empty( $val['ok'] ) ) {
+			return new WP_Error( 'm24off_addr', 'Bitte die Rechnungsadresse vollständig ausfüllen.', array( 'status' => 422, 'fields' => $val['errors'] ) );
+		}
 		// Nur ein offenes Angebot annehmen (idempotent, wenn bereits angenommen). Zahlung bestätigt Daniel im Desk.
 		if ( 'offen' === (string) $o->status ) {
 			global $wpdb;
@@ -449,6 +457,10 @@ class M24_Offers {
 			$row = array( 'status' => 'angenommen' );
 			if ( (int) $o->account_id <= 0 && $acc > 0 ) { $row['account_id'] = $acc; } // Auftrag ans annehmende Konto binden
 			$wpdb->update( self::table(), $row, array( 'id' => (int) $o->id ) );
+			// Adresse an den Auftrag (Spalten) + ans Konto (User-Meta) persistieren.
+			if ( class_exists( 'M24_Offer_Address' ) && ! empty( $val['billing'] ) ) {
+				M24_Offer_Address::persist( (int) $o->id, $acc, $val['billing'], $val['shipping'], ! empty( $val['ship_diff'] ) );
+			}
 			self::log( 'accepted', (int) $o->id, (string) $o->offer_no );
 			if ( class_exists( 'M24_Error_Log' ) ) {
 				M24_Error_Log::capture( 'offer_accept', 'info', 'Angebot vom Kunden angenommen', array( 'offer_no' => (string) $o->offer_no ) );
