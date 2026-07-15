@@ -382,7 +382,9 @@ class M24_Garage_Cart {
 		if ( $p ) {
 			return (string) get_permalink( $p );
 		}
-		return home_url( '/' );
+		// Fallback robust auf die bestehende Garage-URL /meine-garage/ (rewrite-basiert, ggf. kein WP-Page-Objekt) —
+		// NICHT die Startseite (sonst landet u. a. der Magic-Link-Login auf „About us"). Überschreibbar per Filter.
+		return (string) apply_filters( 'm24_garage_page_url', home_url( '/' . self::PAGE_SLUG . '/' ) );
 	}
 
 	/* ── Etappe 2: Share-Token (ein aktueller Token je Account, in usermeta) ── */
