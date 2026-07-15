@@ -815,10 +815,14 @@ class M24_Offers {
 		global $wpdb;
 		$p        = $req->get_json_params();
 		$customer = self::clean_customer( (array) ( $p['customer'] ?? array() ) );
-		if ( ! is_email( $customer['email'] ) ) {
-			return new WP_Error( 'm24off_bad', 'Für einen Entwurf ist mindestens eine gültige Kunden-E-Mail nötig.', array( 'status' => 400 ) );
-		}
 		$items    = self::clean_items( (array) ( $p['items'] ?? array() ) );
+		// Bug 1: Ein Entwurf ist Arbeitsstand — die Kunden-E-Mail wird erst beim SENDEN erzwungen (handle_send),
+		// NICHT beim Entwurf. Sonst könnten Garage-Entwürfe (noch ohne Kunde) nicht (auto-)gespeichert werden und
+		// Positions-Edits gingen beim Reload verloren. Guard nur gegen komplett leere Neuanlage ohne Bezug.
+		$draft_id_in = (int) ( $p['draft_id'] ?? 0 );
+		if ( ! is_email( $customer['email'] ) && empty( $items ) && $draft_id_in <= 0 ) {
+			return new WP_Error( 'm24off_bad', 'Ein Entwurf braucht mindestens eine Position oder eine Kunden-E-Mail.', array( 'status' => 400 ) );
+		}
 		$extras   = self::clean_extras( (array) ( $p['extras'] ?? array() ) );
 		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
 		$modes    = self::tax_modes();

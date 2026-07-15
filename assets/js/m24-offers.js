@@ -101,16 +101,24 @@
 			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
-			// B2: Netto/Brutto-Modus — Feld zeigt den aktiven Wert, der andere steht INLINE davor (eine Zeile).
-			var net = it.unit_price || 0, brutto = Math.round(net * 1.19 * 100) / 100;
-			var isNet = ('netto' === priceMode);
-			var fieldVal = isNet ? net : brutto, calcVal = isNet ? brutto : net, calcLbl = isNet ? 'brutto' : 'netto';
+			// Preiszelle: §25a-Positionen sind differenzbesteuert → EIN Bruttopreis, KEINE Netto/Brutto-Aufteilung,
+			// vom globalen Netto/Brutto-Umschalter unberührt. Sonst B2-Modus (aktiver Wert im Feld, anderer inline davor).
+			var priceCell;
+			if (it.tax25a) {
+				priceCell = '<div class="m24off-pprice m24off-pprice-25a"><span class="m24off-pcalc m24off-pcalc-25a" title="Differenzbesteuert nach § 25a UStG — kein Netto/Brutto">§25a</span>'
+					+ '<input type="text" inputmode="decimal" value="' + numFmt(it.unit_price || 0) + '" data-i="' + i + '" data-price data-p25a="1" autocomplete="off"></div>';
+			} else {
+				var net = it.unit_price || 0, brutto = Math.round(net * 1.19 * 100) / 100;
+				var isNet = ('netto' === priceMode);
+				var fieldVal = isNet ? net : brutto, calcVal = isNet ? brutto : net, calcLbl = isNet ? 'brutto' : 'netto';
+				priceCell = '<div class="m24off-pprice"><span class="m24off-pcalc" data-pcalc="' + i + '">' + eur(calcVal) + ' <em>' + calcLbl + '</em></span>'
+					+ '<input type="text" inputmode="decimal" value="' + numFmt(fieldVal) + '" data-i="' + i + '" data-price autocomplete="off"></div>';
+			}
 			row.innerHTML = '<span class="m24off-drag" data-drag title="Ziehen zum Sortieren" aria-label="Sortieren">⠿</span>'
 				+ (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pos-ph"></span>')
 				+ '<div class="m24off-pos-main">' + titleHtml + metaHtml + varHtml + '</div>'
 				+ '<div class="m24off-qty2"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric"></div>' // B1: native Spinner, keine −/+
-				+ '<div class="m24off-pprice"><span class="m24off-pcalc" data-pcalc="' + i + '">' + eur(calcVal) + ' <em>' + calcLbl + '</em></span>'
-				+ '<input type="text" inputmode="decimal" value="' + numFmt(fieldVal) + '" data-i="' + i + '" data-price autocomplete="off"></div>'
+				+ priceCell
 				+ '<button type="button" class="m24off-posx" data-i="' + i + '" data-rm aria-label="Position entfernen">✕</button>';
 			box.appendChild(row);
 		});
@@ -236,6 +244,7 @@
 		var tot = eur(c.total);
 		var t1 = $('[data-sum-total]'); if (t1) { t1.textContent = tot; }
 		var t2 = $('[data-sum-total-bar]'); if (t2) { t2.textContent = tot; }
+		scheduleAutosave(); // Bug 1: jede Datenänderung endet hier → debounced in den Entwurf persistieren (no-op bis armed)
 	}
 
 	var salTouched = false, salAuto = '';
@@ -430,6 +439,33 @@
 
 	/* ── Senden ── */
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
+
+	// Bug 1: Der Entwurf ist die Quelle der Wahrheit. Positions-/Kunden-/Steuer-Edits werden debounced automatisch
+	// in den Entwurf persistiert (save-draft aktualisiert per draft_id), damit ein Reload IMMER den bearbeiteten
+	// Stand aus items_json lädt — nie erneut die Garage. armed erst nach der ersten echten Nutzer-Änderung.
+	var autosaveTimer = null, autosaveArmed = false;
+	function armAutosave() { autosaveArmed = true; } // erste echte Nutzer-Interaktion (input/change/click im Builder)
+	function scheduleAutosave() {
+		if (!autosaveArmed) { return; } // vor der ersten Interaktion NICHT speichern (kein Save beim Prefill/Reload)
+		if (!items.length && !currentDraftId) { return; } // nichts zu speichern
+		if (autosaveTimer) { clearTimeout(autosaveTimer); }
+		autosaveTimer = setTimeout(doAutosave, 900);
+	}
+	function doAutosave() {
+		autosaveTimer = null;
+		if (!autosaveArmed) { return; }
+		var st = $('[data-status]');
+		fetch(cfg.rest + '/save-draft', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(offerPayload()) })
+			.then(function (r) { return r.json(); }).then(function (d) {
+				if (d && d.ok) {
+					var wasNew = !currentDraftId;
+					currentDraftId = d.draft_id || currentDraftId;
+					if (wasNew && currentDraftId && window.history && history.replaceState) { try { history.replaceState(null, '', '?page=m24-offers&draft=' + currentDraftId); } catch (e) {} }
+					if (st) { st.textContent = 'Entwurf automatisch gespeichert.'; st.className = 'm24off-status is-ok'; }
+				}
+			}).catch(function () { /* still — nächster Change speichert erneut */ });
+	}
+
 	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
 	function backLinkHtml() { return cfg.listUrl ? ' <a class="m24off-backlink" href="' + esc(cfg.listUrl) + '">← Zurück zur Übersicht</a>' : ''; } // #4
 	function openPreview(title, html) { var m = $('[data-pvmodal]'), fr = $('[data-pvframe]'), tt = $('[data-pvtitle]'); if (!m || !fr) { return; } if (tt) { tt.textContent = title; } fr.srcdoc = html || ''; m.hidden = false; } // C2
@@ -448,6 +484,9 @@
 	}
 	function doAction(action) {
 		var st = $('[data-status]'), cust = collectCustomer();
+		// Bug 1: bei „Senden" / manuellem „Als Entwurf speichern" den ausstehenden Autosave abbrechen (kein Race /
+		// keine Dublette, da Senden currentDraftId auf 0 setzt).
+		if (('send' === action || 'draft' === action) && autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
 		if ('text' === action) {
 			window.location.href = 'mailto:' + encodeURIComponent(cust.email) + '?subject=' + encodeURIComponent('Ihre Anfrage bei MOTORSPORT24');
 			return;
@@ -516,8 +555,12 @@
 	/* ── Delegierte Events ── */
 	document.addEventListener('input', function (e) {
 		var t = e.target;
-		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); renderSummary(); }
-		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) { var netv = ('brutto' === priceMode) ? Math.round((pn / 1.19) * 100) / 100 : pn; items[pi].unit_price = netv; var pc = $('[data-pcalc="' + pi + '"]'); if (pc) { var cv = ('netto' === priceMode) ? netv * 1.19 : netv; pc.innerHTML = esc(eur(cv)) + ' <em>' + ('netto' === priceMode ? 'brutto' : 'netto') + '</em>'; } renderSummary(); } }
+		armAutosave(); // Bug 1: erste Eingabe → Autosave scharf (dieses Skript läuft nur auf der Operator-Builder-Seite)
+		if (t.matches('[data-qty]')) { items[+t.getAttribute('data-i')].qty = Math.max(1, parseInt(t.value, 10) || 1); renderSummary(); scheduleAutosave(); }
+		else if (t.matches('[data-price]')) { var pi = +t.getAttribute('data-i'); var pn = parseNum(t.value); if (!isNaN(pn)) {
+			if (items[pi] && (items[pi].tax25a || t.hasAttribute('data-p25a'))) { items[pi].unit_price = pn; } // §25a: Preis = Brutto DIREKT, keine ÷1,19, kein Netto/Brutto-Bezug
+			else { var netv = ('brutto' === priceMode) ? Math.round((pn / 1.19) * 100) / 100 : pn; items[pi].unit_price = netv; var pc = $('[data-pcalc="' + pi + '"]'); if (pc) { var cv = ('netto' === priceMode) ? netv * 1.19 : netv; pc.innerHTML = esc(eur(cv)) + ' <em>' + ('netto' === priceMode ? 'brutto' : 'netto') + '</em>'; } }
+			renderSummary(); scheduleAutosave(); } }
 		else if (t.matches('[data-title]')) { var ti = +t.getAttribute('data-i'); items[ti].title_de = t.value; items[ti].title = t.value; }
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-title-en-cat]')) { items[+t.getAttribute('data-i')].title_en = t.value; } // #7: Katalog-EN live
@@ -531,12 +574,14 @@
 			else if (t.matches('[data-palette-stdprice]')) { var spn = parseNum(t.value); if (!isNaN(spn)) { extras[+t.getAttribute('data-palette-stdprice')].amount = spn; renderSummary(); } }
 	});
 	document.addEventListener('change', function (e) {
+		armAutosave(); // Bug 1
 		if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); return; }
 		if (e.target.matches('[data-ship-method]')) { extras[+e.target.getAttribute('data-ship-method')].method = e.target.value; renderExtras(); renderSummary(); return; }
 		if (e.target.matches('[data-ship-incoterm]')) { var xi = +e.target.getAttribute('data-ship-incoterm'); extras[xi].incoterm = e.target.value; if ('CIF' === extras[xi].incoterm) { extras[xi].method = 'sea'; } renderExtras(); renderSummary(); return; } // #8: CIF nur Seefracht
 	});
 	document.addEventListener('click', function (e) {
 		var t = e.target, el;
+		armAutosave(); // Bug 1: jede Builder-Interaktion schärft den Autosave (Löschen/Menge/Hinzufügen persistieren)
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
