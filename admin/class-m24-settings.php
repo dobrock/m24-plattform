@@ -137,6 +137,12 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Angebots-Ablauf-Reminder: einmalige Erinnerungs-Mail 2 Tage vor Fristende (Default AN, transaktional/§7).
+        register_setting( 'm24_plattform_group', 'm24_offer_reminder_enabled', [
+            'type'              => 'boolean',
+            'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+            'default'           => 1,
+        ] );
         // [preis]-Altlink-Filter: tote „Online bestellen"-Buttons auf Alt-Shops entfernen (Default AN).
         register_setting( 'm24_plattform_group', 'm24_preis_altlink_filter', [
             'type'              => 'boolean',
@@ -765,6 +771,12 @@ class M24_Settings {
                                 <?php echo esc_html__( 'Verpackung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_verpackung" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_verpackung', 25 ) ); ?>" />
                                 <?php echo esc_html__( 'Versand', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_versand" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_versand', 49 ) ); ?>" />
                                 <?php echo esc_html__( 'Zollabwicklung', 'm24-plattform' ); ?> <input type="number" step="0.01" style="width:80px;" name="m24_offer_preset_zoll" value="<?php echo esc_attr( (string) get_option( 'm24_offer_preset_zoll', 75 ) ); ?>" />
+                            </p>
+                            <p style="margin-top:10px;">
+                                <label>
+                                    <input type="checkbox" name="m24_offer_reminder_enabled" value="1" <?php checked( (bool) get_option( 'm24_offer_reminder_enabled', 1 ), true ); ?> />
+                                    <?php echo esc_html__( 'Ablauf-Reminder: einmalige Erinnerungs-Mail 2 Tage vor Fristende (transaktional, kein Nachfassen).', 'm24-plattform' ); ?>
+                                </label>
                             </p>
                         </td>
                     </tr>

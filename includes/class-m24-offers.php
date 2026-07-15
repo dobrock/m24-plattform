@@ -34,6 +34,7 @@ class M24_Offers {
 
 	public static function init() {
 		// Cron-Registrierung + Ablauf immer harmlos (no-op ohne Angebote); der Rest ist flag-gated.
+		add_action( self::CRON, array( __CLASS__, 'remind_due' ) ); // 2-Tage-Ablauf-Reminder (VOR expire, solange noch „offen")
 		add_action( self::CRON, array( __CLASS__, 'expire_due' ) );
 		if ( ! wp_next_scheduled( self::CRON ) && self::enabled() ) {
 			wp_schedule_event( time() + 3600, 'daily', self::CRON );
@@ -1371,6 +1372,38 @@ class M24_Offers {
 			"UPDATE " . self::table() . " SET status = 'abgelaufen' WHERE status = 'offen' AND valid_until IS NOT NULL AND valid_until < %s",
 			$cut
 		) );
+	}
+
+	/**
+	 * Ablauf-Reminder: einmalige Erinnerungs-Mail ~2 Tage vor Fristende an offene, noch nicht angenommene Angebote.
+	 * Robust gegen einen ausgefallenen Cron-Tag: „in 2 Tagen" als TAGESFENSTER (valid_until ∈ [heute+1, heute+2]),
+	 * nicht sekundengenau. Einmalig via reminder_sent_at: das Flag wird ATOMAR VOR dem Versand gesetzt (nur wenn NULL)
+	 * → kein Doppelversand bei überlappenden Läufen; §7 UWG: transaktional + einmalig, kein Nachfassen.
+	 */
+	public static function remind_due() {
+		if ( ! self::enabled() ) { return; }
+		if ( ! (bool) get_option( 'm24_offer_reminder_enabled', 1 ) ) { return; }
+		global $wpdb;
+		$t    = self::table();
+		$from = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );      // heute + 1
+		$to   = gmdate( 'Y-m-d', time() + 2 * DAY_IN_SECONDS );  // heute + 2
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id FROM $t WHERE status = 'offen' AND reminder_sent_at IS NULL AND valid_until IS NOT NULL AND valid_until BETWEEN %s AND %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$from, $to
+		) );
+		$now = current_time( 'mysql', true );
+		foreach ( (array) $rows as $r ) {
+			$oid = (int) $r->id;
+			// Flag ZUERST setzen (nur wenn noch NULL) → verhindert Doppelversand; bei Mail-Fehler bewusst kein Retry (§7).
+			$claimed = $wpdb->query( $wpdb->prepare(
+				"UPDATE $t SET reminder_sent_at = %s WHERE id = %d AND reminder_sent_at IS NULL", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$now, $oid
+			) );
+			if ( $claimed && class_exists( 'M24_Offers_Render' ) ) {
+				M24_Offers_Render::reminder_mail( $oid );
+				self::log( 'reminder_sent', $oid );
+			}
+		}
 	}
 
 	private static function log( string $step, int $id = 0, string $no = '' ) {

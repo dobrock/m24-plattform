@@ -1119,4 +1119,48 @@ class M24_Offers_Render {
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
 		wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
 	}
+
+	/* ── Ablauf-Reminder-Mail (m24_mail_shell) ──────────────────────────── */
+
+	/**
+	 * Kurze Erinnerungs-Mail „läuft in {N} Tagen ab" — Anredeform + Sprache gemäß Angebot, im M24-Mail-Design.
+	 * Tage werden dynamisch berechnet (Text stimmt, egal ob 1 oder 2 Tage Rest). Nur Aufruf durch den Cron
+	 * (der das Einmalig-Flag setzt); hier kein Statuswechsel, kein Flag — reine Ausgabe.
+	 */
+	public static function reminder_mail( $offer_id, bool $return_html = false ) {
+		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id );
+		if ( ! $o ) { return $return_html ? '' : null; }
+		$cust  = json_decode( (string) $o->customer_json, true ) ?: array();
+		$email = (string) ( $cust['email'] ?? '' );
+		if ( ! is_email( $email ) && ! $return_html ) { return; }
+		$lang  = self::offer_lang( $o );
+		$form  = self::anrede_form( $o );
+		$L     = self::ol( $lang, $form );
+		$vu    = self::date_de( (string) $o->valid_until );
+		$mdays = $o->valid_until ? max( 0, (int) ceil( ( strtotime( (string) $o->valid_until . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ) ) : 0;
+		$en    = ( 'en' === $lang );
+		$dayw  = $en ? ( 'day' . ( 1 === $mdays ? '' : 's' ) ) : ( 'Tag' . ( 1 === $mdays ? '' : 'e' ) );
+		$head  = $en
+			? sprintf( 'Your offer %s expires in %d %s', (string) $o->offer_no, $mdays, $dayw )
+			: sprintf( 'Ihr Angebot %s läuft in %d %s ab', (string) $o->offer_no, $mdays, $dayw );
+
+		if ( $en ) {
+			$body = sprintf( 'this is a friendly reminder that your binding offer is valid until %s. After that it expires automatically.', $vu );
+		} elseif ( 'du' === $form ) {
+			$body = sprintf( 'wir möchten dich kurz daran erinnern, dass dein verbindliches Angebot noch bis zum %s gültig ist. Danach läuft es automatisch ab.', $vu );
+		} else {
+			$body = sprintf( 'wir möchten Sie kurz daran erinnern, dass Ihr verbindliches Angebot noch bis zum %s gültig ist. Danach läuft es automatisch ab.', $vu );
+		}
+
+		$inner  = '<p style="margin:0 0 14px;">' . esc_html( self::greeting( $cust, $lang, $form ) ) . '</p>';
+		$inner .= '<p style="margin:0 0 14px;font-weight:700;color:#9a6b25;font-size:15px;">' . esc_html( $head ) . '</p>';
+		$inner .= '<p style="margin:0 0 18px;">' . esc_html( $body ) . '</p>';
+		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>'; // phpcs:ignore WordPress.Security.EscapeOutput — statisches Label
+		$inner .= '<p style="margin:8px 0 0;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
+		$inner .= '<p style="margin:16px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() ) . '</p>';
+
+		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $head, $inner, array( 'lang' => $lang, 'footer_legal_slim' => true ) ) : $inner;
+		if ( $return_html ) { return $html; }
+		wp_mail( $email, $head, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
+	}
 }
