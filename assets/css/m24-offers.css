@@ -51,6 +51,9 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-btn{border:0;border-radius:10px;font:800 15px/1 'Saira',Arial,sans-serif;padding:15px;cursor:pointer}
 .m24off-btn-blue{color:#fff;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e)}
 .m24off-btn-blue:disabled{opacity:.65;cursor:progress}
+/* Endzustand nach erfolgreichem Senden: grün „Gesendet ✓", nicht klickbar, KEIN Dauer-Spinner (schlägt :disabled cursor:progress) */
+[data-action="send"].is-done,[data-action="send"].is-done:disabled{opacity:1!important;cursor:default!important;background:#1a7f37!important;color:#fff!important}
+[data-action="send"].is-done small{display:none}
 .m24off-btn-ghost{background:#fff;color:#5a6474;border:1px solid #d3d8de}
 .m24off-status{font-size:13px;min-height:1em;text-align:center;margin:6px 0}
 .m24off-status.is-ok{color:#1a7f37}.m24off-status.is-error{color:#c8102e}

@@ -592,8 +592,11 @@
 		}).then(function (r) { return r.json(); }).then(function (d) {
 			if (d && d.ok) {
 				// Erfolg: sendInFlight bleibt GESPERRT (kein Reset) → ein schneller 2. Klick kann kein zweites Angebot
-				// auslösen, auch wenn die Antwort blitzschnell kommt. Kein busy(false) → Buttons bleiben aus.
+				// auslösen. ABER: Spinner/Busy-Zustand auflösen und den Sende-Button in einen klaren, deaktivierten
+				// Endzustand „Gesendet ✓" setzen (ausgegraut, kein Dauer-Spinner). Doppelklick-Schutz bleibt.
 				currentDraftId = 0; // Entwurf wurde zum verbindlichen Angebot → keine weitere Entwurf-Bindung
+				$$('[data-action="send"]').forEach(function (b) { b.disabled = true; b.classList.add('is-done'); b.textContent = 'Gesendet ✓'; });
+				var db = $('[data-action="draft"]'); if (db) { db.disabled = true; } // Entwurf-Speichern nach Senden gesperrt (Angebot ist raus)
 				st.innerHTML = esc(d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '')) + backLinkHtml();
 				st.className = 'm24off-status is-ok';
 			} else {
