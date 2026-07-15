@@ -573,7 +573,7 @@ class M24_Offers_Render {
 							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
 <?php /* #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit. */ ?>
 							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
-							<?php if ( ! empty( $it['custom'] ) ) : ?><span class="m24off-c25a">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span><?php endif; ?>
+<?php /* §312g-Positions-Note entfernt (0.11.376) — das custom-Flag bleibt in den Daten, wird kundenseitig nicht mehr angezeigt. */ ?>
 						</div>
 						<div class="m24off-pos-qty">× <?php echo (int) $it['qty']; ?></div>
 						<div class="m24off-pos-line"><?php echo esc_html( self::fmt( $line ) ); ?></div>
@@ -948,17 +948,25 @@ class M24_Offers_Render {
 		foreach ( $items as $it ) {
 			$line  = (float) $it['unit_price'] * max( 1, (int) $it['qty'] );
 			$url   = ! empty( $it['url'] ) ? (string) $it['url'] : '';
+			$ttl   = self::item_title( $it, $mlang );
 			$title = '' !== $url
-				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( self::item_title( $it, $mlang ) ) . '</a>'
-				: '<span style="font-weight:600;">' . esc_html( self::item_title( $it, $mlang ) ) . '</span>';
-			$rows .= '<tr><td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
+				? '<a href="' . esc_url( $url ) . '" target="_blank" style="color:#14161a;font-weight:600;text-decoration:none;">' . esc_html( $ttl ) . '</a>'
+				: '<span style="font-weight:600;">' . esc_html( $ttl ) . '</span>';
+			// #3: Thumbnail je Position (gleiche Quelle wie Online-Ansicht/Garage). E-Mail-sicher: absolute URL, feste
+			// 56 px, <img> in eigener Zelle, alt=Titel; ohne Bild bleibt die Zeile über den Titel lesbar (leere Zelle).
+			$mthumb = M24_Offers::item_thumb( (string) ( $it['thumb'] ?? '' ), (int) ( $it['teil_id'] ?? 0 ) );
+			$thumb_td = '<td style="width:56px;padding:6px 12px 6px 0;vertical-align:top;">'
+				. ( '' !== $mthumb ? '<img src="' . esc_url( $mthumb ) . '" width="56" height="56" alt="' . esc_attr( $ttl ) . '" style="width:56px;height:56px;object-fit:cover;border-radius:6px;display:block;border:0;outline:none;-ms-interpolation-mode:bicubic;background:#eef0f2;" />' : '' )
+				. '</td>';
+			$rows .= '<tr>' . $thumb_td . '<td style="padding:6px 12px 6px 0;">' . $title // phpcs:ignore WordPress.Security.EscapeOutput — Titel escaped
 				. ( ! empty( $it['variant'] ) ? '<br><span style="color:#1f74c4;font-size:12px;font-weight:600;">' . esc_html( $L['variant'] ) . ': ' . esc_html( $it['variant'] ) . '</span>' : '' )
 				. ( ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) ? '<br><span style="color:#8a929c;font-size:12px;">'
 					. ( ! empty( $it['art_nr'] ) ? esc_html( $L['artnr'] ) . ': ' . esc_html( $it['art_nr'] ) : '' )
 					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . esc_html( $L['used'] ) : '' ) . '</span>' : '' )
 				// #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit.
 					. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
-				. ( ! empty( $it['custom'] ) ? '<br><span style="color:#9a6b25;font-size:11px;">Sonderanfertigung – kein Widerruf (§ 312g Abs. 2 BGB)</span>' : '' )
+				// §312g-Positions-Note entfernt (0.11.376) — custom-Flag bleibt in den Daten, kundenseitig ausgeblendet.
+					. ''
 				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
 		}
 		foreach ( $extras as $ex ) {
@@ -977,7 +985,7 @@ class M24_Offers_Render {
 		$top = ' style="padding-top:10px;border-top:1px solid #e6e9ee;"';
 		$srow = static function ( $label, $amt, $first ) use ( $top ) {
 			$t = $first ? $top : '';
-			return '<tr><td colspan="2"' . $t . '>' . esc_html( $label ) . '</td><td style="text-align:right;' . ( $first ? 'padding-top:10px;border-top:1px solid #e6e9ee;' : '' ) . '">' . esc_html( self::fmt( (float) $amt ) ) . '</td></tr>';
+			return '<tr><td colspan="3"' . $t . '>' . esc_html( $label ) . '</td><td style="text-align:right;' . ( $first ? 'padding-top:10px;border-top:1px solid #e6e9ee;' : '' ) . '">' . esc_html( self::fmt( (float) $amt ) ) . '</td></tr>';
 		};
 		$sum = '';
 		if ( $Z > 0.001 && $X <= 0.001 ) {
@@ -991,7 +999,7 @@ class M24_Offers_Render {
 			$sum .= $srow( $L['margin'], $Z, false );
 		}
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
-			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
+			. '<tr><td colspan="3" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
