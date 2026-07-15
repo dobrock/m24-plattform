@@ -477,3 +477,5 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
    klippte den Rest. Fix: nicht schrumpfen lassen, garantierte Mindesthöhe, großzügige Scroll-Höhe, kein Clipping. */
 .m24off-v2 .m24off-dock{overflow:visible}
 .m24off-v2 .m24off-dlist{flex:0 0 auto;min-height:150px;max-height:min(62vh,540px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
+/* „Gesamt"/Zwischensumme/USt: Betrag inkl. €-Zeichen nie umbrechen (Fix „14.102,73" ⏎ „€" auf Mobil) */
+.m24off-cust .m24off-sumline>strong,.m24off-cust .m24off-sumline>span:last-child{white-space:nowrap}

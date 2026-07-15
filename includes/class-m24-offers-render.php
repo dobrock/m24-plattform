@@ -1061,7 +1061,7 @@ class M24_Offers_Render {
 		$top = ' style="padding-top:10px;border-top:1px solid #e6e9ee;"';
 		$srow = static function ( $label, $amt, $first ) use ( $top ) {
 			$t = $first ? $top : '';
-			return '<tr><td colspan="3"' . $t . '>' . esc_html( $label ) . '</td><td style="text-align:right;' . ( $first ? 'padding-top:10px;border-top:1px solid #e6e9ee;' : '' ) . '">' . esc_html( self::fmt( (float) $amt ) ) . '</td></tr>';
+			return '<tr><td colspan="3"' . $t . '>' . esc_html( $label ) . '</td><td style="text-align:right;white-space:nowrap;' . ( $first ? 'padding-top:10px;border-top:1px solid #e6e9ee;' : '' ) . '">' . esc_html( self::fmt( (float) $amt ) ) . '</td></tr>';
 		};
 		$sum = '';
 		if ( $Z > 0.001 && $X <= 0.001 ) {
@@ -1075,7 +1075,7 @@ class M24_Offers_Render {
 			$sum .= $srow( $L['margin'], $Z, false );
 		}
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
-			. '<tr><td colspan="3" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
+			. '<tr><td colspan="3" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;white-space:nowrap;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.

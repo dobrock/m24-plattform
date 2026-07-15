@@ -455,6 +455,7 @@
 
 	/* ── Senden ── */
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
+	var sendInFlight = false; // Doppelklick-Guard für Senden/Entwurf-Speichern (Buttons sind delegiert)
 
 	// Bug 1/Race: Der Entwurf ist die Quelle der Wahrheit. Edits werden persistiert; ein schneller Reload darf nichts
 	// verlieren. Strukturänderungen (Löschen/Hinzufügen/Neuordnen) speichern SOFORT; schnelle Feld-Eingaben
@@ -538,13 +539,14 @@
 		if ('draft' === action) {
 			// Entwurf: nur E-Mail Pflicht (Positionen/Steuer optional → Weiterarbeiten möglich). Keine Mail.
 			if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cust.email)) { st.textContent = 'Für einen Entwurf bitte eine gültige Kunden-E-Mail angeben.'; st.className = 'm24off-status is-error'; return; }
+			if (sendInFlight) { return; } sendInFlight = true; // Doppelklick-Guard (delegierter Button)
 			busy(true); st.textContent = 'Entwurf wird gespeichert …'; st.className = 'm24off-status';
 			fetch(cfg.rest + '/save-draft', {
 				method: 'POST', credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
 				body: JSON.stringify(offerPayload())
 			}).then(function (r) { return r.json(); }).then(function (d) {
-				busy(false);
+				busy(false); sendInFlight = false;
 				if (d && d.ok) {
 					currentDraftId = d.draft_id || currentDraftId;
 					// 0.11.342: URL auf ?draft={id} umschreiben → ein Reload restauriert genau diesen Entwurf (nicht die from=-Quelle).
@@ -554,7 +556,7 @@
 					st.innerHTML = esc((d.message || 'Entwurf gespeichert.') + ' Nummer wird erst beim Senden vergeben.') + backLinkHtml(); st.className = 'm24off-status is-ok';
 				}
 				else { st.textContent = (d && (d.message || d.error)) || 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; }
-			}).catch(function () { busy(false); st.textContent = 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; });
+			}).catch(function () { busy(false); sendInFlight = false; st.textContent = 'Entwurf konnte nicht gespeichert werden.'; st.className = 'm24off-status is-error'; });
 			return;
 		}
 		if (!items.length) { st.textContent = 'Bitte mindestens eine Position hinzufügen.'; st.className = 'm24off-status is-error'; return; }
@@ -564,6 +566,8 @@
 			var rEl = $('[data-tax-rate]'), rv = rEl && rEl.value.trim();
 			if (rv === '' || !(taxRate >= 0 && taxRate <= 27)) { st.textContent = 'Bitte einen USt-Satz (0–27 %) angeben.'; st.className = 'm24off-status is-error'; return; }
 		}
+		if (sendInFlight) { return; } // Doppelklick-Guard: der Sende-Button ist delegiert (disabled stoppt kein bereits gequeuetes Klick-Event)
+		sendInFlight = true;
 		busy(true);
 		st.textContent = 'Wird gesendet …'; st.className = 'm24off-status';
 		fetch(cfg.rest + '/send', {
@@ -571,7 +575,7 @@
 			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
 			body: JSON.stringify(offerPayload())
 		}).then(function (r) { return r.json(); }).then(function (d) {
-			busy(false);
+			busy(false); sendInFlight = false;
 			if (d && d.ok) {
 				currentDraftId = 0; // Entwurf wurde zum verbindlichen Angebot → keine weitere Entwurf-Bindung
 				st.innerHTML = esc(d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '')) + backLinkHtml();
@@ -580,7 +584,7 @@
 				st.textContent = (d && (d.message || d.error)) || 'Senden fehlgeschlagen.';
 				st.className = 'm24off-status is-error';
 			}
-		}).catch(function () { busy(false); st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
+		}).catch(function () { busy(false); sendInFlight = false; st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
 	}
 
 	/* ── Delegierte Events ── */
