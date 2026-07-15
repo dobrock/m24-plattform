@@ -23,7 +23,7 @@
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
 	// #2 Versand-Default: per Straße erreichbare Länder (Kontinental-EU + CH/LI/MC/AD) → Landweg; sonst Seefracht (UK/Übersee/Inseln).
-	var SHIP_ROAD = ['DE','AT','BE','NL','LU','FR','IT','ES','PT','PL','CZ','SK','SI','HR','HU','RO','BG','GR','DK','SE','FI','EE','LV','LT','CH','LI','MC','AD'];
+	var SHIP_ROAD = ['DE','AT','BE','NL','LU','FR','IT','ES','PT','PL','CZ','SK','SI','HR','HU','RO','BG','GR','DK','SE','FI','EE','LV','LT','CH','LI','MC','AD','NO'];
 	function defaultShipMethod(land) {
 		var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(land || '') : String(land || '').toUpperCase().slice(0, 2);
 		if (!iso) { return ''; } // kein Land → Inlandsannahme (Landweg)
