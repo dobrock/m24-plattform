@@ -192,8 +192,10 @@
 			var to = box._dropTarget; if (to > dragFrom) { to--; }
 			if (to !== dragFrom && to >= 0 && to <= items.length) { var moved = items.splice(dragFrom, 1)[0]; items.splice(to, 0, moved); }
 		}
+		var reordered = ( dragFrom >= 0 && box && 'number' === typeof box._dropTarget );
 		dragFrom = -1; if (box) { box._dropTarget = null; }
 		renderItems();
+		if (reordered) { armAutosave(); saveDraftNow(false); } // Neuordnen → sofort persistieren
 	}
 	document.addEventListener('pointerdown', function (e) {
 		var h = e.target.closest ? e.target.closest('[data-drag]') : null;
@@ -304,6 +306,7 @@
 		var t = e.target; if (!t || !t.matches) { return; }
 		if (t.matches('[data-title-en-cat]')) { var ei = +t.getAttribute('data-i'); items[ei].title_en = t.value; saveEnTitle(ei); enEditIdx = -1; renderItems(); } // #7: manuellen EN-Titel festschreiben + Feld schließen
 		if (t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numFmt(n); } // B3: beim Blur mit Tausenderpunkt formatieren
+		if (t.matches('[data-price],[data-qty],[data-extra-price]')) { saveDraftNow(false); } // Race-Fix: Feld verlassen → ausstehende Eingabe sofort persistieren (nicht auf Debounce warten)
 	});
 	document.addEventListener('keydown', function (e) { if ('Enter' === e.key && e.target && e.target.matches && e.target.matches('[data-title-en-cat]')) { e.preventDefault(); e.target.blur(); } }); // #2: Enter committet (wie Blur)
 	document.addEventListener('focusin', function (e) { var t = e.target; if (t && t.matches && t.matches('[data-price],[data-extra-price],[data-palette-stdprice]')) { var n = parseNum(t.value); t.value = isNaN(n) ? '' : numIn(n); } }); // B3: beim Fokus roh editierbar
@@ -397,6 +400,7 @@
 			qty: 1, unit_price: unit, tax25a: is25a, custom: false
 		});
 		renderItems(); renderPalette(); flashRow(items.length - 1);
+		armAutosave(); saveDraftNow(false); // Struktur (Hinzufügen) → sofort persistieren
 		ensureEnTitles(); // #2: EN-Titel der neuen Katalog-Position live nachziehen (falls Angebotssprache EN)
 	}
 	function addStandard(i) { if (!extras[i]) { return; } extras[i].on = true; renderExtras(); renderSummary(); flashLastExtra(); }
@@ -408,6 +412,7 @@
 		if (!t) { var fi = $('[data-palette-freetitle]'); if (fi) { fi.focus(); } return; }
 		items.push({ teil_id: 0, title: t, title_de: t, title_en: ten, art_nr: '', qty: 1, unit_price: isNaN(p) ? 0 : p, tax25a: false, custom: false, free: true });
 		renderItems(); renderPalette(); flashRow(items.length - 1);
+		armAutosave(); saveDraftNow(false); // Struktur (Freitext-Position) → sofort persistieren
 	}
 	function dockCollapse(collapsed) {
 		var card = $('[data-poscard]'); if (!card) { return; }
@@ -440,31 +445,46 @@
 	/* ── Senden ── */
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
 
-	// Bug 1: Der Entwurf ist die Quelle der Wahrheit. Positions-/Kunden-/Steuer-Edits werden debounced automatisch
-	// in den Entwurf persistiert (save-draft aktualisiert per draft_id), damit ein Reload IMMER den bearbeiteten
-	// Stand aus items_json lädt — nie erneut die Garage. armed erst nach der ersten echten Nutzer-Änderung.
-	var autosaveTimer = null, autosaveArmed = false;
-	function armAutosave() { autosaveArmed = true; } // erste echte Nutzer-Interaktion (input/change/click im Builder)
-	function scheduleAutosave() {
-		if (!autosaveArmed) { return; } // vor der ersten Interaktion NICHT speichern (kein Save beim Prefill/Reload)
-		if (!items.length && !currentDraftId) { return; } // nichts zu speichern
-		if (autosaveTimer) { clearTimeout(autosaveTimer); }
-		autosaveTimer = setTimeout(doAutosave, 900);
+	// Bug 1/Race: Der Entwurf ist die Quelle der Wahrheit. Edits werden persistiert; ein schneller Reload darf nichts
+	// verlieren. Strukturänderungen (Löschen/Hinzufügen/Neuordnen) speichern SOFORT; schnelle Feld-Eingaben
+	// (Preis/Menge) debounced (+ Flush bei blur). Beim Seitenverlassen wird ein ausstehender Save sofort (keepalive)
+	// geflusht. armed erst nach der ersten echten Nutzer-Interaktion (kein Save beim Prefill/Reload).
+	var autosaveTimer = null, autosaveArmed = false, saveDirty = false, saveStatusT = null;
+	function armAutosave() { autosaveArmed = true; }
+	function canAutosave() { return autosaveArmed && (items.length || currentDraftId); }
+	function setSaveStatus(txt, cls) {
+		var st = $('[data-status]'); if (!st) { return; }
+		st.textContent = txt; st.className = 'm24off-status' + (cls ? ' ' + cls : '');
+		if (saveStatusT) { clearTimeout(saveStatusT); saveStatusT = null; }
+		if ('is-ok' === cls) { saveStatusT = setTimeout(function () { if (st.textContent === txt) { st.textContent = ''; st.className = 'm24off-status'; } }, 2000); } // dezent ausblenden
 	}
-	function doAutosave() {
-		autosaveTimer = null;
-		if (!autosaveArmed) { return; }
-		var st = $('[data-status]');
-		fetch(cfg.rest + '/save-draft', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(offerPayload()) })
+	function scheduleAutosave() { // nur schnelle Feld-Eingaben
+		if (!canAutosave()) { return; }
+		saveDirty = true;
+		if (autosaveTimer) { clearTimeout(autosaveTimer); }
+		autosaveTimer = setTimeout(function () { saveDraftNow(false); }, 900);
+	}
+	function saveDraftNow(keepalive) { // sofort speichern (Strukturänderung / blur-Flush / Seitenverlassen)
+		if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+		if (!canAutosave()) { return; }
+		saveDirty = false; // wir speichern den AKTUELLEN Stand
+		setSaveStatus('speichert …', '');
+		var opts = { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(offerPayload()) };
+		if (keepalive) { opts.keepalive = true; } // überlebt pagehide/Reload; sendBeacon scheidet aus (kein X-WP-Nonce-Header → 403)
+		fetch(cfg.rest + '/save-draft', opts)
 			.then(function (r) { return r.json(); }).then(function (d) {
 				if (d && d.ok) {
 					var wasNew = !currentDraftId;
 					currentDraftId = d.draft_id || currentDraftId;
 					if (wasNew && currentDraftId && window.history && history.replaceState) { try { history.replaceState(null, '', '?page=m24-offers&draft=' + currentDraftId); } catch (e) {} }
-					if (st) { st.textContent = 'Entwurf automatisch gespeichert.'; st.className = 'm24off-status is-ok'; }
-				}
-			}).catch(function () { /* still — nächster Change speichert erneut */ });
+					setSaveStatus('gespeichert ✓', 'is-ok');
+				} else { setSaveStatus('nicht gespeichert', 'is-error'); }
+			}).catch(function () { /* keepalive-Flush endet evtl. ohne lesbare Antwort — der Stand ist serverseitig persistiert */ });
 	}
+	// Flush bei Seitenverlassen/Tab-Wechsel: ausstehende Änderung SOFORT abschicken (behebt den Debounce-Race).
+	function flushAutosave() { if (saveDirty || autosaveTimer) { saveDraftNow(true); } }
+	window.addEventListener('pagehide', flushAutosave);
+	document.addEventListener('visibilitychange', function () { if ('hidden' === document.visibilityState) { flushAutosave(); } });
 
 	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
 	function backLinkHtml() { return cfg.listUrl ? ' <a class="m24off-backlink" href="' + esc(cfg.listUrl) + '">← Zurück zur Übersicht</a>' : ''; } // #4
@@ -584,7 +604,7 @@
 		armAutosave(); // Bug 1: jede Builder-Interaktion schärft den Autosave (Löschen/Menge/Hinzufügen persistieren)
 		if ((el = t.closest('[data-qdec]'))) { var a = +el.getAttribute('data-i'); items[a].qty = Math.max(1, (items[a].qty || 1) - 1); renderItems(); return; }
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
-		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); return; }
+		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); saveDraftNow(false); return; } // Struktur → sofort
 		if ((el = t.closest('[data-ship-toggle]'))) { shipOpen = !shipOpen; renderExtras(); return; }
 		if ((el = t.closest('[data-en-edit]'))) { enEditIdx = +el.getAttribute('data-en-edit'); renderItems(); var enin = $('[data-title-en-cat][data-i="' + enEditIdx + '"]'); if (enin) { enin.focus(); enin.select(); } return; } // #7: Titel → Feld öffnen
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }

@@ -656,7 +656,9 @@
 	   Konto-Garage-Seite (#m24-angebot-open) -> Server liest die Konto-Garage; Gast-Garage-Seite
 	   ([data-m24gc-guest-inquire]) -> localStorage-IDs, Preise SERVERSEITIG neu abgeleitet. Kunden unveraendert. */
 	if (cfg.isOperator && cfg.offerFromGarage) {
-		var OP_SEL = '#m24-angebot-open, [data-m24gc-guest-inquire]';
+		// Konto-Garage-Seite: „Als Anfrage senden" (data-m24gc-send-btn) · Share-/Snapshot-Seite: „Angebot anfragen"
+		// (#m24-angebot-open) · Gast-Garage-Seite: data-m24gc-guest-inquire. Alle → „Angebot erstellen" für Operatoren.
+		var OP_SEL = '#m24-angebot-open, [data-m24gc-guest-inquire], [data-m24gc-send-btn]';
 		var opReadGuest = function () {
 			try { var a = JSON.parse(localStorage.getItem(cfg.guestKey || 'm24_guest_garage') || '[]'); return Array.isArray(a) ? a.map(function (x) { return ('object' === typeof x && x) ? x : { id: parseInt(x, 10) || 0, q: 1 }; }).filter(function (o) { return o.id > 0; }) : []; } catch (e) { return []; }
 		};
