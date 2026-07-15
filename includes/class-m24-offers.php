@@ -1,7 +1,7 @@
 <?php
 /**
  * M24 Angebots-Workflow v1 (Phase 1) — Angebot-Objekt + Operator-Modal A1 + Teile-Picker + manuelle
- * Steuer (Brutto/Netto/§25a) + Zusatz-Presets + Kunden-Ansicht + 5-Tage-Ablauf + Angebots-Mail (+ Konto-Link).
+ * Steuer (Brutto/Netto/§25a) + Zusatz-Presets + Kunden-Ansicht + 7-Tage-Ablauf (VALID_DAYS) + Angebots-Mail (+ Konto-Link).
  *
  * FLAG m24_offers_enabled (Default AUS): solange aus, ist die gesamte Strecke inaktiv (Modal, REST, Cron,
  * Kunden-View, Mail-Link). Steuer wird NIE auto-erkannt — der Operator wählt Modus + Satz MANUELL.
@@ -1159,7 +1159,7 @@ class M24_Offers {
 		return $out;
 	}
 
-	/* ── 5-Tage-Ablauf (Cron, ohne Stunden) ─────────────────────────────── */
+	/* ── 7-Tage-Ablauf (VALID_DAYS, Cron, ohne Stunden) ─────────────────── */
 
 	/**
 	 * Paket 1E: Angebots-ENTWURF aus einer geteilten Garage anlegen (Kunde fragt an; Daniel ergänzt Lieferzeit/
@@ -1204,7 +1204,7 @@ class M24_Offers {
 			'offer_no'     => $offer_no,
 			'token'        => $token,
 			'account_id'   => $account,
-			'status'       => 'entwurf', // Entwurf — Daniel ergänzt + sendet (bestehender 5-Tage-Ablauf beim Senden)
+			'status'       => 'entwurf', // Entwurf — Daniel ergänzt + sendet (7-Tage-Ablauf/VALID_DAYS greift beim Senden)
 			'customer_json'=> wp_json_encode( $cust ),
 			'items_json'   => wp_json_encode( $items ),
 			'extras_json'  => wp_json_encode( array() ),
