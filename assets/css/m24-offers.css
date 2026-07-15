@@ -470,3 +470,10 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 @media(max-width:520px){.m24off-cust .m24off-af-grid{grid-template-columns:1fr}}
 /* Fix: [hidden] muss display:grid/flex des Adressblocks schlagen (sonst Lieferadresse/EORI/Form immer sichtbar) */
 .m24off-cust [data-addr][hidden],.m24off-cust [data-addr-shipping][hidden],.m24off-cust [data-eori-wrap][hidden]{display:none!important}
+
+/* ── Fix: Positionen-Palette — Trefferliste zuverlässig sichtbar (Chrome + Safari) ──
+   Ursache: .m24off-dlist lag als Flex-Item (dock=flex-column) in der sticky col-side (overflow:auto) OHNE
+   flex-basis/min-height → Safari kollabierte die Höhe auf 0 (nested-flex + overflow:auto), .m24off-dock{overflow:hidden}
+   klippte den Rest. Fix: nicht schrumpfen lassen, garantierte Mindesthöhe, großzügige Scroll-Höhe, kein Clipping. */
+.m24off-v2 .m24off-dock{overflow:visible}
+.m24off-v2 .m24off-dlist{flex:0 0 auto;min-height:150px;max-height:min(62vh,540px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
