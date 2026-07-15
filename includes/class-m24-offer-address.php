@@ -28,6 +28,14 @@ class M24_Offer_Address {
 		$iso = self::iso2( $land );
 		return '' !== $iso && in_array( $iso, self::EU, true );
 	}
+	/** Vereinigtes Königreich? (GB/UK/England → GB). Für die EORI-Pflicht (Zoll nach Brexit). */
+	public static function is_gb( string $land ): bool {
+		return 'GB' === self::iso2( $land );
+	}
+	/** GB-EORI-Format tolerant: „GB" + 12–15 Ziffern (i. d. R. GB + 12), Groß-/Kleinschreibung + Leerzeichen egal. */
+	public static function eori_format_ok( string $v ): bool {
+		return (bool) preg_match( '/^GB[0-9]{12,15}$/', strtoupper( preg_replace( '/\s+/', '', $v ) ) );
+	}
 
 	/** Prefill aus dem Kundenkonto (User-Meta); leere Strings, wenn nichts hinterlegt. */
 	public static function prefill( int $uid ): array {
@@ -40,6 +48,7 @@ class M24_Offer_Address {
 			'nachname' => $nn,
 			'firma'    => (string) get_user_meta( $uid, '_m24_firmenname', true ),
 			'ustid'    => (string) get_user_meta( $uid, '_m24_ustid', true ),
+			'eori'     => (string) get_user_meta( $uid, '_m24_eori', true ),
 			'strasse'  => (string) get_user_meta( $uid, '_m24_strasse', true ),
 			'plz'      => (string) get_user_meta( $uid, '_m24_plz', true ),
 			'ort'      => (string) get_user_meta( $uid, '_m24_ort', true ),
@@ -56,6 +65,7 @@ class M24_Offer_Address {
 			'nachname' => sanitize_text_field( (string) ( $b['nachname'] ?? '' ) ),
 			'firma'    => sanitize_text_field( (string) ( $b['firma'] ?? '' ) ),
 			'ustid'    => strtoupper( preg_replace( '/\s+/', '', sanitize_text_field( (string) ( $b['ustid'] ?? '' ) ) ) ),
+			'eori'     => strtoupper( preg_replace( '/\s+/', '', sanitize_text_field( (string) ( $b['eori'] ?? '' ) ) ) ),
 			'strasse'  => sanitize_text_field( (string) ( $b['strasse'] ?? '' ) ),
 			'plz'      => sanitize_text_field( (string) ( $b['plz'] ?? '' ) ),
 			'ort'      => sanitize_text_field( (string) ( $b['ort'] ?? '' ) ),
@@ -85,6 +95,11 @@ class M24_Offer_Address {
 				elseif ( ! self::ustid_format_ok( $billing['ustid'] ) ) { $errors[] = 'billing.ustid_format'; }
 				else { $billing['ustid_vies'] = self::vies_check( $billing['ustid'] ); } // valid|invalid|unchecked (kein Hard-Block)
 			}
+		}
+		// EORI: Pflicht NUR bei UK (GB) — Zollabwicklung nach Brexit. Toleranter Format-Check, keine externe Prüfung.
+		if ( self::is_gb( $billing['land'] ) ) {
+			if ( '' === $billing['eori'] ) { $errors[] = 'billing.eori'; }
+			elseif ( ! self::eori_format_ok( $billing['eori'] ) ) { $errors[] = 'billing.eori_format'; }
 		}
 
 		$ship_diff = ! empty( $p['ship_diff'] );
@@ -151,6 +166,7 @@ class M24_Offer_Address {
 			'bill_firma'      => $billing['firma'],
 			'bill_ustid'      => $billing['ustid'],
 			'bill_ustid_vies' => (string) ( $billing['ustid_vies'] ?? '' ),
+			'bill_eori'       => (string) ( $billing['eori'] ?? '' ),
 			'bill_strasse'    => $billing['strasse'],
 			'bill_plz'        => $billing['plz'],
 			'bill_ort'        => $billing['ort'],
@@ -179,7 +195,7 @@ class M24_Offer_Address {
 		if ( $uid > 0 ) {
 			$map = array(
 				'_m24_anrede' => $billing['anrede'], 'first_name' => $billing['vorname'], 'last_name' => $billing['nachname'],
-				'_m24_firmenname' => $billing['firma'], '_m24_ustid' => $billing['ustid'], '_m24_strasse' => $billing['strasse'],
+				'_m24_firmenname' => $billing['firma'], '_m24_ustid' => $billing['ustid'], '_m24_eori' => $billing['eori'], '_m24_strasse' => $billing['strasse'],
 				'_m24_plz' => $billing['plz'], '_m24_ort' => $billing['ort'], '_m24_land' => $billing['land'], '_m24_telefon' => $billing['telefon'],
 			);
 			foreach ( $map as $k => $v ) { if ( '' !== (string) $v ) { update_user_meta( $uid, $k, $v ); } }
@@ -210,6 +226,12 @@ class M24_Offer_Address {
 		$h .= self::field( $scope, 'plz', 'PLZ', (string) ( $pf['plz'] ?? '' ), $req_all );
 		$h .= self::field( $scope, 'ort', 'Ort', (string) ( $pf['ort'] ?? '' ), $req_all );
 		$h .= self::field( $scope, 'land', 'Land', (string) ( $pf['land'] ?? '' ), $req_all );
+		// EORI: nur Rechnungsadresse; per Default versteckt, JS blendet es bei Land = GB ein (dort Pflicht).
+		if ( 'bill' === $scope ) {
+			$gb = self::is_gb( (string) ( $pf['land'] ?? '' ) );
+			$h .= '<div class="m24off-af-eori" data-eori-wrap' . ( $gb ? '' : ' hidden' ) . '>'
+				. self::field( $scope, 'eori', 'EORI-Nummer (UK, Zoll)', (string) ( $pf['eori'] ?? '' ), $gb ) . '</div>';
+		}
 		$h .= self::field( $scope, 'telefon', 'Telefon (optional)', (string) ( $pf['telefon'] ?? '' ), false );
 		return $h;
 	}

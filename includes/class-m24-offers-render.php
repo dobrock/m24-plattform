@@ -740,8 +740,13 @@ class M24_Offers_Render {
 			var shipDiffEl=document.querySelector('[data-ship-diff]'), shipBlock=document.querySelector('[data-addr-shipping]');
 			if(shipDiffEl&&shipBlock){ shipDiffEl.addEventListener('change',function(){ shipBlock.hidden=!shipDiffEl.checked; }); }
 			// Adressblock aus den Feldern eines Scopes (bill|ship) einsammeln.
-			function collectBlock(scope){ var o={}, keys=['anrede','vorname','nachname','firma','ustid','strasse','plz','ort','land','telefon'];
+			function collectBlock(scope){ var o={}, keys=['anrede','vorname','nachname','firma','ustid','eori','strasse','plz','ort','land','telefon'];
 				keys.forEach(function(k){ var el=document.querySelector('[data-af-field="'+scope+'_'+k+'"]'); o[k]=el?el.value:''; }); return o; }
+			// EORI-Feld dynamisch: nur bei Land = Vereinigtes Königreich (GB) einblenden (dort Pflicht).
+			function landIsGb(v){ v=String(v||'').trim(); if(!v){return false;} if(window.M24Country&&M24Country.countryToIso2){ return 'GB'===M24Country.countryToIso2(v); } return /^(gb|uk|gro(ss|ß)britannien|england|united kingdom|vereinigtes k)/i.test(v); }
+			var billLand=document.querySelector('[data-af-field="bill_land"]'), eoriWrap=document.querySelector('[data-eori-wrap]'), eoriInp=document.querySelector('[data-af-field="bill_eori"]');
+			function syncEori(){ if(!eoriWrap){return;} var gb=landIsGb(billLand?billLand.value:''); eoriWrap.hidden=!gb; if(eoriInp&&!gb){ eoriInp.classList.remove('is-err'); } }
+			if(billLand){ billLand.addEventListener('input',syncEori); billLand.addEventListener('change',syncEori); syncEori(); }
 			function markInvalid(fields){ document.querySelectorAll('[data-af-field].is-err').forEach(function(el){el.classList.remove('is-err');});
 				(fields||[]).forEach(function(f){ var m=String(f).split('.'); var scope=('billing'===m[0]?'bill':'ship'); var el=document.querySelector('[data-af-field="'+scope+'_'+m[1]+'"]'); if(el){el.classList.add('is-err');} }); }
 			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
