@@ -424,7 +424,7 @@ class M24_Offers_Render {
 
 				<div class="m24off-card">
 					<h2>Anschreiben</h2>
-					<div class="m24off-fld"><label>Anredeform (nur Deutsch)</label>
+					<div class="m24off-fld" data-de-only><label>Anredeform (nur Deutsch)</label>
 						<span class="m24off-pricemode" data-anrede-form><span data-af="sie">Sie</span><span data-af="du">Du</span></span></div>
 					<div class="m24off-fld"><label>Anrede <a href="#" class="m24off-reset" data-salutation-reset>zurücksetzen</a></label><input type="text" data-salutation placeholder="Guten Tag Herr {Nachname},"></div>
 					<div class="m24off-fld" style="margin-top:12px"><label>Freitext (erscheint in der Mail unter der Summe)</label><textarea data-note rows="4" placeholder="Optionaler Freitext an den Kunden …"></textarea></div>

@@ -741,6 +741,24 @@ class M24_Offers {
 		}
 		global $wpdb;
 		$p        = $req->get_json_params();
+		// Doppelklick/Doppel-POST-Guard (zeit-/draft-/payload-UNABHÄNGIG): beide Klicks tragen denselben idem_key.
+		// Erster Request legt an und speichert key→offer_id; jeder weitere Request mit demselben Key bekommt idempotent
+		// dasselbe Angebot zurück (bzw. 409 während der Anlage). next_number() zieht damit garantiert nur EINMAL.
+		$idem = isset( $p['idem_key'] ) ? preg_replace( '/[^a-z0-9]/i', '', (string) $p['idem_key'] ) : '';
+		$ikey = '' !== $idem ? 'm24off_idem_' . $idem : '';
+		if ( '' !== $ikey ) {
+			$prev = get_transient( $ikey );
+			if ( is_array( $prev ) && ! empty( $prev['offer_id'] ) ) {
+				$ex = self::get_by_id( (int) $prev['offer_id'] );
+				if ( $ex ) {
+					return rest_ensure_response( array( 'ok' => true, 'offer_no' => (string) $ex->offer_no, 'token' => (string) $ex->token, 'duplicate' => true, 'message' => 'Angebot ' . $ex->offer_no . ' wurde gesendet.' ) );
+				}
+			}
+			if ( 'locked' === $prev ) {
+				return new WP_Error( 'm24off_inflight', 'Das Angebot wird bereits gesendet — bitte einen Moment.', array( 'status' => 409 ) );
+			}
+			set_transient( $ikey, 'locked', 30 ); // Sperre während der Anlage; nach Anlage → offer_id (unten)
+		}
 		$customer = self::clean_customer( (array) ( $p['customer'] ?? array() ) );
 		$items    = self::clean_items( (array) ( $p['items'] ?? array() ) );
 		$extras   = self::clean_extras( (array) ( $p['extras'] ?? array() ) );
@@ -802,14 +820,9 @@ class M24_Offers {
 		// Doppelklick/Doppel-POST-Guard: Ist der Entwurf bereits gesendet (Status ≠ entwurf), das BESTEHENDE Angebot
 		// idempotent zurückgeben — KEINE zweite Anlage, next_number() zieht nicht erneut. (Behebt 2026-1014 + 2026-1015.)
 		if ( $draft && 'entwurf' !== (string) $draft->status ) {
+			if ( '' !== $ikey ) { set_transient( $ikey, array( 'offer_id' => (int) $draft->id ), 600 ); }
 			return rest_ensure_response( array( 'ok' => true, 'offer_no' => (string) $draft->offer_no, 'token' => (string) $draft->token, 'duplicate' => true, 'message' => 'Angebot ' . $draft->offer_no . ' wurde gesendet.' ) );
 		}
-		// Concurrency-Sperre für das enge Zeitfenster, in dem beide Requests den Entwurf noch als „entwurf" sehen.
-		$lock_key = 'm24off_send_' . ( $draft_id > 0 ? 'd' . $draft_id : 'e' . md5( strtolower( $customer['email'] ) . '|' . wp_json_encode( $items ) ) );
-		if ( get_transient( $lock_key ) ) {
-			return new WP_Error( 'm24off_inflight', 'Das Angebot wird bereits gesendet — bitte einen Moment.', array( 'status' => 409 ) );
-		}
-		set_transient( $lock_key, 1, 20 );
 		if ( $draft && 'entwurf' === (string) $draft->status ) {
 			$token           = (string) $draft->token ?: bin2hex( random_bytes( 16 ) );
 			$offer_no        = self::next_number();
@@ -825,7 +838,7 @@ class M24_Offers {
 			$wpdb->insert( self::table(), $row );
 			$offer_id = (int) $wpdb->insert_id;
 		}
-		delete_transient( $lock_key ); // Angebot angelegt → Sperre freigeben (Doppel-Sends fängt ab jetzt der Status ab)
+		if ( '' !== $ikey ) { set_transient( $ikey, array( 'offer_id' => $offer_id ), 600 ); } // Anlage fertig -> Key->Angebot (10 min); Doppel-Sends bekommen dieses zurueck
 		self::log( 'sent', $offer_id, $offer_no );
 
 		// Paket H: stammt das Angebot aus einer Anfrage → diese als „Beantwortet → {Nr}" markieren (To-do-Liste).

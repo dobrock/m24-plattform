@@ -22,9 +22,19 @@
 
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
+	// #2 Versand-Default: per Straße erreichbare Länder (Kontinental-EU + CH/LI/MC/AD) → Landweg; sonst Seefracht (UK/Übersee/Inseln).
+	var SHIP_ROAD = ['DE','AT','BE','NL','LU','FR','IT','ES','PT','PL','CZ','SK','SI','HR','HU','RO','BG','GR','DK','SE','FI','EE','LV','LT','CH','LI','MC','AD'];
+	function defaultShipMethod(land) {
+		var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(land || '') : String(land || '').toUpperCase().slice(0, 2);
+		if (!iso) { return ''; } // kein Land → Inlandsannahme (Landweg)
+		return SHIP_ROAD.indexOf(iso) > -1 ? '' : 'sea'; // '' = Landweg (kein „Zielhafen") · 'sea' = Seefracht
+	}
+	function applyShipDefault() { // Versand-Positionen ohne manuelle Weg-Wahl an das aktuelle Empfängerland anpassen
+		extras.forEach(function (e) { if ('versand' === e.key && !e.methodTouched) { e.method = defaultShipMethod(e.land || customer.land || ''); } });
+	}
 	var extras = (cfg.presets || []).map(function (p) {
 		var e = { key: p.key || '', label: p.label, amount: parseFloat(p.amount) || 0, on: false };
-		if ('versand' === e.key) { e.incoterm = 'DAP'; e.method = 'sea'; e.land = ''; } // #8: Incoterm + Versandweg + Land-Override (leer = Empfängerland)
+		if ('versand' === e.key) { e.incoterm = 'DAP'; e.method = ''; e.land = ''; e.methodTouched = false; } // #2: Default Landweg; land-abhängig via applyShipDefault
 		return e;
 	});
 	var shipOpen = false; // Inline-Editor der Versand-Position offen?
@@ -159,9 +169,9 @@
 					+ '<option value="CIP"' + ('CIP' === inco ? ' selected' : '') + '>CIP</option>'
 					+ '</select></label>'
 					+ '<label>Versandweg<select data-ship-method="' + i + '">'
+					+ '<option value=""' + ('' === ex.method ? ' selected' : '') + (cif ? ' disabled' : '') + '>Landtransport / Road</option>'
 					+ '<option value="sea"' + ('sea' === ex.method ? ' selected' : '') + '>Seefracht / Sea freight</option>'
 					+ '<option value="air"' + ('air' === ex.method ? ' selected' : '') + (cif ? ' disabled' : '') + '>Luftfracht / Air freight</option>'
-					+ '<option value=""' + ('' === ex.method ? ' selected' : '') + (cif ? ' disabled' : '') + '>Landweg (ohne Zusatz)</option>'
 					+ '</select></label>'
 					+ '<label>Land<input type="text" data-ship-land="' + i + '" value="' + esc(ex.land || customer.land || '') + '" placeholder="' + esc(customer.land || 'Deutschland') + '" autocomplete="off"></label>';
 				box.appendChild(ed);
@@ -274,6 +284,7 @@
 		offerLang = ('en' === l) ? 'en' : 'de';
 		$$('[data-langsw] [data-lang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-lang') === offerLang); });
 		$$('[data-langseg] [data-olang]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-olang') === offerLang); });
+		$$('[data-de-only]').forEach(function (el) { el.hidden = ('en' === offerLang); }); // #1: „Anredeform (nur Deutsch)" bei EN ausblenden
 		salApply(false);
 		syncDeliveryLang(); // #4: Lieferzeit-Dropdown DE/EN
 		renderItems(); renderExtras(); // #2: EN-Titel/Freitext-EN-Felder + EN-Chip-Labels
@@ -456,6 +467,9 @@
 	/* ── Senden ── */
 	var currentDraftId = (cfg.draftId | 0) || 0; // >0 → Operator bearbeitet einen Entwurf (Senden aktualisiert ihn)
 	var sendInFlight = false; // Doppelklick-Guard für Senden/Entwurf-Speichern (Buttons sind delegiert)
+	// Idempotenz-Key pro Builder-Load: beide Klicks eines Doppelklicks tragen denselben Key → Server dedupliziert
+	// zeitunabhängig (nicht auf draft_id/Payload angewiesen). Nach Senden reicht dieser eine Sendevorgang.
+	var sendIdemKey = 'ik' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
 	// Bug 1/Race: Der Entwurf ist die Quelle der Wahrheit. Edits werden persistiert; ein schneller Reload darf nichts
 	// verlieren. Strukturänderungen (Löschen/Hinzufügen/Neuordnen) speichern SOFORT; schnelle Feld-Eingaben
@@ -511,6 +525,7 @@
 			salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
 			inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
 			draft_id: currentDraftId,
+			idem_key: sendIdemKey, // Doppelklick-Dedup (zeit-/draft-unabhängig, siehe handle_send)
 			src: cfg.src || {}
 		};
 	}
@@ -575,12 +590,14 @@
 			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
 			body: JSON.stringify(offerPayload())
 		}).then(function (r) { return r.json(); }).then(function (d) {
-			busy(false); sendInFlight = false;
 			if (d && d.ok) {
+				// Erfolg: sendInFlight bleibt GESPERRT (kein Reset) → ein schneller 2. Klick kann kein zweites Angebot
+				// auslösen, auch wenn die Antwort blitzschnell kommt. Kein busy(false) → Buttons bleiben aus.
 				currentDraftId = 0; // Entwurf wurde zum verbindlichen Angebot → keine weitere Entwurf-Bindung
 				st.innerHTML = esc(d.message + (d.register_link ? ' Konto-Link an den Gast verschickt.' : '')) + backLinkHtml();
 				st.className = 'm24off-status is-ok';
 			} else {
+				busy(false); sendInFlight = false; // Fehler → erneuter Versuch erlaubt
 				st.textContent = (d && (d.message || d.error)) || 'Senden fehlgeschlagen.';
 				st.className = 'm24off-status is-error';
 			}
@@ -600,7 +617,7 @@
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-title-en-cat]')) { items[+t.getAttribute('data-i')].title_en = t.value; } // #7: Katalog-EN live
 			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
-		else if (t.matches('[data-c="land"]')) { customer.land = t.value; cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } renderExtras(); renderSummary(); } // #6: Land VERBATIM übernehmen (ISO/Flagge nur intern via M24Country)
+		else if (t.matches('[data-c="land"]')) { customer.land = t.value; cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } applyShipDefault(); renderExtras(); renderSummary(); } // #6 Land VERBATIM · #2 Versandweg-Default an Land anpassen
 		else if (t.matches('[data-ship-land]')) { var si = +t.getAttribute('data-ship-land'); extras[si].land = cxLandToIso(t.value || ''); var lb = $('[data-ship-label="' + si + '"]'); if (lb) { lb.textContent = chipLabel(extras[si]); } renderSummary(); } // ohne Re-Render → Fokus bleibt
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
@@ -611,7 +628,7 @@
 	document.addEventListener('change', function (e) {
 		armAutosave(); // Bug 1
 		if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); return; }
-		if (e.target.matches('[data-ship-method]')) { extras[+e.target.getAttribute('data-ship-method')].method = e.target.value; renderExtras(); renderSummary(); return; }
+		if (e.target.matches('[data-ship-method]')) { var smi = +e.target.getAttribute('data-ship-method'); extras[smi].method = e.target.value; extras[smi].methodTouched = true; renderExtras(); renderSummary(); return; } // #2: manuelle Wahl → Land-Default überschreibt nicht mehr
 		if (e.target.matches('[data-ship-incoterm]')) { var xi = +e.target.getAttribute('data-ship-incoterm'); extras[xi].incoterm = e.target.value; if ('CIF' === extras[xi].incoterm) { extras[xi].method = 'sea'; } renderExtras(); renderSummary(); return; } // #8: CIF nur Seefracht
 	});
 	document.addEventListener('click', function (e) {
@@ -717,6 +734,7 @@
 		salApply(false);
 		cfg.custIsDrittland = cxIsDrittland(customer.land);
 		if (cfg.custIsDrittland) { autoSuggestZoll(); } // England/Drittland → Zoll-Chip anspringen lassen
+		applyShipDefault(); // #2: Versandweg-Default (Land/Seefracht) an das neue Empfängerland anpassen
 		// {Empfängerland} live: Chips UND bereits aktivierte Versand-Positionen neu labeln (Preis unangetastet).
 		renderExtras(); renderSummary();
 	}
@@ -800,6 +818,7 @@
 	setAnredeForm(anredeForm); // Du/Sie-Umschalter initial synchronisieren (Default Sie)
 	salApply(false);
 	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
+	applyShipDefault(); // #2: initialer Versandweg-Default nach Empfaengerland (DE/EU-Strasse -> Landweg, sonst Seefracht)
 	renderItems();
 	renderExtras();
 	renderSummary();
