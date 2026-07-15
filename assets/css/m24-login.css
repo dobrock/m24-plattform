@@ -10,8 +10,12 @@
 .m24lg-chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:999px;padding:6px 14px;font:600 13px/1 'Saira',Arial,sans-serif;cursor:pointer}
 .m24lg-chip:hover{border-color:#fff;background:rgba(255,255,255,.10)}
 .m24lg-chip-i{font-size:9px;line-height:1}
-/* b) Mobiler Header: Person-Umriss-Icon INLINE dicht links neben der Lupe — rein weiß, ohne Füllung */
-.m24lg-micon{color:#fff!important;position:relative;display:inline-flex;align-items:center;vertical-align:middle;padding:0;margin:0 10px 0 0;background:none;border:0;cursor:pointer;line-height:1}
+/* b) Mobiler Header: Person-Umriss-Icon INLINE dicht links neben der Lupe — rein weiß, ohne Füllung.
+   WICHTIG: top:-5px/left:13px sind KEIN Alt-Ballast — sie korrigieren die reale vertikale/horizontale Ausrichtung
+   im echten Cloud-Library-Header auf Mobilgeräten (am iPhone verifiziert). In 0.11.367 fälschlich entfernt
+   (Fehldiagnose aus Desktop-Kontext) → Icon saß zu tief/zu weit links. NICHT ohne Verifikation am echten
+   Mobilgerät wieder entfernen. */
+.m24lg-micon{color:#fff!important;position:relative;top:-5px;left:13px;display:inline-flex;align-items:center;vertical-align:middle;padding:0;margin:0 4px 0 0;background:none;border:0;cursor:pointer;line-height:1}
 .m24lg-micon svg{width:24px;height:24px;transform-origin:right bottom}
 /* Farbe/Füllung hart absichern gegen Theme-Blau/-Fill (kein currentColor-Erben) */
 .m24lg-micon svg,.m24lg-micon svg path,.m24lg-micon svg circle{fill:none!important;stroke:#fff!important}
