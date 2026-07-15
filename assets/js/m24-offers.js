@@ -31,7 +31,7 @@
 	var enEditIdx = -1;   // #7: Index der Position, deren EN-Titel gerade inline editiert wird (-1 = keiner)
 	var taxMode = '', taxRate = 0, offerLang = 'de';
 	var anredeForm = 'sie'; // DE-Anredeform je Angebot (Default Sie); EN kennt kein du/sie
-	function setAnredeForm(af) { anredeForm = ('du' === af) ? 'du' : 'sie'; $$('[data-anrede-form] [data-af]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-af') === anredeForm); }); salApply(false); }
+	function setAnredeForm(af) { anredeForm = ('du' === af) ? 'du' : 'sie'; $$('[data-anrede-form] [data-af]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-af') === anredeForm); }); salApply(false); if ('function' === typeof saveDraftNow) { saveDraftNow(false); } } // Fix: diskrete Anredeform-Wahl SOFORT in den Entwurf persistieren (no-op bis Autosave armed → kein Save beim Init)
 	var modell = (cfg.src && cfg.src.src_modell) || '';
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
 	var LANDS = cfg.lands || {};

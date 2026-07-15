@@ -993,6 +993,7 @@ class M24_Offers {
 		if ( 'en' === $lang && class_exists( 'M24_DeepL' ) ) { $items = M24_DeepL::fill_item_en_titles( $items ); }
 		$src              = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$src['lang']       = $lang;
+		$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie'; // Vorschau: Anredeform mitführen → Einleitung/Betreff folgen der Wahl (nicht Default Sie)
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
 		$src['delivery']   = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
