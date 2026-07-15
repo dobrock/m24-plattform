@@ -82,6 +82,26 @@ class M24_Haendler_Page {
         $gmap  = array();
         foreach ( (array) $grows as $g ) { $gmap[ (int) $g['account_id'] ] = (int) $g['c']; }
 
+        // 3b) Land-Fallback (B2C): Empfängerland des JÜNGSTEN Angebots je Konto — ein gebündelter JOIN, kein N+1.
+        //     bill_land (bei Annahme erfasste Rechnungsadresse) hat Vorrang vor customer_json['land'] (Empfängerland).
+        $ot    = $wpdb->prefix . 'm24_offers';
+        $olmap = array();
+        $orows = $wpdb->get_results(
+            "SELECT o.account_id AS aid, o.bill_land AS bl, o.customer_json AS cj
+             FROM $ot o
+             INNER JOIN ( SELECT account_id, MAX(id) mid FROM $ot
+                          WHERE account_id IN ($in) AND status <> 'entwurf'
+                          GROUP BY account_id ) m ON o.id = m.mid" // phpcs:ignore WordPress.DB
+        );
+        foreach ( (array) $orows as $or ) {
+            $land = trim( (string) $or->bl );
+            if ( '' === $land ) {
+                $cj   = json_decode( (string) $or->cj, true );
+                $land = is_array( $cj ) ? trim( (string) ( $cj['land'] ?? '' ) ) : '';
+            }
+            if ( '' !== $land ) { $olmap[ (int) $or->aid ] = $land; }
+        }
+
         // 4) Fahrzeug-Interesse: alle beobachteten Fahrzeug-IDs EINMAL vorladen, Titel dann aus dem Post-Cache.
         $notify = array();
         $pids_all = array();
@@ -117,6 +137,22 @@ class M24_Haendler_Page {
 
             $disp = '' !== $firma ? $firma : ( '' !== $name ? $name : (string) $u->user_email );
 
+            // Land: B2B aus Händler-Datensatz; B2C (1) User-Meta _m24_land (Annahme-Adresse), sonst (2) jüngstes Angebot.
+            $land_src = '';
+            if ( $is_b2b ) {
+                $land = $h ? (string) $h->land : '';
+            } else {
+                $meta_land = trim( (string) get_user_meta( $uid, '_m24_land', true ) );
+                if ( '' !== $meta_land ) {
+                    $land = $meta_land;
+                } elseif ( isset( $olmap[ $uid ] ) ) {
+                    $land = $olmap[ $uid ];
+                    $land_src = 'offer';
+                } else {
+                    $land = '';
+                }
+            }
+
             $out[] = array(
                 'uid'        => $uid,
                 'email'      => (string) $u->user_email,
@@ -126,7 +162,8 @@ class M24_Haendler_Page {
                 'anrede'     => (string) get_user_meta( $uid, '_m24_anrede', true ),
                 'telefon'    => (string) get_user_meta( $uid, '_m24_telefon', true ),
                 'is_b2b'     => $is_b2b,
-                'land'       => $h ? (string) $h->land : '',
+                'land'       => $land,
+                'land_src'   => $land_src,
                 'ustid'      => $h ? (string) $h->uid : '',
                 'uid_valid'  => $h ? $h->uid_valid : null,
                 'uid_val_at' => $h ? (string) $h->uid_validated_at : '',
@@ -356,6 +393,14 @@ class M24_Haendler_Page {
 
         // Indikator-Pillen.
         echo '<div class="kk-ind">';
+        // Land (B2B: Händler-Datensatz; B2C: _m24_land bzw. jüngstes Angebot — dezenter Quelle-Hinweis).
+        if ( '' !== $r['land'] ) {
+            $lname = class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::getFlagAndCountry( $r['land'] ) : $r['land'];
+            echo '<span class="pill on"><i>Land</i>' . esc_html( $lname )
+                . ( 'offer' === $r['land_src'] ? ' <em style="font-style:normal;color:#9aa3af;">(aus Angebot)</em>' : '' ) . '</span>';
+        } else {
+            echo '<span class="pill"><i>Land</i>–</span>';
+        }
         // Garage
         if ( $r['garage'] > 0 ) {
             $g = sprintf( _n( 'Ja (%d Position)', 'Ja (%d Positionen)', $r['garage'], 'm24-plattform' ), (int) $r['garage'] );
