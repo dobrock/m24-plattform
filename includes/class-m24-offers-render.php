@@ -89,13 +89,38 @@ class M24_Offers_Render {
 		$sj = json_decode( (string) $o->src_json, true );
 		return ( is_array( $sj ) && 'en' === ( $sj['lang'] ?? 'de' ) ) ? 'en' : 'de';
 	}
+	/** DE-Anredeform des Angebots: 'du' | 'sie' (Default 'sie'). EN ignoriert das (kennt kein du/sie). */
+	private static function anrede_form( $o ): string {
+		$sj = json_decode( (string) $o->src_json, true );
+		return ( is_array( $sj ) && 'du' === ( $sj['anrede_form'] ?? 'sie' ) ) ? 'du' : 'sie';
+	}
+	/**
+	 * DE-Begrüßung nach Anredeform:
+	 *  Sie: „Hallo {Anrede} {Nachname}," → ohne Anrede „Guten Tag {Nachname}," → ohne Name „Guten Tag,".
+	 *  Du:  „Hallo {Vorname}," → ohne Vorname „Hallo,".
+	 * EN: „Hello {Vorname}," / „Hello,". Nur genutzt, wenn kein manuelles Anschreiben (salutation) gesetzt ist.
+	 */
+	private static function greeting( array $cust, string $lang, string $form ): string {
+		$vor  = trim( (string) ( $cust['vorname'] ?? '' ) );
+		$nach = trim( (string) ( $cust['nachname'] ?? '' ) );
+		$name = trim( (string) ( $cust['name'] ?? '' ) );
+		if ( '' === $vor && '' !== $name ) { $parts = explode( ' ', $name, 2 ); $vor = (string) $parts[0]; if ( '' === $nach ) { $nach = trim( (string) ( $parts[1] ?? '' ) ); } }
+		if ( 'en' === $lang ) { return 'Hello' . ( '' !== $vor ? ' ' . $vor : '' ) . ','; }
+		if ( 'du' === $form ) { return 'Hallo' . ( '' !== $vor ? ' ' . $vor : '' ) . ','; }
+		// Sie:
+		$anrede = trim( (string) ( $cust['anrede'] ?? '' ) ); // Herr | Frau | ''
+		if ( '' !== $anrede && '' !== $nach ) { return 'Hallo ' . $anrede . ' ' . $nach . ','; }
+		if ( '' !== $nach ) { return 'Guten Tag ' . $nach . ','; }
+		return 'Guten Tag,';
+	}
 	/**
 	 * Sichtbare Angebots-Labels (Chrome) DE/EN. #1: RECHTSTEXTE bleiben bewusst DE (Widerruf/Gewährleistung/§-
 	 * Belehrung/Consent) bis zur anwaltlichen EN-Abnahme — hier NUR Bedien-/Struktur-Labels.
 	 */
-	private static function ol( string $lang ): array {
+	private static function ol( string $lang, string $form = 'sie' ): array {
+		$sie = ( 'du' !== $form ); // DE-Anredeform pro Angebot; EN kennt kein du/sie (bleibt unverändert)
 		$de = array(
-			'hello' => 'Hallo', 'intro' => 'vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:', 'valid' => 'gültig bis',
+			'hello' => 'Hallo', 'intro' => $sie ? 'vielen Dank für Ihre Anfrage. Hier ist unser verbindliches Angebot:' : 'vielen Dank für deine Anfrage. Hier ist unser verbindliches Angebot:', 'valid' => 'gültig bis',
 			'valid_line' => 'Gültig bis %1$s — noch %2$d Tag%3$s', 'cta_sub' => 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt',
 			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
 			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
@@ -103,17 +128,17 @@ class M24_Offers_Render {
 			'items' => 'Positionen', 'accept' => 'Angebot annehmen', 'paid' => 'Bezahlt', 'expired' => 'Abgelaufen',
 			'provider' => 'Anbieter', 'total_price' => 'Gesamtpreis', 'incl_taxes' => '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)',
 			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
-			'your_offer' => 'Dein Angebot',
+			'your_offer' => $sie ? 'Ihr Angebot' : 'Dein Angebot',
 			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
 			'race_global' => 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.',
-			// Garage-Karte (Lösung A) — Online-Ansicht, beide Zustände; Texte auf Du.
-			'g_title'     => 'Dieses Angebot in meine Garage übernehmen',
+			// Garage-Karte (Lösung A) — Online-Ansicht, beide Zustände; Du/Sie je Angebot.
+			'g_title'     => $sie ? 'Dieses Angebot in Ihre Garage übernehmen' : 'Dieses Angebot in meine Garage übernehmen',
 			'g_sub'       => 'Kostenloses Konto — in einer Minute angelegt.',
-			'g_btn'       => 'In meine Garage',
-			'g_in_title'  => 'Angebot zu deiner Garage bereits hinzugefügt',
-			'g_in_sub'    => 'Du findest Angebot %1$s vom %2$s jederzeit in deinem Garagen-Bereich.',
+			'g_btn'       => $sie ? 'In meine Garage' : 'In meine Garage',
+			'g_in_title'  => $sie ? 'Angebot zu Ihrer Garage bereits hinzugefügt' : 'Angebot zu deiner Garage bereits hinzugefügt',
+			'g_in_sub'    => $sie ? 'Sie finden Angebot %1$s vom %2$s jederzeit in Ihrem Garagen-Bereich.' : 'Du findest Angebot %1$s vom %2$s jederzeit in deinem Garagen-Bereich.',
 			'g_in_link'   => 'Zur Garage →',
 			'g_m_title'   => 'Konto anlegen & Angebot sichern',
 			'g_m_email'   => 'E-Mail',
@@ -251,6 +276,7 @@ class M24_Offers_Render {
 					'tax_mode'   => (string) $o->tax_mode,
 					'tax_rate'   => (float) $o->tax_rate,
 					'lang'       => ( 'en' === ( $sj['lang'] ?? (string) ( $o->offer_lang ?? '' ) ) ) ? 'en' : 'de', // Draft speichert lang in src_json
+					'anrede_form'=> ( 'du' === ( $sj['anrede_form'] ?? 'sie' ) ) ? 'du' : 'sie', // DE-Anredeform je Angebot
 
 					'salutation' => (string) ( $sj['salutation'] ?? '' ), // v3: Anschreiben aus src_json
 					'note'       => (string) ( $sj['note'] ?? '' ),
@@ -352,6 +378,12 @@ class M24_Offers_Render {
 						<?php if ( '' !== $garageNo ) : ?><div class="m24off-kg"><?php echo esc_html( $garageNo ); ?></div><?php endif; ?>
 					</div>
 					<div class="m24off-kunde-edit" data-kunde-edit hidden>
+						<?php $c_anrede = (string) ( $customer['anrede'] ?? '' ); ?>
+						<label class="m24off-f"><span>Anrede (für „Sie")</span><select data-c="anrede">
+							<option value="" <?php selected( '', $c_anrede ); ?>>—</option>
+							<option value="Herr" <?php selected( 'Herr', $c_anrede ); ?>>Herr</option>
+							<option value="Frau" <?php selected( 'Frau', $c_anrede ); ?>>Frau</option>
+						</select></label>
 						<label class="m24off-f"><span>Name</span><input type="text" data-c="name" value="<?php echo esc_attr( $customer['name'] ); ?>"></label>
 						<label class="m24off-f"><span>E-Mail</span><input type="email" data-c="email" value="<?php echo esc_attr( $customer['email'] ); ?>"></label>
 						<div class="m24off-seg" data-c-kundentyp>
@@ -392,7 +424,9 @@ class M24_Offers_Render {
 
 				<div class="m24off-card">
 					<h2>Anschreiben</h2>
-					<div class="m24off-fld"><label>Anrede <a href="#" class="m24off-reset" data-salutation-reset>zurücksetzen</a></label><input type="text" data-salutation placeholder="Hallo {Vorname},"></div>
+					<div class="m24off-fld"><label>Anredeform (nur Deutsch)</label>
+						<span class="m24off-pricemode" data-anrede-form><span data-af="sie">Sie</span><span data-af="du">Du</span></span></div>
+					<div class="m24off-fld"><label>Anrede <a href="#" class="m24off-reset" data-salutation-reset>zurücksetzen</a></label><input type="text" data-salutation placeholder="Guten Tag Herr {Nachname},"></div>
 					<div class="m24off-fld" style="margin-top:12px"><label>Freitext (erscheint in der Mail unter der Summe)</label><textarea data-note rows="4" placeholder="Optionaler Freitext an den Kunden …"></textarea></div>
 				</div>
 			</div>
@@ -513,7 +547,7 @@ class M24_Offers_Render {
 		$extras = json_decode( (string) $o->extras_json, true ) ?: array();
 		$is_b2c = 'b2c' === ( $cust['kundentyp'] ?? 'b2c' );
 		$bank   = self::bank();
-		$L      = self::ol( self::offer_lang( $o ) ); // #1: Chrome-Labels DE/EN (Rechtstexte bleiben DE)
+		$L      = self::ol( self::offer_lang( $o ), self::anrede_form( $o ) ); // #1: Chrome-Labels DE/EN + DE-Anredeform (Rechtstexte bleiben DE)
 
 		$days = 0; $vu = (string) $o->valid_until;
 		if ( $vu ) { $days = (int) floor( ( strtotime( $vu . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ); if ( $days < 0 ) { $days = 0; } }
@@ -683,12 +717,12 @@ class M24_Offers_Render {
 			var LOGIN_URL='<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/request-login' ) ); ?>';
 			var NONCE='<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>', TOKEN='<?php echo esc_js( $token ); ?>';
 			var ACCEPT_LABEL=<?php echo wp_json_encode( (string) $L['accept'] ); ?>;
-			<?php $en_view2 = ( 'en' === self::offer_lang( $o ) ); ?>
+			<?php $en_view2 = ( 'en' === self::offer_lang( $o ) ); $sie2 = ( 'du' !== self::anrede_form( $o ) ); ?>
 			var MSG=<?php echo wp_json_encode( array(
-				'login'   => $en_view2 ? 'Please log in to accept — we\'ve sent a login link to your email.' : 'Bitte zum Annehmen einloggen — wir haben dir einen Login-Link an deine E-Mail geschickt.',
-				'sent'    => $en_view2 ? 'We\'ve sent you a login link. Open it to accept this offer.' : 'Wir haben dir einen Login-Link an deine E-Mail geschickt. Öffne ihn, um das Angebot anzunehmen.',
-				'mismatch'=> $en_view2 ? 'This offer can only be accepted from the account of the email it was sent to.' : 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.',
-				'err'     => $en_view2 ? 'That didn\'t work. Please try again later.' : 'Das hat nicht geklappt. Bitte versuche es später erneut.',
+				'login'   => $en_view2 ? 'Please log in to accept — we\'ve sent a login link to your email.' : ( $sie2 ? 'Bitte zum Annehmen einloggen — wir haben Ihnen einen Login-Link an Ihre E-Mail geschickt.' : 'Bitte zum Annehmen einloggen — wir haben dir einen Login-Link an deine E-Mail geschickt.' ),
+				'sent'    => $en_view2 ? 'We\'ve sent you a login link. Open it to accept this offer.' : ( $sie2 ? 'Wir haben Ihnen einen Login-Link an Ihre E-Mail geschickt. Öffnen Sie ihn, um das Angebot anzunehmen.' : 'Wir haben dir einen Login-Link an deine E-Mail geschickt. Öffne ihn, um das Angebot anzunehmen.' ),
+				'mismatch'=> $en_view2 ? 'This offer can only be accepted from the account of the email it was sent to.' : ( $sie2 ? 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.' : 'Dieses Angebot kann nur mit dem Konto der hinterlegten E-Mail angenommen werden.' ),
+				'err'     => $en_view2 ? 'That didn\'t work. Please try again later.' : ( $sie2 ? 'Das hat nicht geklappt. Bitte versuchen Sie es später erneut.' : 'Das hat nicht geklappt. Bitte versuche es später erneut.' ),
 			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
 			var msgEl=document.querySelector('[data-accept-msg]');
 			function setMsg(txt,ok){ if(!msgEl){return;} msgEl.hidden=false; msgEl.textContent=txt; msgEl.className='m24off-acceptmsg '+(ok?'is-ok':'is-error'); }
@@ -936,7 +970,7 @@ class M24_Offers_Render {
 		$email  = (string) ( $cust['email'] ?? '' );
 		if ( ! is_email( $email ) && ! $return_html ) { return; }
 		$vu = self::date_de( (string) $o->valid_until );
-		$L  = self::ol( self::offer_lang( $o ) ); // #1: Angebotssprache-Labels (Rechtstexte bleiben DE)
+		$L  = self::ol( self::offer_lang( $o ), self::anrede_form( $o ) ); // #1: Angebotssprache-Labels + DE-Anredeform (Rechtstexte bleiben DE)
 		$sj   = json_decode( (string) $o->src_json, true ) ?: array();
 		$sal  = trim( (string) ( $sj['salutation'] ?? '' ) );
 		$note = (string) ( $sj['note'] ?? '' );
@@ -975,7 +1009,7 @@ class M24_Offers_Render {
 		}
 
 		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( sprintf( $L['valid_line'], $vu, $mdays, $mplural ) ) . '</p>' : '';
-		$greet  = '' !== $sal ? $sal : ( $L['hello'] . ( ! empty( $cust['name'] ) ? ' ' . $cust['name'] : '' ) . ',' );
+		$greet  = '' !== $sal ? $sal : self::greeting( $cust, $mlang, self::anrede_form( $o ) ); // manuelles Anschreiben hat Vorrang; sonst Du/Sie-Logik
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).

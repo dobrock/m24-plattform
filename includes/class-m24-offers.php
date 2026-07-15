@@ -748,6 +748,7 @@ class M24_Offers {
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$src['lang'] = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de'; // Angebotssprache (Mail/Kunden-Ansicht/PDF)
+		$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie'; // DE-Anredeform je Angebot (Default Sie)
 		// EN-Angebot: fehlende EN-Titel der Katalog-Positionen per DeepL füllen (EINE Batch-Anfrage, gecacht).
 		// Wirkt im gespeicherten Snapshot → Mail + Kunden-Ansicht + Druck nutzen die EN-Titel. Fehler → DE-Fallback.
 		if ( 'en' === $src['lang'] && class_exists( 'M24_DeepL' ) ) {
@@ -857,6 +858,7 @@ class M24_Offers {
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
 		$src['lang']       = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de';
+			$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie';
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
 		$src['delivery']   = $delivery;
@@ -1022,6 +1024,7 @@ class M24_Offers {
 			'name'      => sanitize_text_field( (string) ( $c['name'] ?? '' ) ),
 			'email'     => strtolower( sanitize_email( (string) ( $c['email'] ?? '' ) ) ),
 			'kundentyp' => in_array( ( $c['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $c['kundentyp'] : 'b2c',
+			'anrede'    => in_array( ( $c['anrede'] ?? '' ), array( 'Herr', 'Frau' ), true ) ? (string) $c['anrede'] : '', // für die Sie-Begrüßung
 			'firma'     => sanitize_text_field( (string) ( $c['firma'] ?? '' ) ),
 			'land'      => sanitize_text_field( trim( (string) ( $c['land'] ?? '' ) ) ), // #6: Land VERBATIM (ISO/Flagge nur intern abgeleitet)
 			// #8: vollen Kontakt-Datensatz im Snapshot mitführen → Draft-Reload/Editor behält alle Felder.

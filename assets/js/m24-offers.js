@@ -30,6 +30,8 @@
 	var shipOpen = false; // Inline-Editor der Versand-Position offen?
 	var enEditIdx = -1;   // #7: Index der Position, deren EN-Titel gerade inline editiert wird (-1 = keiner)
 	var taxMode = '', taxRate = 0, offerLang = 'de';
+	var anredeForm = 'sie'; // DE-Anredeform je Angebot (Default Sie); EN kennt kein du/sie
+	function setAnredeForm(af) { anredeForm = ('du' === af) ? 'du' : 'sie'; $$('[data-anrede-form] [data-af]').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-af') === anredeForm); }); salApply(false); }
 	var modell = (cfg.src && cfg.src.src_modell) || '';
 	var customer = cfg.customer || { name: '', email: '', kundentyp: 'b2c', land: '' };
 	var LANDS = cfg.lands || {};
@@ -250,7 +252,15 @@
 	}
 
 	var salTouched = false, salAuto = '';
-	function salSuggestFor(lang) { var vn = (customer.name || '').trim().split(/\s+/)[0] || ''; return ('en' === lang ? 'Hello' : 'Hallo') + (vn ? ' ' + vn : '') + ','; } // Fallback ohne Vorname: „Hallo," / „Hello,"
+	function salSuggestFor(lang) {
+		var parts = (customer.name || '').trim().split(/\s+/), vn = customer.vorname || parts[0] || '', nn = customer.nachname || (parts.length > 1 ? parts.slice(1).join(' ') : '');
+		if ('en' === lang) { return 'Hello' + (vn ? ' ' + vn : '') + ','; }
+		if ('du' === anredeForm) { return 'Hallo' + (vn ? ' ' + vn : '') + ','; } // Du: Vorname, kein „Herr"
+		var an = customer.anrede || ''; // Sie
+		if (an && nn) { return 'Hallo ' + an + ' ' + nn + ','; }
+		if (nn) { return 'Guten Tag ' + nn + ','; }
+		return 'Guten Tag,';
+	}
 	function salSuggest() { return salSuggestFor(offerLang); }
 	function salApply(force) {
 		var el = $('[data-salutation]'); if (!el) { return; }
@@ -438,6 +448,7 @@
 			if (kt) { customer.kundentyp = kt.getAttribute('data-kt'); }
 			if ((nv = $('[data-c="land"]'))) { customer.land = nv.value; }  // verbatim (auch leer)
 			if ((nv = $('[data-c="firma"]'))) { customer.firma = nv.value; } // falls ein Firma-Feld existiert
+			if ((nv = $('[data-c="anrede"]'))) { customer.anrede = nv.value; } // Herr/Frau/— für die Sie-Begrüßung
 		}
 		return customer; // vollständiger Model-Datensatz
 	}
@@ -494,7 +505,7 @@
 		return {
 			customer: collectCustomer(), items: items,
 			extras: extras.map(function (e) { return { key: e.key, label: chipLabel(e), amount: e.amount, on: e.on, incoterm: e.incoterm || '', method: e.method || '', land: e.land || '' }; }), // Label eingefroren + #8 Incoterm/Weg/Land im Snapshot
-			tax_mode: taxMode, tax_rate: taxRate, lang: offerLang,
+			tax_mode: taxMode, tax_rate: taxRate, lang: offerLang, anrede_form: anredeForm,
 			delivery_time: ($('[data-delivery]') || {}).value || '',
 			salutation: ($('[data-salutation]') || {}).value || '', note: ($('[data-note]') || {}).value || '',
 			inquiry_id: (cfg.prefill && cfg.prefill.inquiry_id) || 0,
@@ -617,6 +628,7 @@
 		if ((el = t.closest('[data-dock-close]'))) { dockOpen(false); return; }
 		if ((el = t.closest('[data-pvclose]')) || t.matches('[data-pvmodal]')) { closePreview(); return; } // C2: Vorschau schließen
 		if ((el = t.closest('[data-pm]'))) { setPriceMode(el.getAttribute('data-pm')); return; } // B2: Netto/Brutto-Modus
+		if ((el = t.closest('[data-af]'))) { setAnredeForm(el.getAttribute('data-af')); return; } // Du/Sie-Anredeform
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }
 		if ((el = t.closest('[data-lang]'))) { setLang(el.getAttribute('data-lang')); return; }
 		if ((el = t.closest('[data-olang]'))) { setLang(el.getAttribute('data-olang')); return; }
@@ -669,6 +681,7 @@
 		if (cfg.prefill.salutation) { var se2 = $('[data-salutation]'); if (se2) { se2.value = cfg.prefill.salutation; salTouched = true; } }
 		if (cfg.prefill.note) { var ne = $('[data-note]'); if (ne) { ne.value = cfg.prefill.note; } }
 		if (cfg.prefill.lang) { initLang = ('en' === cfg.prefill.lang) ? 'en' : 'de'; }
+		if (cfg.prefill.anrede_form) { anredeForm = ('du' === cfg.prefill.anrede_form) ? 'du' : 'sie'; }
 	}
 
 	/* ── B: Kunden-Schnellanlage / -Bearbeitung (Modal) ── */
@@ -683,9 +696,11 @@
 			id: c.id || 0, name: c.name || '', email: c.email || '',
 			kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: (c.land || ''),
 			firma: (c.firma || c.firmenname || ''), vorname: (c.vorname || ''), nachname: (c.nachname || ''),
+			anrede: (('Herr' === c.anrede || 'Frau' === c.anrede) ? c.anrede : ''),
 			strasse: (c.strasse || ''), adresszusatz: (c.adresszusatz || ''), plz: (c.plz || ''), ort: (c.ort || ''),
 			telefon: (c.telefon || ''), ustid: (c.ustid || ''), eori: (c.eori || '')
 		};
+		var fa = $('[data-c="anrede"]'); if (fa) { fa.value = customer.anrede; }
 		// A2: Kundenkarte zeigt {Firmenname bzw. Name} {Flagge} (Fallback Name → E-Mail), konsistent mit der Übersicht.
 		var dispName = customer.firma || customer.name || customer.email || '—';
 		var flag = (window.M24Country && customer.land) ? M24Country.getFlag(customer.land) : '';
@@ -778,6 +793,7 @@
 	function cxVatCheck() { var el = $('[data-cx="ustid"]'), st = $('[data-cx-status]'); if (!el || !st) { return; } var v = el.value.replace(/\s/g, '').toUpperCase(); var ok = /^[A-Z]{2}[0-9A-Z]{2,12}$/.test(v); st.textContent = ok ? ('USt-IdNr. ' + v + ' — Format gültig (Live-VIES-Prüfung folgt).') : 'USt-IdNr.-Format unplausibel (z. B. DE123456789).'; st.className = 'm24off-cxstatus ' + (ok ? 'is-ok' : 'is-error'); }
 
 	setLang(initLang); // 0.11.342: gespeicherte Angebotssprache restaurieren (Default de)
+	setAnredeForm(anredeForm); // Du/Sie-Umschalter initial synchronisieren (Default Sie)
 	salApply(false);
 	if (cfg.custIsDrittland) { autoSuggestZoll(); } // Drittland-Kunde → Zoll-Chip vorab aktiv (manuell abwählbar)
 	renderItems();
