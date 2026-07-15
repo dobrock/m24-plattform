@@ -72,12 +72,17 @@ class M24_Garage_Offer_Bridge {
 		}
 
 		$offer_items = array();
+		$indet       = array(); // Teile ohne eindeutigen Steuerstatus (Meta fehlt) — als Daten-Signal loggen
 		foreach ( $src_items as $it ) {
 			$pid = (int) $it['post_id'];
 			if ( $pid <= 0 ) { continue; }
-			$is25   = class_exists( 'M24_Catalog_Pricing' ) ? (bool) M24_Catalog_Pricing::is_25a( $pid ) : false;
+			// §25a-Status EXPLIZIT auswerten: true → §25a; false → regelbesteuert; null → UNBESTIMMT (Meta fehlt).
+			// Nur bei true bleibt der Preis brutto; sonst ÷1,19 (Netto), passend zum 19-%-Modell der Garage.
+			$mwst = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::is_25a( $pid ) : false;
+			$is25 = ( true === $mwst );
+			if ( null === $mwst ) { $indet[] = $pid; } // weder paragraf25a noch regel gesetzt → Daniel muss das Teil flaggen
 			$brutto = ( null !== $it['unit'] ) ? (float) $it['unit'] : 0.0; // Garagen-Brutto (variant_price hat Vorrang)
-			// §25a: Brutto unverändert · regelbesteuert: Brutto → Netto (÷1,19), damit b2b_de_19 exakt round-trippt.
+			// §25a: Brutto unverändert · sonst: Brutto → Netto (÷1,19), damit b2b_de_19 exakt round-trippt.
 			$unit_price = $is25 ? round( $brutto, 2 ) : round( $brutto / 1.19, 2 );
 			$offer_items[] = array(
 				'teil_id'    => $pid,
@@ -90,6 +95,11 @@ class M24_Garage_Offer_Bridge {
 				'custom'     => ( '' !== (string) $it['variant'] ), // Varianten-/Sonderpositionen als Custom-Text markieren
 				'thumb'      => (string) $it['thumb'],
 			);
+		}
+
+		// „Melden, nicht raten": Teile ohne §25a/regel-Meta sichtbar machen (Daten-Signal, kein stiller Fallback).
+		if ( ! empty( $indet ) && class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'garage_offer_25a_unset', 'warning', 'Teile ohne _m24_mwst_modus (paragraf25a|regel) → als regelbesteuert behandelt (÷1,19). Bitte §25a-Status am Teil setzen.', array( 'teil_ids' => implode( ',', array_map( 'intval', $indet ) ) ) );
 		}
 
 		$res = M24_Offers::create_garage_draft( $offer_items );

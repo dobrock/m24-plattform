@@ -602,7 +602,8 @@ class M24_Offers_Render {
 					<?php if ( $Y > 0 ) : ?><div class="m24off-sumline"><span>USt <?php echo esc_html( $rate_str ); ?> %</span><strong><?php echo esc_html( self::fmt( $Y ) ); ?></strong></div><?php endif; ?>
 					<div class="m24off-sumline"><span>Differenzbesteuert (§ 25a)</span><strong><?php echo esc_html( self::fmt( $Z ) ); ?></strong></div>
 				<?php endif; ?>
-				<div class="m24off-sumline m24off-total"><span><?php echo esc_html( $L['total'] ); ?></span><strong><?php echo esc_html( self::fmt( (float) $o->total_gross ) ); ?></strong></div>
+				<?php // Bug A: „Gesamt" aus DERSELBEN frischen Berechnung wie die Zwischensumme ($bd), nicht aus der (evtl. 0/stale) Spalte total_gross. $bd['total'] = netto + USt + §25a-brutto = tatsächlicher Endbetrag. ?>
+				<div class="m24off-sumline m24off-total"><span><?php echo esc_html( $L['total'] ); ?></span><strong><?php echo esc_html( self::fmt( (float) $bd['total'] ) ); ?></strong></div>
 				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote() ); ?></p><?php endif; ?>
 				<?php $tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note; if ( '' !== $tn && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $tn ); ?></p><?php endif; ?>
 			</section>
@@ -656,7 +657,7 @@ class M24_Offers_Render {
 			var chk=document.querySelector('[data-gate]'), acc=document.querySelector('[data-accept]'), box=document.querySelector('[data-paybox]');
 			var BANK=<?php echo wp_json_encode( array(
 				'inhaber' => $bank['inhaber'], 'iban' => $bank['iban'], 'bic' => $bank['bic'],
-				'zweck'   => (string) $o->offer_no, 'betrag' => self::fmt( (float) $o->total_gross ),
+				'zweck'   => (string) $o->offer_no, 'betrag' => self::fmt( (float) $bd['total'] ), // Bug A: zu zahlender Betrag = frischer Endbetrag (= „Gesamt")
 			) ); // phpcs:ignore WordPress.Security.EscapeOutput ?>;
 			<?php $en_view = ( 'en' === self::offer_lang( $o ) ); ?>
 			var BLBL=<?php echo wp_json_encode( array(
@@ -967,7 +968,7 @@ class M24_Offers_Render {
 			$sum .= $srow( $L['margin'], $Z, false );
 		}
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
-			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $o->total_gross ) ) . '</td></tr></table>';
+			. '<tr><td colspan="2" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
 		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
@@ -986,7 +987,7 @@ class M24_Offers_Render {
 		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz( self::offer_lang( $o ) ) ) . '</p>';
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
-			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $o->total_gross ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) )
+			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $bd['total'] ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) ) // Bug A: frischer Endbetrag
 			. ( $o->delivery_time ? '<br><strong>' . esc_html( $L['delivery'] ) . ':</strong> ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) : '' ) . '</p>';
 		// B2C-Widerruf-Absatz in der Mail NICHT rendern (EN + DE) — die vollständige Belehrung steht unter /widerruf/
 		// (in der Pflicht-Links-Zeile unten verlinkt).
