@@ -663,8 +663,8 @@ class M24_Offers_Render {
 				}
 				?>
 				<?php if ( 'offen' === $status ) : ?>
-					<label class="m24off-check"><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used, self::offer_lang( $o ) ) ); ?></span></label>
-					<button type="button" class="m24off-btn m24off-btn-blue" data-accept disabled><?php echo esc_html( $L['accept'] ); ?></button>
+					<label class="m24off-check" data-gate-wrap hidden><input type="checkbox" data-gate> <span><?php echo esc_html( self::checkbox_text( $is_b2c, $has_used, self::offer_lang( $o ) ) ); ?></span></label>
+					<button type="button" class="m24off-btn m24off-btn-blue" data-accept><?php echo esc_html( $L['accept'] ); ?></button>
 					<p class="m24off-acceptmsg" data-accept-msg role="status" hidden></p>
 				<?php else : ?>
 					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
@@ -725,6 +725,7 @@ class M24_Offers_Render {
 			var LOGIN_URL='<?php echo esc_url_raw( rest_url( M24_Offers::NS . '/offers/request-login' ) ); ?>';
 			var NONCE='<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>', TOKEN='<?php echo esc_js( $token ); ?>';
 			var ACCEPT_LABEL=<?php echo wp_json_encode( (string) $L['accept'] ); ?>;
+			var ACCEPT_CONFIRM=<?php echo wp_json_encode( 'en' === self::offer_lang( $o ) ? 'Confirm & accept' : 'Jetzt verbindlich annehmen' ); ?>;
 			<?php $en_view2 = ( 'en' === self::offer_lang( $o ) ); $sie2 = ( 'du' !== self::anrede_form( $o ) ); ?>
 			var MSG=<?php echo wp_json_encode( array(
 				'login'   => $en_view2 ? 'Please log in to accept — we\'ve sent a login link to your email.' : ( $sie2 ? 'Bitte zum Annehmen einloggen — wir haben Ihnen einen Login-Link an Ihre E-Mail geschickt.' : 'Bitte zum Annehmen einloggen — wir haben dir einen Login-Link an deine E-Mail geschickt.' ),
@@ -749,24 +750,38 @@ class M24_Offers_Render {
 			if(billLand){ billLand.addEventListener('input',syncEori); billLand.addEventListener('change',syncEori); syncEori(); }
 			function markInvalid(fields){ document.querySelectorAll('[data-af-field].is-err').forEach(function(el){el.classList.remove('is-err');});
 				(fields||[]).forEach(function(f){ var m=String(f).split('.'); var scope=('billing'===m[0]?'bill':'ship'); var el=document.querySelector('[data-af-field="'+scope+'_'+m[1]+'"]'); if(el){el.classList.add('is-err');} }); }
+			// Zustandsmaschine: Adressformular liegt (nur für eingeloggte, passende Nutzer) VERSTECKT im DOM. „Angebot
+			// annehmen" enthüllt es beim ERSTEN Klick (nach Login) — erst dann Formular + Checkbox sichtbar; der zweite
+			// Klick (Checkbox gesetzt) sendet. Gäste ohne Formular: Klick → POST → 401 → Magic-Link.
+			var addrEl=document.querySelector('[data-addr]'), gateWrap=document.querySelector('[data-gate-wrap]'), formRevealed=false;
 			if(chk&&acc){ chk.addEventListener('change',function(){ acc.disabled=!chk.checked; }); }
-			if(acc&&box){ acc.addEventListener('click',function(){
-				if(acc.disabled) return;
+			function submitAccept(){
 				acc.disabled=true; acc.textContent=BLBL.accepting;
 				var payload={token:TOKEN};
-				if(document.querySelector('[data-addr]')){ payload.billing=collectBlock('bill'); payload.ship_diff=!!(shipDiffEl&&shipDiffEl.checked); if(payload.ship_diff){ payload.shipping=collectBlock('ship'); } }
+				if(addrEl){ payload.billing=collectBlock('bill'); payload.ship_diff=!!(shipDiffEl&&shipDiffEl.checked); if(payload.ship_diff){ payload.shipping=collectBlock('ship'); } }
 				fetch(ACCEPT_URL,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-WP-Nonce':NONCE},body:JSON.stringify(payload)})
 					.then(function(r){ return r.json().then(function(d){ return {status:r.status,d:d}; }, function(){ return {status:r.status,d:{}}; }); })
 					.then(function(res){
-						if(200===res.status && res.d && res.d.ok){ if(acc.parentNode){acc.style.display='none';} var af=document.querySelector('[data-addr]'); if(af){af.style.display='none';} renderBank(); return; }
-						if(401===res.status){ // Teil 2: nicht eingeloggt → Magic-Link an die Angebots-E-Mail
+						if(200===res.status && res.d && res.d.ok){ if(acc.parentNode){acc.style.display='none';} if(addrEl){addrEl.hidden=true;} if(gateWrap){gateWrap.hidden=true;} renderBank(); return; }
+						if(401===res.status){ // nicht eingeloggt → Magic-Link an die Angebots-E-Mail
 							return reqLogin().then(function(d2){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg((d2&&d2.ok)?MSG.sent:MSG.err,!!(d2&&d2.ok)); });
 						}
-						acc.disabled=false; acc.textContent=ACCEPT_LABEL;
-						if(422===res.status){ markInvalid(res.d&&res.d.data&&res.d.data.fields); setMsg(MSG.addr,false); return; } // Teil 3: Pflichtfelder
+						acc.disabled=false; acc.textContent=(formRevealed?ACCEPT_CONFIRM:ACCEPT_LABEL);
+						if(422===res.status){ markInvalid(res.d&&res.d.data&&res.d.data.fields); setMsg(MSG.addr,false); return; }
 						setMsg(403===res.status?MSG.mismatch:((res.d&&(res.d.message||res.d.error))||MSG.err),false);
 					})
-					.catch(function(){ acc.disabled=false; acc.textContent=ACCEPT_LABEL; setMsg(MSG.err,false); });
+					.catch(function(){ acc.disabled=false; acc.textContent=(formRevealed?ACCEPT_CONFIRM:ACCEPT_LABEL); setMsg(MSG.err,false); });
+			}
+			if(acc&&box){ acc.addEventListener('click',function(){
+				if(acc.disabled) return;
+				// Schritt 1 (eingeloggt + passend, Formular noch versteckt): Adressformular + Checkbox enthüllen, NICHT senden.
+				if(addrEl && !formRevealed){
+					formRevealed=true; addrEl.hidden=false; if(gateWrap){gateWrap.hidden=false;} acc.textContent=ACCEPT_CONFIRM; acc.disabled=!(chk&&chk.checked);
+					if(typeof syncEori==='function'){ syncEori(); }
+					addrEl.scrollIntoView({behavior:'smooth',block:'nearest'}); return;
+				}
+				// Schritt 2 (bzw. Gast ohne Formular): senden.
+				submitAccept();
 			}); }
 			if(box && !box.hidden){ renderBank(); } // bereits angenommenes Angebot: Bankdaten direkt anzeigen
 			function row(label,val,copy){

@@ -213,14 +213,16 @@ class M24_Offer_Address {
 		return '<label class="m24off-af"><span>' . esc_html( $label ) . $star . '</span><input type="' . esc_attr( $type ) . '" data-af-field="' . esc_attr( $name ) . '" value="' . esc_attr( $val ) . '" autocomplete="off"></label>';
 	}
 
-	/** Adressblock-HTML (Rechnung oder Lieferung). $is_b2b blendet Firma/USt-IdNr ein. */
+	/** Adressblock-HTML (Rechnung oder Lieferung). B2B: Firma Pflicht + USt-IdNr; B2C: Firma optional (nur Rechnung). */
 	private static function block_html( string $scope, array $pf, bool $is_b2b, bool $req_all ): string {
 		$h  = self::field( $scope, 'anrede', 'Anrede', (string) ( $pf['anrede'] ?? '' ), $req_all );
 		$h .= self::field( $scope, 'vorname', 'Vorname', (string) ( $pf['vorname'] ?? '' ), $req_all );
 		$h .= self::field( $scope, 'nachname', 'Nachname', (string) ( $pf['nachname'] ?? '' ), $req_all );
 		if ( $is_b2b ) {
 			$h .= self::field( $scope, 'firma', 'Firma', (string) ( $pf['firma'] ?? '' ), 'bill' === $scope );
-			$h .= self::field( $scope, 'ustid', 'USt-IdNr (EU)', (string) ( $pf['ustid'] ?? '' ), false );
+			if ( 'bill' === $scope ) { $h .= self::field( $scope, 'ustid', 'USt-IdNr (EU)', (string) ( $pf['ustid'] ?? '' ), false ); }
+		} elseif ( 'bill' === $scope ) {
+			$h .= self::field( $scope, 'firma', 'Firma (optional)', (string) ( $pf['firma'] ?? '' ), false ); // B2C: Firmenanschrift optional
 		}
 		$h .= self::field( $scope, 'strasse', 'Straße + Nr.', (string) ( $pf['strasse'] ?? '' ), $req_all );
 		$h .= self::field( $scope, 'plz', 'PLZ', (string) ( $pf['plz'] ?? '' ), $req_all );
@@ -242,7 +244,8 @@ class M24_Offer_Address {
 	 */
 	public static function render_form( array $cust, array $prefill, string $lang = 'de' ): string {
 		$is_b2b = ( 'b2b' === ( $cust['kundentyp'] ?? 'b2c' ) );
-		$h  = '<div class="m24off-addr" data-addr>';
+		// Formular startet VERSTECKT — es erscheint erst nach Klick auf „Angebot annehmen" (nach Login). Kein Inline.
+		$h  = '<div class="m24off-addr" data-addr hidden>';
 		$h .= '<h3 class="m24off-addr-h">Rechnungsadresse</h3>';
 		$h .= '<div class="m24off-af-grid" data-addr-billing>' . self::block_html( 'bill', $prefill, $is_b2b, true ) . '</div>';
 		$h .= '<label class="m24off-check m24off-addr-diff"><input type="checkbox" data-ship-diff> <span>Lieferadresse abweichend</span></label>';

@@ -468,3 +468,5 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-cust [data-af-field].is-err{border-color:#c0392b;box-shadow:0 0 0 3px rgba(192,57,43,.12)}
 .m24off-cust .m24off-addr-diff{margin:12px 0 0}
 @media(max-width:520px){.m24off-cust .m24off-af-grid{grid-template-columns:1fr}}
+/* Fix: [hidden] muss display:grid/flex des Adressblocks schlagen (sonst Lieferadresse/EORI/Form immer sichtbar) */
+.m24off-cust [data-addr][hidden],.m24off-cust [data-addr-shipping][hidden],.m24off-cust [data-eori-wrap][hidden]{display:none!important}
