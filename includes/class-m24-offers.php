@@ -874,6 +874,44 @@ class M24_Offers {
 		) );
 	}
 
+	/**
+	 * Garage → Angebot: aus vorbereiteten Positionen einen Entwurf anlegen (ohne Kunde/Steuer — der Operator
+	 * ergänzt beides im Builder). $items = Roh-Positionen (teil_id, title, qty, unit_price [NETTO bzw. §25a-Brutto],
+	 * tax25a, variant, thumb). Preis-/§25a-Mapping macht der Aufrufer (Bridge); clean_items erbt tax25a zusätzlich
+	 * aus dem Teil. Gibt draft_id + edit_url (?m24_offer_new=1&draft=…) zurück. Kein next_number(), keine Frist.
+	 */
+	public static function create_garage_draft( array $items ): array {
+		global $wpdb;
+		$clean = self::clean_items( $items );
+		if ( empty( $clean ) ) { return array( 'ok' => false, 'error' => 'Keine gültigen Positionen.' ); }
+		$src = self::clean_src( array( 'src_pillar' => 'garage' ) );
+		$row = array(
+			'account_id'   => 0,
+			'status'       => 'entwurf',
+			'customer_json'=> wp_json_encode( array() ), // Kunde ergänzt der Operator im Builder
+			'items_json'   => wp_json_encode( $clean ),
+			'extras_json'  => wp_json_encode( array() ),
+			'delivery_time'=> '',
+			'tax_mode'     => '', // Steuerfall wählt der Operator im Builder
+			'tax_rate'     => 0,
+			'tax_note'     => '',
+			'subtotal_net' => 0,
+			'tax_amount'   => 0,
+			'total_gross'  => 0,
+			'currency'     => 'EUR',
+			'valid_until'  => null, // Entwurf → Frist erst ab Sendedatum (VALID_DAYS)
+			'src_json'     => wp_json_encode( $src ),
+			'sent_at'      => null,
+			'offer_no'     => 'E-' . bin2hex( random_bytes( 8 ) ), // eindeutiger Platzhalter (UNIQUE), KEIN Sequenz-Verbrauch
+			'token'        => bin2hex( random_bytes( 16 ) ),
+		);
+		$wpdb->insert( self::table(), $row );
+		$id = (int) $wpdb->insert_id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Entwurf konnte nicht angelegt werden.' ); }
+		self::log( 'draft_from_garage', $id, '' );
+		return array( 'ok' => true, 'draft_id' => $id, 'edit_url' => add_query_arg( array( self::QV_NEW => 1, 'draft' => $id ), home_url( '/' ) ) );
+	}
+
 	/** Operator-Live-Vorschau: EN-Titel für Katalog-Positionen on-demand (Batch-DeepL, gecacht). {id: en}. */
 	public static function handle_en_titles( WP_REST_Request $req ) {
 		if ( ! wp_verify_nonce( (string) $req->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {

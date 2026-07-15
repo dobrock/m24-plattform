@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.369
+ * Version:           0.11.370
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -148,6 +148,7 @@ M24_Admin_Cleanup::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-country-flags.php'; // Länder → ISO2 + Emoji-Flagge (Ansatz A)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-deepl.php';        // DeepL: EN-Angebots-Positionstitel on-demand (Hash-Cache)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-offer-bridge.php'; // Garage → Angebot: Operator-Einstieg (manage_options)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
@@ -335,6 +336,7 @@ add_action( 'plugins_loaded', function() {
     M24_Brevo_IL::init();
     M24_Garage::init(); // Meine Garage G1
     M24_Garage_Cart::init(); // Meine Garage Etappe 1: kontogebundener Warenkorb
+    M24_Garage_Offer_Bridge::init(); // Garage → Angebot (Operator, manage_options): REST /offers/from-garage
     M24_Guest_Share::init(); // Paket G #4: anonymer 1-Wochen-Gast-Share
     M24_Garage_PDF::init();  // Meine Garage Etappe 3: PDF-Download (admin-post)
     M24_Garage_Alerts::init(); // Meine Garage Etappe 3: per-Fahrzeug-Änderungs-Alerts (Flag-gated)

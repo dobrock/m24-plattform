@@ -1600,6 +1600,10 @@ class M24_Garage_Cart {
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),
+			// Operator-Einstieg: serverseitiges Gate (dieselbe Cap wie der Angebots-Builder). Nur damit wird die
+			// „Angebot erstellen"-CTA sichtbar/aktiv — Kunden sehen weiter „Angebot anfragen".
+			'isOperator'      => class_exists( 'M24_Garage_Offer_Bridge' ) && M24_Garage_Offer_Bridge::is_operator(),
+			'offerFromGarage' => esc_url_raw( rest_url( self::NS . '/offers/from-garage' ) ),
 			'i18n'     => array(
 				'added'       => 'In deine Garage gelegt.',
 				'failed'      => 'Aktion fehlgeschlagen. Bitte später erneut.',

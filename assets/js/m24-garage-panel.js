@@ -116,5 +116,28 @@
 	root.addEventListener('click', function (e) { if (e.target.closest('[data-m24gt-close]') || e.target === ov) { close(); } });
 	document.addEventListener('m24garage:changed', function () { load(); });
 
+	// Operator-Einstieg: „Angebot anfragen" → „Angebot erstellen" (nur bei serverseitigem isOperator). Klick legt
+	// serverseitig einen Angebots-Entwurf an (Preise §25a-korrekt) und öffnet den Builder. Kunden sehen unverändert.
+	if (cfg.isOperator && cfg.offerFromGarage) {
+		var inq = $('[data-m24gt-cta-inquire]');
+		if (inq) {
+			inq.textContent = 'Angebot erstellen';
+			inq.addEventListener('click', function (e) {
+				e.preventDefault();
+				if (inq.dataset.busy) { return; } // Doppelklick-Guard (Client) — Server dedupliziert zusätzlich
+				var body = cfg.loggedIn ? {} : { items: guestItems() }; // eingeloggt = Konto-Garage (Server liest), sonst localStorage
+				if (!cfg.loggedIn && !(body.items && body.items.length)) { return; } // leere Garage → nichts
+				inq.dataset.busy = '1'; inq.textContent = 'Erstelle Angebot …';
+				fetch(cfg.offerFromGarage, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						if (d && d.ok && d.edit_url) { window.location.href = d.edit_url; return; }
+						inq.dataset.busy = ''; inq.textContent = 'Angebot erstellen';
+					})
+					.catch(function () { inq.dataset.busy = ''; inq.textContent = 'Angebot erstellen'; });
+			}, true); // Capture: der bestehende Inquire-Href/-Flow darf nicht zusätzlich feuern
+		}
+	}
+
 	load();
 })();

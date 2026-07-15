@@ -651,4 +651,37 @@
 			});
 		}
 	}
+
+	/* Operator-Einstieg: „Angebot erstellen" statt „Angebot anfragen" (nur serverseitiges isOperator).
+	   Konto-Garage-Seite (#m24-angebot-open) -> Server liest die Konto-Garage; Gast-Garage-Seite
+	   ([data-m24gc-guest-inquire]) -> localStorage-IDs, Preise SERVERSEITIG neu abgeleitet. Kunden unveraendert. */
+	if (cfg.isOperator && cfg.offerFromGarage) {
+		var OP_SEL = '#m24-angebot-open, [data-m24gc-guest-inquire]';
+		var opReadGuest = function () {
+			try { var a = JSON.parse(localStorage.getItem(cfg.guestKey || 'm24_guest_garage') || '[]'); return Array.isArray(a) ? a.map(function (x) { return ('object' === typeof x && x) ? x : { id: parseInt(x, 10) || 0, q: 1 }; }).filter(function (o) { return o.id > 0; }) : []; } catch (e) { return []; }
+		};
+		var opRelabel = function () {
+			[].forEach.call(document.querySelectorAll(OP_SEL), function (el) { if (!el.dataset.m24op) { el.dataset.m24op = '1'; el.textContent = 'Angebot erstellen'; } });
+		};
+		opRelabel(); setTimeout(opRelabel, 400);
+		document.addEventListener('m24garage:changed', opRelabel);
+		document.addEventListener('click', function (e) {
+			var el = e.target.closest && e.target.closest(OP_SEL);
+			if (!el) { return; }
+			e.preventDefault(); e.stopPropagation();
+			if (el.dataset.busy) { return; }
+			var isGuest = el.hasAttribute('data-m24gc-guest-inquire');
+			var body = isGuest ? { items: opReadGuest() } : {};
+			if (isGuest && !(body.items && body.items.length)) { return; }
+			el.dataset.busy = '1'; var prev = el.textContent; el.textContent = 'Erstelle Angebot ...';
+			fetch(cfg.offerFromGarage, { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify(body) })
+				.then(function (r) { return r.json(); })
+				.then(function (d) {
+					if (d && d.ok && d.edit_url) { window.location.href = d.edit_url; return; }
+					el.dataset.busy = ''; el.textContent = prev;
+				})
+				.catch(function () { el.dataset.busy = ''; el.textContent = prev; });
+		}, true);
+	}
+
 })();
