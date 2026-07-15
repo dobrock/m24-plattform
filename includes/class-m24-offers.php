@@ -131,9 +131,11 @@ class M24_Offers {
 		}
 		$f_st = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : '';            // phpcs:ignore WordPress.Security.NonceVerification
 		$f_s  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';        // phpcs:ignore WordPress.Security.NonceVerification
+		$f_nv = isset( $_GET['nv'] ) ? (int) $_GET['nv'] : 0;                                       // phpcs:ignore WordPress.Security.NonceVerification — „nicht angesehen"
 
 		$where = array( '1=1' ); $args = array();
 		if ( isset( $badges[ $f_st ] ) ) { $where[] = 'status = %s'; $args[] = $f_st; }
+		if ( $f_nv ) { $where[] = "viewed_last_at IS NULL AND status <> 'entwurf'"; } // nur versendete, vom Kunden noch nicht geöffnete
 		if ( '' !== $f_s ) { $like = '%' . $wpdb->esc_like( $f_s ) . '%'; $where[] = '( offer_no LIKE %s OR customer_json LIKE %s )'; $args[] = $like; $args[] = $like; }
 		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
@@ -147,7 +149,9 @@ class M24_Offers {
 		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
 		echo '<div class="flt">' . $chip( '', 'Alle' );
 		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
-		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
+		// „Nicht angesehen"-Chip: toggelt nv (unabhängig vom Status-Filter), Suche bleibt erhalten.
+		echo '<a class="chip' . ( $f_nv ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nv' => ( $f_nv ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '">Nicht angesehen</a>';
+		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); } // Statistik-Panel rechts
 		if ( empty( $rows ) ) {
 			echo '<p>Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</p>';
@@ -196,6 +200,16 @@ class M24_Offers {
 					$sent_html = '<div class="sentat">Gesendet am ' . esc_html( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $sts ) : gmdate( 'd.m.Y', $sts ) ) . ' · ' . esc_html( $ago ) . '</div>';
 				}
 			}
+			// „Angesehen"-Status (nicht bei Entwürfen): letzter Aufruf + Zähler, sonst „noch nicht angesehen".
+			$viewed_html = '';
+			if ( ! $is_draft ) {
+				if ( ! empty( $o->viewed_last_at ) && ( $vts2 = strtotime( (string) $o->viewed_last_at . ' UTC' ) ) ) {
+					$vc = max( 1, (int) $o->view_count );
+					$viewed_html = '<div class="sentat" style="color:#1a7f37;">Angesehen am ' . esc_html( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $vts2 ) : gmdate( 'd.m.Y', $vts2 ) ) . ' (' . (int) $vc . '×)</div>';
+				} else {
+					$viewed_html = '<div class="sentat" style="color:#b45309;">Noch nicht angesehen</div>';
+				}
+			}
 			// #10: eingeklappte Positionsliste (aus items_json).
 			$pos_html = '';
 			foreach ( $items as $it ) {
@@ -207,7 +221,7 @@ class M24_Offers {
 					. '<span class="pl-t">' . esc_html( $t ) . '</span><span class="pl-q">' . (int) $q . ' ×</span><span class="pl-p">' . esc_html( $up ) . '</span></div>';
 			}
 			echo '<div class="card">';
-			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
 			echo '<div class="foot">';
 			if ( $is_draft ) {
@@ -1205,6 +1219,22 @@ class M24_Offers {
 	public static function get_by_id( int $id ) {
 		global $wpdb;
 		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE id = %d LIMIT 1', $id ) );
+	}
+
+	/**
+	 * „Angebot angesehen"-Tracking: erste Sicht einmalig, letzte Sicht + Zähler bei jedem echten Aufruf.
+	 * Der Aufrufer (M24_Offers_Render::customer) schließt Operator/Admin-Preview aus, damit der eigene Blick
+	 * die Daten nicht verfälscht. Ein atomares UPDATE (COALESCE + count+1) → kein Race, kein Extra-SELECT.
+	 */
+	public static function record_view( int $offer_id ): void {
+		if ( $offer_id <= 0 ) { return; }
+		global $wpdb;
+		$t   = self::table();
+		$now = current_time( 'mysql', true );
+		$wpdb->query( $wpdb->prepare(
+			"UPDATE $t SET viewed_first_at = COALESCE( viewed_first_at, %s ), viewed_last_at = %s, view_count = view_count + 1 WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$now, $now, $offer_id
+		) );
 	}
 
 	/**

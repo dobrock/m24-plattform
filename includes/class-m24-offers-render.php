@@ -541,6 +541,11 @@ class M24_Offers_Render {
 				echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
 				exit;
 			}
+			// „Angesehen"-Tracking: nur echte Kunden-/Gast-Aufrufe. Operator/Admin (eingeloggt + manage_options)
+			// NICHT zählen — sonst verfälscht der eigene Blick auf die Kunden-Ansicht die Daten.
+			if ( ! ( is_user_logged_in() && current_user_can( 'manage_options' ) ) ) {
+				M24_Offers::record_view( (int) $o->id );
+			}
 		}
 		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
 		$items  = json_decode( (string) $o->items_json, true ) ?: array();
