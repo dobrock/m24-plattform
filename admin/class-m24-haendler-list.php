@@ -76,30 +76,53 @@ class M24_Haendler_Page {
         $hmap  = array();
         foreach ( (array) $hrows as $h ) { $hmap[ (int) $h->wp_user_id ] = $h; }
 
-        // 3) Garage-Positionen gebündelt — ein GROUP BY statt count_positions() je Zeile.
+        // 3) Garage LIVE-Warenkorb gebündelt — ein GROUP BY statt count_positions() je Zeile.
         $gt    = M24_Garage_Cart::table();
         $grows = $wpdb->get_results( "SELECT account_id, COUNT(*) c FROM $gt WHERE account_id IN ($in) GROUP BY account_id", ARRAY_A ); // phpcs:ignore WordPress.DB
         $gmap  = array();
         foreach ( (array) $grows as $g ) { $gmap[ (int) $g['account_id'] ] = (int) $g['c']; }
 
-        // 3b) Land-Fallback (B2C): Empfängerland des JÜNGSTEN Angebots je Konto — ein gebündelter JOIN, kein N+1.
-        //     bill_land (bei Annahme erfasste Rechnungsadresse) hat Vorrang vor customer_json['land'] (Empfängerland).
-        $ot    = $wpdb->prefix . 'm24_offers';
-        $olmap = array();
+        // 3a) Garage-SNAPSHOT (geteilte Garage) als Fallback: count_positions()/der Live-Warenkorb ist bei Konten,
+        //     deren Garage als Snapshot vorliegt (Share/Operator), leer → dann die eingefrorenen Positionen zählen.
+        $st    = M24_Database::table( 'garage_snapshot' );
+        $srows = $wpdb->get_results( "SELECT account_id, items_json, vehicles_json FROM $st WHERE account_id IN ($in) ORDER BY id DESC", ARRAY_A ); // phpcs:ignore WordPress.DB
+        $smap  = array();
+        foreach ( (array) $srows as $s ) {
+            $aid = (int) $s['account_id'];
+            if ( isset( $smap[ $aid ] ) ) { continue; } // neuester Snapshot zuerst
+            $it = json_decode( (string) $s['items_json'], true );
+            $ve = json_decode( (string) ( $s['vehicles_json'] ?? '' ), true );
+            $smap[ $aid ] = ( is_array( $it ) ? count( $it ) : 0 ) + ( is_array( $ve ) ? count( $ve ) : 0 );
+        }
+
+        // 3b) Angebote je Konto (alle, neu→alt) — EIN Query. Erstes je Konto = jüngstes → Land-Fallback (B2C).
+        //     bill_land (Annahme-Adresse) hat Vorrang vor customer_json['land'] (Empfängerland beim Versand).
+        $ot         = $wpdb->prefix . 'm24_offers';
+        $offers_map = array();
+        $olmap      = array();
         $orows = $wpdb->get_results(
-            "SELECT o.account_id AS aid, o.bill_land AS bl, o.customer_json AS cj
-             FROM $ot o
-             INNER JOIN ( SELECT account_id, MAX(id) mid FROM $ot
-                          WHERE account_id IN ($in) AND status <> 'entwurf'
-                          GROUP BY account_id ) m ON o.id = m.mid" // phpcs:ignore WordPress.DB
+            "SELECT id, account_id AS aid, offer_no, status, total_gross, token, bill_land AS bl, customer_json AS cj
+             FROM $ot WHERE account_id IN ($in) AND status <> 'entwurf' ORDER BY id DESC" // phpcs:ignore WordPress.DB
         );
         foreach ( (array) $orows as $or ) {
-            $land = trim( (string) $or->bl );
-            if ( '' === $land ) {
-                $cj   = json_decode( (string) $or->cj, true );
-                $land = is_array( $cj ) ? trim( (string) ( $cj['land'] ?? '' ) ) : '';
+            $aid = (int) $or->aid;
+            if ( ! isset( $offers_map[ $aid ] ) ) { $offers_map[ $aid ] = array(); }
+            if ( count( $offers_map[ $aid ] ) < 25 ) { // Kappung je Konto (Report bei Bedarf)
+                $offers_map[ $aid ][] = array(
+                    'no'     => (string) $or->offer_no,
+                    'status' => (string) $or->status,
+                    'total'  => (float) $or->total_gross,
+                    'token'  => (string) $or->token,
+                );
             }
-            if ( '' !== $land ) { $olmap[ (int) $or->aid ] = $land; }
+            if ( ! isset( $olmap[ $aid ] ) ) { // jüngstes Angebot mit gesetztem Land gewinnt
+                $land = trim( (string) $or->bl );
+                if ( '' === $land ) {
+                    $cj   = json_decode( (string) $or->cj, true );
+                    $land = is_array( $cj ) ? trim( (string) ( $cj['land'] ?? '' ) ) : '';
+                }
+                if ( '' !== $land ) { $olmap[ $aid ] = $land; }
+            }
         }
 
         // 4) Fahrzeug-Interesse: alle beobachteten Fahrzeug-IDs EINMAL vorladen, Titel dann aus dem Post-Cache.
@@ -169,7 +192,9 @@ class M24_Haendler_Page {
                 'uid_val_at' => $h ? (string) $h->uid_validated_at : '',
                 'h_status'   => $h ? (string) $h->status : '',
                 'notes'      => $h ? (string) $h->notes_intern : '',
-                'garage'     => $gmap[ $uid ] ?? 0,
+                'garage'     => ( ( $gmap[ $uid ] ?? 0 ) > 0 ) ? (int) $gmap[ $uid ] : (int) ( $smap[ $uid ] ?? 0 ),
+                'garage_snap'=> ! ( ( $gmap[ $uid ] ?? 0 ) > 0 ) && ( ( $smap[ $uid ] ?? 0 ) > 0 ), // Zählung stammt aus Snapshot
+                'offers'     => $offers_map[ $uid ] ?? array(),
                 'act'        => $act,
                 'act_ts'     => $ll,
                 'interest'   => $titles,
@@ -391,20 +416,13 @@ class M24_Haendler_Page {
         echo '<div class="meta"><span class="badge" style="color:' . esc_attr( $st[1] ) . ';background:' . esc_attr( $st[2] ) . ';">' . esc_html( $st[0] ) . '</span></div>';
         echo '</div>';
 
-        // Indikator-Pillen.
+        // Indikator-Pillen. (Land steht bewusst NUR im Header — Flagge + Land neben dem Namen; keine doppelte Pill.)
         echo '<div class="kk-ind">';
-        // Land (B2B: Händler-Datensatz; B2C: _m24_land bzw. jüngstes Angebot — dezenter Quelle-Hinweis).
-        if ( '' !== $r['land'] ) {
-            $lname = class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::getFlagAndCountry( $r['land'] ) : $r['land'];
-            echo '<span class="pill on"><i>Land</i>' . esc_html( $lname )
-                . ( 'offer' === $r['land_src'] ? ' <em style="font-style:normal;color:#9aa3af;">(aus Angebot)</em>' : '' ) . '</span>';
-        } else {
-            echo '<span class="pill"><i>Land</i>–</span>';
-        }
-        // Garage
+        // Garage — Live-Warenkorb, sonst Snapshot-Fallback (dezenter Hinweis „(Snapshot)").
         if ( $r['garage'] > 0 ) {
             $g = sprintf( _n( 'Ja (%d Position)', 'Ja (%d Positionen)', $r['garage'], 'm24-plattform' ), (int) $r['garage'] );
-            echo '<span class="pill on"><i>Garage</i>' . ( $edit ? '<a href="' . esc_url( $edit ) . '">' . esc_html( $g ) . '</a>' : esc_html( $g ) ) . '</span>';
+            $ghint = ! empty( $r['garage_snap'] ) ? ' <em style="font-style:normal;color:#9aa3af;">(Snapshot)</em>' : '';
+            echo '<span class="pill on"><i>Garage</i>' . ( $edit ? '<a href="' . esc_url( $edit ) . '">' . esc_html( $g ) . '</a>' : esc_html( $g ) ) . $ghint . '</span>';
         } else {
             echo '<span class="pill"><i>Garage</i>–</span>';
         }
@@ -416,20 +434,22 @@ class M24_Haendler_Page {
         } else {
             echo '<span class="pill"><i>Aktivität</i>' . esc_html__( 'nie eingeloggt', 'm24-plattform' ) . '</span>';
         }
-        // Fahrzeug-Interesse
-        if ( $r['interest_n'] > 0 ) {
-            $lbl = '' !== implode( '', $r['interest'] )
-                ? 'Ja: ' . implode( ', ', array_slice( $r['interest'], 0, 2 ) ) . ( count( $r['interest'] ) > 2 ? ' +' . ( count( $r['interest'] ) - 2 ) : '' )
-                : sprintf( _n( 'Ja: %d Fahrzeug', 'Ja: %d Fahrzeuge', $r['interest_n'], 'm24-plattform' ), (int) $r['interest_n'] );
-            echo '<span class="pill on"><i>Fahrzeug-Interesse</i>' . esc_html( $lbl ) . '</span>';
-        } else {
-            echo '<span class="pill"><i>Fahrzeug-Interesse</i>–</span>';
-        }
         // Newsletter
         echo '<span class="pill' . ( $r['newsletter'] ? ' on' : '' ) . '"><i>Newsletter</i>' . ( $r['newsletter'] ? esc_html__( 'Ja', 'm24-plattform' ) : esc_html__( 'Nein', 'm24-plattform' ) ) . '</span>';
         // Herkunft
         echo '<span class="pill"><i>Herkunft</i>' . esc_html( M24_User_Activity::source_label( $r['source'] ) ) . '</span>';
         echo '</div>';
+
+        // Fahrzeug-Interesse als eigene Zeile — NUR wenn beobachtete Fahrzeuge vorliegen (sonst gar nichts).
+        if ( ! empty( $r['interest'] ) ) {
+            $shown = array_slice( $r['interest'], 0, 4 );
+            $more  = count( $r['interest'] ) - count( $shown );
+            echo '<div class="kk-veh"><i>' . esc_html__( 'Fahrzeuge', 'm24-plattform' ) . ':</i> ' . esc_html( implode( ', ', $shown ) )
+                . ( $more > 0 ? ' <span style="color:#9aa3af;">+' . (int) $more . '</span>' : '' ) . '</div>';
+        } elseif ( (int) $r['interest_n'] > 0 ) {
+            // IDs vorhanden, aber Titel nicht auflösbar (unveröffentlicht) → dezente Anzahl statt „–".
+            echo '<div class="kk-veh"><i>' . esc_html__( 'Fahrzeuge', 'm24-plattform' ) . ':</i> ' . esc_html( sprintf( _n( '%d beobachtet', '%d beobachtet', (int) $r['interest_n'], 'm24-plattform' ), (int) $r['interest_n'] ) ) . '</div>';
+        }
 
         // Detail (aufklappbar): Ansprechpartner/Telefon + USt/VIES + Notiz.
         $det = array();
@@ -449,6 +469,30 @@ class M24_Haendler_Page {
         }
         if ( '' !== $r['notes'] ) {
             $det[] = '<div class="dl note"><span>' . esc_html__( 'Notiz (intern)', 'm24-plattform' ) . '</span>' . esc_html( mb_strimwidth( wp_strip_all_tags( $r['notes'] ), 0, 220, '…' ) ) . '</div>';
+        }
+        // Angebote des Kunden (klickbar) — gebündelt geladen, neu→alt.
+        if ( ! empty( $r['offers'] ) && class_exists( 'M24_Offers' ) ) {
+            $ostat = array(
+                'offen'      => array( 'Offen', '#1f74c4' ),
+                'angenommen' => array( 'Angenommen', '#9a6b25' ),
+                'bezahlt'    => array( 'Bezahlt', '#1a7a3c' ),
+                'versandt'   => array( 'Versandt', '#1f74c4' ),
+                'storniert'  => array( 'Storniert', '#8a93a0' ),
+                'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
+            );
+            $olist = '';
+            foreach ( $r['offers'] as $of ) {
+                $stt  = $ostat[ $of['status'] ] ?? array( ucfirst( (string) $of['status'] ), '#5a6474' );
+                $view = M24_Offers::view_url( (string) $of['token'] );
+                $op   = add_query_arg( array( 'page' => 'm24-offers', 's' => $of['no'] ), admin_url( 'admin.php' ) );
+                $olist .= '<div class="kk-off">'
+                    . '<a href="' . esc_url( $view ) . '" target="_blank" rel="noopener" class="no">' . esc_html( (string) $of['no'] ) . '</a>'
+                    . '<span class="dot" style="background:' . esc_attr( $stt[1] ) . ';"></span><span class="s">' . esc_html( $stt[0] ) . '</span>'
+                    . '<span class="amt">' . esc_html( number_format( (float) $of['total'], 2, ',', '.' ) ) . ' €</span>'
+                    . '<a href="' . esc_url( $op ) . '" class="opn">' . esc_html__( 'Operator öffnen', 'm24-plattform' ) . '</a>'
+                    . '</div>';
+            }
+            $det[] = '<div class="dl offers"><span>' . esc_html__( 'Angebote', 'm24-plattform' ) . '</span><div class="kk-offs">' . $olist . '</div></div>';
         }
         if ( $det ) {
             echo '<div class="kk-det" hidden>' . implode( '', $det ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput — Teile oben escaped
@@ -533,6 +577,12 @@ class M24_Haendler_Page {
             . '.m24kk .kk-det{margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;display:flex;flex-direction:column;gap:6px}'
             . '.m24kk .kk-det .dl{font-size:13px;color:#374151}.m24kk .kk-det .dl span{display:inline-block;min-width:150px;color:#8a929c;font-weight:600}'
             . '.m24kk .kk-det .dl.note{color:#8a929c}.m24kk .kk-det code{background:#f4f6f8;padding:1px 6px;border-radius:4px}'
+            . '.m24kk .kk-veh{margin-top:8px;font-size:12.5px;color:#374151}.m24kk .kk-veh i{font-style:normal;font-weight:700;color:#9aa3af;text-transform:uppercase;font-size:10.5px;letter-spacing:.03em;margin-right:4px}'
+            . '.m24kk .kk-det .dl.offers span{vertical-align:top}.m24kk .kk-offs{display:inline-block;vertical-align:top}'
+            . '.m24kk .kk-off{display:flex;align-items:center;gap:10px;font-size:13px;padding:3px 0;flex-wrap:wrap}'
+            . '.m24kk .kk-off .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#0e447e;text-decoration:none;min-width:78px}'
+            . '.m24kk .kk-off .dot{width:8px;height:8px;border-radius:50%;display:inline-block}.m24kk .kk-off .s{color:#5a6474}'
+            . '.m24kk .kk-off .amt{font-weight:700;color:#111}.m24kk .kk-off .opn{margin-left:auto;color:#1f74c4;text-decoration:none;font-size:12px}'
             . '.m24kk .vies.ok{color:#1a7a3c;font-weight:700}.m24kk .vies.bad{color:#c8102e;font-weight:700}.m24kk .vies.na{color:#8a93a0}.m24kk .vies em{color:#8a93a0;font-style:normal}'
             . '.m24kk .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24kk .foot a{text-decoration:none}'
             . '.m24kk-reject{background:#fff;border:1px solid #e6e9ee;border-left:4px solid #c8102e;border-radius:8px;padding:18px 20px;margin:14px 0}'
