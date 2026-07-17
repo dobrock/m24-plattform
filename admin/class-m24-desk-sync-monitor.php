@@ -29,7 +29,7 @@ class M24_Desk_Sync_Monitor {
 
         $f   = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
         $where = "desk_sync_status IS NOT NULL";
-        if ( in_array( $f, array( 'pending', 'synced', 'failed' ), true ) ) { $where .= $wpdb->prepare( ' AND desk_sync_status = %s', $f ); }
+        if ( in_array( $f, array( 'pending', 'synced', 'failed', 'needs_update' ), true ) ) { $where .= $wpdb->prepare( ' AND desk_sync_status = %s', $f ); }
         $rows = $wpdb->get_results( "SELECT id, offer_no, status, desk_order_id, desk_order_num, desk_sync_status, desk_synced_at, desk_sync_attempts, desk_sync_error, sent_at FROM $t WHERE $where ORDER BY id DESC LIMIT 300" ); // phpcs:ignore WordPress.DB
 
         $counts = array();
@@ -60,7 +60,7 @@ class M24_Desk_Sync_Monitor {
 
         echo '<style>.m24ds .chip{display:inline-block;padding:6px 12px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;text-decoration:none;color:#111417;margin-right:8px}.m24ds .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}'
             . '.m24ds table{margin-top:14px}.m24ds .bdg{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}'
-            . '.m24ds .synced{background:#edf7f1;color:#1a7a3c}.m24ds .failed{background:#fdecea;color:#c8102e}.m24ds .pending{background:#fdf5e6;color:#b87000}'
+            . '.m24ds .synced{background:#edf7f1;color:#1a7a3c}.m24ds .failed{background:#fdecea;color:#c8102e}.m24ds .pending{background:#fdf5e6;color:#b87000}.m24ds .needs_update{background:#eef3fb;color:#1a5fb4}'
             . '.m24ds .err{color:#8a929c;font-size:12px;max-width:420px;display:inline-block}</style>';
 
         echo '<div class="m24ds">';
@@ -69,7 +69,7 @@ class M24_Desk_Sync_Monitor {
             return '<a class="chip' . ( $f === $k ? ' on' : '' ) . '" href="' . esc_url( $u ) . '">' . esc_html( $lbl ) . ' <span>' . (int) $n . '</span></a>';
         };
         $all = array_sum( $counts );
-        echo $chip( '', 'Alle', $all ) . $chip( 'synced', 'Synced', $counts['synced'] ?? 0 ) . $chip( 'failed', 'Failed', $counts['failed'] ?? 0 ) . $chip( 'pending', 'Pending', $counts['pending'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput
+        echo $chip( '', 'Alle', $all ) . $chip( 'synced', 'Synced', $counts['synced'] ?? 0 ) . $chip( 'failed', 'Failed', $counts['failed'] ?? 0 ) . $chip( 'pending', 'Pending', $counts['pending'] ?? 0 ) . $chip( 'needs_update', 'Needs update', $counts['needs_update'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput
 
         echo '<table class="widefat striped"><thead><tr>'
             . '<th>Angebot</th><th>Richtung</th><th>Status</th><th>Desk-Auftrag</th><th>Versuche</th><th>Letzter Versuch</th><th>Fehlerdetails</th><th>Aktion</th>'

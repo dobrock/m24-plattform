@@ -24,6 +24,20 @@ class M24_Desk_Push {
     const FLAG      = 'm24_desk_sync_enabled'; // Default AUS → nur dry_run beim Senden
     const MAX_TRIES = 6;
     const TIMEOUT   = 10;
+    const INQUIRY_SOURCE_DEFAULT = 'offer'; // Ziel-Enum; bis Desk-Block-1 'offer' live hat, per Konstante auf 'cart'
+
+    /**
+     * inquiry_source-Wert. Der Desk-Enum lässt HEUTE nur cart|contact_form|product_inquiry|blog_inquiry zu —
+     * 'offer' würde 400 werfen (auch im dry_run), bis Desk-Block-1 die Enum-Erweiterung deployt hat. Deshalb
+     * per Konstante M24_DESK_INQUIRY_SOURCE (wp-config) übersteuerbar: für den ersten Test 'cart' setzen,
+     * danach entfernen → Default 'offer'. Zusätzlich per Filter m24_desk_inquiry_source überschreibbar.
+     */
+    public static function inquiry_source(): string {
+        $v = ( defined( 'M24_DESK_INQUIRY_SOURCE' ) && '' !== (string) M24_DESK_INQUIRY_SOURCE )
+            ? (string) M24_DESK_INQUIRY_SOURCE
+            : self::INQUIRY_SOURCE_DEFAULT;
+        return (string) apply_filters( 'm24_desk_inquiry_source', $v );
+    }
 
     public static function init() {
         // Trigger W1: beim Angebotsversand (ersetzt den alten no-op-Stub M24_Offers::push_to_desk).
@@ -81,6 +95,15 @@ class M24_Desk_Push {
     public static function push( int $offer_id, bool $dry_run = false ): array {
         $o = M24_Offers::get_by_id( $offer_id );
         if ( ! $o ) { return array( 'ok' => false, 'status' => 0, 'note' => 'Angebot nicht gefunden.' ); }
+
+        // Create-only-Guard: ist bereits eine Desk-Order-ID hinterlegt, wurde der Auftrag schon angelegt.
+        // Ein erneuter echter POST würde bei geändertem Inhalt eine Dublette erzeugen → stattdessen für W2/PUT
+        // vormerken (needs_update) und NICHT nochmal POSTen. Dry-Run bleibt erlaubt (nebenwirkungsfrei).
+        if ( ! $dry_run && '' !== trim( (string) $o->desk_order_id ) ) {
+            self::mark_needs_update( $offer_id );
+            self::log( $offer_id, 'needs_update', 'desk_order_id bereits gesetzt (#' . (string) $o->desk_order_id . ') → kein Re-POST; für W2/PUT vorgemerkt.' );
+            return array( 'ok' => true, 'status' => 0, 'note' => 'needs_update' );
+        }
 
         $payload = self::build_payload( $o, $dry_run );
         $opts    = array(
@@ -182,7 +205,10 @@ class M24_Desk_Push {
                 'src_lang'   => $lang,
                 'src_modell' => (string) ( $src['src_modell'] ?? '' ),
                 'src_pid'    => (string) ( (int) ( $it['teil_id'] ?? 0 ) ?: (string) ( $src['src_pid'] ?? '' ) ),
-                // Anzeigefelder für Desk-UI/PDF:
+                // Numerische Order-Felder (DB NUMERIC(10,2)) — Punkt-Dezimal, KEIN DE-String.
+                'amt'        => round( $unit, 2 ), // VK je Einheit (numerisch)
+                'einkauf'    => 0.0,               // kein EK in Angeboten bekannt
+                // Anzeigefelder für Desk-UI/PDF (DE-Format als String):
                 'art'        => (string) ( $it['title'] ?? '' ),
                 'qty'        => (string) $qty,
                 'price'      => number_format( $unit, 2, ',', '.' ),
@@ -201,6 +227,7 @@ class M24_Desk_Push {
             $amt = (float) ( $ex['amount'] ?? 0 );
             $mapped[] = array(
                 'src_url' => $view, 'src_pillar' => 'katalog', 'src_lang' => $lang, 'src_modell' => '', 'src_pid' => '',
+                'amt' => round( $amt, 2 ), 'einkauf' => 0.0,
                 'art' => (string) ( $ex['label'] ?? '' ), 'qty' => '1',
                 'price' => number_format( $amt, 2, ',', '.' ), 'gesamt' => '€ ' . number_format( $amt, 2, ',', '.' ),
                 'delivery' => '', 'note' => '', 'is25a' => false, 'customs' => false, 'coo' => false, 'hs_code' => '', 'weight_kg' => '',
@@ -209,7 +236,7 @@ class M24_Desk_Push {
 
         $body = array(
             'source'              => 'wordpress_plugin',
-            'inquiry_source'      => 'offer',
+            'inquiry_source'      => self::inquiry_source(),
             'inquiry_source_meta' => array(
                 'wp_offer_no' => (string) $o->offer_no,
                 'wp_offer_id' => (int) $o->id,
@@ -284,6 +311,20 @@ class M24_Desk_Push {
         if ( null !== $attempts ) { $data['desk_sync_attempts'] = $attempts; }
         $data['field_updated_at'] = wp_json_encode( array( 'desk_sync_status' => $now ) );
         $wpdb->update( M24_Offers::table(), $data, array( 'id' => $offer_id ) );
+    }
+
+    /**
+     * Bereits im Desk angelegtes Angebot, das erneut versendet wurde → für W2/PUT vormerken. Ändert NUR den
+     * Status (desk_order_id/desk_synced_at/attempts bleiben unangetastet); die Retry-Queue ignoriert
+     * needs_update (nur pending|failed werden erneut gepusht) → kein Re-POST/keine Dublette.
+     */
+    private static function mark_needs_update( int $offer_id ): void {
+        global $wpdb;
+        $wpdb->update(
+            M24_Offers::table(),
+            array( 'desk_sync_status' => 'needs_update', 'field_updated_at' => wp_json_encode( array( 'desk_sync_status' => current_time( 'mysql', true ) ) ) ),
+            array( 'id' => $offer_id )
+        );
     }
 
     /** Pfad A: formatierte Fallback-Mail an m24_desk_fallback_mail (Reuse der bestehenden Settings-Adresse). */
