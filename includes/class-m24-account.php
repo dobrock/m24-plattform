@@ -109,6 +109,7 @@ class M24_Account {
 		update_user_meta( $acc, self::M_KUNDENTYP, $kt );
 		update_user_meta( $acc, self::M_FIRMA, sanitize_text_field( (string) $req->get_param( 'firma' ) ) );
 		update_user_meta( $acc, self::M_USTID, sanitize_text_field( (string) $req->get_param( 'ustid' ) ) );
+		do_action( 'm24_customer_updated', (int) $acc ); // W3: Desk-Kunde aktualisieren (still, wenn noch nie gepusht)
 		return rest_ensure_response( array( 'ok' => true, 'message' => 'Deine Daten wurden gespeichert.' ) );
 	}
 
@@ -117,6 +118,7 @@ class M24_Account {
 		$acc = self::acc();
 		update_user_meta( $acc, self::M_ADDR_BILL, self::clean_addr( (array) $req->get_param( 'billing' ) ) );
 		update_user_meta( $acc, self::M_ADDR_SHIP, self::clean_addr( (array) $req->get_param( 'shipping' ) ) );
+		do_action( 'm24_customer_updated', (int) $acc ); // W3: Desk-Kunde aktualisieren (still, wenn noch nie gepusht)
 		return rest_ensure_response( array( 'ok' => true, 'message' => 'Anschriften gespeichert.' ) );
 	}
 

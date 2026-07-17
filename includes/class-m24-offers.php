@@ -727,6 +727,8 @@ class M24_Offers {
 			'_m24_eori'         => 'b2b' === $kt ? sanitize_text_field( (string) ( $p['eori'] ?? '' ) ) : '',
 		);
 		foreach ( $fields as $k => $v ) { update_user_meta( $uid, $k, $v ); }
+		// W3: Kontodaten geändert → Desk-Kunde aktualisieren (still übersprungen, wenn noch nie gepusht).
+		do_action( 'm24_customer_updated', (int) $uid );
 		if ( class_exists( 'M24_Error_Log' ) ) {
 			M24_Error_Log::capture( 'customer_create', 'info', $edit_id > 0 ? 'Kunde aktualisiert (Schnellanlage)' : 'Kunde angelegt (Schnellanlage)', array( 'email' => $email, 'kundentyp' => $kt ) );
 		}

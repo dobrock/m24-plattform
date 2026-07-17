@@ -29,7 +29,7 @@ class M24_Desk_Sync_Monitor {
 
         $f   = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
         $where = "desk_sync_status IS NOT NULL";
-        if ( in_array( $f, array( 'pending', 'synced', 'failed', 'needs_update' ), true ) ) { $where .= $wpdb->prepare( ' AND desk_sync_status = %s', $f ); }
+        if ( in_array( $f, array( 'pending', 'synced', 'failed', 'needs_update', 'confirm_failed' ), true ) ) { $where .= $wpdb->prepare( ' AND desk_sync_status = %s', $f ); }
         $rows = $wpdb->get_results( "SELECT id, offer_no, status, desk_order_id, desk_order_num, desk_sync_status, desk_synced_at, desk_sync_attempts, desk_sync_error, sent_at FROM $t WHERE $where ORDER BY id DESC LIMIT 300" ); // phpcs:ignore WordPress.DB
 
         $counts = array();
@@ -60,7 +60,7 @@ class M24_Desk_Sync_Monitor {
 
         echo '<style>.m24ds .chip{display:inline-block;padding:6px 12px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;text-decoration:none;color:#111417;margin-right:8px}.m24ds .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}'
             . '.m24ds table{margin-top:14px}.m24ds .bdg{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}'
-            . '.m24ds .synced{background:#edf7f1;color:#1a7a3c}.m24ds .failed{background:#fdecea;color:#c8102e}.m24ds .pending{background:#fdf5e6;color:#b87000}.m24ds .needs_update{background:#eef3fb;color:#1a5fb4}'
+            . '.m24ds .synced{background:#edf7f1;color:#1a7a3c}.m24ds .failed{background:#fdecea;color:#c8102e}.m24ds .pending{background:#fdf5e6;color:#b87000}.m24ds .needs_update{background:#eef3fb;color:#1a5fb4}.m24ds .confirm_failed{background:#fdecea;color:#c8102e}'
             . '.m24ds .err{color:#8a929c;font-size:12px;max-width:420px;display:inline-block}</style>';
 
         echo '<div class="m24ds">';
@@ -69,8 +69,9 @@ class M24_Desk_Sync_Monitor {
             return '<a class="chip' . ( $f === $k ? ' on' : '' ) . '" href="' . esc_url( $u ) . '">' . esc_html( $lbl ) . ' <span>' . (int) $n . '</span></a>';
         };
         $all = array_sum( $counts );
-        echo $chip( '', 'Alle', $all ) . $chip( 'synced', 'Synced', $counts['synced'] ?? 0 ) . $chip( 'failed', 'Failed', $counts['failed'] ?? 0 ) . $chip( 'pending', 'Pending', $counts['pending'] ?? 0 ) . $chip( 'needs_update', 'Needs update', $counts['needs_update'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput
+        echo $chip( '', 'Alle', $all ) . $chip( 'synced', 'Synced', $counts['synced'] ?? 0 ) . $chip( 'failed', 'Failed', $counts['failed'] ?? 0 ) . $chip( 'confirm_failed', 'Confirm-Fail', $counts['confirm_failed'] ?? 0 ) . $chip( 'pending', 'Pending', $counts['pending'] ?? 0 ) . $chip( 'needs_update', 'Needs update', $counts['needs_update'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput
 
+        echo '<h2 style="margin-top:18px;">Aufträge (W1 Anlage / W2 Confirm)</h2>';
         echo '<table class="widefat striped"><thead><tr>'
             . '<th>Angebot</th><th>Richtung</th><th>Status</th><th>Desk-Auftrag</th><th>Versuche</th><th>Letzter Versuch</th><th>Fehlerdetails</th><th>Aktion</th>'
             . '</tr></thead><tbody>';
@@ -82,16 +83,53 @@ class M24_Desk_Sync_Monitor {
                 $ss   = (string) $r->desk_sync_status;
                 $when = $r->desk_synced_at ? mysql2date( 'd.m.Y H:i', (string) $r->desk_synced_at ) : '—';
                 $desk = trim( (string) $r->desk_order_num . ( $r->desk_order_id ? ' (#' . (string) $r->desk_order_id . ')' : '' ) );
+                // Richtung aus dem Status ableiten: confirm/synced-nach-Anlage = Auftrag-Update, sonst Anlage.
+                $dir  = in_array( $ss, array( 'confirm_failed', 'needs_update' ), true ) || ( 'synced' === $ss && '' !== $desk )
+                    ? '⤴ Auftrag-Update' : '⤴ Auftrag-Anlage';
                 $retry = wp_nonce_url( add_query_arg( array( 'action' => 'm24_desk_retry', 'offer' => (int) $r->id ), admin_url( 'admin-post.php' ) ), 'm24_desk_retry_' . (int) $r->id );
                 $dry   = wp_nonce_url( add_query_arg( array( 'action' => 'm24_desk_dry_run', 'offer' => (int) $r->id ), admin_url( 'admin-post.php' ) ), 'm24_desk_dry_' . (int) $r->id );
                 echo '<tr>';
                 echo '<td><strong>' . esc_html( (string) $r->offer_no ) . '</strong><br><span style="color:#8a929c;font-size:12px;">' . esc_html( (string) $r->status ) . '</span></td>';
-                echo '<td>⤴ Outbound</td>';
+                echo '<td>' . esc_html( $dir ) . '</td>';
                 echo '<td><span class="bdg ' . esc_attr( $ss ) . '">' . esc_html( $ss ) . '</span></td>';
                 echo '<td>' . ( '' !== $desk ? esc_html( $desk ) : '—' ) . '</td>';
                 echo '<td>' . (int) $r->desk_sync_attempts . ' / ' . (int) M24_Desk_Push::MAX_TRIES . '</td>';
                 echo '<td>' . esc_html( $when ) . '</td>';
                 echo '<td><span class="err">' . esc_html( (string) $r->desk_sync_error ) . '</span></td>';
+                echo '<td><a class="button button-small" href="' . esc_url( $retry ) . '">Retry</a> <a class="button button-small" href="' . esc_url( $dry ) . '">Dry-Run</a></td>';
+                echo '</tr>';
+            }
+        }
+        echo '</tbody></table>';
+
+        // Kunden-Updates (W2a/W3): Konten mit Desk-Customer-ID.
+        $cust = get_users( array(
+            'meta_key' => M24_Desk_Push::CUST_META,
+            'meta_compare' => 'EXISTS',
+            'number' => 200,
+            'fields' => array( 'ID', 'user_email', 'display_name' ),
+        ) );
+        echo '<h2 style="margin-top:22px;">Kunden-Updates (W2a / W3)</h2>';
+        echo '<table class="widefat striped"><thead><tr>'
+            . '<th>Konto</th><th>Richtung</th><th>Desk-Customer</th><th>Zustand</th><th>Versuche</th><th>Aktion</th>'
+            . '</tr></thead><tbody>';
+        if ( empty( $cust ) ) {
+            echo '<tr><td colspan="6">Noch keine Konten mit Desk-Customer-ID.</td></tr>';
+        } else {
+            foreach ( $cust as $c ) {
+                $uid   = (int) $c->ID;
+                $cid   = (string) get_user_meta( $uid, M24_Desk_Push::CUST_META, true );
+                $dirty = '1' === (string) get_user_meta( $uid, M24_Desk_Push::CUST_DIRTY, true );
+                $att   = (int) get_user_meta( $uid, M24_Desk_Push::CUST_ATTEMPTS, true );
+                $state = $dirty ? '<span class="bdg failed">retry offen</span>' : '<span class="bdg synced">ok</span>';
+                $retry = wp_nonce_url( add_query_arg( array( 'action' => 'm24_desk_cust_retry', 'user' => $uid ), admin_url( 'admin-post.php' ) ), 'm24_desk_cust_retry_' . $uid );
+                $dry   = wp_nonce_url( add_query_arg( array( 'action' => 'm24_desk_cust_dry', 'user' => $uid ), admin_url( 'admin-post.php' ) ), 'm24_desk_cust_dry_' . $uid );
+                echo '<tr>';
+                echo '<td><strong>' . esc_html( (string) $c->display_name ) . '</strong><br><span style="color:#8a929c;font-size:12px;">' . esc_html( (string) $c->user_email ) . '</span></td>';
+                echo '<td>⤴ Kunde-Update</td>';
+                echo '<td>#' . esc_html( $cid ) . '</td>';
+                echo '<td>' . $state . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput
+                echo '<td>' . (int) $att . ' / ' . (int) M24_Desk_Push::MAX_TRIES . '</td>';
                 echo '<td><a class="button button-small" href="' . esc_url( $retry ) . '">Retry</a> <a class="button button-small" href="' . esc_url( $dry ) . '">Dry-Run</a></td>';
                 echo '</tr>';
             }
