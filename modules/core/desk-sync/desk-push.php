@@ -106,10 +106,14 @@ class M24_Desk_Push {
         }
 
         $payload = self::build_payload( $o, $dry_run );
-        $opts    = array(
-            'timeout' => self::TIMEOUT,
-            'headers' => array( 'X-Idempotency-Key' => 'wp-offer-' . $offer_id ),
-        );
+        // X-Idempotency-Key NUR beim echten Push. Der Desk persistiert die Idempotenz für jede Antwort <500 —
+        // auch für den Dry-Run (200). Teilte der Dry-Run den Key wp-offer-<id>, käme ein späterer echter Push
+        // (Body unterscheidet sich schon durch dry_run:false → anderer Hash) als 409 zurück und würde fälschlich
+        // als „synced" gewertet, obwohl NIE etwas angelegt wurde. Dry-Run legt ohnehin nichts an → kein Key nötig.
+        $opts = array( 'timeout' => self::TIMEOUT );
+        if ( ! $dry_run ) {
+            $opts['headers'] = array( 'X-Idempotency-Key' => 'wp-offer-' . $offer_id );
+        }
         // attempts nur bei echtem Versand hochzählen (Dry-Run ist nebenwirkungsfrei).
         if ( ! $dry_run ) {
             global $wpdb;
@@ -245,6 +249,8 @@ class M24_Desk_Push {
             ),
             'sender_lang' => $lang,
             'vat_mode'    => self::vat_mode( (string) $o->tax_mode, $biz, $land ),
+            // Auftragssumme (Brutto) als Zahl (Punkt-Dezimal) — sonst bleibt orders.amt im Desk leer.
+            'amt'         => round( (float) $o->total_gross, 2 ),
             'subj'        => 'Angebot ' . (string) $o->offer_no,
             'notes'       => mb_substr( (string) ( $src['note'] ?? '' ), 0, 2000 ),
             'phone'       => mb_substr( (string) ( $cust['telefon'] ?? '' ), 0, 40 ),
