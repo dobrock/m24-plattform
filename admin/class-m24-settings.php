@@ -137,6 +137,12 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Desk-Sync W1: echter Push „Angebot → M24 Desk" beim Versand. Default AUS — erst nach grünem Dry-Run scharf.
+        register_setting( 'm24_plattform_group', 'm24_desk_sync_enabled', [
+            'type'              => 'boolean',
+            'sanitize_callback' => static function ( $v ) { return ! empty( $v ) ? 1 : 0; },
+            'default'           => 0,
+        ] );
         // Angebots-Ablauf-Reminder: einmalige Erinnerungs-Mail 2 Tage vor Fristende (Default AN, transaktional/§7).
         register_setting( 'm24_plattform_group', 'm24_offer_reminder_enabled', [
             'type'              => 'boolean',
@@ -777,6 +783,15 @@ class M24_Settings {
                                     <input type="checkbox" name="m24_offer_reminder_enabled" value="1" <?php checked( (bool) get_option( 'm24_offer_reminder_enabled', 1 ), true ); ?> />
                                     <?php echo esc_html__( 'Ablauf-Reminder: einmalige Erinnerungs-Mail 2 Tage vor Fristende (transaktional, kein Nachfassen).', 'm24-plattform' ); ?>
                                 </label>
+                            </p>
+                            <p style="margin-top:10px;">
+                                <label>
+                                    <input type="checkbox" name="m24_desk_sync_enabled" value="1" <?php checked( (bool) get_option( 'm24_desk_sync_enabled', 0 ), true ); ?> />
+                                    <?php echo esc_html__( 'Desk-Sync (W1): Angebot beim Versand als Auftrag an M24 Desk pushen (POST /api/orders, Vertrag v1.1).', 'm24-plattform' ); ?>
+                                </label>
+                                <span class="description" style="display:block;margin-top:2px;">
+                                    <?php echo esc_html__( 'Default AUS. Solange aus, läuft beim Senden nur ein nebenwirkungsfreier Dry-Run. Verbindung/Dry-Run prüfen unter „Desk-Sync". Nutzt dieselbe Desk-Verbindung (API-URL/Key/Fallback-Mail) wie oben.', 'm24-plattform' ); ?>
+                                </span>
                             </p>
                         </td>
                     </tr>

@@ -46,8 +46,12 @@ class M24_Offers {
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_customer' ), 6 );
 		// Operator-Link in die interne „Neue Anfrage"-Mail einhängen.
 		add_filter( 'm24_inquiry_operator_links', array( __CLASS__, 'operator_mail_link' ), 10, 2 );
-		// Phase 2: Desk-Push beim Senden (no-op ohne M24_DESK_API_TOKEN-Konstante).
-		add_action( 'm24_offer_sent', array( __CLASS__, 'push_to_desk' ) );
+		// Desk-Push beim Senden übernimmt jetzt das Modul core/desk-sync (M24_Desk_Push, Vertrag v1.1, W1).
+		// Der alte no-op-Stub push_to_desk()/build_desk_payload() bleibt nur als Legacy im Code, ist aber
+		// NICHT mehr an m24_offer_sent gehängt (kein Doppel-Push).
+		if ( ! class_exists( 'M24_Desk_Push' ) ) {
+			add_action( 'm24_offer_sent', array( __CLASS__, 'push_to_desk' ) ); // Fallback, falls Modul fehlt
+		}
 		// Admin-Angebotsliste (Übersicht + Reopen-Links).
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 20 );
 		// NUR auf der Angebote-Seite: plugin-fremde Admin-Notices abräumen (WPBakery-„Security release", Core-Nags …).
