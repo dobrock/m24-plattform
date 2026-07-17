@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.398
+ * Version:           0.11.400
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '023' );
+define( 'M24_PLATTFORM_DB_VERSION',  '024' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -154,6 +154,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        /
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-address.php';       // Angebots-Annahme Teil 3/4: Adressformular + Validierung/VIES + Persistenz (Spalten + User-Meta)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-push.php';  // Desk-Sync W1: Angebot → POST /api/orders (Vertrag v1.1)
+require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // Desk-Sync D1–D3: Webhook Desk → WP (LWW-Applier)
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-desk-sync-monitor.php'; // Admin-Monitor „Desk-Sync"
 M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
@@ -353,6 +354,7 @@ add_action( 'plugins_loaded', function() {
     M24_Account::init(); // Konto-/Einstellungsseite (Entwurf 1); Löschung/Export/Brevo-DOI via m24_account_danger_enabled
     M24_Offers::init(); // Angebots-Workflow v1 (flag-gated m24_offers_enabled, Default aus)
     M24_Desk_Push::init(); // Desk-Sync W1: Push beim Angebotsversand + Retry-Cron (echter Versand flag-gated, Default aus)
+    M24_Desk_Inbound::init(); // Desk-Sync D1–D3: REST m24/v1/desk-sync (Token-gated, LWW, Echo-Schutz)
     M24_Desk_Sync_Monitor::init(); // Admin-Monitor „Desk-Sync"
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)

@@ -245,6 +245,9 @@ class M24_Settings {
         return [
             'api_url'          => 'https://motorsport24-api.onrender.com',
             'api_key'          => '',
+            // Desk→WP-Inbound (Webhook): eigenes Geheimnis, NICHT der Outbound-Key. In Desk als
+            // WP_WEBHOOK_TOKEN zu hinterlegen; wird gegen den Header X-M24-Token geprüft.
+            'wp_inbound_token' => '',
             'fallback_mail_to' => 'service@motorsport24.de',
             'test_mode'        => false,
             'mock_url'         => '',
@@ -262,6 +265,7 @@ class M24_Settings {
 
         $out['api_url']          = isset( $input['api_url'] ) ? esc_url_raw( trim( $input['api_url'] ) ) : $defaults['api_url'];
         $out['api_key']          = isset( $input['api_key'] ) ? sanitize_text_field( trim( $input['api_key'] ) ) : '';
+        $out['wp_inbound_token'] = isset( $input['wp_inbound_token'] ) ? sanitize_text_field( trim( $input['wp_inbound_token'] ) ) : $existing['wp_inbound_token'];
         $out['fallback_mail_to'] = isset( $input['fallback_mail_to'] ) ? sanitize_email( trim( $input['fallback_mail_to'] ) ) : $defaults['fallback_mail_to'];
         $out['test_mode']        = ! empty( $input['test_mode'] );
         $out['mock_url']         = isset( $input['mock_url'] ) ? esc_url_raw( trim( $input['mock_url'] ) ) : '';
@@ -304,6 +308,13 @@ class M24_Settings {
      */
     public static function api_key_overridden_by_config() {
         return defined( 'M24_DESK_API_TOKEN' ) && ! empty( M24_DESK_API_TOKEN );
+    }
+
+    /**
+     * Hat wp-config.php den WP-Inbound-Token via Konstante gesetzt?
+     */
+    public static function inbound_token_overridden_by_config() {
+        return defined( 'M24_WP_INBOUND_TOKEN' ) && ! empty( M24_WP_INBOUND_TOKEN );
     }
 
     /**
@@ -411,6 +422,7 @@ class M24_Settings {
         $settings        = wp_parse_args( get_option( self::OPTION_KEY, [] ), self::defaults() );
         $url_locked      = self::api_url_overridden_by_config();
         $key_locked      = self::api_key_overridden_by_config();
+        $in_locked       = self::inbound_token_overridden_by_config();
         $effective_url   = $url_locked ? (string) M24_DESK_API_URL : $settings['api_url'];
         $effective_key   = $key_locked ? '(via wp-config.php gesetzt)' : $settings['api_key'];
         $is_test_mode    = ! empty( $settings['test_mode'] );
@@ -479,6 +491,41 @@ class M24_Settings {
                             <?php else: ?>
                                 <p class="description" style="color:#b87000;font-size:12px;">
                                     <?php echo esc_html__( 'Tipp: Fuer Production die Konstante M24_DESK_API_TOKEN in wp-config.php setzen, damit der Token nicht im DB-Dump landet.', 'm24-plattform' ); ?>
+                                </p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="m24_wp_inbound_token"><?php echo esc_html__( 'WP-Inbound-Token (X-M24-Token)', 'm24-plattform' ); ?></label>
+                        </th>
+                        <td>
+                            <input
+                                type="text"
+                                id="m24_wp_inbound_token"
+                                name="<?php echo esc_attr( self::OPTION_KEY ); ?>[wp_inbound_token]"
+                                value="<?php echo esc_attr( $in_locked ? '' : $settings['wp_inbound_token'] ); ?>"
+                                class="regular-text code<?php echo $in_locked ? ' m24-config-locked' : ''; ?>"
+                                placeholder="<?php echo esc_attr( $in_locked ? __( '(via wp-config.php gesetzt)', 'm24-plattform' ) : __( 'langes Zufallsgeheimnis', 'm24-plattform' ) ); ?>"
+                                autocomplete="off"
+                                spellcheck="false"
+                                <?php echo $in_locked ? 'readonly' : ''; ?>
+                            />
+                            <p class="description">
+                                <?php echo esc_html__( 'Geheimnis fuer den Desk→WP-Webhook. Desk sendet es als Header X-M24-Token; derselbe Wert gehoert in Desk unter WP_WEBHOOK_TOKEN. Bewusst NICHT der API-Key oben — beide Richtungen sollen unabhaengig rotierbar sein.', 'm24-plattform' ); ?>
+                            </p>
+                            <p class="description">
+                                <?php echo esc_html__( 'Webhook-URL fuer Desk (WP_WEBHOOK_URL):', 'm24-plattform' ); ?>
+                                <code><?php echo esc_html( home_url( '/wp-json/m24/v1/desk-sync' ) ); ?></code>
+                            </p>
+                            <?php if ( $in_locked ): ?>
+                                <p class="m24-config-locked-hint">
+                                    <span class="dashicons dashicons-lock"></span>
+                                    <?php echo esc_html__( 'Wert via wp-config.php (Konstante M24_WP_INBOUND_TOKEN) gesetzt — DB-Wert wird ignoriert.', 'm24-plattform' ); ?>
+                                </p>
+                            <?php else: ?>
+                                <p class="description" style="color:#b87000;font-size:12px;">
+                                    <?php echo esc_html__( 'Leer = Inbound ist zu: jeder Webhook wird mit 401 abgewiesen. Fuer Production die Konstante M24_WP_INBOUND_TOKEN in wp-config.php setzen.', 'm24-plattform' ); ?>
                                 </p>
                             <?php endif; ?>
                         </td>

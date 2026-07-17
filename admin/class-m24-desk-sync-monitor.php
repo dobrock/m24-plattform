@@ -134,6 +134,48 @@ class M24_Desk_Sync_Monitor {
                 echo '</tr>';
             }
         }
-        echo '</tbody></table></div></div>';
+        echo '</tbody></table>';
+
+        self::render_inbound();
+
+        echo '</div></div>';
+    }
+
+    /**
+     * Inbound (Desk → WP, D1–D3): die letzten Webhook-Ereignisse aus dem Logger-Kontext desk_sync_in.
+     * Reine Ansicht — der Applier schreibt die Einträge (M24_Desk_Inbound::log).
+     */
+    private static function render_inbound() {
+        $token_set = class_exists( 'M24_Desk_Inbound' ) && '' !== M24_Desk_Inbound::token();
+
+        echo '<h2 style="margin-top:22px;">Inbound (Desk → WP)</h2>';
+        if ( ! $token_set ) {
+            echo '<div class="notice notice-warning inline"><p><strong>Kein WP-Inbound-Token gesetzt</strong> — eingehende Desk-Webhooks werden mit <code>401</code> abgewiesen. Feld „WP-Inbound-Token" unter MOTORSPORT24 → Einstellungen (oder Konstante <code>M24_WP_INBOUND_TOKEN</code>).</p></div>';
+        } else {
+            echo '<p style="color:#8a929c;font-size:12px;margin:2px 0 0;">Webhook-URL für Desk (<code>WP_WEBHOOK_URL</code>): <code>' . esc_html( home_url( '/wp-json/m24/v1/desk-sync' ) ) . '</code></p>';
+        }
+
+        $rows = class_exists( 'M24_Logger' ) ? (array) M24_Logger::recent( 100, null, M24_Desk_Inbound::LOG_CTX ) : array();
+        echo '<table class="widefat striped"><thead><tr><th>Zeitpunkt</th><th>Ereignis</th><th>Details</th></tr></thead><tbody>';
+        if ( empty( $rows ) ) {
+            echo '<tr><td colspan="3">Noch keine Inbound-Ereignisse.</td></tr>';
+        } else {
+            // Statusklassen mappen: applied = grün, verworfen/unbekannt = neutral-blau, auth/400/500 = rot.
+            $cls = array(
+                'applied' => 'synced', 'replay' => 'needs_update', 'discarded_lww' => 'needs_update',
+                'skipped_unmapped' => 'pending', 'unauthorized' => 'failed', 'bad_request' => 'failed', 'error' => 'failed',
+            );
+            foreach ( $rows as $r ) {
+                $step = (string) ( $r['message'] ?? '' );
+                $pl   = json_decode( (string) ( $r['payload_json'] ?? '' ), true );
+                $msg  = is_array( $pl ) ? (string) ( $pl['msg'] ?? '' ) : '';
+                echo '<tr>';
+                echo '<td>' . esc_html( mysql2date( 'd.m.Y H:i:s', (string) ( $r['created_at'] ?? '' ) ) ) . '</td>';
+                echo '<td><span class="bdg ' . esc_attr( $cls[ $step ] ?? 'pending' ) . '">' . esc_html( $step ) . '</span></td>';
+                echo '<td><span class="err" style="max-width:640px;">' . esc_html( $msg ) . '</span></td>';
+                echo '</tr>';
+            }
+        }
+        echo '</tbody></table>';
     }
 }

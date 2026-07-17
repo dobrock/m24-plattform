@@ -43,6 +43,8 @@ class M24_Desk_Push {
     const CUST_SNAP     = '_m24_desk_cust_snapshot'; // zuletzt gepushter Kundendaten-Snapshot (Diff-Basis)
     const CUST_DIRTY    = '_m24_desk_cust_dirty';     // '1' = Kunden-PUT hängt in der Retry-Queue
     const CUST_ATTEMPTS = '_m24_desk_cust_attempts';  // Versuchszähler (Kunde)
+    const CUST_PENDING  = '_m24_desk_cust_pending';   // {sig,key} des noch unbestätigten Übergangs
+    const CUST_SEQ      = '_m24_desk_cust_seq';       // monoton steigender Zähler je Edit-Ereignis (Key-Quelle)
 
     public static function init() {
         // Trigger W1: beim Angebotsversand (ersetzt den alten no-op-Stub M24_Offers::push_to_desk).
@@ -92,6 +94,14 @@ class M24_Desk_Push {
         return (bool) get_option( self::FLAG, 0 );
     }
 
+    /**
+     * Echo-Schutz: läuft gerade ein Desk→WP-Apply (M24_Desk_Inbound), darf KEIN Trigger nach Desk zurückpushen —
+     * sonst schickt WP die eben eingespielte Desk-Änderung sofort wieder an Desk. Alle on_*-Trigger fragen das ab.
+     */
+    private static function applying_inbound(): bool {
+        return class_exists( 'M24_Desk_Inbound' ) && M24_Desk_Inbound::$applying;
+    }
+
     /* ── Trigger ──────────────────────────────────────────────────────────── */
 
     /**
@@ -100,7 +110,7 @@ class M24_Desk_Push {
      */
     public static function on_offer_sent( $offer_id ) {
         $offer_id = (int) $offer_id;
-        if ( $offer_id <= 0 ) { return; }
+        if ( $offer_id <= 0 || self::applying_inbound() ) { return; }
         if ( ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) {
             self::log( $offer_id, 'skipped', 'Desk nicht konfiguriert (URL/Key fehlt).' );
             return;
@@ -344,8 +354,22 @@ class M24_Desk_Push {
             if ( '' !== $desk_num ) { $data['desk_order_num'] = $desk_num; }
         }
         if ( null !== $attempts ) { $data['desk_sync_attempts'] = $attempts; }
-        $data['field_updated_at'] = wp_json_encode( array( 'desk_sync_status' => $now ) );
+        $data['field_updated_at'] = wp_json_encode( self::merge_stamps( $offer_id, array( 'desk_sync_status' => $now ) ) );
         $wpdb->update( M24_Offers::table(), $data, array( 'id' => $offer_id ) );
+    }
+
+    /**
+     * field_updated_at fortschreiben statt überschreiben. Die Map ist die LWW-Autorität für BEIDE Richtungen —
+     * der Inbound (M24_Desk_Inbound) legt hier die Stempel der übernommenen Desk-Felder ab. Ein blindes
+     * Überschreiben mit nur desk_sync_status würde sie bei jedem Status-Write verlieren und LWW entwerten.
+     */
+    private static function merge_stamps( int $offer_id, array $add ): array {
+        global $wpdb;
+        $cur = json_decode(
+            (string) $wpdb->get_var( $wpdb->prepare( 'SELECT field_updated_at FROM ' . M24_Offers::table() . ' WHERE id = %d', $offer_id ) ),
+            true
+        );
+        return array_merge( is_array( $cur ) ? $cur : array(), $add );
     }
 
     /**
@@ -357,7 +381,7 @@ class M24_Desk_Push {
         global $wpdb;
         $wpdb->update(
             M24_Offers::table(),
-            array( 'desk_sync_status' => 'needs_update', 'field_updated_at' => wp_json_encode( array( 'desk_sync_status' => current_time( 'mysql', true ) ) ) ),
+            array( 'desk_sync_status' => 'needs_update', 'field_updated_at' => wp_json_encode( self::merge_stamps( $offer_id, array( 'desk_sync_status' => current_time( 'mysql', true ) ) ) ) ),
             array( 'id' => $offer_id )
         );
     }
@@ -460,7 +484,8 @@ class M24_Desk_Push {
         check_admin_referer( 'm24_desk_cust_retry_' . $uid );
         if ( $uid > 0 ) {
             update_user_meta( $uid, self::CUST_ATTEMPTS, 0 );
-            delete_user_meta( $uid, self::CUST_SNAP ); // Snapshot leeren → voller Feldsatz wird erneut gesendet
+            delete_user_meta( $uid, self::CUST_SNAP );    // Snapshot leeren → voller Feldsatz wird erneut gesendet
+            delete_user_meta( $uid, self::CUST_PENDING ); // frischer Key: der bewusste Neuversuch ist ein neues Ereignis
             self::push_customer( $uid, false );
         }
         wp_safe_redirect( add_query_arg( 'done', 'retry', admin_url( 'admin.php?page=m24-desk-sync' ) ) );
@@ -486,7 +511,7 @@ class M24_Desk_Push {
      */
     public static function on_offer_accepted( $offer_id ) {
         $offer_id = (int) $offer_id;
-        if ( $offer_id <= 0 || ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return; }
+        if ( $offer_id <= 0 || self::applying_inbound() || ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return; }
         $dry = ! self::enabled();
         $o   = M24_Offers::get_by_id( $offer_id );
         if ( ! $o ) { return; }
@@ -497,7 +522,7 @@ class M24_Desk_Push {
     /** W3: Kontodaten geändert (unabhängig von Annahme). Ohne Desk-Customer-ID still überspringen. */
     public static function on_customer_updated( $uid ) {
         $uid = (int) $uid;
-        if ( $uid <= 0 || ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return; }
+        if ( $uid <= 0 || self::applying_inbound() || ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return; }
         if ( '' === (string) get_user_meta( $uid, self::CUST_META, true ) ) { return; } // noch nie gepusht → beim nächsten Angebots-Push
         self::push_customer( $uid, ! self::enabled() );
     }
@@ -505,6 +530,17 @@ class M24_Desk_Push {
     /**
      * PUT /api/customers/<desk_customer_id> — geänderte Kundenfelder (Diff gegen Snapshot) + changed_at.
      * Key: wp-cust-<uid>-<changehash>. Nichts geändert → kein Call. Kein Desk-Customer-ID → skip.
+     *
+     * Diff-Regel (der Desk baut die Felder mit Overwrite, ein leerer String LÖSCHT dort):
+     *   unverändert (leer wie befüllt) → Feld weglassen
+     *   befüllt → anderer Wert        → neuen Wert senden
+     *   befüllt → geleert             → '' senden — das IST die Löschung
+     * Der Vergleich (string)$snap[$k] !== (string)$v leistet genau das: ein bewusst geleertes Feld gilt als
+     * geändert und wird gesendet, ein nie befülltes bleibt draußen (WP erhebt keinen Anspruch darauf).
+     *
+     * changed_at ist IMMER self::iso_ms() (= jetzt), nie ein geerbter Stempel: ist er nicht strikt neuer als
+     * der Desk-Stempel, verwirft Desk das Feld — antwortet aber trotzdem 200 und der Push sähe fälschlich
+     * erfolgreich aus. Mit „jetzt" gewinnt der WP-Edit verlässlich.
      * @return array{ok:bool,status:int,note:string}
      */
     public static function push_customer( int $uid, bool $dry_run = false ): array {
@@ -520,12 +556,15 @@ class M24_Desk_Push {
         }
         if ( empty( $changed ) ) { return array( 'ok' => true, 'status' => 0, 'note' => 'keine Änderung' ); }
 
-        $hash = substr( md5( wp_json_encode( self::ksorted( $changed ) ) ), 0, 12 );
-        $body = $changed + array( 'changed_at' => self::iso_ms() );
+        // __source:'sync' → Desk überspringt seinen eigenen Webhook für diesen Write. Ohne das schickt Desk die
+        // Änderung, die gerade VON HIER kam, per Inbound zurück und der erste WP-Edit schaukelt sich auf.
+        $body = $changed + array( 'changed_at' => self::iso_ms(), '__source' => 'sync' );
 
         $opts = array( 'timeout' => self::TIMEOUT );
-        if ( ! $dry_run ) { $opts['headers'] = array( 'X-Idempotency-Key' => 'wp-cust-' . $uid . '-' . $hash ); }
-        if ( ! $dry_run ) { update_user_meta( $uid, self::CUST_ATTEMPTS, (int) get_user_meta( $uid, self::CUST_ATTEMPTS, true ) + 1 ); }
+        if ( ! $dry_run ) {
+            $opts['headers'] = array( 'X-Idempotency-Key' => self::customer_key( $uid, $snap, $changed ) );
+            update_user_meta( $uid, self::CUST_ATTEMPTS, (int) get_user_meta( $uid, self::CUST_ATTEMPTS, true ) + 1 );
+        }
 
         if ( $dry_run ) { $body['dry_run'] = true; }
         $res    = M24_Rest_Client::request( 'PUT', '/api/customers/' . rawurlencode( $cid ), $body, $opts );
@@ -542,6 +581,7 @@ class M24_Desk_Push {
             self::persist_customer_id( $uid, $data );
             update_user_meta( $uid, self::CUST_SNAP, wp_json_encode( self::normalize_snap( $fields ) ) );
             delete_user_meta( $uid, self::CUST_DIRTY );
+            delete_user_meta( $uid, self::CUST_PENDING ); // Übergang bestätigt → nächster Edit bekommt einen frischen Key
             update_user_meta( $uid, self::CUST_ATTEMPTS, 0 );
             self::log( 0, 'cust_synced', 'uid=' . $uid . ' cid=' . $cid . ' HTTP ' . $status );
             return array( 'ok' => true, 'status' => $status, 'note' => 'cust_synced' );
@@ -549,6 +589,9 @@ class M24_Desk_Push {
         if ( 400 === $status || 422 === $status ) {
             $detail = self::error_detail( $data, $res );
             delete_user_meta( $uid, self::CUST_DIRTY ); // kein blinder Retry
+            // Desk hat den Key auch für diese <500-Antwort persistiert → er ist verbrannt. Pending löschen,
+            // damit ein manueller Retry einen frischen Key zieht statt in ein 409 („bereits gesehen") zu laufen.
+            delete_user_meta( $uid, self::CUST_PENDING );
             update_user_meta( $uid, self::CUST_ATTEMPTS, self::MAX_TRIES );
             self::log( 0, 'cust_validation_failed', 'uid=' . $uid . ' HTTP ' . $status . ' · ' . $detail );
             if ( class_exists( 'M24_Error_Log' ) ) { M24_Error_Log::capture( 'desk_sync', 'error', 'Desk PUT /customers Validierungsfehler (kein Retry)', array( 'uid' => $uid, 'status' => $status, 'detail' => $detail ) ); }
@@ -618,11 +661,19 @@ class M24_Desk_Push {
      * Kundenfelder (v1.1) aus dem WP-Konto. Robust gegen ZWEI Meta-Modelle: das Angebots-/Operator-Modell
      * (flache Metas _m24_firmenname/_m24_strasse/…) und das Konto-Self-Service-Modell (M24_Account:
      * _m24_firma + _m24_addr_billing[]). Flach hat Vorrang, Account-Array ist Fallback. biz aus Kundentyp.
+     *
+     * Die ship_* (Standard-Lieferanschrift, customers.ship_* im Desk seit e32e745 live) kommen aus dem
+     * Array-Meta _m24_addr_shipping und bewusst OHNE Default — anders als 'land', das auf 'Deutschland'
+     * fällt. Der Desk-Diff deutet '' als Löschung: ein erfundener Default würde jedem Konto ohne separate
+     * Lieferanschrift eine andichten, und ein einmal gesetztes Feld ließe sich nie wieder leeren.
      */
     private static function customer_fields( int $uid ): array {
         $u = get_userdata( $uid );
         $addr = get_user_meta( $uid, '_m24_addr_billing', true );
         $addr = is_array( $addr ) ? $addr : array();
+        $ship = get_user_meta( $uid, '_m24_addr_shipping', true );
+        $ship = is_array( $ship ) ? $ship : array();
+        $sg   = static function ( $k ) use ( $ship ) { return trim( (string) ( $ship[ $k ] ?? '' ) ); };
         $pick = static function ( $flat, $arrkey ) use ( $uid, $addr ) {
             $v = trim( (string) get_user_meta( $uid, $flat, true ) );
             return '' !== $v ? $v : trim( (string) ( $addr[ $arrkey ] ?? '' ) );
@@ -647,6 +698,14 @@ class M24_Desk_Push {
             'eori'     => mb_substr( (string) get_user_meta( $uid, '_m24_eori', true ), 0, 17 ),
             'tel'      => (string) get_user_meta( $uid, '_m24_telefon', true ),
             'biz'      => ( 'b2b' === get_user_meta( $uid, '_m24_kundentyp', true ) ),
+            // Standard-Lieferanschrift → customers.ship_* (PUT-Whitelist im Desk, Teil A3).
+            'ship_firma'    => $sg( 'firma' ),
+            'ship_name'     => $sg( 'name' ),
+            'ship_strasse'  => $sg( 'strasse' ),
+            'ship_strasse2' => $sg( 'strasse2' ),
+            'ship_plz'      => $sg( 'plz' ),
+            'ship_ort'      => $sg( 'ort' ),
+            'ship_land'     => $sg( 'land' ),
         );
     }
 
@@ -669,7 +728,41 @@ class M24_Desk_Push {
             'completed_steps' => array( 'confirmed' ), // WP setzt den confirmed-Schritt; Desk merged serverseitig (dedupe)
             'confirmed'     => true,
             'changed_at'    => self::iso_ms(),
+            '__source'      => 'sync', // Desk überspringt dafür seinen Webhook → kein Bounce zurück nach WP
         );
+    }
+
+    /**
+     * Idempotency-Key für den Kunden-PUT. Er muss das EDIT-EREIGNIS identifizieren, nicht dessen Inhalt.
+     *
+     * Ein reiner Content-Hash kann die zwei Fälle nicht trennen, die gegensätzliche Keys brauchen:
+     *   Retry eines unbestätigten Pushes → MUSS denselben Key tragen (sonst legt Desk doppelt an).
+     *   Derselbe Übergang ein zweites Mal → MUSS einen neuen Key tragen. „Bonn → '' → Bonn" ist beim dritten
+     *     Push inhaltlich identisch zum ersten; mit gleichem Key antwortet Desk 409 (idempotency_key_reused),
+     *     wir werten das als Erfolg und ziehen den Snapshot nach — während in Desk weiterhin '' steht.
+     *
+     * Deshalb ein Zähler je Ereignis: die Signatur (Von-Zustand + Änderung) beantwortet nur „ist das noch
+     * derselbe unbestätigte Übergang?". Ja → gespeicherten Key wiederverwenden. Nein → neue Sequenz. Der
+     * Pending-Eintrag wird bei Erfolg UND bei 400/422 gelöscht (Desk persistiert die Idempotenz für jede
+     * Antwort <500 — ein Retry mit dem verbrannten Key käme als 409 zurück und sähe fälschlich erfolgreich aus).
+     */
+    private static function customer_key( int $uid, array $snap, array $changed ): string {
+        $sig     = md5( wp_json_encode( array( self::ksorted( array_intersect_key( $snap, $changed ) ), self::ksorted( $changed ) ) ) );
+        $pending = json_decode( (string) get_user_meta( $uid, self::CUST_PENDING, true ), true );
+        if ( is_array( $pending ) && ( $pending['sig'] ?? '' ) === $sig && ! empty( $pending['key'] ) ) {
+            return (string) $pending['key'];
+        }
+        $seq = (int) get_user_meta( $uid, self::CUST_SEQ, true ) + 1;
+        $key = 'wp-cust-' . $uid . '-' . $seq;
+        update_user_meta( $uid, self::CUST_SEQ, $seq );
+        update_user_meta( $uid, self::CUST_PENDING, wp_json_encode( array( 'sig' => $sig, 'key' => $key ) ) );
+        return $key;
+    }
+
+    /** Diff-Snapshot auf den aktuellen Feldstand setzen (nach einem Desk→WP-Apply → kein Scheindiff beim nächsten Push). */
+    public static function snapshot_customer( int $uid ): void {
+        if ( $uid <= 0 ) { return; }
+        update_user_meta( $uid, self::CUST_SNAP, wp_json_encode( self::normalize_snap( self::customer_fields( $uid ) ) ) );
     }
 
     /** Desk-Customer-ID aus einer Response an das Konto hängen (falls geliefert und noch nicht gesetzt). */

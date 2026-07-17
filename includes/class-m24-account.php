@@ -116,16 +116,31 @@ class M24_Account {
 	public static function handle_address( WP_REST_Request $req ) {
 		if ( ! self::nonce_ok( $req ) ) { return new WP_Error( 'm24acc_nonce', 'Sitzung abgelaufen.', array( 'status' => 403 ) ); }
 		$acc = self::acc();
-		update_user_meta( $acc, self::M_ADDR_BILL, self::clean_addr( (array) $req->get_param( 'billing' ) ) );
-		update_user_meta( $acc, self::M_ADDR_SHIP, self::clean_addr( (array) $req->get_param( 'shipping' ) ) );
+		$prev_bill = get_user_meta( $acc, self::M_ADDR_BILL, true );
+		$prev_ship = get_user_meta( $acc, self::M_ADDR_SHIP, true );
+		update_user_meta( $acc, self::M_ADDR_BILL, self::clean_addr( (array) $req->get_param( 'billing' ), is_array( $prev_bill ) ? $prev_bill : array() ) );
+		update_user_meta( $acc, self::M_ADDR_SHIP, self::clean_addr( (array) $req->get_param( 'shipping' ), is_array( $prev_ship ) ? $prev_ship : array() ) );
 		do_action( 'm24_customer_updated', (int) $acc ); // W3: Desk-Kunde aktualisieren (still, wenn noch nie gepusht)
 		return rest_ensure_response( array( 'ok' => true, 'message' => 'Anschriften gespeichert.' ) );
 	}
 
-	private static function clean_addr( array $a ): array {
+	/**
+	 * Adressfelder aus dem Formular säubern. $prev = der zuletzt gespeicherte Stand.
+	 *
+	 * firma/strasse2 haben in dieser Maske KEINE Eingabefelder (nur name/strasse/plz/ort/land), kommen also
+	 * nie im Payload an. Sie auf '' zu normalisieren wäre nicht neutral, sondern eine Aussage: der Desk-Sync
+	 * baut die Lieferanschrift mit Overwrite und deutet '' als bewusste Löschung — ein Konto-Speichern würde
+	 * so eine in Desk gepflegte Firma/Zusatzzeile mitreißen, ohne dass der Nutzer sie je gesehen hat. Für
+	 * Felder ohne UI hat WP keine Hoheit → zuletzt bekannten Wert durchreichen.
+	 */
+	private static function clean_addr( array $a, array $prev = array() ): array {
 		$out = array();
 		foreach ( array( 'name', 'strasse', 'plz', 'ort', 'land' ) as $k ) {
 			$out[ $k ] = sanitize_text_field( (string) ( $a[ $k ] ?? '' ) );
+		}
+		foreach ( array( 'firma', 'strasse2' ) as $k ) {
+			$v = sanitize_text_field( (string) ( $a[ $k ] ?? ( $prev[ $k ] ?? '' ) ) );
+			if ( '' !== $v ) { $out[ $k ] = $v; }
 		}
 		return $out;
 	}
