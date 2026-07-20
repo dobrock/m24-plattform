@@ -44,18 +44,37 @@ class M24_Admin_Menu {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'reorganize' ), 9999 );
 		add_action( 'admin_menu', array( __CLASS__, 'register_parent_target' ), 9998 );
+		add_action( 'admin_init', array( __CLASS__, 'redirect_parent_menu' ), 1 ); // Sicherheitsnetz (läuft ggf. vor WPs nopriv-Check)
 		add_action( 'admin_head', array( __CLASS__, 'separator_css' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'separator_neutralize_js' ) );
 	}
 
 	/**
+	 * Sicherheitsnetz: leitet admin.php?page=m24-sep-1 früh (admin_init) auf die Angebots-Übersicht um —
+	 * unabhängig von der Page-Hook-Auflösung. Fängt den Fall ab, falls WPs „nicht berechtigt"-Abbruch vor
+	 * dem via register_parent_target registrierten Callback greifen würde. Nur für den Platzhalter-Slug.
+	 */
+	public static function redirect_parent_menu() {
+		if ( ! is_admin() ) { return; }
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( 'm24-sep-1' === $page && current_user_can( 'manage_options' ) ) { self::redirect_to_offers(); }
+	}
+
+	/**
 	 * Parent-Klick „MOTORSPORT24" landet nicht auf 404: WP verlinkt den Top-Level auf das ERSTE Submenu —
-	 * das ist der Sektions-Trenner „Tagesgeschäft" (Slug m24-sep-1, ohne Page-Callback). Deshalb m24-sep-1
-	 * als VERSTECKTE Seite (parent = null → kein Menüeintrag) mit Redirect auf die Angebots-Übersicht
-	 * registrieren. Die im Submenu sichtbaren Trenner bleiben unklickbar (separator_neutralize_js).
+	 * das ist der Sektions-Trenner „Tagesgeschäft" (Slug m24-sep-1, ohne Page-Callback).
+	 *
+	 * Fix: m24-sep-1 UNTER dem echten Parent-Slug 'm24-plattform' registrieren (genau wie m24-offers &
+	 * Co., Cap 'manage_options' — dieselbe, mit der alle M24-Seiten laufen), Callback = Redirect auf die
+	 * Angebots-Übersicht. Nur so löst WP den Slug auf und die Capability-Prüfung greift. Der sichtbare
+	 * Menüeintrag wird sofort wieder entfernt — den „Tagesgeschäft"-Trenner baut reorganize() selbst;
+	 * der Page-Hook (Redirect) bleibt via $_registered_pages/add_action erhalten.
+	 *
+	 * Läuft VOR reorganize (9999), damit der temporäre Eintrag nicht in dessen Neuaufbau landet.
 	 */
 	public static function register_parent_target() {
-		add_submenu_page( '', 'MOTORSPORT24', '', 'manage_options', 'm24-sep-1', array( __CLASS__, 'redirect_to_offers' ) );
+		add_submenu_page( 'm24-plattform', 'MOTORSPORT24', 'MOTORSPORT24', 'manage_options', 'm24-sep-1', array( __CLASS__, 'redirect_to_offers' ) );
+		remove_submenu_page( 'm24-plattform', 'm24-sep-1' ); // Menüeintrag weg, Page-Hook (Redirect) bleibt
 	}
 
 	public static function redirect_to_offers() {
