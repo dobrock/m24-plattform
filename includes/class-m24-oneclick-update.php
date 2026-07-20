@@ -26,6 +26,32 @@ class M24_OneClick_Update {
 		add_action( 'wp_head', array( __CLASS__, 'declutter_css' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'inline_js' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
+		// Sofort-Feedback am Admin-Bar-Link (reiner <a> ohne JS) — auf Admin UND Frontend, wo die Bar zeigt.
+		add_action( 'admin_footer', array( __CLASS__, 'admin_bar_feedback_js' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'admin_bar_feedback_js' ) );
+	}
+
+	/**
+	 * Beim Klick auf „🔄 M24 aktualisieren" (Admin-Bar) sofort einen Busy-Zustand zeigen: Link deaktivieren
+	 * (kein Doppelklick) + Text „Aktualisiere … Cache wird geleert". Die Navigation läuft normal weiter; der
+	 * Busy-Zustand bleibt sichtbar, bis der (mehrsekündige) Update-Request per Redirect die Seite neu lädt.
+	 */
+	public static function admin_bar_feedback_js() {
+		if ( ! current_user_can( self::CAP ) || ! is_admin_bar_showing() ) { return; }
+		?>
+		<script>
+		(function(){
+			var n=document.getElementById('wp-admin-bar-m24-oneclick-update'); if(!n){return;}
+			var a=n.querySelector('a.ab-item')||n.querySelector('a'); if(!a){return;}
+			var busy=false;
+			a.addEventListener('click',function(){
+				if(busy){return;} busy=true;               // Doppelklick verhindern
+				a.style.opacity='.9'; a.style.pointerEvents='none';
+				a.textContent='⏳ Aktualisiere … Cache wird geleert';
+			});
+		})();
+		</script>
+		<?php
 	}
 
 	/* ── UI ──────────────────────────────────────────────────────────────────── */
@@ -130,9 +156,13 @@ class M24_OneClick_Update {
 		$r = get_transient( $k );
 		if ( ! $r ) { return; }
 		delete_transient( $k );
-		$txt = $r['headline'] . ' · OPcache: ' . $r['opcache'] . ' · WP-Rocket: ' . $r['wprocket'];
-		printf( '<div class="notice notice-success is-dismissible"><p><strong>M24-Update:</strong> %s%s</p></div>',
-			esc_html( $txt ), ! empty( $r['fpm_hint'] ) ? '<br><em>' . esc_html( $r['fpm_hint'] ) . '</em>' : '' );
+		$is_err = ( false !== stripos( (string) $r['headline'], 'fehlgeschlagen' ) );
+		$cls    = $is_err ? 'notice-error' : 'notice-success';
+		$icon   = $is_err ? '✗' : '✓';
+		$txt    = $r['headline'] . ' · OPcache: ' . $r['opcache'] . ' · WP-Rocket: ' . $r['wprocket'];
+		printf( '<div class="notice %s is-dismissible"><p><strong>%s M24-Update:</strong> %s%s</p></div>',
+			esc_attr( $cls ), esc_html( $icon ), esc_html( $txt ),
+			! empty( $r['fpm_hint'] ) ? '<br><em>' . esc_html( $r['fpm_hint'] ) . '</em>' : '' );
 	}
 
 	/* ── Kern-Routine (von AJAX- und Admin-Bar-Pfad geteilt) ─────────────────── */
