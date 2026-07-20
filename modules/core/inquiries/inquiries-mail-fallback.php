@@ -213,7 +213,9 @@ class M24_Inquiries_Mail_Fallback {
                 'inquiry_id' => (int) ( $data['post_id'] ?? 0 ), // → Operator lädt die Positionen via ?from_inquiry
                 'email'      => (string) $data['email'],
                 'name'       => trim( (string) $data['vorname'] . ' ' . (string) $data['nachname'] ),
-                'kundentyp'  => in_array( (string) ( $data['kundentyp'] ?? '' ), array( 'Geschäftskunde', 'b2b' ), true ) ? 'b2b' : 'b2c',
+                // Kundentyp aus 'biz' (1/0 — so speichert die Anfrage) ableiten; 'kundentyp' existiert im Anfrage-
+                // Datensatz nicht → sonst fiele der CTA-Link (ohne from_inquiry) fälschlich auf b2c.
+                'kundentyp'  => ( '1' === (string) ( $data['biz'] ?? '' ) || in_array( (string) ( $data['kundentyp'] ?? '' ), array( 'Geschäftskunde', 'b2b' ), true ) ) ? 'b2b' : 'b2c',
                 'land'       => (string) ( $data['land'] ?? '' ),
                 'src_modell' => (string) ( $first['src_modell'] ?? '' ),
                 'src_pid'    => (string) ( $first['src_pid'] ?? '' ),

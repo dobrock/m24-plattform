@@ -294,16 +294,23 @@ class M24_Offers_Render {
 			$items_pf = array();
 			if ( is_array( $its ) ) {
 				foreach ( $its as $it ) {
-					$title = sanitize_text_field( (string) ( $it['art'] ?? '' ) );
-					if ( '' === $title ) { continue; }
+					$title  = sanitize_text_field( (string) ( $it['art'] ?? '' ) );
+					$art_nr = sanitize_text_field( (string) ( $it['src_art_nr'] ?? '' ) );
 					$raw = trim( (string) ( $it['price'] ?? '' ) );
 					if ( false !== strpos( $raw, ',' ) && false !== strpos( $raw, '.' ) ) { $raw = str_replace( '.', '', $raw ); $raw = str_replace( ',', '.', $raw ); }
 					elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
 					$raw = preg_replace( '/[^0-9.\-]/', '', $raw );
+					// Nie still verwerfen: fehlt der Titel (Artikel umbenannt/gelöscht), aus Art-Nr. ableiten;
+					// nur wenn WIRKLICH nichts da ist (kein Titel, keine Art-Nr., kein Preis) überspringen.
+					if ( '' === $title ) {
+						if ( '' !== $art_nr ) { $title = 'Artikel ' . $art_nr; }
+						elseif ( is_numeric( $raw ) ) { $title = 'Position (Katalog-Link prüfen)'; }
+						else { continue; }
+					}
 					$items_pf[] = array(
 						'teil_id'    => 0,
 						'title'      => $title,
-						'art_nr'     => sanitize_text_field( (string) ( $it['src_art_nr'] ?? '' ) ),
+						'art_nr'     => $art_nr,
 						'variant'    => sanitize_text_field( (string) ( $it['src_variant'] ?? '' ) ), // #6: Variante in den Operator-Prefill
 						'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 						'unit_price' => is_numeric( $raw ) ? (float) $raw : 0.0,
@@ -323,6 +330,30 @@ class M24_Offers_Render {
 				'firma'     => (string) get_post_meta( $from_inquiry, '_m24_firma', true ),
 			);
 			$prefill = array( 'items' => $items_pf, 'delivery' => '', 'tax_mode' => '', 'tax_rate' => 0.0, 'inquiry_id' => $from_inquiry );
+		}
+
+		// E-Mail-„Angebot erstellen"-Link OHNE from_inquiry (z. B. Anfrage nicht als Record persistiert): die Position
+		// über die STABILE Artikel-ID (src_pid) auflösen — übersteht Umbenennung/Slug-Wechsel (kein URL-Match nötig).
+		// Fällt die ID nicht auf, die URL als letzten Versuch auflösen. So geht die Position nie still verloren.
+		if ( null === $prefill ) {
+			$pid = (int) ( $src['src_pid'] ?? 0 );
+			if ( $pid <= 0 && '' !== (string) ( $src['src_url'] ?? '' ) ) { $pid = (int) url_to_postid( (string) $src['src_url'] ); }
+			if ( $pid > 0 && 'm24_teil' === get_post_type( $pid ) ) {
+				$price   = M24_Offers::teil_price( $pid );
+				$prefill = array(
+					'items' => array( array(
+						'teil_id'    => $pid,
+						'title'      => get_the_title( $pid ),
+						'art_nr'     => (string) get_post_meta( $pid, '_m24_artikelnummer', true ),
+						'variant'    => '',
+						'qty'        => 1,
+						'unit_price' => ( null !== $price ) ? (float) $price : 0.0,
+						'tax25a'     => false,
+						'custom'     => false,
+					) ),
+					'delivery' => '', 'tax_mode' => '', 'tax_rate' => 0.0,
+				);
+			}
 		}
 
 		$cfg = array(

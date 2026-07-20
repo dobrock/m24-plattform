@@ -741,7 +741,7 @@ class M24_Offers {
 		return rest_ensure_response( array( 'ok' => true, 'customer' => $c ) );
 	}
 
-	private static function teil_price( int $pid ): ?float {
+	public static function teil_price( int $pid ): ?float { // public: Prefill-Auflösung (render) baut Positionen über die stabile Teil-ID
 		if ( get_post_meta( $pid, '_m24_preis_auf_anfrage', true ) ) { return null; }
 		if ( class_exists( 'M24_Catalog_Pricing' ) ) {
 			$p = M24_Catalog_Pricing::get( $pid );
