@@ -43,8 +43,25 @@ class M24_Admin_Menu {
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'reorganize' ), 9999 );
+		add_action( 'admin_menu', array( __CLASS__, 'register_parent_target' ), 9998 );
 		add_action( 'admin_head', array( __CLASS__, 'separator_css' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'separator_neutralize_js' ) );
+	}
+
+	/**
+	 * Parent-Klick „MOTORSPORT24" landet nicht auf 404: WP verlinkt den Top-Level auf das ERSTE Submenu —
+	 * das ist der Sektions-Trenner „Tagesgeschäft" (Slug m24-sep-1, ohne Page-Callback). Deshalb m24-sep-1
+	 * als VERSTECKTE Seite (parent = null → kein Menüeintrag) mit Redirect auf die Angebots-Übersicht
+	 * registrieren. Die im Submenu sichtbaren Trenner bleiben unklickbar (separator_neutralize_js).
+	 */
+	public static function register_parent_target() {
+		add_submenu_page( '', 'MOTORSPORT24', '', 'manage_options', 'm24-sep-1', array( __CLASS__, 'redirect_to_offers' ) );
+	}
+
+	public static function redirect_to_offers() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Keine Berechtigung.' ); }
+		wp_safe_redirect( admin_url( 'admin.php?page=m24-offers' ) );
+		exit;
 	}
 
 	public static function reorganize() {

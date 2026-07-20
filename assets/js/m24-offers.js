@@ -632,6 +632,7 @@
 	});
 	document.addEventListener('change', function (e) {
 		armAutosave(); // Bug 1
+		if (e.target.matches('[data-c="anrede"]')) { customer.anrede = e.target.value; salApply(false); return; } // Anrede-Wahl im Offer-Block → Begrüßung SOFORT neu erzeugen (auch für Bestandskunden ohne Speichern)
 		if (e.target.matches('[data-tax-mode]')) { setTaxMode(e.target.value); return; }
 		if (e.target.matches('[data-ship-method]')) { var smi = +e.target.getAttribute('data-ship-method'); extras[smi].method = e.target.value; extras[smi].methodTouched = true; renderExtras(); renderSummary(); return; } // #2: manuelle Wahl → Land-Default überschreibt nicht mehr
 		if (e.target.matches('[data-ship-incoterm]')) { var xi = +e.target.getAttribute('data-ship-incoterm'); extras[xi].incoterm = e.target.value; if ('CIF' === extras[xi].incoterm) { extras[xi].method = 'sea'; } renderExtras(); renderSummary(); return; } // #8: CIF nur Seefracht
