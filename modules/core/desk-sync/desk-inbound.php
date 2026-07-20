@@ -190,7 +190,13 @@ class M24_Desk_Inbound {
         $t = M24_Offers::table();
         $o = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE desk_order_id = %s LIMIT 1", (string) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         if ( ! $o ) {
-            self::log( 'skipped_unmapped', 'order #' . $id . ' — kein Angebot mit dieser desk_order_id.' );
+            // Upsert: nicht gefunden → Desk-originären Auftrag als plugin-natives Angebot anlegen, mit Kunde verknüpfen.
+            $new_id = self::create_order( $id, $data, $stamps );
+            if ( $new_id > 0 ) {
+                self::log( 'created', 'order #' . $id . ' → neues Angebot id ' . $new_id );
+                return array( 'status' => 'created', 'entity' => 'order', 'id' => $id, 'offer_id' => $new_id );
+            }
+            self::log( 'skipped_unmapped', 'order #' . $id . ' — nicht gefunden, Anlage nicht möglich.' );
             return array( 'status' => 'skipped_unmapped', 'entity' => 'order', 'id' => $id );
         }
 
@@ -266,9 +272,15 @@ class M24_Desk_Inbound {
             'fields'     => 'ID',
         ) );
         $uid = (int) ( $users[0] ?? 0 );
+        $created = false;
         if ( $uid <= 0 ) {
-            self::log( 'skipped_unmapped', 'customer #' . $id . ' — kein Konto mit dieser Desk-Customer-ID.' );
-            return array( 'status' => 'skipped_unmapped', 'entity' => 'customer', 'id' => $id );
+            // Upsert: nicht gefunden → Kundenkonto aus data anlegen (WP-User ohne Login/Mail-Effekt), Mapping setzen.
+            $uid = self::create_customer( $id, $data );
+            if ( $uid <= 0 ) {
+                self::log( 'skipped_unmapped', 'customer #' . $id . ' — nicht gefunden, Anlage ohne valide E-Mail nicht möglich.' );
+                return array( 'status' => 'skipped_unmapped', 'entity' => 'customer', 'id' => $id );
+            }
+            $created = true;
         }
 
         $local   = self::decode_map( (string) get_user_meta( $uid, self::CUST_STAMPS, true ) );
@@ -326,7 +338,7 @@ class M24_Desk_Inbound {
         }
         if ( $ship_touched ) { update_user_meta( $uid, '_m24_addr_shipping', $ship ); }
 
-        if ( empty( $applied ) ) {
+        if ( empty( $applied ) && ! $created ) {
             self::log( 'discarded_lww', 'customer #' . $id . ' (uid ' . $uid . ') — nichts übernommen · verworfen: ' . implode( ',', $discard ) );
             return array( 'status' => 'discarded_lww', 'entity' => 'customer', 'id' => $id, 'discarded' => $discard );
         }
@@ -336,9 +348,135 @@ class M24_Desk_Inbound {
         // Desk-Werte für eine lokale Änderung und schickt sie beim nächsten Trigger zurück.
         self::resync_customer_snapshot( $uid );
 
-        self::log( 'applied', 'customer #' . $id . ' (uid ' . $uid . ') — übernommen: ' . implode( ',', $applied )
+        $st = $created ? 'created' : 'applied';
+        self::log( $st, 'customer #' . $id . ' (uid ' . $uid . ') — ' . ( $created ? 'angelegt · ' : '' ) . 'übernommen: ' . implode( ',', $applied )
             . ( $discard ? ' · verworfen (LWW): ' . implode( ',', $discard ) : '' ) );
-        return array( 'status' => 'applied', 'entity' => 'customer', 'id' => $id, 'applied' => $applied, 'discarded' => $discard );
+        return array( 'status' => $st, 'entity' => 'customer', 'id' => $id, 'applied' => $applied, 'discarded' => $discard, 'uid' => $uid );
+    }
+
+    /* ── Upsert-Anlage (Desk → WP) ─────────────────────────────────────────── */
+
+    /**
+     * Kundenkonto aus einer Desk-Zeile anlegen. Bewusst als WP-User (das Kundenmodell des Plugins IST
+     * wp_users — Mapping/Meta/Outbound hängen daran), aber OHNE Login-Nebenwirkung: Zufallspasswort, Rolle
+     * subscriber, KEINE Willkommens-/Passwort-Mail (wp_insert_user verschickt von sich aus nichts). Bestehende
+     * E-Mail → verknüpfen statt doppeln. Ohne valide E-Mail nicht anlegbar → 0.
+     */
+    private static function create_customer( int $desk_id, array $data ): int {
+        $email = sanitize_email( (string) ( $data['email'] ?? '' ) );
+        if ( ! is_email( $email ) ) { return 0; }
+        $existing = get_user_by( 'email', $email );
+        $uid = $existing ? (int) $existing->ID : 0;
+        if ( $uid <= 0 ) {
+            $name = sanitize_text_field( (string) ( $data['name'] ?? '' ) );
+            $res  = wp_insert_user( array(
+                'user_login'   => $email,
+                'user_email'   => $email,
+                'user_pass'    => wp_generate_password( 24 ),
+                'role'         => 'subscriber',
+                'display_name' => '' !== $name ? $name : $email,
+            ) );
+            if ( is_wp_error( $res ) || (int) $res <= 0 ) { return 0; }
+            $uid = (int) $res;
+        }
+        update_user_meta( $uid, M24_Desk_Push::CUST_META, (string) $desk_id ); // Mapping Desk customers.id ↔ WP-User
+        return $uid;
+    }
+
+    /**
+     * Desk-originären Auftrag als plugin-natives Angebot (m24_offers) anlegen. Best-effort-Mapping der Desk-
+     * Zeile auf das WP-Schema; items werden in Desk-Form abgelegt (Anzeige ggf. abweichend — der beidseitige
+     * Item-Vertrag ist offen). Verknüpfung zum Kunden über desk customers.id → WP-User (0 = noch unverknüpft).
+     * KEIN mark_paid/Hook-Feuern (Echo- + Mail-Vermeidung) — Status wird direkt gesetzt.
+     * @return int neue offer-id, 0 bei Fehler.
+     */
+    private static function create_order( int $desk_id, array $data, array $stamps ): int {
+        global $wpdb;
+        $t = M24_Offers::table();
+
+        $account_id = 0;
+        $desk_cust  = (int) ( $data['customer_id'] ?? 0 );
+        if ( $desk_cust > 0 ) {
+            $u = get_users( array( 'meta_key' => M24_Desk_Push::CUST_META, 'meta_value' => (string) $desk_cust, 'number' => 1, 'fields' => 'ID' ) ); // phpcs:ignore WordPress.DB.SlowDBQuery
+            $account_id = (int) ( $u[0] ?? 0 );
+        }
+
+        // Angebotsnummer: Desk-Nummer bevorzugt; bei Kollision (UNIQUE offer_no) Fallback D-<id>.
+        $offer_no = mb_substr( sanitize_text_field( (string) ( $data['order_num'] ?? $data['ref'] ?? '' ) ), 0, 20 );
+        if ( '' === $offer_no ) { $offer_no = 'D-' . $desk_id; }
+        $exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE offer_no = %s LIMIT 1", $offer_no ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( $exists > 0 ) { $offer_no = mb_substr( 'D-' . $desk_id, 0, 20 ); }
+
+        $customer = array(
+            'email' => (string) ( $data['email'] ?? '' ), 'name' => (string) ( $data['name'] ?? '' ),
+            'firma' => (string) ( $data['firma'] ?? '' ), 'strasse' => (string) ( $data['strasse'] ?? '' ),
+            'adresszusatz' => (string) ( $data['strasse2'] ?? '' ), 'plz' => (string) ( $data['plz'] ?? '' ),
+            'ort' => (string) ( $data['ort'] ?? '' ), 'land' => (string) ( $data['land'] ?? '' ),
+            'kundentyp' => ! empty( $data['biz'] ) ? 'b2b' : 'b2c', 'telefon' => (string) ( $data['tel'] ?? '' ),
+            'ustid' => (string) ( $data['uid'] ?? '' ), 'eori' => (string) ( $data['eori'] ?? '' ),
+        );
+
+        $items = $data['items'] ?? array();
+        if ( is_string( $items ) ) { $items = json_decode( $items, true ); }
+        if ( ! is_array( $items ) ) { $items = array(); }
+
+        $gross = (float) ( $data['amt'] ?? 0 );
+        $steps = $data['completed_steps'] ?? array();
+        if ( is_string( $steps ) ) { $steps = json_decode( $steps, true ); }
+        $steps = is_array( $steps ) ? array_values( array_map( 'strval', $steps ) ) : array();
+        $paid  = ! empty( $data['payment_date'] );
+        $shipn = self::split_name( (string) ( $data['ship_name'] ?? '' ) );
+
+        $row = array(
+            'offer_no'      => $offer_no,
+            'token'         => bin2hex( random_bytes( 16 ) ),
+            'account_id'    => $account_id,
+            'status'        => $paid ? 'bezahlt' : 'offen',
+            'customer_json' => wp_json_encode( $customer ),
+            'items_json'    => wp_json_encode( $items ),
+            'extras_json'   => wp_json_encode( array() ),
+            'delivery_time' => '',
+            'tax_mode'      => sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) ),
+            'tax_rate'      => 0,
+            'tax_note'      => '',
+            'subtotal_net'  => $gross, // Desk liefert keine Netto/USt-Aufschlüsselung → Brutto als Näherung
+            'tax_amount'    => 0,
+            'total_gross'   => $gross,
+            'currency'      => 'EUR',
+            'src_json'      => wp_json_encode( array(
+                'desk_origin' => true, 'desk_customer_id' => $desk_cust,
+                'subj' => (string) ( $data['subj'] ?? '' ), 'note' => (string) ( $data['notes'] ?? '' ),
+            ) ),
+            'desk_order_id'    => (string) $desk_id,
+            'desk_order_num'   => mb_substr( sanitize_text_field( (string) ( $data['order_num'] ?? '' ) ), 0, 40 ),
+            'desk_sync_status' => 'synced',
+            'desk_synced_at'   => current_time( 'mysql', true ),
+            'completed_steps'  => wp_json_encode( $steps ),
+            'payment_date'     => $paid ? self::to_mysql_utc( (string) $data['payment_date'] ) : null,
+            'carrier'          => isset( $data['carrier'] ) ? sanitize_text_field( (string) $data['carrier'] ) : null,
+            'tracking'         => isset( $data['tracking'] ) ? sanitize_text_field( (string) $data['tracking'] ) : null,
+            'packages'         => isset( $data['packages'] ) ? ( is_scalar( $data['packages'] ) ? (string) $data['packages'] : wp_json_encode( $data['packages'] ) ) : null,
+            'sevdesk_invoice_number'     => isset( $data['sevdesk_invoice_number'] ) ? sanitize_text_field( (string) $data['sevdesk_invoice_number'] ) : null,
+            'sevdesk_invoice_pdf_r2_key' => isset( $data['sevdesk_invoice_pdf_r2_key'] ) ? sanitize_text_field( (string) $data['sevdesk_invoice_pdf_r2_key'] ) : null,
+            'ship_firma'    => (string) ( $data['ship_firma'] ?? '' ),
+            'ship_anrede'   => $shipn['anrede'],
+            'ship_vorname'  => $shipn['vorname'],
+            'ship_nachname' => $shipn['nachname'],
+            'ship_strasse'  => (string) ( $data['ship_strasse'] ?? '' ),
+            'ship_strasse2' => (string) ( $data['ship_strasse2'] ?? '' ),
+            'ship_plz'      => (string) ( $data['ship_plz'] ?? '' ),
+            'ship_ort'      => (string) ( $data['ship_ort'] ?? '' ),
+            'ship_land'     => (string) ( $data['ship_land'] ?? '' ),
+            'ship_diff'     => ( '' !== (string) ( $data['ship_name'] ?? '' ) || '' !== (string) ( $data['ship_strasse'] ?? '' ) ) ? 1 : 0,
+            'field_updated_at' => wp_json_encode( is_array( $stamps ) ? $stamps : array() ),
+            'created_at'    => current_time( 'mysql', true ),
+            'sent_at'       => current_time( 'mysql', true ),
+        );
+        if ( $paid ) { $row['paid_at'] = self::to_mysql_utc( (string) $data['payment_date'] ); }
+
+        $ok = $wpdb->insert( $t, $row );
+        if ( false === $ok ) { return 0; }
+        return (int) $wpdb->insert_id;
     }
 
     /** Snapshot = aktueller Feldstand, damit der nächste push_customer() keinen Scheindiff sieht. */

@@ -162,7 +162,7 @@ class M24_Desk_Sync_Monitor {
         } else {
             // Statusklassen mappen: applied = grün, verworfen/unbekannt = neutral-blau, auth/400/500 = rot.
             $cls = array(
-                'applied' => 'synced', 'replay' => 'needs_update', 'discarded_lww' => 'needs_update',
+                'applied' => 'synced', 'created' => 'synced', 'replay' => 'needs_update', 'discarded_lww' => 'needs_update',
                 'skipped_unmapped' => 'pending', 'unauthorized' => 'failed', 'bad_request' => 'failed', 'error' => 'failed',
             );
             foreach ( $rows as $r ) {
