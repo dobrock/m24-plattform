@@ -20,7 +20,8 @@ class M24_Offers_Render {
 			. '<link rel="stylesheet" href="' . esc_url( self::assets_url( 'assets/css/m24-offers.css' ) ) . '">';
 	}
 	private static function fmt( float $v ): string {
-		return number_format( $v, 2, ',', '.' ) . ' €';
+		// NBSP (U+00A0) zwischen Zahl und € → Betrag bricht nie zwischen Wert und Währung um.
+		return number_format( $v, 2, ',', '.' ) . "\u{00A0}€";
 	}
 	private static function date_de( string $ymd ): string {
 		$t = $ymd ? strtotime( $ymd ) : 0;
