@@ -40,6 +40,8 @@ class M24_Inquiries_Storage {
 
         // Paket H: eigene Inbox-Karten-Seite (M24 → Anfragen); die CPT-Liste bleibt als Fallback erreichbar.
         add_action( 'admin_menu', [ __CLASS__, 'admin_menu_inbox' ], 26 );
+        // „Test-Anfragen bereinigen": serverseitige Aktion (POST, Nonce+Capability), Soft-Delete in den Papierkorb.
+        add_action( 'admin_post_m24_cleanup_test_inquiries', [ __CLASS__, 'handle_cleanup_test' ] );
         // Fremde Admin-Notices (WP-Site-Health „REST-API nicht erreichbar" / Härtungs-Plugins) NUR auf der Inbox
         // unterdrücken — die Inbox rendert inline und nutzt selbst keine admin_notices.
         add_action( 'in_admin_header', [ __CLASS__, 'suppress_foreign_inbox_notices' ], 0 );
@@ -432,8 +434,19 @@ class M24_Inquiries_Storage {
             . '.m24inbox .foot{display:flex;gap:10px;padding:14px 18px;justify-content:flex-end;background:#fff}'
             . '.m24inbox .b{border:0;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13.5px;cursor:pointer;text-decoration:none;display:inline-block}'
             . '.m24inbox .b.blue{background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff}.m24inbox .b.ghost{background:#fff;border:1.5px solid #e5e7eb;color:#111417}'
+            . '.m24inbox .chip.clean{border-color:#e0b4b4;color:#b32d2e}.m24inbox .chip.clean:hover{background:#fbeaea;border-color:#b32d2e}'
+            . '.m24inbox .tclean{max-width:1000px;background:#fff;border:1.5px solid #e0b4b4;border-radius:12px;padding:18px 20px;margin:0 0 18px}'
+            . '.m24inbox .tclean h2{margin:0 0 8px;font-size:16px}.m24inbox .tclean table{margin:10px 0}.m24inbox .tclean .tnote{color:#6b7280;font-size:12.5px;margin:10px 0 0}'
             . '@media(max-width:700px){.m24inbox .meta{width:100%;margin-left:58px}}'
             . '</style>';
+
+        // Erfolgs-/Leer-Notice nach der Bereinigung (inline gerendert → wird nicht vom Notice-Suppressor entfernt).
+        $done = isset( $_GET['done'] ) ? sanitize_key( wp_unslash( $_GET['done'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( 'cleaned' === $done ) {
+            $n   = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+            $txt = $n > 0 ? sprintf( '✓ %d Test-Anfrage%s in den Papierkorb verschoben.', $n, 1 === $n ? '' : 'n' ) : 'Keine Test-Anfragen gefunden.';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $txt ) . '</p></div>';
+        }
 
         // Filterleiste.
         $base = admin_url( 'admin.php?page=m24-anfragen' );
@@ -441,13 +454,42 @@ class M24_Inquiries_Storage {
             $url = add_query_arg( array( 'f' => $key, 's' => $s ), $base );
             return '<a class="chip' . ( $f === $key ? ' on' : '' ) . '" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a>';
         };
+        $prev_url = esc_url( add_query_arg( array( 'f' => $f, 'cleanup' => 'preview' ), $base ) );
         echo '<div class="flt">'
             . $chip( 'offen', 'Offen (' . (int) $offen_n . ')' )
             . $chip( 'beantwortet', 'Beantwortet' )
             . $chip( 'alle', 'Alle' )
+            . '<a class="chip clean" href="' . $prev_url . '">🧹 Test-Anfragen bereinigen</a>'
             . '<form class="srch" method="get"><input type="hidden" name="page" value="m24-anfragen"><input type="hidden" name="f" value="' . esc_attr( $f ) . '">'
             . '<input type="search" name="s" value="' . esc_attr( $s ) . '" placeholder="Name, E-Mail oder G-Nr"><button class="button">Suchen</button></form>'
             . '</div>';
+
+        // Vorschau-Panel „Test-Anfragen bereinigen": listet alle Treffer, erst der zweite Button löscht (→ Papierkorb).
+        if ( isset( $_GET['cleanup'] ) && 'preview' === sanitize_key( wp_unslash( $_GET['cleanup'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+            $matches = self::find_test_inquiries();
+            $cancel  = esc_url( add_query_arg( array( 'f' => $f ), $base ) );
+            echo '<div class="tclean"><h2>Test-Anfragen bereinigen</h2>';
+            if ( empty( $matches ) ) {
+                echo '<p>Keine Test-Anfragen gefunden (Reserved-Example-Domain oder Name beginnt mit „TEST").</p>'
+                    . '<a class="chip" href="' . $cancel . '">Zurück</a>';
+            } else {
+                $cnt = count( $matches );
+                echo '<p>Folgende <b>' . (int) $cnt . '</b> Anfrage' . ( 1 === $cnt ? '' : 'n' ) . ' werden in den <b>Papierkorb</b> verschoben (wiederherstellbar). Bitte vor dem Ausführen prüfen:</p>';
+                echo '<table class="widefat striped"><thead><tr><th>Name</th><th>E-Mail</th><th>ID</th><th>Datum</th><th>Betrag</th></tr></thead><tbody>';
+                foreach ( $matches as $m ) {
+                    echo '<tr><td>' . esc_html( $m['name'] ) . '</td><td>' . esc_html( $m['email'] ) . '</td><td>#' . (int) $m['id'] . '</td><td>' . esc_html( $m['date'] ) . '</td><td>' . esc_html( $m['amount'] ) . '</td></tr>';
+                }
+                echo '</tbody></table>';
+                echo '<p class="tnote">Hinweis: Zugehörige Angebots-Entwürfe werden <b>nicht</b> mitgelöscht — bei Bedarf separat in der Angebots-Übersicht prüfen.</p>';
+                echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="display:flex;gap:10px;align-items:center;margin-top:6px">';
+                echo '<input type="hidden" name="action" value="m24_cleanup_test_inquiries">';
+                wp_nonce_field( 'm24_cleanup_test_inquiries' );
+                echo '<button type="submit" class="button button-primary" style="background:#b32d2e;border-color:#b32d2e">… wirklich bereinigen (' . (int) $cnt . ')</button>';
+                echo '<a class="chip" href="' . $cancel . '">Abbrechen</a>';
+                echo '</form>';
+            }
+            echo '</div>';
+        }
 
         // Statistik-Panel: zweispaltiges Layout (Karten links, Panel rechts).
         if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); }
@@ -507,5 +549,77 @@ class M24_Inquiries_Storage {
         }
         if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'inquiries' ); }
         echo '</div>';
+    }
+
+    /** Reserved-Example-Domains (RFC 2606) — können nie echte Kunden sein. */
+    private static function test_email_domains() {
+        return array( 'example.de', 'example.com', 'example.org', 'example.net' );
+    }
+
+    /**
+     * Konservative Test-Erkennung. „Test" gilt, wenn EINES zutrifft:
+     *  - E-Mail-Domain ist eine Reserved-Example-Domain (RFC 2606), oder
+     *  - Name/Bezeichnung beginnt (getrimmt, case-insensitiv) mit „TEST" als eigenes Wort.
+     * Bewusst eng: nach „TEST" muss ein Nicht-Buchstabe (Leerzeichen/Ziffer/Ende) folgen, damit echte
+     * Namen/Firmen wie „Testo GmbH", „Tester" oder „Testarossa" NIE fälschlich getroffen werden.
+     *
+     * @param string $name  abgeleiteter Anzeigename (Vor-/Nachname bzw. Firma/E-Mail)
+     * @param string $email Kontakt-E-Mail
+     * @return bool
+     */
+    private static function is_test_inquiry( $name, $email ) {
+        $email = strtolower( trim( (string) $email ) );
+        $at    = strrpos( $email, '@' );
+        if ( false !== $at ) {
+            $dom = substr( $email, $at + 1 );
+            if ( in_array( $dom, self::test_email_domains(), true ) ) { return true; }
+        }
+        $nm = ltrim( (string) $name );
+        if ( 0 === stripos( $nm, 'test' ) ) {
+            $next = substr( $nm, 4, 1 );
+            if ( '' === $next || ! ctype_alpha( $next ) ) { return true; }
+        }
+        return false;
+    }
+
+    /**
+     * Sammelt alle als Test erkannten Anfragen (nicht bereits im Papierkorb).
+     * @return array<int,array{id:int,name:string,email:string,date:string,amount:string}>
+     */
+    public static function find_test_inquiries() {
+        $stati = array( 'publish', 'pending', 'draft', 'private' );
+        if ( class_exists( 'M24_Inquiries' ) ) {
+            $stati = array_merge( $stati, array( M24_Inquiries::STATUS_PENDING, M24_Inquiries::STATUS_SYNCED, M24_Inquiries::STATUS_SYNCED_MAIL, M24_Inquiries::STATUS_FAILED ) );
+        }
+        $q = new WP_Query( array( 'post_type' => self::CPT_SLUG, 'post_status' => $stati, 'posts_per_page' => 500, 'orderby' => 'date', 'order' => 'DESC', 'no_found_rows' => true ) );
+        $out = array();
+        foreach ( $q->posts as $p ) {
+            $vor   = (string) get_post_meta( $p->ID, '_m24_vorname', true );
+            $nach  = (string) get_post_meta( $p->ID, '_m24_nachname', true );
+            $firma = (string) get_post_meta( $p->ID, '_m24_firma', true );
+            $email = (string) get_post_meta( $p->ID, '_m24_email', true );
+            $name  = trim( $vor . ' ' . $nach ); if ( '' === $name ) { $name = '' !== $firma ? $firma : $email; }
+            if ( ! self::is_test_inquiry( $name, $email ) ) { continue; }
+            $out[] = array(
+                'id'     => (int) $p->ID,
+                'name'   => $name,
+                'email'  => $email,
+                'date'   => get_the_date( 'd.m.Y H:i', $p ),
+                'amount' => self::inquiry_amount_fmt( $p->ID ),
+            );
+        }
+        return $out;
+    }
+
+    /** POST-Handler: verschiebt alle erkannten Test-Anfragen in den Papierkorb (reversibel). */
+    public static function handle_cleanup_test() {
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+        check_admin_referer( 'm24_cleanup_test_inquiries' );
+        $n = 0;
+        foreach ( self::find_test_inquiries() as $m ) {
+            if ( wp_trash_post( (int) $m['id'] ) ) { $n++; } // trash → kein Desk-Push (D.1b lauscht nur auf STATUS_PENDING)
+        }
+        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-anfragen', 'f' => 'alle', 'done' => 'cleaned', 'n' => $n ), admin_url( 'admin.php' ) ) );
+        exit;
     }
 }
