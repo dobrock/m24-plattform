@@ -292,29 +292,48 @@ class M24_Offers_Render {
 		if ( null === $prefill && $from_inquiry > 0 && class_exists( 'M24_Inquiries_Storage' ) && M24_Inquiries_Storage::CPT_SLUG === get_post_type( $from_inquiry ) ) {
 			$its      = get_post_meta( $from_inquiry, '_m24_items', true );
 			$items_pf = array();
+			$de_rate = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::MWST_SATZ : 0.19;
 			if ( is_array( $its ) ) {
 				foreach ( $its as $it ) {
 					$title  = sanitize_text_field( (string) ( $it['art'] ?? '' ) );
 					$art_nr = sanitize_text_field( (string) ( $it['src_art_nr'] ?? '' ) );
+
+					// Preis 1:1 wie auf der Website: PRIMÄR Netto aus der Produkt-Preisquelle (cent-genau,
+					// §25a-Flag korrekt). Das gespeicherte price ist der ANZEIGE-Preis = Brutto → darf nie
+					// als Netto durchgereicht werden (sonst +19 % zu hoch).
+					$tid   = M24_Offers::resolve_teil_from_item( $it );
+					$unit  = 0.0;
+					$is25a = false;
+					if ( $tid > 0 ) {
+						$pn = M24_Offers::teil_price_net( $tid );
+						if ( is_array( $pn ) ) { $unit = (float) $pn[0]; $is25a = (bool) $pn[1]; }
+					}
+
+					// Rohpreis (Anzeige = Brutto) parsen — für Fallback (Produkt nicht auflösbar) + never-drop-Titel.
 					$raw = trim( (string) ( $it['price'] ?? '' ) );
 					if ( false !== strpos( $raw, ',' ) && false !== strpos( $raw, '.' ) ) { $raw = str_replace( '.', '', $raw ); $raw = str_replace( ',', '.', $raw ); }
 					elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
 					$raw = preg_replace( '/[^0-9.\-]/', '', $raw );
+					// Fallback: nur Brutto vorhanden (kein Katalog-Match) → Netto = Brutto / (1 + Satz), DE 19 %.
+					if ( $unit <= 0.0 && is_numeric( $raw ) && (float) $raw > 0 ) {
+						$unit = round( (float) $raw / ( 1 + $de_rate ), 2 );
+					}
+
 					// Nie still verwerfen: fehlt der Titel (Artikel umbenannt/gelöscht), aus Art-Nr. ableiten;
 					// nur wenn WIRKLICH nichts da ist (kein Titel, keine Art-Nr., kein Preis) überspringen.
 					if ( '' === $title ) {
 						if ( '' !== $art_nr ) { $title = 'Artikel ' . $art_nr; }
-						elseif ( is_numeric( $raw ) ) { $title = 'Position (Katalog-Link prüfen)'; }
+						elseif ( $unit > 0.0 ) { $title = 'Position (Katalog-Link prüfen)'; }
 						else { continue; }
 					}
 					$items_pf[] = array(
-						'teil_id'    => 0,
+						'teil_id'    => $tid,
 						'title'      => $title,
 						'art_nr'     => $art_nr,
 						'variant'    => sanitize_text_field( (string) ( $it['src_variant'] ?? '' ) ), // #6: Variante in den Operator-Prefill
 						'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
-						'unit_price' => is_numeric( $raw ) ? (float) $raw : 0.0,
-						'tax25a'     => false,
+						'unit_price' => $unit,
+						'tax25a'     => $is25a,
 						'custom'     => false,
 					);
 				}
@@ -339,7 +358,8 @@ class M24_Offers_Render {
 			$pid = (int) ( $src['src_pid'] ?? 0 );
 			if ( $pid <= 0 && '' !== (string) ( $src['src_url'] ?? '' ) ) { $pid = (int) url_to_postid( (string) $src['src_url'] ); }
 			if ( $pid > 0 && 'm24_teil' === get_post_type( $pid ) ) {
-				$price   = M24_Offers::teil_price( $pid );
+				// Netto 1:1 aus der Produkt-Preisquelle (nicht Brutto als Netto → sonst +19 %).
+				$pn      = M24_Offers::teil_price_net( $pid );
 				$prefill = array(
 					'items' => array( array(
 						'teil_id'    => $pid,
@@ -347,8 +367,8 @@ class M24_Offers_Render {
 						'art_nr'     => (string) get_post_meta( $pid, '_m24_artikelnummer', true ),
 						'variant'    => '',
 						'qty'        => 1,
-						'unit_price' => ( null !== $price ) ? (float) $price : 0.0,
-						'tax25a'     => false,
+						'unit_price' => is_array( $pn ) ? (float) $pn[0] : 0.0,
+						'tax25a'     => is_array( $pn ) ? (bool) $pn[1] : false,
 						'custom'     => false,
 					) ),
 					'delivery' => '', 'tax_mode' => '', 'tax_rate' => 0.0,

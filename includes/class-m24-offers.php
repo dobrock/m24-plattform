@@ -761,6 +761,69 @@ class M24_Offers {
 		return null;
 	}
 
+	/**
+	 * Positions-Preis 1:1 wie auf der Website — aus der Produkt-Preisquelle (cent-genau).
+	 * Angebotspositionen sind NETTO (USt wird ergänzt), außer §25a (Brutto direkt, keine USt).
+	 * Quelle der Wahrheit = M24_Catalog_Pricing::get() (Basiswert Netto bei 'regel'), NICHT ein
+	 * Anzeige-String. So entsteht auch bei krummen Preisen keine Rundungsabweichung.
+	 *
+	 * @param int $pid  m24_teil-Post-ID
+	 * @return array{0:float,1:bool}|null  [unit_price, is25a] oder null (Preis auf Anfrage / kein Preis)
+	 */
+	public static function teil_price_net( int $pid ): ?array {
+		if ( $pid <= 0 || get_post_meta( $pid, '_m24_preis_auf_anfrage', true ) ) { return null; }
+		if ( ! class_exists( 'M24_Catalog_Pricing' ) ) { return null; }
+		$p = M24_Catalog_Pricing::get( $pid );
+		if ( ! is_array( $p ) ) { return null; }
+		// §25a: Basiswert ist Brutto, keine ausweisbare MwSt → Position trägt den Brutto direkt (tax25a=true).
+		if ( true === M24_Catalog_Pricing::is_25a( $pid ) ) {
+			$b = (float) ( $p['brutto'] ?? 0 );
+			return ( $b > 0 ) ? array( round( $b, 2 ), true ) : null;
+		}
+		// Regelbesteuert: NETTO ist der hinterlegte Basiswert → exakt übernehmen.
+		$n = ( isset( $p['netto'] ) && null !== $p['netto'] ) ? (float) $p['netto'] : 0.0;
+		if ( $n <= 0.0 ) {
+			// Kein Netto hinterlegt → aus Brutto zurückrechnen (DE-Satz), damit Brutto exakt matcht.
+			$b = (float) ( $p['brutto'] ?? 0 );
+			if ( $b <= 0 ) { return null; }
+			$n = $b / ( 1 + M24_Catalog_Pricing::MWST_SATZ );
+		}
+		return array( round( $n, 2 ), false );
+	}
+
+	/**
+	 * Löst die m24_teil-Post-ID aus einem Anfrage-Item auf — für den 1:1-Preis-Prefill.
+	 * Reihenfolge nach Stabilität: numerische src_pid → Artikelnummer (_m24_artikelnummer) → URL.
+	 * (src_pid kann ein Fremd-Code wie „P2024…" sein → dann greift die Art.-Nr.)
+	 *
+	 * @param array $it  Anfrage-Item (art, price, src_pid, src_art_nr, src_url …)
+	 * @return int  Post-ID oder 0
+	 */
+	public static function resolve_teil_from_item( array $it ): int {
+		$pid = (int) ( $it['src_pid'] ?? 0 );
+		if ( $pid > 0 && 'm24_teil' === get_post_type( $pid ) ) { return $pid; }
+
+		$artnr = trim( (string) ( $it['src_art_nr'] ?? '' ) );
+		if ( '' !== $artnr ) {
+			$found = get_posts( array(
+				'post_type'      => 'm24_teil',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'fields'         => 'ids',
+				'meta_query'     => array( array( 'key' => '_m24_artikelnummer', 'value' => $artnr ) ),
+			) );
+			if ( ! empty( $found ) ) { return (int) $found[0]; }
+		}
+
+		$url = (string) ( $it['src_url'] ?? '' );
+		if ( '' !== $url ) {
+			$byurl = (int) url_to_postid( $url );
+			if ( $byurl > 0 && 'm24_teil' === get_post_type( $byurl ) ) { return $byurl; }
+		}
+		return 0;
+	}
+
 	/** §25a differenzbesteuert? EINE Quelle: M24_Catalog_Pricing::is_25a (liest _m24_mwst_modus + veraltete
 	 * _m24_differenzbesteuert-Flag). Unbestimmt → false (Operator kann im Modal übersteuern). Filterbar. */
 	private static function is_tax25a( int $pid ): bool {
