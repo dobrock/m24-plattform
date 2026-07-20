@@ -394,6 +394,13 @@ class M24_Desk_Inbound {
         global $wpdb;
         $t = M24_Offers::table();
 
+        // Kunden-Identität aus der ORDER-Zeile: die trägt cust (Anzeigename), sender_email und country —
+        // NICHT name/email/firma (die stehen auf der customers-Zeile). Diese Felder speisen BEIDES:
+        // die Konto-Verknüpfung (E-Mail-Fallback) UND den Angebots-Snapshot (Liste zeigt sonst „K").
+        $cemail = sanitize_email( (string) ( $data['sender_email'] ?? $data['email'] ?? '' ) );
+        $cname  = trim( (string) ( $data['cust'] ?? $data['name'] ?? '' ) );
+        $cland  = (string) ( $data['country'] ?? $data['land'] ?? '' );
+
         $account_id = 0;
         $desk_cust  = (int) ( $data['customer_id'] ?? 0 );
         if ( $desk_cust > 0 ) {
@@ -404,15 +411,12 @@ class M24_Desk_Inbound {
         // (der _m24_desk_customer_id setzt), sondern via /offers/customer-create („Schnellanlage") oder einen
         // anderen Pfad angelegt wurde. Dann über die E-Mail des Desk-Kunden verknüpfen UND das Mapping
         // nachtragen, damit der Auftrag am Konto hängt und Folge-Syncs (D5) den Kunden wiederfinden.
-        if ( $account_id <= 0 ) {
-            $cemail = sanitize_email( (string) ( $data['email'] ?? '' ) );
-            if ( '' !== $cemail && is_email( $cemail ) ) {
-                $bymail = get_user_by( 'email', $cemail );
-                if ( $bymail ) {
-                    $account_id = (int) $bymail->ID;
-                    if ( $desk_cust > 0 && '' === (string) get_user_meta( $account_id, M24_Desk_Push::CUST_META, true ) ) {
-                        update_user_meta( $account_id, M24_Desk_Push::CUST_META, (string) $desk_cust ); // Mapping nachtragen
-                    }
+        if ( $account_id <= 0 && '' !== $cemail && is_email( $cemail ) ) {
+            $bymail = get_user_by( 'email', $cemail );
+            if ( $bymail ) {
+                $account_id = (int) $bymail->ID;
+                if ( $desk_cust > 0 && '' === (string) get_user_meta( $account_id, M24_Desk_Push::CUST_META, true ) ) {
+                    update_user_meta( $account_id, M24_Desk_Push::CUST_META, (string) $desk_cust ); // Mapping nachtragen
                 }
             }
         }
@@ -423,14 +427,29 @@ class M24_Desk_Inbound {
         $exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE offer_no = %s LIMIT 1", $offer_no ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         if ( $exists > 0 ) { $offer_no = mb_substr( 'D-' . $desk_id, 0, 20 ); }
 
+        // Kunden-Snapshot fürs Angebot: Name/E-Mail/Land aus der Order-Zeile (Liste gruppiert danach). Die
+        // restlichen Stammdaten (Firma/Adresse/USt/EORI/Typ) trägt die Order NICHT — vom verknüpften Konto
+        // nachziehen, falls vorhanden.
         $customer = array(
-            'email' => (string) ( $data['email'] ?? '' ), 'name' => (string) ( $data['name'] ?? '' ),
-            'firma' => (string) ( $data['firma'] ?? '' ), 'strasse' => (string) ( $data['strasse'] ?? '' ),
-            'adresszusatz' => (string) ( $data['strasse2'] ?? '' ), 'plz' => (string) ( $data['plz'] ?? '' ),
-            'ort' => (string) ( $data['ort'] ?? '' ), 'land' => (string) ( $data['land'] ?? '' ),
-            'kundentyp' => ! empty( $data['biz'] ) ? 'b2b' : 'b2c', 'telefon' => (string) ( $data['tel'] ?? '' ),
-            'ustid' => (string) ( $data['uid'] ?? '' ), 'eori' => (string) ( $data['eori'] ?? '' ),
+            'email' => $cemail, 'name' => $cname, 'land' => $cland,
+            'kundentyp' => ! empty( $data['biz'] ) ? 'b2b' : 'b2c',
+            'firma' => '', 'strasse' => '', 'adresszusatz' => '', 'plz' => '', 'ort' => '', 'telefon' => '', 'ustid' => '', 'eori' => '',
         );
+        if ( $account_id > 0 ) {
+            $customer['firma']        = (string) get_user_meta( $account_id, '_m24_firmenname', true );
+            $customer['strasse']      = (string) get_user_meta( $account_id, '_m24_strasse', true );
+            $customer['adresszusatz'] = (string) get_user_meta( $account_id, '_m24_adresszusatz', true );
+            $customer['plz']          = (string) get_user_meta( $account_id, '_m24_plz', true );
+            $customer['ort']          = (string) get_user_meta( $account_id, '_m24_ort', true );
+            $customer['telefon']      = (string) get_user_meta( $account_id, '_m24_telefon', true );
+            $customer['ustid']        = (string) get_user_meta( $account_id, '_m24_ustid', true );
+            $customer['eori']         = (string) get_user_meta( $account_id, '_m24_eori', true );
+            if ( '' === $customer['name'] ) {
+                $customer['name'] = trim( (string) get_user_meta( $account_id, 'first_name', true ) . ' ' . (string) get_user_meta( $account_id, 'last_name', true ) );
+            }
+            $kt = (string) get_user_meta( $account_id, '_m24_kundentyp', true );
+            if ( '' !== $kt ) { $customer['kundentyp'] = ( 'b2b' === $kt ) ? 'b2b' : 'b2c'; }
+        }
 
         $items = $data['items'] ?? array();
         if ( is_string( $items ) ) { $items = json_decode( $items, true ); }
