@@ -26,6 +26,7 @@ class M24_Haendler_Page {
         add_action( 'admin_post_m24_haendler_approve', array( __CLASS__, 'handle_approve' ) );
         add_action( 'admin_post_m24_haendler_reject', array( __CLASS__, 'handle_reject' ) );
         add_action( 'admin_post_m24_haendler_vies', array( __CLASS__, 'handle_vies' ) );
+        add_action( 'admin_post_m24_delete_kunde', array( __CLASS__, 'handle_delete' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
     }
 
@@ -300,6 +301,34 @@ class M24_Haendler_Page {
         exit;
     }
 
+    /**
+     * Kundenkonto (wp_user) löschen. POST + Nonce + Cap. Guards: kein Selbst-Löschen, keine Admin-/Staff-
+     * Konten (nur echte Kundenkonten). Verknüpfte Angebote werden NICHT mitgelöscht, sondern auf Gast
+     * (account_id=0) gesetzt — die Snapshot-Kundendaten bleiben im Angebot. User-Meta (u.a.
+     * _m24_desk_customer_id) verschwindet mit dem User. KEIN Outbound-Delete an die Desk-App:
+     * wp_delete_user feuert keinen M24-Push-Hook (der Desk-Kunde bleibt bestehen).
+     */
+    public static function handle_delete() {
+        if ( ! current_user_can( self::CAPABILITY ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+        $uid = (int) ( $_POST['user'] ?? 0 );
+        check_admin_referer( 'm24_delete_kunde_' . $uid );
+        if ( $uid <= 0 ) { wp_safe_redirect( self::url() ); exit; }
+
+        $u = get_userdata( $uid );
+        if ( ! $u || $uid === get_current_user_id() || user_can( $u, 'manage_options' ) ) {
+            wp_safe_redirect( add_query_arg( 'done', 'delete_denied', self::url() ) );
+            exit;
+        }
+
+        global $wpdb;
+        $wpdb->update( $wpdb->prefix . 'm24_offers', array( 'account_id' => 0 ), array( 'account_id' => $uid ) ); // Angebote → Gast, nicht mitlöschen
+        require_once ABSPATH . 'wp-admin/includes/user.php';
+        wp_delete_user( $uid ); // Kundenkonten haben keine eigenen Posts → nichts zu reassignen
+
+        wp_safe_redirect( add_query_arg( 'done', 'deleted', self::url() ) );
+        exit;
+    }
+
     /* ── Render (M24-Karten-Stil, keine WP_List_Table) ───────────────────── */
 
     public static function render_page() {
@@ -345,8 +374,11 @@ class M24_Haendler_Page {
                     'approved' => __( 'Händler freigegeben (E-Mail versendet).', 'm24-plattform' ),
                     'rejected' => __( 'Händler abgelehnt.', 'm24-plattform' ),
                     'vies'     => __( 'VIES neu geprüft.', 'm24-plattform' ),
+                    'deleted'  => __( 'Kundenkonto gelöscht.', 'm24-plattform' ),
+                    'delete_denied' => __( 'Konto nicht gelöscht (Admin-/Staff-Konto oder eigenes Konto).', 'm24-plattform' ),
                 );
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $map[ $d ] ?? __( 'Aktion ausgeführt.', 'm24-plattform' ) ) . '</p></div>';
+                $cls = ( 'delete_denied' === $d ) ? 'notice-error' : 'notice-success';
+                echo '<div class="notice ' . esc_attr( $cls ) . ' is-dismissible"><p>' . esc_html( $map[ $d ] ?? __( 'Aktion ausgeführt.', 'm24-plattform' ) ) . '</p></div>';
             }
             if ( $reject_uid ) { self::render_reject_panel( $reject_uid ); }
 
@@ -514,6 +546,29 @@ class M24_Haendler_Page {
                 echo '<a href="' . esc_url( $vies ) . '">' . esc_html__( 'VIES neu prüfen', 'm24-plattform' ) . '</a>';
             }
         }
+
+        // Löschen (nur Kundenkonten; der Server-Handler wehrt Admin-/Staff-/Selbst-Löschen zusätzlich ab).
+        // POST + Nonce (kein von Crawlern triggerbarer GET-Link) + confirm mit Name/E-Mail (+ Angebots-Anzahl).
+        $del_n   = count( (array) $r['offers'] );
+        $del_msg = sprintf(
+            /* translators: 1: Name, 2: E-Mail */
+            __( 'Kundenkonto %1$s (%2$s) unwiderruflich löschen?', 'm24-plattform' ),
+            $r['display'], $r['email']
+        );
+        if ( $del_n > 0 ) {
+            $del_msg .= ' ' . sprintf(
+                /* translators: %d: Angebots-Anzahl */
+                _n( 'Das Konto hat %d Angebot — es wird auf Gast gesetzt.', 'Das Konto hat %d Angebote — sie werden auf Gast gesetzt.', $del_n, 'm24-plattform' ),
+                $del_n
+            );
+        }
+        echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin:0 0 0 auto;display:inline;" onsubmit="return confirm(' . esc_attr( wp_json_encode( $del_msg ) ) . ');">'
+            . '<input type="hidden" name="action" value="m24_delete_kunde">'
+            . '<input type="hidden" name="user" value="' . (int) $uid . '">'
+            . wp_nonce_field( 'm24_delete_kunde_' . $uid, '_wpnonce', true, false ) // phpcs:ignore WordPress.Security.EscapeOutput
+            . '<button type="submit" style="background:none;border:0;color:#b32d2e;cursor:pointer;font:inherit;padding:0;text-decoration:none;">' . esc_html__( 'Löschen', 'm24-plattform' ) . '</button>'
+            . '</form>';
+
         echo '</div></div>';
     }
 
