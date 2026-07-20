@@ -237,11 +237,14 @@
 	function rate() { var m = cfg.taxModes[taxMode]; if (!m) { return 0; } return m.rate === null ? Math.max(0, taxRate) : m.rate; }
 
 	/* ── Summen ── */
+	function isDECustomer() { var iso = ('function' === typeof cxLandToIso) ? cxLandToIso(customer.land || '') : String(customer.land || '').toUpperCase().slice(0, 2); return 'DE' === iso; }
 	function calc() {
 		var net = 0, st25a = 0, posNet = 0;
 		items.forEach(function (it) { var l = (it.unit_price || 0) * Math.max(1, it.qty || 1); if (it.tax25a) { st25a += l; } else { net += l; posNet += l; } });
 		extras.forEach(function (ex) { if (ex.on) { net += ex.amount || 0; } });
-		var r = rate(), tax = Math.round(net * r) / 100;
+		var r = rate();
+		if (r <= 0 && isDECustomer()) { r = 19; } // DE (B2B wie B2C): MwSt/Brutto immer zeigen — 19% Default, auch ohne gewählten Steuerfall
+		var tax = Math.round(net * r) / 100;
 		return { net: net, st25a: st25a, posNet: posNet, tax: tax, rate: r, total: net + tax + st25a };
 	}
 	function renderSummary() {

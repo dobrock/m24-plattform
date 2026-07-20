@@ -660,8 +660,9 @@ class M24_Offers_Render {
 					<?php if ( $has_race ) : ?><p class="m24off-note m24off-race-note"><?php echo esc_html( $L['race_global'] ); ?></p><?php endif; ?>
 				<?php
 				// Summen-Aufteilung: regelbesteuert (X, netto) + USt (Y) vs. §25a-Brutto (Z). Konditional je Mix.
-				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
+				$bd  = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate, (string) ( $cust['land'] ?? '' ) );
 				$X = $bd['net']; $Y = $bd['tax']; $Z = $bd['st25a'];
+				$rate_str = rtrim( rtrim( number_format( (float) ( $bd['rate'] ?? $o->tax_rate ), 2, ',', '.' ), '0' ), ',' ); // effektiver Satz (DE ⇒ 19 %), sonst leer/0
 				$only_25a   = ( $Z > 0.001 && $X <= 0.001 );
 				$only_regel = ( $Z <= 0.001 );
 				?>
@@ -1097,8 +1098,8 @@ class M24_Offers_Render {
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
-		$rate_str = rtrim( rtrim( number_format( (float) $o->tax_rate, 2, ',', '.' ), '0' ), ',' );
-		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate );
+		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate, (string) ( $cust['land'] ?? '' ) );
+		$rate_str = rtrim( rtrim( number_format( (float) ( $bd['rate'] ?? $o->tax_rate ), 2, ',', '.' ), '0' ), ',' ); // effektiver Satz (DE ⇒ 19 %)
 		$X = $bd['net']; $Y = $bd['tax']; $Z = $bd['st25a'];
 		$top = ' style="padding-top:10px;border-top:1px solid #e6e9ee;"';
 		$srow = static function ( $label, $amt, $first ) use ( $top ) {

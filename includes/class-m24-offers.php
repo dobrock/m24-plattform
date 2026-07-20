@@ -300,7 +300,7 @@ class M24_Offers {
 	 * Steuerbasis ausgenommen; reguläre Positionen + aktive Zusatzpositionen bilden die Netto-Basis.
 	 * @return array{net:float,st25a:float,tax:float,total:float}
 	 */
-	public static function compute_totals( array $items, array $extras, string $tax_mode, float $tax_rate ): array {
+	public static function compute_totals( array $items, array $extras, string $tax_mode, float $tax_rate, string $land = '' ): array {
 		$net = 0.0; $st25a = 0.0;
 		foreach ( $items as $it ) {
 			$line = (float) ( $it['unit_price'] ?? 0 ) * max( 1, (int) ( $it['qty'] ?? 1 ) );
@@ -311,12 +311,17 @@ class M24_Offers {
 			if ( ! empty( $ex['on'] ) ) { $net += (float) ( $ex['amount'] ?? 0 ); }
 		}
 		$rate = self::rate_for( $tax_mode, $tax_rate );
+		// Deutsche Kunden (B2B wie B2C): MwSt/Brutto IMMER zeigen. Fehlt ein positiver Satz (net-Modus/kein
+		// gewählter Steuerfall), 19 % ansetzen (DE-Default). Nicht-DE bleibt unverändert; §25a bleibt separat
+		// (nur der reguläre Netto-Anteil wird besteuert). 'rate' = effektiver Satz für die USt-Beschriftung.
+		if ( self::is_de_land( $land ) && $rate <= 0.0 ) { $rate = 19.0; }
 		$tax  = round( $net * $rate / 100, 2 );
 		return array(
 			'net'   => round( $net, 2 ),
 			'st25a' => round( $st25a, 2 ),
 			'tax'   => $tax,
 			'total' => round( $net + $tax + $st25a, 2 ),
+			'rate'  => $rate,
 		);
 	}
 
@@ -325,6 +330,12 @@ class M24_Offers {
 		if ( ! isset( $modes[ $mode ] ) ) { return 0.0; }
 		$r = $modes[ $mode ]['rate'];
 		return ( null === $r ) ? max( 0.0, $manual ) : (float) $r; // OSS: manueller Satz
+	}
+
+	/** Deutscher Kunde? (Land verbatim: 'DE'/'Deutschland'/'Germany'). Steuert die „DE ⇒ 19 %"-Anzeige. */
+	private static function is_de_land( string $land ): bool {
+		$l = strtoupper( trim( $land ) );
+		return in_array( $l, array( 'DE', 'D', 'DEU', 'DEUTSCHLAND', 'GERMANY' ), true );
 	}
 
 	/* ── REST ───────────────────────────────────────────────────────────── */
@@ -813,7 +824,7 @@ class M24_Offers {
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
 		$src['delivery']   = isset( $p['delivery_time'] ) ? sanitize_text_field( (string) $p['delivery_time'] ) : '';
-		$totals   = self::compute_totals( $items, $extras, $tax_mode, $tax_rate );
+		$totals   = self::compute_totals( $items, $extras, $tax_mode, $tax_rate, (string) ( $customer['land'] ?? '' ) );
 		$tax_note = $modes[ $tax_mode ]['note'];
 
 		$account_id = self::account_for_email( $customer['email'] );
@@ -924,7 +935,7 @@ class M24_Offers {
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
 		$src['delivery']   = $delivery;
-		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0 );
+		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate, (string) ( $customer['land'] ?? '' ) ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0, 'rate' => 0 );
 		$tax_note = $has_mode ? $modes[ $tax_mode ]['note'] : '';
 
 		$row = array(
@@ -1059,7 +1070,7 @@ class M24_Offers {
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
 		$src['note']       = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
 		$src['delivery']   = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
-		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0 );
+		$totals   = $has_mode ? self::compute_totals( $items, $extras, $tax_mode, $tax_rate, (string) ( $customer['land'] ?? '' ) ) : array( 'net' => 0, 'st25a' => 0, 'tax' => 0, 'total' => 0, 'rate' => 0 );
 		$tax_note = $has_mode ? $modes[ $tax_mode ]['note'] : '';
 
 		$o = (object) array(
@@ -1337,7 +1348,7 @@ class M24_Offers {
 			return array( 'ok' => false, 'error' => 'Ungültige Anfrage (Positionen/E-Mail).' );
 		}
 		$tax_mode = ( 'b2b' === $cust['kundentyp'] ) ? 'b2b_de_19' : 'b2c_eu_oss'; // Default; Daniel finalisiert beim Senden
-		$totals   = self::compute_totals( $items, array(), $tax_mode, 0.0 );
+		$totals   = self::compute_totals( $items, array(), $tax_mode, 0.0, (string) ( $cust['land'] ?? '' ) );
 		$token    = bin2hex( random_bytes( 16 ) );
 		$offer_no = self::next_number();
 		$account  = self::account_for_email( $cust['email'] );
