@@ -1392,18 +1392,38 @@ class M24_Offers {
 	 */
 	public static function create_draft( array $snap_items, array $customer, array $meta = array() ): array {
 		global $wpdb;
-		$mapped = array();
+		$de_rate = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::MWST_SATZ : 0.19;
+		$mapped  = array();
 		foreach ( $snap_items as $it ) {
 			$it    = (array) $it;
 			$title = sanitize_text_field( (string) ( $it['title'] ?? '' ) );
 			if ( '' === $title ) { continue; }
-			$mapped[] = array(
-				'teil_id'    => (int) ( $it['article_id'] ?? 0 ),
+			$tid = (int) ( $it['article_id'] ?? 0 );
+
+			// Preis 1:1 wie auf der Website: PRIMÄR Netto aus der Produkt-Preisquelle (§25a → Brutto
+			// direkt). Der Garage-Snapshot speichert price_gross (Brutto) → nie ungerechnet als
+			// Positions-Netto übernehmen (sonst +19 % zu hoch). Fallback: eingefrorenen Brutto
+			// zurückrechnen (Netto = Brutto/(1+DE-Satz)), damit der Brutto exakt matcht.
+			$unit  = 0.0;
+			$is25a = null;
+			if ( $tid > 0 && 'm24_teil' === get_post_type( $tid ) ) {
+				$pn = self::teil_price_net( $tid );
+				if ( is_array( $pn ) ) { $unit = (float) $pn[0]; $is25a = (bool) $pn[1]; }
+			}
+			if ( $unit <= 0.0 ) {
+				$g = ( isset( $it['price_gross'] ) && null !== $it['price_gross'] ) ? (float) $it['price_gross'] : 0.0;
+				if ( $g > 0 ) { $unit = round( $g / ( 1 + $de_rate ), 2 ); }
+			}
+
+			$mi = array(
+				'teil_id'    => $tid,
 				'title'      => $title,
 				'art_nr'     => (string) ( $it['art_nr'] ?? '' ),
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
-				'unit_price' => ( isset( $it['price_gross'] ) && null !== $it['price_gross'] ) ? round( (float) $it['price_gross'], 2 ) : 0.0,
+				'unit_price' => $unit,
 			);
+			if ( null !== $is25a ) { $mi['tax25a'] = $is25a; } // aufgelöst → §25a-Flag setzen; sonst erbt clean_items aus dem Teil
+			$mapped[] = $mi;
 		}
 		$items = self::clean_items( $mapped ); // erbt url/race/used/tax25a aus dem verknüpften Teil
 		$cust  = self::clean_customer( $customer );
