@@ -392,9 +392,20 @@ class M24_Inquiries_Form {
                 }
                 return;
             }
-            // Andere Fehler: Render-Pfad bekommt Error + Echo-Daten
+            // Andere Fehler: Render-Pfad bekommt Error + Echo-Daten. ZUSÄTZLICH protokollieren — sonst
+            // verschwindet eine nicht persistierte Anfrage spurlos (Diagnose „Anfrage nicht in der Liste").
             self::$last_error = $result;
             self::$last_data  = wp_unslash( $_POST );
+            if ( class_exists( 'M24_Error_Log' ) ) {
+                M24_Error_Log::capture( 'inquiries', 'warning', 'Anfrage nicht angelegt (Validierung fehlgeschlagen): ' . $result->get_error_code(), array(
+                    'code'   => $result->get_error_code(),
+                    'msg'    => $result->get_error_message(),
+                    'email'  => isset( $_POST['email'] ) ? sanitize_email( wp_unslash( (string) $_POST['email'] ) ) : '',
+                    'source' => isset( $_POST['inquiry_source'] ) ? sanitize_key( wp_unslash( (string) $_POST['inquiry_source'] ) ) : '',
+                    'land'   => isset( $_POST['land'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['land'] ) ) : '',
+                    'biz'    => isset( $_POST['biz'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['biz'] ) ) : '',
+                ) );
+            }
             return;
         }
 
