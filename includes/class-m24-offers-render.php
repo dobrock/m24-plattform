@@ -560,6 +560,7 @@ class M24_Offers_Render {
 
 	public static function customer( $inject = null ) {
 		$preview = ( null !== $inject ); // #11: Vorschau aus temporärem Objekt — kein Token, kein Header/exit
+		$token   = ''; // Preview kennt keinen Token → früh definieren (behebt „Undefined variable $token" bei der JS-Ausgabe)
 		if ( $preview ) {
 			$o = $inject;
 		} else {
