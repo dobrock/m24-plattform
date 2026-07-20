@@ -63,6 +63,7 @@ class M24_Desk_Inbound {
 
     /** Desk-Feld → User-Meta (flaches Operator-Modell; dasselbe, das M24_Desk_Push::customer_fields() liest). */
     const CUSTOMER_MAP = array(
+        'anrede'   => '_m24_anrede',
         'firma'    => '_m24_firmenname',
         'strasse'  => '_m24_strasse',
         'strasse2' => '_m24_adresszusatz',
@@ -282,6 +283,7 @@ class M24_Desk_Inbound {
             if ( ! self::wins( $stamps[ $field ] ?? null, $local[ $field ] ?? null ) ) { $discard[] = $field; continue; }
             $v = sanitize_text_field( (string) ( is_scalar( $data[ $field ] ) ? $data[ $field ] : '' ) );
             if ( 'eori' === $field ) { $v = mb_substr( $v, 0, 17 ); }
+            if ( 'anrede' === $field ) { $lc = strtolower( $v ); $v = ( 'herr' === $lc ) ? 'Herr' : ( ( 'frau' === $lc ) ? 'Frau' : '' ); } // Wire lowercase → intern 'Herr'/'Frau'
             update_user_meta( $uid, $meta, $v );
             $applied[]       = $field;
             $local[ $field ] = self::stamp_of( $stamps[ $field ] ?? null );
@@ -291,7 +293,9 @@ class M24_Desk_Inbound {
         if ( array_key_exists( 'name', $data ) ) {
             if ( self::wins( $stamps['name'] ?? null, $local['name'] ?? null ) ) {
                 $n = self::split_name( (string) $data['name'] );
-                update_user_meta( $uid, '_m24_anrede', $n['anrede'] );
+                // Anrede nur aus dem name-Prefix ableiten, wenn KEIN separates anrede-Feld kam (das ist autoritativ,
+                // sonst würde ein prefixloser name das eben gesyncte anrede wieder auf '' überschreiben).
+                if ( ! array_key_exists( 'anrede', $data ) ) { update_user_meta( $uid, '_m24_anrede', $n['anrede'] ); }
                 wp_update_user( array( 'ID' => $uid, 'first_name' => $n['vorname'], 'last_name' => $n['nachname'] ) );
                 $applied[]      = 'name';
                 $local['name']  = self::stamp_of( $stamps['name'] ?? null );

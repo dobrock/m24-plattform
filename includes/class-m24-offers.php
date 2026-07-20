@@ -624,6 +624,7 @@ class M24_Offers {
 			'id'    => $uid,
 			'name'  => $name,
 			'email' => (string) $u->user_email,
+			'anrede' => (string) get_user_meta( $uid, '_m24_anrede', true ), // Herr|Frau|'' (Prefill Kunden-Edit + Sie-Begrüßung)
 			'firma' => $firma,
 			'firmenname' => $firma,
 			'kundentyp' => $kt,
@@ -675,6 +676,8 @@ class M24_Offers {
 		if ( ! is_email( $email ) ) { return new WP_Error( 'm24off_email', 'Bitte eine gültige E-Mail angeben.', array( 'status' => 422 ) ); }
 		$vorname  = sanitize_text_field( (string) ( $p['vorname'] ?? '' ) );
 		$nachname = sanitize_text_field( (string) ( $p['nachname'] ?? '' ) );
+		$anrede_lc = strtolower( trim( (string) ( $p['anrede'] ?? '' ) ) );                     // Formular sendet Herr/Frau/'' oder herr/frau
+		$anrede    = ( 'herr' === $anrede_lc ) ? 'Herr' : ( ( 'frau' === $anrede_lc ) ? 'Frau' : '' ); // intern kanonisch 'Herr'/'Frau'/''
 		$kt       = ( 'b2b' === ( $p['kundentyp'] ?? '' ) ) ? 'b2b' : 'b2c';
 		$land     = sanitize_text_field( trim( (string) ( $p['land'] ?? '' ) ) ); if ( '' === $land ) { $land = 'Deutschland'; } // A1: Land VERBATIM speichern (ISO/Flagge nur intern abgeleitet)
 		$display  = trim( $vorname . ' ' . $nachname ); if ( '' === $display ) { $display = $email; }
@@ -715,6 +718,7 @@ class M24_Offers {
 		}
 		// Desk-kompatible Felder als User-Meta (späteres Sync-Mapping; Desk bleibt gated). B2C leert USt-ID/EORI/Firma.
 		$fields = array(
+			'_m24_anrede'       => $anrede, // A1: Anrede am Konto (fließt in Sie-Begrüßung + Kunden-Sync)
 			'_m24_kundentyp'    => $kt,
 			'_m24_firmenname'   => 'b2b' === $kt ? sanitize_text_field( (string) ( $p['firmenname'] ?? '' ) ) : '',
 			'_m24_strasse'      => sanitize_text_field( (string) ( $p['strasse'] ?? '' ) ),

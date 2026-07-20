@@ -698,6 +698,9 @@ class M24_Desk_Push {
         if ( '' === $firma ) { $firma = trim( (string) get_user_meta( $uid, '_m24_firma', true ) ); } // Account-Modell
         $land   = $pick( '_m24_land', 'land' );
         return array(
+            // Anrede als eigenes Sync-Feld (Vertrag v1.2 §4). Wire = lowercase 'herr'/'frau'/'' (Desk-Kanon),
+            // intern bleibt 'Herr'/'Frau'. name trägt die Anrede weiterhin (Desk-Seite entfaltet/dedupliziert).
+            'anrede'   => ( 'herr' === strtolower( $anrede ) ) ? 'herr' : ( ( 'frau' === strtolower( $anrede ) ) ? 'frau' : '' ),
             'firma'    => $firma,
             'name'     => $name,
             'strasse'  => $pick( '_m24_strasse', 'strasse' ),

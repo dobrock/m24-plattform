@@ -266,9 +266,11 @@
 		var parts = (customer.name || '').trim().split(/\s+/), vn = customer.vorname || parts[0] || '', nn = customer.nachname || (parts.length > 1 ? parts.slice(1).join(' ') : '');
 		if ('en' === lang) { return 'Hello' + (vn ? ' ' + vn : '') + ','; }
 		if ('du' === anredeForm) { return 'Hallo' + (vn ? ' ' + vn : '') + ','; } // Du: Vorname, kein „Herr"
-		var an = customer.anrede || ''; // Sie
-		if (an && nn) { return 'Hallo ' + an + ' ' + nn + ','; }
-		if (nn) { return 'Guten Tag ' + nn + ','; }
+		// Sie: mit Anrede „Guten Tag Herr Nachname,"; ohne Anrede voller Name „Guten Tag Vorname Nachname,".
+		var an = customer.anrede || '';
+		if (an && nn) { return 'Guten Tag ' + an + ' ' + nn + ','; }
+		var full = [vn, nn].filter(Boolean).join(' ');
+		if (full) { return 'Guten Tag ' + full + ','; }
 		return 'Guten Tag,';
 	}
 	function salSuggest() { return salSuggestFor(offerLang); }
@@ -767,7 +769,7 @@
 		var set = function (k, v) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = v || ''; } };
 		var vn = c.vorname || '', nn = c.nachname || '';
 		if ('' === vn && '' === nn && c.name) { var pp = String(c.name).trim().split(/\s+/); vn = pp.shift() || ''; nn = pp.join(' '); }
-		set('firmenname', c.firmenname || c.firma); set('vorname', vn); set('nachname', nn);
+		set('anrede', (('Herr' === c.anrede || 'Frau' === c.anrede) ? c.anrede : '')); set('firmenname', c.firmenname || c.firma); set('vorname', vn); set('nachname', nn);
 		set('strasse', c.strasse); set('adresszusatz', c.adresszusatz); set('plz', c.plz); set('ort', c.ort);
 		set('land', c.land); set('telefon', c.telefon); set('email', c.email); set('ustid', c.ustid); set('eori', c.eori);
 		cxSetKt(c.kundentyp);
@@ -806,7 +808,7 @@
 		var st = $('[data-cx-status]');
 		var g = function (k) { var el = $('[data-cx="' + k + '"]'); return el ? el.value.trim() : ''; };
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g('email'))) { if (st) { st.textContent = 'Bitte eine gültige E-Mail angeben (Pflicht).'; st.className = 'm24off-cxstatus is-error'; } return; }
-		var payload = { id: cxEditId || 0, kundentyp: cxKt, firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: g('land'), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') }; // A1: Land VERBATIM
+		var payload = { id: cxEditId || 0, kundentyp: cxKt, anrede: g('anrede'), firmenname: g('firmenname'), vorname: g('vorname'), nachname: g('nachname'), strasse: g('strasse'), adresszusatz: g('adresszusatz'), plz: g('plz'), ort: g('ort'), land: g('land'), telefon: g('telefon'), email: g('email'), ustid: g('ustid'), eori: g('eori') }; // A1: Land VERBATIM
 		var btn = $('[data-cx-create]'); if (btn) { btn.disabled = true; } if (st) { st.textContent = cxEditId ? 'Wird aktualisiert …' : 'Wird angelegt …'; st.className = 'm24off-cxstatus'; }
 		fetch(cfg.rest + '/customer-create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce }, body: JSON.stringify(payload) })
 			.then(function (x) { return x.json(); }).then(function (d) {

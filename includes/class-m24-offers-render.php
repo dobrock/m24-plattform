@@ -97,7 +97,7 @@ class M24_Offers_Render {
 	}
 	/**
 	 * DE-Begrüßung nach Anredeform:
-	 *  Sie: „Hallo {Anrede} {Nachname}," → ohne Anrede „Guten Tag {Nachname}," → ohne Name „Guten Tag,".
+	 *  Sie: mit Anrede „Guten Tag {Herr|Frau} {Nachname}," → ohne Anrede voller Name „Guten Tag {Vorname} {Nachname}," → ohne Name „Guten Tag,".
 	 *  Du:  „Hallo {Vorname}," → ohne Vorname „Hallo,".
 	 * EN: „Hello {Vorname}," / „Hello,". Nur genutzt, wenn kein manuelles Anschreiben (salutation) gesetzt ist.
 	 */
@@ -108,10 +108,11 @@ class M24_Offers_Render {
 		if ( '' === $vor && '' !== $name ) { $parts = explode( ' ', $name, 2 ); $vor = (string) $parts[0]; if ( '' === $nach ) { $nach = trim( (string) ( $parts[1] ?? '' ) ); } }
 		if ( 'en' === $lang ) { return 'Hello' . ( '' !== $vor ? ' ' . $vor : '' ) . ','; }
 		if ( 'du' === $form ) { return 'Hallo' . ( '' !== $vor ? ' ' . $vor : '' ) . ','; }
-		// Sie:
+		// Sie: mit Anrede „Guten Tag Herr Nachname,"; ohne Anrede voller Name „Guten Tag Vorname Nachname,".
 		$anrede = trim( (string) ( $cust['anrede'] ?? '' ) ); // Herr | Frau | ''
-		if ( '' !== $anrede && '' !== $nach ) { return 'Hallo ' . $anrede . ' ' . $nach . ','; }
-		if ( '' !== $nach ) { return 'Guten Tag ' . $nach . ','; }
+		if ( '' !== $anrede && '' !== $nach ) { return 'Guten Tag ' . $anrede . ' ' . $nach . ','; }
+		$full = trim( $vor . ' ' . $nach );
+		if ( '' !== $full ) { return 'Guten Tag ' . $full . ','; }
 		return 'Guten Tag,';
 	}
 	/**
@@ -482,6 +483,7 @@ class M24_Offers_Render {
 					</div>
 					<div class="m24off-cxgrid" data-cx-grid>
 						<label class="m24off-f m24off-cx-wide m24off-cx-b2b"><span>Firmenname</span><input type="text" data-cx="firmenname"></label>
+						<label class="m24off-f"><span>Anrede (für „Sie")</span><select data-cx="anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option></select></label>
 						<label class="m24off-f"><span>Vorname</span><input type="text" data-cx="vorname"></label>
 						<label class="m24off-f"><span>Nachname</span><input type="text" data-cx="nachname"></label>
 						<label class="m24off-f m24off-cx-wide"><span>Straße &amp; Hausnummer</span><input type="text" data-cx="strasse"></label>
