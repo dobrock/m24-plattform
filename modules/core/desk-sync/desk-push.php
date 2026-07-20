@@ -277,6 +277,15 @@ class M24_Desk_Push {
             );
         }
 
+        // W1-Zusatzfelder: Versanddatum (→ Desk-Status "Angebot raus") + Lieferzeit (→ Desk-Angebots-PDF).
+        $offer_date = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : '';
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $offer_date ) ) { $offer_date = gmdate( 'Y-m-d' ); } // sent_at fehlt → heute (Push = Versandzeitpunkt)
+        // Desk erwartet den kompakten Code ("6-8", "Am Lager"), NICHT das Anzeige-Label ("6–8 Wochen"):
+        // " Wochen"-Suffix abschneiden und En-/Em-Dash auf Bindestrich normalisieren.
+        $lieferzeit = trim( (string) $o->delivery_time );
+        $lieferzeit = (string) preg_replace( '/\s*Wochen?$/u', '', $lieferzeit );
+        $lieferzeit = trim( str_replace( array( '–', '—' ), '-', $lieferzeit ) );
+
         $body = array(
             'source'              => 'wordpress_plugin',
             'inquiry_source'      => self::inquiry_source(),
@@ -287,6 +296,8 @@ class M24_Desk_Push {
                 'accepted_at' => null,
             ),
             'sender_lang' => $lang,
+            'offer_date'  => $offer_date,   // YYYY-MM-DD → Desk führt den Auftrag sofort als "Angebot raus"
+            'lieferzeit'  => $lieferzeit,   // kompakter Code fürs Desk-Angebots-PDF
             'vat_mode'    => self::vat_mode( (string) $o->tax_mode, $biz, $land ),
             // Auftragssumme (Brutto) als Zahl (Punkt-Dezimal) — sonst bleibt orders.amt im Desk leer.
             'amt'         => round( (float) $o->total_gross, 2 ),
