@@ -49,7 +49,8 @@ class M24_Inquiry_Submit {
 		return new WP_Error( 'm24_bad_nonce', __( 'Sicherheitsprüfung fehlgeschlagen. Bitte Seite neu laden.', 'm24-plattform' ), array( 'status' => 403 ) );
 	}
 
-	// ── /inquiry — "Frage stellen": NUR E-Mail an service@, KEIN CPT/Push ──
+	// ── /inquiry — "Frage stellen": Anfrage PERSISTIEREN (CPT) → Anfragen-Liste + Auto-Mail (notify)
+	//    mit "Angebot erstellen"-Link (?from_inquiry) + Auto-Push D.1b. Wiederhergestellter Pipeline-Pfad. ──
 	public static function handle_inquiry( WP_REST_Request $request ) {
 		$params = $request->get_params();
 
@@ -89,12 +90,16 @@ class M24_Inquiry_Submit {
 		$result['kundentyp']  = $kundentyp;
 		$result['land_name']  = function_exists( 'm24_inquiry_country_name' ) ? m24_inquiry_country_name( $result['land'] ) : $result['land'];
 
-		// E-Mail an service@ via bestehenden Mail-Builder (kein insert_inquiry, kein Push).
-		$sent = M24_Inquiries_Mail_Fallback::send_data( $result, M24_Inquiries_Mail_Fallback::REASON_PRODUCT );
-		self::event( 'product_inquiry', array( 'items' => count( $result['items'] ), 'ok' => (bool) $sent ) );
-		if ( ! $sent ) {
-			return new WP_REST_Response( array( 'ok' => false, 'error' => __( 'Versand fehlgeschlagen. Bitte später erneut versuchen.', 'm24-plattform' ) ), 500 );
+		// Anfrage PERSISTIEREN (CPT) statt nur mailen: erscheint in der Anfragen-Liste (auffindbar per
+		// Name/E-Mail) und liefert dem „Angebot erstellen"-Link ?from_inquiry=<id> die Position mit
+		// (Titel/Art.-Nr./Preis). insert_inquiry() feuert m24_inquiry_created → notify() (Info-Mail mit
+		// Operator-CTA) + Auto-Push D.1b. Genau EINE Mail dank _m24_mail_fallback_sent_at-Idempotenz;
+		// KEIN separates send_data() mehr (sonst Doppel-Mail).
+		$post_id = M24_Inquiries_Storage::insert_inquiry( $result );
+		if ( is_wp_error( $post_id ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'code' => $post_id->get_error_code(), 'error' => $post_id->get_error_message() ), 422 );
 		}
+		self::event( 'product_inquiry', array( 'items' => count( $result['items'] ), 'post_id' => (int) $post_id ) );
 
 		// IL-Opt-in (optional): bei gesetztem Häkchen Kontakt in die Interessentenliste (Liste 3) — Teile-Kontext.
 		// Ohne Häkchen: nichts (nur Mail wie gehabt, kein Brevo).
