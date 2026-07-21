@@ -88,6 +88,8 @@ class M24_Desk_Inbound {
 
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+        // Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren (Summen/Datum/Positionen).
+        add_action( 'admin_post_m24_backfill_synced_offers', array( __CLASS__, 'handle_backfill_synced' ) );
     }
 
     public static function register_routes() {
@@ -451,54 +453,19 @@ class M24_Desk_Inbound {
             if ( '' !== $kt ) { $customer['kundentyp'] = ( 'b2b' === $kt ) ? 'b2b' : 'b2c'; }
         }
 
-        // Positionen: Desk-Form (art/qty/price-DE-String/note/is25a) → WP-Form (title/qty/unit_price/art_nr/tax25a),
-        // damit Detail/Kunden-Ansicht die Positionen MIT Preis rendern und compute_totals eine echte Summe liefert
-        // (die WP-Renderer lesen durchgehend title/unit_price/qty, nicht art/price). Preis ist netto (Vertrag v1.1:
-        // item.price = number_format(unit_price_netto)); §25a-Positionen tragen Brutto direkt.
+        // Positionen Desk→WP normalisieren (WP-Renderer lesen title/unit_price/qty, nicht art/price) und Summen
+        // cent-genau ableiten (Brutto = Desk amt; Netto/USt konsistent zum vat_mode). Beides über die Helfer,
+        // die auch der Backfill für Alt-Zeilen nutzt.
         $items_raw = $data['items'] ?? array();
         if ( is_string( $items_raw ) ) { $items_raw = json_decode( $items_raw, true ); }
         if ( ! is_array( $items_raw ) ) { $items_raw = array(); }
-        $items = array();
-        foreach ( $items_raw as $it ) {
-            $it    = (array) $it;
-            $title = (string) ( $it['title'] ?? $it['art'] ?? '' );
-            if ( '' === trim( $title ) ) { continue; }
-            $unit = isset( $it['unit_price'] ) ? (float) $it['unit_price'] : self::parse_de_price( (string) ( $it['price'] ?? '' ) );
-            if ( $unit <= 0.0 && isset( $it['amt'] ) ) { $unit = (float) $it['amt']; }
-            $items[] = array(
-                'teil_id'    => (int) ( $it['teil_id'] ?? 0 ),
-                'title'      => $title,
-                'art_nr'     => (string) ( $it['art_nr'] ?? $it['note'] ?? '' ),
-                'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
-                'unit_price' => round( $unit, 2 ),
-                'tax25a'     => ( ! empty( $it['tax25a'] ) || ! empty( $it['is25a'] ) || ! empty( $it['st25a'] ) ),
-                'custom'     => false,
-            );
-        }
-
-        // Summen aus dem Desk übernehmen (cent-genau), nicht auf 0 lassen. Desk-Autorität für den Brutto ist die
-        // Auftragssumme amt; fehlt sie, aus den Positionen rechnen. Netto/USt konsistent zum Steuermodus:
-        // DE-Satz ohne §25a → Netto = Brutto/(1+Satz) (exakt = Desk-Brutto); sonst der aus den Positionen
-        // berechnete Netto/USt-Split (net-Modi: USt 0; §25a: separat, ohne ausweisbare USt).
+        $items    = self::normalize_items( $items_raw );
         $vat_mode = sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) );
-        $bd       = M24_Offers::compute_totals( $items, array(), $vat_mode, 0.0, $cland );
-        $rate     = (float) ( $bd['rate'] ?? 0 );
-        $has25a   = (float) ( $bd['st25a'] ?? 0 ) > 0.0;
-        $amt      = (float) ( $data['amt'] ?? 0 );
-        if ( $amt > 0.0 ) {
-            $gross = round( $amt, 2 );
-            if ( $rate > 0.0 && ! $has25a ) {
-                $net = round( $gross / ( 1 + $rate / 100 ), 2 );
-                $tax = round( $gross - $net, 2 );
-            } else {
-                $net = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
-                $tax = round( (float) $bd['tax'], 2 );
-            }
-        } else {
-            $gross = round( (float) $bd['total'], 2 );
-            $net   = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
-            $tax   = round( (float) $bd['tax'], 2 );
-        }
+        $tot      = self::derive_totals( $items, $vat_mode, $cland, (float) ( $data['amt'] ?? 0 ) );
+        $net   = $tot['net'];
+        $tax   = $tot['tax'];
+        $gross = $tot['gross'];
+        $rate  = $tot['rate'];
 
         // Angebotsdatum aus dem Desk (echtes Sende-/Angebotsdatum), NICHT „jetzt" → Übersicht zeigt das reale
         // Datum statt „heute". Reihenfolge nach Verlässlichkeit; nur bei komplett fehlendem Datum auf jetzt.
@@ -632,6 +599,149 @@ class M24_Desk_Inbound {
         elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
         $raw = preg_replace( '/[^0-9.\-]/', '', $raw );
         return is_numeric( $raw ) ? (float) $raw : 0.0;
+    }
+
+    /**
+     * Desk-Positionen (art/qty/price-DE-String/note/is25a) → WP-Form (title/unit_price/qty/art_nr/tax25a).
+     * Idempotent: bereits WP-geformte Items (unit_price gesetzt) bleiben unverändert. Preis ist netto
+     * (Vertrag v1.1: item.price = number_format(unit_price_netto)); §25a trägt Brutto direkt.
+     */
+    public static function normalize_items( array $raw ): array {
+        $out = array();
+        foreach ( $raw as $it ) {
+            $it    = (array) $it;
+            $title = (string) ( $it['title'] ?? $it['art'] ?? '' );
+            if ( '' === trim( $title ) ) { continue; }
+            $unit = isset( $it['unit_price'] ) ? (float) $it['unit_price'] : self::parse_de_price( (string) ( $it['price'] ?? '' ) );
+            if ( $unit <= 0.0 && isset( $it['amt'] ) ) { $unit = (float) $it['amt']; }
+            $out[] = array(
+                'teil_id'    => (int) ( $it['teil_id'] ?? 0 ),
+                'title'      => $title,
+                'art_nr'     => (string) ( $it['art_nr'] ?? $it['note'] ?? '' ),
+                'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
+                'unit_price' => round( $unit, 2 ),
+                'tax25a'     => ( ! empty( $it['tax25a'] ) || ! empty( $it['is25a'] ) || ! empty( $it['st25a'] ) ),
+                'custom'     => false,
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * Summen aus Positionen + Desk-Brutto (amt) ableiten. Autorität für den Brutto ist amt (falls >0),
+     * sonst die Positionssumme. Netto/USt konsistent zum Steuermodus: DE-Satz ohne §25a → Netto =
+     * Brutto/(1+Satz) (cent-genau = Desk-Brutto); net-Modi → USt 0; §25a separat (ohne ausweisbare USt).
+     * @return array{net:float,tax:float,gross:float,rate:float}
+     */
+    public static function derive_totals( array $items, string $vat_mode, string $land, float $amt ): array {
+        $bd     = M24_Offers::compute_totals( $items, array(), $vat_mode, 0.0, $land );
+        $rate   = (float) ( $bd['rate'] ?? 0 );
+        $has25a = (float) ( $bd['st25a'] ?? 0 ) > 0.0;
+        if ( $amt > 0.0 ) {
+            $gross = round( $amt, 2 );
+            if ( $rate > 0.0 && ! $has25a ) {
+                $net = round( $gross / ( 1 + $rate / 100 ), 2 );
+                $tax = round( $gross - $net, 2 );
+            } else {
+                $net = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
+                $tax = round( (float) $bd['tax'], 2 );
+            }
+        } else {
+            $gross = round( (float) $bd['total'], 2 );
+            $net   = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
+            $tax   = round( (float) $bd['tax'], 2 );
+        }
+        return array( 'net' => $net, 'tax' => $tax, 'gross' => $gross, 'rate' => $rate );
+    }
+
+    /** Monatsanfang (UTC) aus einer YYYYMM…-Auftragsnummer ("202606127" → "2026-06-01 00:00:00"). Sonst null. */
+    public static function month_start_from_num( string $num ): ?string {
+        return preg_match( '/^(20\d{2})(0[1-9]|1[0-2])/', trim( $num ), $m ) ? ( $m[1] . '-' . $m[2] . '-01 00:00:00' ) : null;
+    }
+
+    /* ── Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren ─────────────── */
+
+    /**
+     * Ermittelt für eine Desk-gespiegelte Angebotszeile die zu korrigierenden Felder (Summen/Positionen/Datum).
+     * Idempotent: Gibt null zurück, wenn nichts zu ändern ist (bereits korrekt materialisiert).
+     * @return array{id:int,offer_no:string,changes:array,preview:array}|null
+     */
+    private static function compute_backfill( $o ): ?array {
+        $items_raw = json_decode( (string) $o->items_json, true );
+        $items_raw = is_array( $items_raw ) ? $items_raw : array();
+        $items     = self::normalize_items( $items_raw );
+
+        $cust = json_decode( (string) $o->customer_json, true );
+        $land = is_array( $cust ) ? (string) ( $cust['land'] ?? '' ) : '';
+        // Vorhandener Brutto als Autorität (falls schon >0 gesetzt); sonst 0 → aus den Positionen rechnen.
+        $tot = self::derive_totals( $items, (string) $o->tax_mode, $land, (float) $o->total_gross );
+
+        $changes = array();
+        if ( round( (float) $o->subtotal_net, 2 ) !== $tot['net'] )   { $changes['subtotal_net'] = $tot['net']; }
+        if ( round( (float) $o->tax_amount, 2 )   !== $tot['tax'] )   { $changes['tax_amount']   = $tot['tax']; }
+        if ( round( (float) $o->total_gross, 2 )  !== $tot['gross'] ) { $changes['total_gross']  = $tot['gross']; }
+        if ( round( (float) $o->tax_rate, 2 )     !== round( $tot['rate'], 2 ) ) { $changes['tax_rate'] = $tot['rate']; }
+
+        // Positionen nur umschreiben, wenn sie noch in Desk-Form vorliegen (erstes Item ohne unit_price).
+        if ( ! empty( $items_raw ) ) {
+            $first = (array) reset( $items_raw );
+            if ( ! isset( $first['unit_price'] ) ) { $changes['items_json'] = wp_json_encode( $items ); }
+        }
+
+        // Datum: nur korrigieren, wenn sent_at praktisch = created_at ist (= Sync-Zeit-Default der Alt-Zeilen).
+        // Echte offer_date-Werte (neue Syncs, Tag ≠ Anlage) bleiben unangetastet. Monat aus der Auftragsnummer.
+        $new_sent = null;
+        $st = strtotime( (string) $o->sent_at . ' UTC' );
+        $ct = strtotime( (string) $o->created_at . ' UTC' );
+        if ( $st && $ct && abs( $st - $ct ) < DAY_IN_SECONDS ) {
+            $ms = self::month_start_from_num( (string) ( $o->desk_order_num ?: $o->offer_no ) );
+            if ( $ms && substr( $ms, 0, 7 ) !== substr( (string) $o->sent_at, 0, 7 ) ) { $new_sent = $ms; }
+        }
+        if ( null !== $new_sent ) { $changes['sent_at'] = $new_sent; }
+
+        if ( empty( $changes ) ) { return null; }
+        return array(
+            'id'       => (int) $o->id,
+            'offer_no' => (string) $o->offer_no,
+            'changes'  => $changes,
+            'preview'  => array(
+                'name'      => is_array( $cust ) ? (string) ( $cust['name'] ?? '' ) : '',
+                'date'      => $new_sent ? substr( $new_sent, 0, 10 ) : substr( (string) $o->sent_at, 0, 10 ),
+                'positions' => count( $items ),
+                'net'       => $tot['net'],
+                'gross'     => $tot['gross'],
+            ),
+        );
+    }
+
+    /** Alle Desk-gespiegelten Angebote (src_json.desk_origin) mit ausstehender Korrektur. */
+    public static function find_backfill_candidates(): array {
+        global $wpdb;
+        $t    = M24_Offers::table();
+        $rows = $wpdb->get_results( "SELECT * FROM $t WHERE src_json LIKE '%\"desk_origin\":true%' ORDER BY id DESC LIMIT 500" ); // phpcs:ignore WordPress.DB.PreparedSQL
+        $out  = array();
+        foreach ( (array) $rows as $o ) {
+            $c = self::compute_backfill( $o );
+            if ( null !== $c ) { $out[] = $c; }
+        }
+        return $out;
+    }
+
+    /** POST-Handler: wendet die Korrekturen an (Nonce + Capability). Idempotent → mehrfach ausführbar. */
+    public static function handle_backfill_synced() {
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+        check_admin_referer( 'm24_backfill_synced_offers' );
+        global $wpdb;
+        $t = M24_Offers::table();
+        $n = 0;
+        foreach ( self::find_backfill_candidates() as $c ) {
+            if ( false !== $wpdb->update( $t, $c['changes'], array( 'id' => $c['id'] ) ) ) {
+                $n++;
+                self::log( 'backfill', 'Angebot ' . $c['offer_no'] . ' (#' . $c['id'] . ') neu materialisiert: ' . wp_json_encode( array_keys( $c['changes'] ) ) );
+            }
+        }
+        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n ), admin_url( 'admin.php' ) ) );
+        exit;
     }
 
     public static function split_name( string $name ): array {

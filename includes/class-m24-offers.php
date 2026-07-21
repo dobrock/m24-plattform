@@ -147,6 +147,12 @@ class M24_Offers {
 
 				echo '<div class="wrap m24offl"><h1 class="wp-heading-inline">Angebote</h1> <a href="' . esc_url( add_query_arg( array( self::QV_NEW => 1 ), home_url( '/' ) ) ) . '" target="_blank" rel="noopener" class="page-title-action" style="background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:0;">+ Neues Angebot</a><hr class="wp-header-end">';
 		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
+		// Backfill-Erfolgsmeldung (inline gerendert).
+		if ( 'backfill' === ( isset( $_GET['done'] ) ? sanitize_key( wp_unslash( $_GET['done'] ) ) : '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$bn  = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+			$btx = $bn > 0 ? sprintf( '✓ %d gesyncte%s Angebot%s neu materialisiert (Datum · Positionen · Summen).', $bn, 1 === $bn ? 's' : '', 1 === $bn ? '' : 'e' ) : 'Keine gesyncten Angebote mit Korrekturbedarf gefunden.';
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $btx ) . '</p></div>';
+		}
 		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS' ); // #9: „Drittland · netto" raus
 		echo '<style>.m24offl .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}.m24offl .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}.m24offl .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}.m24offl .srch{margin-left:auto;display:flex;gap:6px}.m24offl .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}.m24offl .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;max-width:1000px;padding:16px 18px}.m24offl .crow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.m24offl .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}.m24offl .who b{font-size:15px}.m24offl .who div{color:#6b7280;font-size:12.5px}.m24offl .meta{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}.m24offl .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#9a6b25;font-size:15px}.m24offl .tx{color:#6b7280;font-size:12px}.m24offl .sum{font-weight:800;font-size:16px}.m24offl .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;color:#fff}.m24offl .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24offl .foot a{text-decoration:none}@media(max-width:700px){.m24offl .meta{width:100%;margin-left:58px}}</style>';
 		echo '<style>.m24offl .crow{cursor:pointer}.m24offl .who b{margin-right:2px}.m24offl .flagc{font-size:13px;color:#374151}.m24offl .sentat{color:#8a929c;font-size:12px;margin-top:2px}.m24offl .sumwrap{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.m24offl .sum em{font-style:normal;font-weight:600;color:#6b7280;font-size:12px}.m24offl .sum2{font-size:12.5px;color:#6b7280;font-weight:600}.m24offl .m24offl-pos{border-top:1px dashed #e5e7eb;margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:8px}.m24offl .crow[aria-expanded="false"] + .m24offl-pos{display:none}.m24offl .m24offl-pos .pl-row{display:flex;align-items:center;gap:10px;font-size:13px}.m24offl .m24offl-pos img,.m24offl .m24offl-pos .pl-ph{width:34px;height:34px;border-radius:6px;object-fit:cover;background:#eef0f2;flex:0 0 auto}.m24offl .m24offl-pos .pl-t{flex:1;min-width:0}.m24offl .m24offl-pos .pl-q{color:#6b7280;white-space:nowrap}.m24offl .m24offl-pos .pl-p{font-weight:700;color:#111;white-space:nowrap}</style>';
@@ -156,7 +162,36 @@ class M24_Offers {
 		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		// „Nicht angesehen"-Chip: toggelt nv (unabhängig vom Status-Filter), Suche bleibt erhalten.
 		echo '<a class="chip' . ( $f_nv ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nv' => ( $f_nv ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '">Nicht angesehen</a>';
+		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'backfill' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#c8a24a;color:#9a6b25;">↻ Gesyncte Angebote nachziehen</a>';
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
+
+		// Vorschau-Panel „Gesyncte Angebote nachziehen": listet die Zeilen mit Korrekturbedarf (Datum/Positionen/
+		// Summen), erst der zweite Button wendet an. Nonce + Capability wie beim POST-Handler.
+		if ( 'preview' === ( isset( $_GET['backfill'] ) ? sanitize_key( wp_unslash( $_GET['backfill'] ) ) : '' ) && class_exists( 'M24_Desk_Inbound' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$cands  = M24_Desk_Inbound::find_backfill_candidates();
+			$cancel = esc_url( add_query_arg( array( 'page' => $page ), admin_url( 'admin.php' ) ) );
+			echo '<div style="max-width:1000px;background:#fff;border:1.5px solid #c8a24a;border-radius:12px;padding:18px 20px;margin:0 0 18px">';
+			echo '<h2 style="margin:0 0 8px;font-size:16px">Gesyncte Angebote nachziehen</h2>';
+			if ( empty( $cands ) ) {
+				echo '<p>Keine gesyncten Angebote mit Korrekturbedarf — alles bereits korrekt materialisiert.</p><a class="chip" href="' . $cancel . '">Zurück</a>';
+			} else {
+				$cnt = count( $cands );
+				echo '<p>Folgende <b>' . (int) $cnt . '</b> gesyncte' . ( 1 === $cnt ? 's' : '' ) . ' Angebot' . ( 1 === $cnt ? '' : 'e' ) . ' werden mit <b>echtem Datum</b>, <b>Positionen (mit Preis)</b> und <b>Netto/Brutto</b> neu materialisiert. Das Datum wird aus der Auftragsnummer auf den <b>Monatsanfang</b> gesetzt (Tag im WP-Spiegel nicht rekonstruierbar):</p>';
+				echo '<table class="widefat striped"><thead><tr><th>Nr.</th><th>Kunde</th><th>Datum →</th><th>Positionen</th><th>Netto</th><th>Brutto</th></tr></thead><tbody>';
+				foreach ( $cands as $c ) {
+					$p = $c['preview'];
+					echo '<tr><td>' . esc_html( $c['offer_no'] ) . '</td><td>' . esc_html( (string) $p['name'] ) . '</td><td>' . esc_html( (string) $p['date'] ) . '</td><td>' . (int) $p['positions'] . '</td><td>' . esc_html( number_format( (float) $p['net'], 2, ',', '.' ) ) . ' €</td><td>' . esc_html( number_format( (float) $p['gross'], 2, ',', '.' ) ) . ' €</td></tr>';
+				}
+				echo '</tbody></table>';
+				echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="display:flex;gap:10px;align-items:center;margin-top:8px">';
+				echo '<input type="hidden" name="action" value="m24_backfill_synced_offers">';
+				wp_nonce_field( 'm24_backfill_synced_offers' );
+				echo '<button type="submit" class="button button-primary">Jetzt nachziehen (' . (int) $cnt . ')</button>';
+				echo '<a class="chip" href="' . $cancel . '">Abbrechen</a>';
+				echo '</form>';
+			}
+			echo '</div>';
+		}
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); } // Statistik-Panel rechts
 		if ( empty( $rows ) ) {
 			echo '<p>Keine Angebote' . ( ( '' !== $f_st || '' !== $f_s ) ? ' zum Filter' : '' ) . '.</p>';
