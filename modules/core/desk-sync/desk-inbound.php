@@ -90,6 +90,8 @@ class M24_Desk_Inbound {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
         // Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren (Summen/Datum/Positionen).
         add_action( 'admin_post_m24_backfill_synced_offers', array( __CLASS__, 'handle_backfill_synced' ) );
+        // 10-Tage-Mirror: Desk-native Aufträge (noch nicht in WP) als Spiegel anlegen (Upsert, keine Dubletten).
+        add_action( 'admin_post_m24_mirror_backfill', array( __CLASS__, 'handle_mirror_backfill' ) );
     }
 
     public static function register_routes() {
@@ -776,47 +778,156 @@ class M24_Desk_Inbound {
         return '';
     }
 
-    /** Desk-Order-Liste aus einer GET-Antwort extrahieren (Wurzel-Array oder unter orders/data/items). */
-    private static function index_order_dates( $data ): array {
-        $list = array();
+    /** Order-Liste aus einer GET-Antwort (Wurzel-Array oder unter orders/data/items). */
+    private static function extract_order_list( $data ): array {
         if ( is_array( $data ) ) {
-            if ( isset( $data[0] ) ) { $list = $data; }
-            elseif ( isset( $data['orders'] ) && is_array( $data['orders'] ) ) { $list = $data['orders']; }
-            elseif ( isset( $data['data'] ) && is_array( $data['data'] ) )     { $list = $data['data']; }
-            elseif ( isset( $data['items'] ) && is_array( $data['items'] ) )   { $list = $data['items']; }
+            if ( isset( $data[0] ) ) { return $data; }
+            foreach ( array( 'orders', 'data', 'items' ) as $k ) {
+                if ( isset( $data[ $k ] ) && is_array( $data[ $k ] ) ) { return $data[ $k ]; }
+            }
         }
+        return array();
+    }
+
+    /** Desk-Order-ID einer rohen GET-Zeile (tolerant gegenüber Feldnamen). */
+    private static function pulled_order_id( array $r ): string {
+        return (string) ( $r['id'] ?? $r['order_id'] ?? $r['desk_order_id'] ?? '' );
+    }
+
+    /**
+     * Rohe Desk-Order-Liste holen: GET /api/orders (einmal, 120s transient-gecacht). Bestes-Bemühen:
+     * nicht konfiguriert / Fehler / unerwartete Form → leer. KEIN harter Fehler.
+     */
+    public static function fetch_desk_orders(): array {
+        $cached = get_transient( 'm24_desk_orders_raw' );
+        if ( is_array( $cached ) ) { return $cached; }
+        $list = array();
+        if ( class_exists( 'M24_Rest_Client' ) && M24_Rest_Client::is_configured() ) {
+            $res    = M24_Rest_Client::request( 'GET', '/api/orders', null, array( 'timeout' => 20 ) );
+            $status = (int) ( $res['status'] ?? 0 );
+            if ( $status >= 200 && $status < 300 ) {
+                $list = self::extract_order_list( $res['data'] ?? null );
+                self::log( 'desk_pull', 'GET /api/orders → ' . count( $list ) . ' Aufträge.' );
+            } else {
+                self::log( 'desk_pull', 'GET /api/orders HTTP ' . $status . '.' );
+            }
+        }
+        set_transient( 'm24_desk_orders_raw', $list, 120 );
+        return $list;
+    }
+
+    /** Map desk_order_id ⇒ echtes Datum ('Y-m-d H:i:s' UTC) aus dem Desk-Pull (für den Datums-Backfill). */
+    public static function fetch_desk_order_dates(): array {
         $map = array();
-        foreach ( $list as $row ) {
+        foreach ( self::fetch_desk_orders() as $row ) {
             if ( ! is_array( $row ) ) { continue; }
-            $oid = (string) ( $row['id'] ?? $row['order_id'] ?? $row['desk_order_id'] ?? '' );
+            $oid = self::pulled_order_id( $row );
             if ( '' === $oid ) { continue; }
-            $date = self::extract_order_date( $row );
-            if ( '' !== $date ) { $map[ $oid ] = $date; }
+            $d = self::extract_order_date( $row );
+            if ( '' !== $d ) { $map[ $oid ] = $d; }
         }
         return $map;
     }
 
     /**
-     * Echte Angebotsdaten aus dem Desk holen: GET /api/orders (einmal, 120s transient-gecacht) → Map
-     * desk_order_id ⇒ 'Y-m-d H:i:s' UTC. Bestes-Bemühen: nicht konfiguriert / Fehler / unerwartete Form → leer
-     * (der Backfill fällt dann auf den Monatsanfang zurück). KEIN harter Fehler, nie den Backfill blockieren.
+     * Rohe Desk-GET-Zeile → Feld-Shape, die create_order/der Webhook erwartet. Tolerant gegenüber Feldnamen
+     * (die GET-Form ist nicht 1:1 dokumentiert). Preis/Steuer/Status/Items werden downstream normalisiert.
      */
-    public static function fetch_desk_order_dates(): array {
-        $cached = get_transient( 'm24_desk_order_dates' );
-        if ( is_array( $cached ) ) { return $cached; }
-        $map = array();
-        if ( class_exists( 'M24_Rest_Client' ) && M24_Rest_Client::is_configured() ) {
-            $res    = M24_Rest_Client::request( 'GET', '/api/orders', null, array( 'timeout' => 15 ) );
-            $status = (int) ( $res['status'] ?? 0 );
-            if ( $status >= 200 && $status < 300 ) {
-                $map = self::index_order_dates( $res['data'] ?? null );
-                self::log( 'backfill_dates', 'GET /api/orders → ' . count( $map ) . ' Datumsangaben.' );
-            } else {
-                self::log( 'backfill_dates', 'GET /api/orders HTTP ' . $status . ' → Fallback Monatsanfang.' );
+    public static function normalize_pulled_order( array $r ): array {
+        $pick = static function ( array $r, array $keys ) {
+            foreach ( $keys as $k ) {
+                if ( isset( $r[ $k ] ) && is_scalar( $r[ $k ] ) && '' !== (string) $r[ $k ] ) { return (string) $r[ $k ]; }
             }
+            return '';
+        };
+        $steps = $r['completed_steps'] ?? $r['steps'] ?? array();
+        if ( is_string( $steps ) ) { $d = json_decode( $steps, true ); $steps = is_array( $d ) ? $d : array(); }
+        $items = $r['items'] ?? $r['positions'] ?? array();
+        if ( is_string( $items ) ) { $d = json_decode( $items, true ); $items = is_array( $d ) ? $d : array(); }
+        return array(
+            'sender_email'    => $pick( $r, array( 'sender_email', 'email', 'customer_email' ) ),
+            'cust'            => $pick( $r, array( 'cust', 'customer_name', 'name', 'kunde' ) ),
+            'country'         => $pick( $r, array( 'country', 'land' ) ),
+            'customer_id'     => (int) ( $r['customer_id'] ?? $r['cust_id'] ?? 0 ),
+            'biz'             => ( ! empty( $r['biz'] ) || 'b2b' === strtolower( (string) ( $r['kundentyp'] ?? '' ) ) ),
+            'amt'             => (float) ( $r['amt'] ?? $r['total_gross'] ?? $r['gross'] ?? $r['total'] ?? 0 ),
+            'vat_mode'        => $pick( $r, array( 'vat_mode', 'tax_mode' ) ),
+            'completed_steps' => is_array( $steps ) ? array_values( array_map( 'strval', $steps ) ) : array(),
+            'status'          => $pick( $r, array( 'status' ) ),
+            'payment_date'    => $pick( $r, array( 'payment_date', 'paid_at' ) ),
+            'order_num'       => $pick( $r, array( 'order_num', 'order_number', 'ref', 'no' ) ),
+            'ref'             => $pick( $r, array( 'ref', 'order_num', 'order_number' ) ),
+            'offer_date'      => self::extract_order_date( $r ),
+            'items'           => is_array( $items ) ? $items : array(),
+            'subj'            => $pick( $r, array( 'subj', 'subject', 'betreff' ) ),
+            'notes'           => $pick( $r, array( 'notes', 'note' ) ),
+            'ship_firma'      => $pick( $r, array( 'ship_firma' ) ),
+            'ship_name'       => $pick( $r, array( 'ship_name' ) ),
+            'ship_strasse'    => $pick( $r, array( 'ship_strasse' ) ),
+            'ship_strasse2'   => $pick( $r, array( 'ship_strasse2' ) ),
+            'ship_plz'        => $pick( $r, array( 'ship_plz' ) ),
+            'ship_ort'        => $pick( $r, array( 'ship_ort' ) ),
+            'ship_land'       => $pick( $r, array( 'ship_land' ) ),
+            'carrier'         => $pick( $r, array( 'carrier' ) ),
+            'tracking'        => $pick( $r, array( 'tracking' ) ),
+        );
+    }
+
+    /**
+     * 10-Tage-Mirror: Desk-Aufträge, die (a) in WP noch NICHT als Spiegel existieren (Upsert-Guard über
+     * desk_order_id) und (b) höchstens $days alt sind. Ohne Datum → nicht sicher einordbar, übersprungen.
+     * @return array{new:array,existing:int,undated:int,pulled:int,keys:array}
+     */
+    public static function find_mirror_candidates( int $days = 10 ): array {
+        global $wpdb; $t = M24_Offers::table();
+        $rows   = self::fetch_desk_orders();
+        $cutoff = time() - $days * DAY_IN_SECONDS;
+        $new = array(); $existing = 0; $undated = 0; $keys = array();
+        foreach ( $rows as $r ) {
+            if ( ! is_array( $r ) ) { continue; }
+            if ( empty( $keys ) ) { $keys = array_keys( $r ); } // Diagnose: Feldnamen der ersten Zeile (Mapping prüfen)
+            $oid = self::pulled_order_id( $r );
+            if ( '' === $oid ) { continue; }
+            // Zuerst die günstigen Filter (Datum), dann erst die DB-Existenzabfrage.
+            $date = self::extract_order_date( $r );
+            $ts   = '' !== $date ? strtotime( $date . ' UTC' ) : 0;
+            if ( ! $ts ) { $undated++; continue; }                  // ohne Datum nicht sicher einordbar
+            if ( $ts < $cutoff ) { continue; }                      // älter als N Tage
+            $ex = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE desk_order_id = %s LIMIT 1", $oid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            if ( $ex > 0 ) { $existing++; continue; }               // schon gespiegelt → kein Duplikat
+            $norm  = self::normalize_pulled_order( $r );
+            $steps = is_array( $norm['completed_steps'] ) ? $norm['completed_steps'] : array();
+            $new[] = array(
+                'desk_id' => $oid,
+                'data'    => $norm,
+                'preview' => array(
+                    'order_num' => (string) ( '' !== $norm['order_num'] ? $norm['order_num'] : 'D-' . $oid ),
+                    'name'      => (string) $norm['cust'],
+                    'date'      => substr( $date, 0, 10 ),
+                    'status'    => self::status_from_steps( $steps, (string) $norm['status'] ) ?: 'offen',
+                    'gross'     => (float) $norm['amt'],
+                ),
+            );
         }
-        set_transient( 'm24_desk_order_dates', $map, 120 );
-        return $map;
+        return array( 'new' => $new, 'existing' => $existing, 'undated' => $undated, 'pulled' => count( $rows ), 'keys' => $keys );
+    }
+
+    /** POST-Handler: legt für die 10-Tage-Kandidaten WP-Spiegel an (idempotent über desk_order_id). */
+    public static function handle_mirror_backfill() {
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+        check_admin_referer( 'm24_mirror_backfill' );
+        global $wpdb; $t = M24_Offers::table();
+        $res = self::find_mirror_candidates( 10 );
+        $n = 0;
+        foreach ( $res['new'] as $c ) {
+            $oid = (string) $c['desk_id'];
+            // Re-Check unmittelbar vor dem Insert (Race-/Doppelklick-sicher) → nie ein Duplikat.
+            if ( (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE desk_order_id = %s LIMIT 1", $oid ) ) > 0 ) { continue; } // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $new_id = self::create_order( (int) $oid, (array) $c['data'], array() );
+            if ( $new_id > 0 ) { $n++; self::log( 'mirror', 'Desk-Auftrag #' . $oid . ' → Angebot id ' . $new_id ); }
+        }
+        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n ), admin_url( 'admin.php' ) ) );
+        exit;
     }
 
     /**
