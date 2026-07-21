@@ -436,9 +436,16 @@ class M24_Desk_Push {
         global $wpdb;
         $t = M24_Offers::table();
 
-        // W1 create (nur ohne bereits vergebene Desk-Order-ID → sonst greift der Create-only-Guard ohnehin).
+        // W1 create-Retry: NUR echte fehlgeschlagene Create-Versuche ('failed'), NICHT 'pending'.
+        //
+        // 'pending' bedeutet ausschließlich „während Sync AUS versendet" (Dry-Run-Marker aus on_offer_sent) —
+        // kein bewusst angestoßener Create. Würde der Retry diese mitnehmen, legte er beim Scharfschalten den
+        // GESAMTEN Dry-Run-Verlauf als echte Aufträge an — auch für Angebote, deren Auftrag längst manuell im
+        // Desk existiert (leere desk_order_id → Create-only-Guard greift nicht) → Duplikate (Vorfall Lasse
+        // Kristensen, 202606127). Ein Alt-Angebot bewusst pushen bleibt möglich (manueller Retry/Neuversand);
+        // ein blindes Backlog-Replay findet nicht mehr statt.
         foreach ( (array) $wpdb->get_col( $wpdb->prepare(
-            "SELECT id FROM $t WHERE desk_sync_status IN ('pending','failed') AND ( desk_order_id IS NULL OR desk_order_id = '' ) AND desk_sync_attempts < %d ORDER BY id ASC LIMIT 25", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            "SELECT id FROM $t WHERE desk_sync_status = 'failed' AND ( desk_order_id IS NULL OR desk_order_id = '' ) AND desk_sync_attempts < %d ORDER BY id ASC LIMIT 25", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             self::MAX_TRIES
         ) ) as $id ) { self::push( (int) $id, false ); }
 
