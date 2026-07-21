@@ -451,11 +451,60 @@ class M24_Desk_Inbound {
             if ( '' !== $kt ) { $customer['kundentyp'] = ( 'b2b' === $kt ) ? 'b2b' : 'b2c'; }
         }
 
-        $items = $data['items'] ?? array();
-        if ( is_string( $items ) ) { $items = json_decode( $items, true ); }
-        if ( ! is_array( $items ) ) { $items = array(); }
+        // Positionen: Desk-Form (art/qty/price-DE-String/note/is25a) → WP-Form (title/qty/unit_price/art_nr/tax25a),
+        // damit Detail/Kunden-Ansicht die Positionen MIT Preis rendern und compute_totals eine echte Summe liefert
+        // (die WP-Renderer lesen durchgehend title/unit_price/qty, nicht art/price). Preis ist netto (Vertrag v1.1:
+        // item.price = number_format(unit_price_netto)); §25a-Positionen tragen Brutto direkt.
+        $items_raw = $data['items'] ?? array();
+        if ( is_string( $items_raw ) ) { $items_raw = json_decode( $items_raw, true ); }
+        if ( ! is_array( $items_raw ) ) { $items_raw = array(); }
+        $items = array();
+        foreach ( $items_raw as $it ) {
+            $it    = (array) $it;
+            $title = (string) ( $it['title'] ?? $it['art'] ?? '' );
+            if ( '' === trim( $title ) ) { continue; }
+            $unit = isset( $it['unit_price'] ) ? (float) $it['unit_price'] : self::parse_de_price( (string) ( $it['price'] ?? '' ) );
+            if ( $unit <= 0.0 && isset( $it['amt'] ) ) { $unit = (float) $it['amt']; }
+            $items[] = array(
+                'teil_id'    => (int) ( $it['teil_id'] ?? 0 ),
+                'title'      => $title,
+                'art_nr'     => (string) ( $it['art_nr'] ?? $it['note'] ?? '' ),
+                'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
+                'unit_price' => round( $unit, 2 ),
+                'tax25a'     => ( ! empty( $it['tax25a'] ) || ! empty( $it['is25a'] ) || ! empty( $it['st25a'] ) ),
+                'custom'     => false,
+            );
+        }
 
-        $gross = (float) ( $data['amt'] ?? 0 );
+        // Summen aus dem Desk übernehmen (cent-genau), nicht auf 0 lassen. Desk-Autorität für den Brutto ist die
+        // Auftragssumme amt; fehlt sie, aus den Positionen rechnen. Netto/USt konsistent zum Steuermodus:
+        // DE-Satz ohne §25a → Netto = Brutto/(1+Satz) (exakt = Desk-Brutto); sonst der aus den Positionen
+        // berechnete Netto/USt-Split (net-Modi: USt 0; §25a: separat, ohne ausweisbare USt).
+        $vat_mode = sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) );
+        $bd       = M24_Offers::compute_totals( $items, array(), $vat_mode, 0.0, $cland );
+        $rate     = (float) ( $bd['rate'] ?? 0 );
+        $has25a   = (float) ( $bd['st25a'] ?? 0 ) > 0.0;
+        $amt      = (float) ( $data['amt'] ?? 0 );
+        if ( $amt > 0.0 ) {
+            $gross = round( $amt, 2 );
+            if ( $rate > 0.0 && ! $has25a ) {
+                $net = round( $gross / ( 1 + $rate / 100 ), 2 );
+                $tax = round( $gross - $net, 2 );
+            } else {
+                $net = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
+                $tax = round( (float) $bd['tax'], 2 );
+            }
+        } else {
+            $gross = round( (float) $bd['total'], 2 );
+            $net   = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
+            $tax   = round( (float) $bd['tax'], 2 );
+        }
+
+        // Angebotsdatum aus dem Desk (echtes Sende-/Angebotsdatum), NICHT „jetzt" → Übersicht zeigt das reale
+        // Datum statt „heute". Reihenfolge nach Verlässlichkeit; nur bei komplett fehlendem Datum auf jetzt.
+        $offer_date_raw = (string) ( $data['offer_date'] ?? $data['order_date'] ?? $data['created'] ?? $data['created_at'] ?? '' );
+        $sent_at        = '' !== trim( $offer_date_raw ) ? self::to_mysql_utc( $offer_date_raw ) : null;
+        if ( empty( $sent_at ) ) { $sent_at = current_time( 'mysql', true ); }
         $steps = $data['completed_steps'] ?? array();
         if ( is_string( $steps ) ) { $steps = json_decode( $steps, true ); }
         $steps = is_array( $steps ) ? array_values( array_map( 'strval', $steps ) ) : array();
@@ -471,11 +520,11 @@ class M24_Desk_Inbound {
             'items_json'    => wp_json_encode( $items ),
             'extras_json'   => wp_json_encode( array() ),
             'delivery_time' => '',
-            'tax_mode'      => sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) ),
-            'tax_rate'      => 0,
+            'tax_mode'      => $vat_mode,
+            'tax_rate'      => $rate,
             'tax_note'      => '',
-            'subtotal_net'  => $gross, // Desk liefert keine Netto/USt-Aufschlüsselung → Brutto als Näherung
-            'tax_amount'    => 0,
+            'subtotal_net'  => $net,
+            'tax_amount'    => $tax,
             'total_gross'   => $gross,
             'currency'      => 'EUR',
             'src_json'      => wp_json_encode( array(
@@ -505,7 +554,7 @@ class M24_Desk_Inbound {
             'ship_diff'     => ( '' !== (string) ( $data['ship_name'] ?? '' ) || '' !== (string) ( $data['ship_strasse'] ?? '' ) ) ? 1 : 0,
             'field_updated_at' => wp_json_encode( is_array( $stamps ) ? $stamps : array() ),
             'created_at'    => current_time( 'mysql', true ),
-            'sent_at'       => current_time( 'mysql', true ),
+            'sent_at'       => $sent_at, // echtes Angebotsdatum aus dem Desk (offer_date), nicht „jetzt"
         );
         if ( $paid ) { $row['paid_at'] = self::to_mysql_utc( (string) $data['payment_date'] ); }
 
@@ -575,6 +624,16 @@ class M24_Desk_Inbound {
      * "Herr Max Mustermann" → anrede/vorname/nachname. Kehrt den Outbound-Aufbau um. Ohne führende Anrede
      * wandert das erste Token in den Vornamen, der Rest in den Nachnamen (Doppelnachnamen bleiben zusammen).
      */
+    /** DE-Preis-String ("2.380,00", "€ 12.521,01", "2380,00") → float. Nicht parsbar → 0.0. */
+    private static function parse_de_price( string $raw ): float {
+        $raw = trim( $raw );
+        if ( '' === $raw ) { return 0.0; }
+        if ( false !== strpos( $raw, ',' ) && false !== strpos( $raw, '.' ) ) { $raw = str_replace( '.', '', $raw ); $raw = str_replace( ',', '.', $raw ); }
+        elseif ( false !== strpos( $raw, ',' ) ) { $raw = str_replace( ',', '.', $raw ); }
+        $raw = preg_replace( '/[^0-9.\-]/', '', $raw );
+        return is_numeric( $raw ) ? (float) $raw : 0.0;
+    }
+
     public static function split_name( string $name ): array {
         $out   = array( 'anrede' => '', 'vorname' => '', 'nachname' => '' );
         $parts = preg_split( '/\s+/', trim( $name ), -1, PREG_SPLIT_NO_EMPTY );
