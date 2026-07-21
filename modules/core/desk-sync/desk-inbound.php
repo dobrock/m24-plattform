@@ -254,6 +254,19 @@ class M24_Desk_Inbound {
             M24_Offers::mark_paid( (int) $o->id, 'desk' );
         }
 
+        // Desk-Lebenszyklus → WP-Status/Pill (erledigt/abgelehnt/versandt/…). completed_steps ist die feine
+        // Quelle. ZULETZT gesetzt, damit ein späterer Schritt (versandt/erledigt) ein vorheriges
+        // mark_paid('bezahlt') gewinnt. Nur wenn completed_steps per LWW übernommen wurde (Desk ist dafür
+        // autoritativ); Entwürfe bleiben unangetastet.
+        if ( in_array( 'completed_steps', $applied, true ) ) {
+            $steps_new = json_decode( (string) ( $cols['completed_steps'] ?? '[]' ), true );
+            $ns        = self::status_from_steps( is_array( $steps_new ) ? $steps_new : array(), (string) ( $data['status'] ?? '' ) );
+            if ( self::status_transition_ok( (string) $o->status, $ns ) ) {
+                $wpdb->update( $t, array( 'status' => $ns ), array( 'id' => (int) $o->id ) );
+                self::log( 'status', 'order #' . $id . ' (' . (string) $o->offer_no . ') → Status ' . $ns );
+            }
+        }
+
         self::log( 'applied', 'order #' . $id . ' (' . (string) $o->offer_no . ') — übernommen: ' . implode( ',', $applied )
             . ( $discard ? ' · verworfen (LWW): ' . implode( ',', $discard ) : '' ) );
         return array( 'status' => 'applied', 'entity' => 'order', 'id' => $id, 'applied' => $applied, 'discarded' => $discard );
@@ -479,12 +492,16 @@ class M24_Desk_Inbound {
         $steps = is_array( $steps ) ? array_values( array_map( 'strval', $steps ) ) : array();
         $paid  = ! empty( $data['payment_date'] );
         $shipn = self::split_name( (string) ( $data['ship_name'] ?? '' ) );
+        // Auftrags-Status aus dem Desk-Lebenszyklus (completed_steps → erledigt/abgelehnt/versandt/…);
+        // Fallback auf das gröbere status-Feld, sonst bezahlt/offen nach payment_date.
+        $wp_status = self::status_from_steps( $steps, (string) ( $data['status'] ?? '' ) );
+        if ( '' === $wp_status ) { $wp_status = $paid ? 'bezahlt' : 'offen'; }
 
         $row = array(
             'offer_no'      => $offer_no,
             'token'         => bin2hex( random_bytes( 16 ) ),
             'account_id'    => $account_id,
-            'status'        => $paid ? 'bezahlt' : 'offen',
+            'status'        => $wp_status,
             'customer_json' => wp_json_encode( $customer ),
             'items_json'    => wp_json_encode( $items ),
             'extras_json'   => wp_json_encode( array() ),
@@ -707,6 +724,30 @@ class M24_Desk_Inbound {
         return preg_match( '/^(20\d{2})(0[1-9]|1[0-2])/', trim( $num ), $m ) ? ( $m[1] . '-' . $m[2] . '-01 00:00:00' ) : null;
     }
 
+    /**
+     * Desk-Auftrags-Lebenszyklus → WP-Angebots-Status (Pill). Feine Unterscheidung über completed_steps
+     * (Desk-Vertrag), das gröbere status-Feld nur als Fallback. Reihenfolge = Priorität:
+     *   done + (payment|shipped) → erledigt · done ohne beides → abgelehnt (Anfrage geschlossen, nicht angenommen)
+     *   shipped → versandt · payment → bezahlt · confirmed → angenommen · offer → offen
+     * Leer → '' (Aufrufer behält den bestehenden Status; kein Downgrade auf „offen").
+     */
+    public static function status_from_steps( array $steps, string $desk_status = '' ): string {
+        $s   = array_map( 'strval', array_values( $steps ) );
+        $has = static function ( $k ) use ( $s ) { return in_array( $k, $s, true ); };
+        if ( $has( 'done' ) )      { return ( $has( 'payment' ) || $has( 'shipped' ) ) ? 'erledigt' : 'abgelehnt'; }
+        if ( $has( 'shipped' ) )   { return 'versandt'; }
+        if ( $has( 'payment' ) )   { return 'bezahlt'; }
+        if ( $has( 'confirmed' ) ) { return 'angenommen'; }
+        if ( $has( 'offer' ) )     { return 'offen'; }
+        if ( 'done' === $desk_status ) { return 'erledigt'; } // Fallback, falls completed_steps fehlt
+        return '';
+    }
+
+    /** Neuer WP-Status aus Steps zulässig? Entwürfe nie automatisch umstatusen; leerer Neu-Status = kein Wechsel. */
+    private static function status_transition_ok( string $current, string $next ): bool {
+        return '' !== $next && $next !== $current && 'entwurf' !== $current;
+    }
+
     /* ── Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren ─────────────── */
 
     /**
@@ -721,27 +762,33 @@ class M24_Desk_Inbound {
 
         $cust = json_decode( (string) $o->customer_json, true );
         $land = is_array( $cust ) ? (string) ( $cust['land'] ?? '' ) : '';
+        $changes = array();
+
         // Steuerfall auf den WP-Key normalisieren (Alt-Zeilen tragen den rohen Desk-vat_mode → sonst Rate 0).
         $wp_mode = self::vat_to_wp_taxmode( (string) $o->tax_mode );
-        // Vorhandener Brutto als Autorität (falls schon >0 gesetzt); sonst 0 → aus Netto × (1+Satz) rekonstruieren.
+        if ( $wp_mode !== (string) $o->tax_mode ) { $changes['tax_mode'] = $wp_mode; }
+
+        // Summen: Steuerfall bestimmbar → heilen; unbestimmbar (OSS/unbekannt ohne Brutto-Anker) → NICHT mit
+        // Brutto=Netto „heilen", Zeile bleibt auf dem Platzhalter (0,00). Status/Datum/Positionen laufen trotzdem.
         $tot = self::derive_totals( $items, $wp_mode, $land, (float) $o->total_gross );
-
-        // Steuerfall nicht ermittelbar (OSS/unbekannt, kein Brutto-Anker) → NICHT mit Brutto=Netto „heilen".
-        // Zeile bleibt bewusst auf dem Platzhalter (0,00), bis ein Desk-Re-Push amt/vat_mode liefert.
-        if ( empty( $tot['determinable'] ) ) { return array( 'status' => 'skip' ); }
-
-        $changes = array();
-        if ( $wp_mode !== (string) $o->tax_mode )                     { $changes['tax_mode']     = $wp_mode; }
-        if ( round( (float) $o->subtotal_net, 2 ) !== $tot['net'] )   { $changes['subtotal_net'] = $tot['net']; }
-        if ( round( (float) $o->tax_amount, 2 )   !== $tot['tax'] )   { $changes['tax_amount']   = $tot['tax']; }
-        if ( round( (float) $o->total_gross, 2 )  !== $tot['gross'] ) { $changes['total_gross']  = $tot['gross']; }
-        if ( round( (float) $o->tax_rate, 2 )     !== round( $tot['rate'], 2 ) ) { $changes['tax_rate'] = $tot['rate']; }
+        $totals_skipped = empty( $tot['determinable'] );
+        if ( ! $totals_skipped ) {
+            if ( round( (float) $o->subtotal_net, 2 ) !== $tot['net'] )   { $changes['subtotal_net'] = $tot['net']; }
+            if ( round( (float) $o->tax_amount, 2 )   !== $tot['tax'] )   { $changes['tax_amount']   = $tot['tax']; }
+            if ( round( (float) $o->total_gross, 2 )  !== $tot['gross'] ) { $changes['total_gross']  = $tot['gross']; }
+            if ( round( (float) $o->tax_rate, 2 )     !== round( $tot['rate'], 2 ) ) { $changes['tax_rate'] = $tot['rate']; }
+        }
 
         // Positionen nur umschreiben, wenn sie noch in Desk-Form vorliegen (erstes Item ohne unit_price).
         if ( ! empty( $items_raw ) ) {
             $first = (array) reset( $items_raw );
             if ( ! isset( $first['unit_price'] ) ) { $changes['items_json'] = wp_json_encode( $items ); }
         }
+
+        // Status aus dem gespeicherten Desk-Lebenszyklus (completed_steps) nachziehen — unabhängig von den Summen.
+        $steps_raw = json_decode( (string) $o->completed_steps, true );
+        $ns        = self::status_from_steps( is_array( $steps_raw ) ? $steps_raw : array(), '' );
+        if ( self::status_transition_ok( (string) $o->status, $ns ) ) { $changes['status'] = $ns; }
 
         // Datum: nur korrigieren, wenn sent_at praktisch = created_at ist (= Sync-Zeit-Default der Alt-Zeilen).
         // Echte offer_date-Werte (neue Syncs, Tag ≠ Anlage) bleiben unangetastet. Monat aus der Auftragsnummer.
@@ -754,18 +801,20 @@ class M24_Desk_Inbound {
         }
         if ( null !== $new_sent ) { $changes['sent_at'] = $new_sent; }
 
-        if ( empty( $changes ) ) { return array( 'status' => 'nochange' ); }
+        if ( empty( $changes ) ) { return array( 'status' => 'nochange', 'totals_skipped' => $totals_skipped ); }
         return array(
-            'status'   => 'change',
-            'id'       => (int) $o->id,
-            'offer_no' => (string) $o->offer_no,
-            'changes'  => $changes,
-            'preview'  => array(
+            'status'         => 'change',
+            'totals_skipped' => $totals_skipped,
+            'id'             => (int) $o->id,
+            'offer_no'       => (string) $o->offer_no,
+            'changes'        => $changes,
+            'preview'        => array(
                 'name'      => is_array( $cust ) ? (string) ( $cust['name'] ?? '' ) : '',
+                'status'    => $changes['status'] ?? (string) $o->status,
                 'date'      => $new_sent ? substr( $new_sent, 0, 10 ) : substr( (string) $o->sent_at, 0, 10 ),
                 'positions' => count( $items ),
-                'net'       => $tot['net'],
-                'gross'     => $tot['gross'],
+                'net'       => $totals_skipped ? (float) $o->subtotal_net : $tot['net'],
+                'gross'     => $totals_skipped ? (float) $o->total_gross : $tot['gross'],
             ),
         );
     }
@@ -781,8 +830,8 @@ class M24_Desk_Inbound {
         $cands = array(); $skipped = 0;
         foreach ( (array) $rows as $o ) {
             $c = self::compute_backfill( $o );
-            if ( 'change' === ( $c['status'] ?? '' ) )    { $cands[] = $c; }
-            elseif ( 'skip' === ( $c['status'] ?? '' ) )  { $skipped++; }
+            if ( 'change' === ( $c['status'] ?? '' ) ) { $cands[] = $c; }
+            if ( ! empty( $c['totals_skipped'] ) )     { $skipped++; } // Summen bleiben 0,00 (Steuerfall unklar), unabhängig von Status/Datum
         }
         return array( 'candidates' => $cands, 'skipped' => $skipped );
     }

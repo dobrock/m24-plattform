@@ -102,6 +102,8 @@ class M24_Offers {
 			'angenommen' => array( 'Angenommen', '#9a6b25' ),
 			'bezahlt'    => array( 'Bezahlt/Bestätigt', '#1a7f37' ),
 			'versandt'   => array( 'Versandt', '#1f74c4' ),
+			'erledigt'   => array( 'Erledigt', '#0e7a3b' ),   // Desk-Lebenszyklus: done + payment/shipped
+			'abgelehnt'  => array( 'Abgelehnt', '#9a3412' ),  // Desk: done ohne payment/shipped (nicht angenommen)
 			'storniert'  => array( 'Storniert', '#6b7280' ),
 			'abgelaufen' => array( 'Abgelaufen', '#c8102e' ),
 		);
@@ -161,7 +163,7 @@ class M24_Offers {
 		$base = admin_url( 'admin.php?page=' . $page );
 		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
 		echo '<div class="flt">' . $chip( '', 'Alle' );
-		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
+		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'versandt', 'erledigt', 'abgelehnt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		// „Nicht angesehen"-Chip: toggelt nv (unabhängig vom Status-Filter), Suche bleibt erhalten.
 		echo '<a class="chip' . ( $f_nv ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nv' => ( $f_nv ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '">Nicht angesehen</a>';
 		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'backfill' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#c8a24a;color:#9a6b25;">↻ Gesyncte Angebote nachziehen</a>';
@@ -182,10 +184,12 @@ class M24_Offers {
 				$cnt = count( $cands );
 				echo '<p>Folgende <b>' . (int) $cnt . '</b> gesyncte' . ( 1 === $cnt ? 's' : '' ) . ' Angebot' . ( 1 === $cnt ? '' : 'e' ) . ' werden mit <b>echtem Datum</b>, <b>Positionen (mit Preis)</b> und <b>Netto/Brutto (inkl. korrektem MwSt-Satz)</b> neu materialisiert. Das Datum wird aus der Auftragsnummer auf den <b>Monatsanfang</b> gesetzt (Tag im WP-Spiegel nicht rekonstruierbar):</p>';
 				if ( $skipped > 0 ) { echo '<p style="color:#9a6b25;font-size:12.5px;margin:0 0 8px">' . (int) $skipped . ' weitere Zeile' . ( 1 === $skipped ? '' : 'n' ) . ' mit nicht ermittelbarem Steuerfall (z. B. OSS ohne Desk-Brutto) werden bewusst übersprungen und bleiben auf 0,00 €, bis ein Desk-Re-Push amt/vat_mode liefert.</p>'; }
-				echo '<table class="widefat striped"><thead><tr><th>Nr.</th><th>Kunde</th><th>Datum →</th><th>Positionen</th><th>Netto</th><th>Brutto</th></tr></thead><tbody>';
+				echo '<table class="widefat striped"><thead><tr><th>Nr.</th><th>Kunde</th><th>Status →</th><th>Datum →</th><th>Positionen</th><th>Netto</th><th>Brutto</th></tr></thead><tbody>';
 				foreach ( $cands as $c ) {
-					$p = $c['preview'];
-					echo '<tr><td>' . esc_html( $c['offer_no'] ) . '</td><td>' . esc_html( (string) $p['name'] ) . '</td><td>' . esc_html( (string) $p['date'] ) . '</td><td>' . (int) $p['positions'] . '</td><td>' . esc_html( number_format( (float) $p['net'], 2, ',', '.' ) ) . ' €</td><td>' . esc_html( number_format( (float) $p['gross'], 2, ',', '.' ) ) . ' €</td></tr>';
+					$p    = $c['preview'];
+					$stk  = (string) ( $p['status'] ?? '' );
+					$slbl = isset( $badges[ $stk ] ) ? $badges[ $stk ][0] : ucfirst( $stk );
+					echo '<tr><td>' . esc_html( $c['offer_no'] ) . '</td><td>' . esc_html( (string) $p['name'] ) . '</td><td>' . esc_html( $slbl ) . '</td><td>' . esc_html( (string) $p['date'] ) . '</td><td>' . (int) $p['positions'] . '</td><td>' . esc_html( number_format( (float) $p['net'], 2, ',', '.' ) ) . ' €</td><td>' . esc_html( number_format( (float) $p['gross'], 2, ',', '.' ) ) . ' €</td></tr>';
 				}
 				echo '</tbody></table>';
 				echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="display:flex;gap:10px;align-items:center;margin-top:8px">';
