@@ -751,11 +751,80 @@ class M24_Desk_Inbound {
     /* ── Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren ─────────────── */
 
     /**
-     * Ermittelt für eine Desk-gespiegelte Angebotszeile die zu korrigierenden Felder (Summen/Positionen/Datum).
-     * Idempotent: Gibt null zurück, wenn nichts zu ändern ist (bereits korrekt materialisiert).
-     * @return array{id:int,offer_no:string,changes:array,preview:array}|null
+     * Echtes Angebots-/Sendedatum aus einer Desk-Order-Zeile ziehen. Tolerant gegenüber Feldnamen (der GET-
+     * Payload ist nicht 1:1 dokumentiert): direkte Datumsfelder zuerst (Angebots-/Sendedatum vor „created"),
+     * dann ein etwaiger Statusverlauf (Zeitpunkt des „Angebot gesendet"-Schritts). '' wenn nichts Parsbares.
      */
-    private static function compute_backfill( $o ): ?array {
+    private static function extract_order_date( array $row ): string {
+        foreach ( array( 'offer_date', 'sent_at', 'offer_sent_at', 'angebot_gesendet', 'order_date', 'created_at', 'created' ) as $k ) {
+            if ( isset( $row[ $k ] ) && is_scalar( $row[ $k ] ) && '' !== (string) $row[ $k ] ) {
+                $ms = self::to_mysql_utc( (string) $row[ $k ] );
+                if ( $ms ) { return $ms; }
+            }
+        }
+        foreach ( array( 'status_history', 'history', 'timeline', 'steps_at' ) as $hk ) {
+            if ( empty( $row[ $hk ] ) || ! is_array( $row[ $hk ] ) ) { continue; }
+            foreach ( $row[ $hk ] as $ev ) {
+                if ( ! is_array( $ev ) ) { continue; }
+                $step = strtolower( (string) ( $ev['step'] ?? $ev['status'] ?? $ev['name'] ?? '' ) );
+                if ( in_array( $step, array( 'offer', 'angebot', 'offer_sent', 'sent', 'angebot_gesendet' ), true ) ) {
+                    $t = (string) ( $ev['at'] ?? $ev['date'] ?? $ev['timestamp'] ?? $ev['ts'] ?? '' );
+                    if ( '' !== $t ) { $ms = self::to_mysql_utc( $t ); if ( $ms ) { return $ms; } }
+                }
+            }
+        }
+        return '';
+    }
+
+    /** Desk-Order-Liste aus einer GET-Antwort extrahieren (Wurzel-Array oder unter orders/data/items). */
+    private static function index_order_dates( $data ): array {
+        $list = array();
+        if ( is_array( $data ) ) {
+            if ( isset( $data[0] ) ) { $list = $data; }
+            elseif ( isset( $data['orders'] ) && is_array( $data['orders'] ) ) { $list = $data['orders']; }
+            elseif ( isset( $data['data'] ) && is_array( $data['data'] ) )     { $list = $data['data']; }
+            elseif ( isset( $data['items'] ) && is_array( $data['items'] ) )   { $list = $data['items']; }
+        }
+        $map = array();
+        foreach ( $list as $row ) {
+            if ( ! is_array( $row ) ) { continue; }
+            $oid = (string) ( $row['id'] ?? $row['order_id'] ?? $row['desk_order_id'] ?? '' );
+            if ( '' === $oid ) { continue; }
+            $date = self::extract_order_date( $row );
+            if ( '' !== $date ) { $map[ $oid ] = $date; }
+        }
+        return $map;
+    }
+
+    /**
+     * Echte Angebotsdaten aus dem Desk holen: GET /api/orders (einmal, 120s transient-gecacht) → Map
+     * desk_order_id ⇒ 'Y-m-d H:i:s' UTC. Bestes-Bemühen: nicht konfiguriert / Fehler / unerwartete Form → leer
+     * (der Backfill fällt dann auf den Monatsanfang zurück). KEIN harter Fehler, nie den Backfill blockieren.
+     */
+    public static function fetch_desk_order_dates(): array {
+        $cached = get_transient( 'm24_desk_order_dates' );
+        if ( is_array( $cached ) ) { return $cached; }
+        $map = array();
+        if ( class_exists( 'M24_Rest_Client' ) && M24_Rest_Client::is_configured() ) {
+            $res    = M24_Rest_Client::request( 'GET', '/api/orders', null, array( 'timeout' => 15 ) );
+            $status = (int) ( $res['status'] ?? 0 );
+            if ( $status >= 200 && $status < 300 ) {
+                $map = self::index_order_dates( $res['data'] ?? null );
+                self::log( 'backfill_dates', 'GET /api/orders → ' . count( $map ) . ' Datumsangaben.' );
+            } else {
+                self::log( 'backfill_dates', 'GET /api/orders HTTP ' . $status . ' → Fallback Monatsanfang.' );
+            }
+        }
+        set_transient( 'm24_desk_order_dates', $map, 120 );
+        return $map;
+    }
+
+    /**
+     * Ermittelt für eine Desk-gespiegelte Angebotszeile die zu korrigierenden Felder (Summen/Positionen/Status/Datum).
+     * @param object $o          Angebots-Zeile
+     * @param array  $desk_dates Map desk_order_id ⇒ echtes Datum (aus fetch_desk_order_dates)
+     */
+    private static function compute_backfill( $o, array $desk_dates = array() ): ?array {
         $items_raw = json_decode( (string) $o->items_json, true );
         $items_raw = is_array( $items_raw ) ? $items_raw : array();
         $items     = self::normalize_items( $items_raw );
@@ -790,14 +859,20 @@ class M24_Desk_Inbound {
         $ns        = self::status_from_steps( is_array( $steps_raw ) ? $steps_raw : array(), '' );
         if ( self::status_transition_ok( (string) $o->status, $ns ) ) { $changes['status'] = $ns; }
 
-        // Datum: nur korrigieren, wenn sent_at praktisch = created_at ist (= Sync-Zeit-Default der Alt-Zeilen).
-        // Echte offer_date-Werte (neue Syncs, Tag ≠ Anlage) bleiben unangetastet. Monat aus der Auftragsnummer.
-        $new_sent = null;
-        $st = strtotime( (string) $o->sent_at . ' UTC' );
-        $ct = strtotime( (string) $o->created_at . ' UTC' );
-        if ( $st && $ct && abs( $st - $ct ) < DAY_IN_SECONDS ) {
-            $ms = self::month_start_from_num( (string) ( $o->desk_order_num ?: $o->offer_no ) );
-            if ( $ms && substr( $ms, 0, 7 ) !== substr( (string) $o->sent_at, 0, 7 ) ) { $new_sent = $ms; }
+        // Datum: das ECHTE Desk-Angebotsdatum (per GET /api/orders geholt) hat immer Vorrang. Nur wenn der Desk
+        // keins liefert, Fallback Monatsanfang aus der Nummer — und der nur, wenn sent_at praktisch = created_at
+        // ist (= Sync-Zeit-Default der Alt-Zeilen; echte Datumswerte neuer Syncs bleiben unangetastet).
+        $new_sent  = null;
+        $desk_date = (string) ( $desk_dates[ (string) $o->desk_order_id ] ?? '' );
+        if ( '' !== $desk_date ) {
+            if ( substr( $desk_date, 0, 10 ) !== substr( (string) $o->sent_at, 0, 10 ) ) { $new_sent = $desk_date; } // tagesgenau abweichend → setzen
+        } else {
+            $st = strtotime( (string) $o->sent_at . ' UTC' );
+            $ct = strtotime( (string) $o->created_at . ' UTC' );
+            if ( $st && $ct && abs( $st - $ct ) < DAY_IN_SECONDS ) {
+                $ms = self::month_start_from_num( (string) ( $o->desk_order_num ?: $o->offer_no ) );
+                if ( $ms && substr( $ms, 0, 7 ) !== substr( (string) $o->sent_at, 0, 7 ) ) { $new_sent = $ms; }
+            }
         }
         if ( null !== $new_sent ) { $changes['sent_at'] = $new_sent; }
 
@@ -827,13 +902,14 @@ class M24_Desk_Inbound {
         global $wpdb;
         $t    = M24_Offers::table();
         $rows = $wpdb->get_results( "SELECT * FROM $t WHERE src_json LIKE '%\"desk_origin\":true%' ORDER BY id DESC LIMIT 500" ); // phpcs:ignore WordPress.DB.PreparedSQL
+        $desk_dates = self::fetch_desk_order_dates(); // echtes Angebotsdatum vom Desk (best effort)
         $cands = array(); $skipped = 0;
         foreach ( (array) $rows as $o ) {
-            $c = self::compute_backfill( $o );
+            $c = self::compute_backfill( $o, $desk_dates );
             if ( 'change' === ( $c['status'] ?? '' ) ) { $cands[] = $c; }
             if ( ! empty( $c['totals_skipped'] ) )     { $skipped++; } // Summen bleiben 0,00 (Steuerfall unklar), unabhängig von Status/Datum
         }
-        return array( 'candidates' => $cands, 'skipped' => $skipped );
+        return array( 'candidates' => $cands, 'skipped' => $skipped, 'dates_pulled' => count( $desk_dates ) );
     }
 
     /** POST-Handler: wendet die Korrekturen an (Nonce + Capability). Idempotent → mehrfach ausführbar. */
