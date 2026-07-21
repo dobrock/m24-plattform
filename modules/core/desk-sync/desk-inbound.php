@@ -158,6 +158,13 @@ class M24_Desk_Inbound {
         }
         $stamps = is_array( $p['field_updated_at'] ?? null ) ? $p['field_updated_at'] : array();
 
+        // Löschweitergabe: Desk signalisiert eine Löschung (event/action oder deleted/deleted_at im data-Objekt).
+        // Für Aufträge → Soft-Delete des WP-Spiegels (Papierkorb, Tombstone). Kunden-Delete wird (noch) nicht
+        // durchgereicht (Kundenkonto ≠ Auftrag; separater Vorgang).
+        $event     = strtolower( trim( (string) ( $p['event'] ?? $p['action'] ?? $data['event'] ?? '' ) ) );
+        $is_delete = in_array( $event, array( 'deleted', 'delete', 'removed', 'order.deleted', 'trashed' ), true )
+            || ! empty( $data['deleted'] ) || ! empty( $data['deleted_at'] );
+
         // Teil 3: Replay-Schutz. Kein Key → verarbeiten (LWW ist ohnehin idempotent), aber nichts merken.
         $key = trim( (string) $req->get_header( 'X-Idempotency-Key' ) );
         if ( '' !== $key && get_transient( self::seen_key( $key ) ) ) {
@@ -168,9 +175,13 @@ class M24_Desk_Inbound {
         $prev = self::$applying;
         self::$applying = true; // Teil 5: Echo-Schutz — Outbound-Trigger halten still, solange wir schreiben.
         try {
-            $res = ( 'order' === $entity )
-                ? self::apply_order( $id, $data, $stamps )
-                : self::apply_customer( $id, $data, $stamps );
+            if ( 'order' === $entity && $is_delete ) {
+                $res = self::soft_delete_order( $id );
+            } else {
+                $res = ( 'order' === $entity )
+                    ? self::apply_order( $id, $data, $stamps )
+                    : self::apply_customer( $id, $data, $stamps );
+            }
         } catch ( Exception $e ) {
             self::$applying = $prev;
             // Transient (DB weg o. ä.) → 5xx, damit Desk erneut zustellt.
@@ -272,6 +283,25 @@ class M24_Desk_Inbound {
         self::log( 'applied', 'order #' . $id . ' (' . (string) $o->offer_no . ') — übernommen: ' . implode( ',', $applied )
             . ( $discard ? ' · verworfen (LWW): ' . implode( ',', $discard ) : '' ) );
         return array( 'status' => 'applied', 'entity' => 'order', 'id' => $id, 'applied' => $applied, 'discarded' => $discard );
+    }
+
+    /**
+     * Löschweitergabe Desk→WP: den WP-Spiegel des Auftrags in den Papierkorb (Soft-Delete). Die Zeile bleibt
+     * als Tombstone erhalten (deleted_at gesetzt) → Re-Sync (apply_order-Upsert / 10-Tage-Mirror) findet sie über
+     * desk_order_id und legt sie NICHT wieder als aktiv an. Kein WP-Spiegel → No-op (nichts anzulegen/zu löschen).
+     */
+    private static function soft_delete_order( int $desk_id ): array {
+        global $wpdb; $t = M24_Offers::table();
+        $o = $wpdb->get_row( $wpdb->prepare( "SELECT id, offer_no, deleted_at FROM $t WHERE desk_order_id = %s LIMIT 1", (string) $desk_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( ! $o ) {
+            self::log( 'delete_noop', 'order #' . $desk_id . ' — kein WP-Spiegel vorhanden.' );
+            return array( 'status' => 'delete_noop', 'entity' => 'order', 'id' => $desk_id );
+        }
+        if ( empty( $o->deleted_at ) ) {
+            $wpdb->update( $t, array( 'deleted_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $o->id ) );
+            self::log( 'deleted', 'order #' . $desk_id . ' (' . (string) $o->offer_no . ') → Papierkorb.' );
+        }
+        return array( 'status' => 'deleted', 'entity' => 'order', 'id' => $desk_id, 'offer_id' => (int) $o->id );
     }
 
     /* ── Teil 6: entity=customer ──────────────────────────────────────────── */

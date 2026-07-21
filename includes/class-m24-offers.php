@@ -36,6 +36,7 @@ class M24_Offers {
 		// Cron-Registrierung + Ablauf immer harmlos (no-op ohne Angebote); der Rest ist flag-gated.
 		add_action( self::CRON, array( __CLASS__, 'remind_due' ) ); // 2-Tage-Ablauf-Reminder (VOR expire, solange noch „offen")
 		add_action( self::CRON, array( __CLASS__, 'expire_due' ) );
+		add_action( self::CRON, array( __CLASS__, 'purge_trashed' ) ); // Papierkorb: endgültige Löschung nach 10 Tagen
 		if ( ! wp_next_scheduled( self::CRON ) && self::enabled() ) {
 			wp_schedule_event( time() + 3600, 'daily', self::CRON );
 		}
@@ -109,18 +110,28 @@ class M24_Offers {
 		);
 		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 
-		// Zeilen-Aktion (Stornieren/Löschen/Reaktivieren) — nur Admin, nonce-geschützt. Idempotent → Refresh unschädlich.
+		// Zeilen-Aktion (Stornieren/Papierkorb/Wiederherstellen/…) — nur Admin, nonce-geschützt. Idempotent → Refresh unschädlich.
 		$notice = '';
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'reactivate', 'paid' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
 				if ( 'delete' === $do ) {
+					// Soft-Delete → Papierkorb (10 Tage wiederherstellbar). Bleibt als Tombstone: Re-Sync legt
+					// die gesyncte Zeile über die vorhandene desk_order_id NICHT wieder als aktiv an.
+					$wpdb->update( $t, array( 'deleted_at' => current_time( 'mysql', true ) ), array( 'id' => $id ) );
+					self::log( 'trashed', $id, $no );
+					$notice = 'Angebot ' . $no . ' in den Papierkorb verschoben (10 Tage wiederherstellbar).';
+				} elseif ( 'restore' === $do ) {
+					$wpdb->update( $t, array( 'deleted_at' => null ), array( 'id' => $id ) );
+					self::log( 'restored', $id, $no );
+					$notice = 'Angebot ' . $no . ' wiederhergestellt.';
+				} elseif ( 'purge' === $do ) {
 					$wpdb->delete( $t, array( 'id' => $id ) );
-					self::log( 'deleted', $id, $no );
-					$notice = 'Angebot ' . $no . ' gelöscht.';
+					self::log( 'purged', $id, $no );
+					$notice = 'Angebot ' . $no . ' endgültig gelöscht.';
 				} elseif ( 'storno' === $do ) {
 					$wpdb->update( $t, array( 'status' => 'storniert' ), array( 'id' => $id ) );
 					self::log( 'cancelled', $id, $no );
@@ -139,10 +150,15 @@ class M24_Offers {
 		$f_st = isset( $_GET['st'] ) ? sanitize_key( wp_unslash( $_GET['st'] ) ) : '';            // phpcs:ignore WordPress.Security.NonceVerification
 		$f_s  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';        // phpcs:ignore WordPress.Security.NonceVerification
 		$f_nv = isset( $_GET['nv'] ) ? (int) $_GET['nv'] : 0;                                       // phpcs:ignore WordPress.Security.NonceVerification — „nicht angesehen"
+		$f_trash = isset( $_GET['trash'] ) ? (int) $_GET['trash'] : 0;                              // phpcs:ignore WordPress.Security.NonceVerification — Papierkorb-Ansicht
+
+		// Papierkorb-Zähler (gelöschte Zeilen) für die Chip-Beschriftung.
+		$trash_n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE deleted_at IS NOT NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		$where = array( '1=1' ); $args = array();
-		if ( isset( $badges[ $f_st ] ) ) { $where[] = 'status = %s'; $args[] = $f_st; }
-		if ( $f_nv ) { $where[] = "viewed_last_at IS NULL AND status <> 'entwurf'"; } // nur versendete, vom Kunden noch nicht geöffnete
+		$where[] = $f_trash ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL'; // Papierkorb vs. aktive Angebote
+		if ( ! $f_trash && isset( $badges[ $f_st ] ) ) { $where[] = 'status = %s'; $args[] = $f_st; }
+		if ( ! $f_trash && $f_nv ) { $where[] = "viewed_last_at IS NULL AND status <> 'entwurf'"; } // nur versendete, vom Kunden noch nicht geöffnete
 		if ( '' !== $f_s ) { $like = '%' . $wpdb->esc_like( $f_s ) . '%'; $where[] = '( offer_no LIKE %s OR customer_json LIKE %s )'; $args[] = $like; $args[] = $like; }
 		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
@@ -171,6 +187,10 @@ class M24_Offers {
 		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'versandt', 'erledigt', 'abgelehnt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		// „Nicht angesehen"-Chip: toggelt nv (unabhängig vom Status-Filter), Suche bleibt erhalten.
 		echo '<a class="chip' . ( $f_nv ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nv' => ( $f_nv ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '">Nicht angesehen</a>';
+		// Papierkorb-Chip (nur wenn etwas drin liegt oder gerade aktiv): Soft-Delete-Ansicht mit Wiederherstellen.
+		if ( $trash_n > 0 || $f_trash ) {
+			echo '<a class="chip' . ( $f_trash ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'page' => $page, 'trash' => ( $f_trash ? 0 : 1 ) ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#6b7280;color:#374151;">🗑 Papierkorb (' . (int) $trash_n . ')</a>';
+		}
 		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'backfill' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#c8a24a;color:#9a6b25;">↻ Gesyncte Angebote nachziehen</a>';
 		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'mirror' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#0e447e;color:#0e447e;">⇩ Desk-Aufträge (10 Tage) spiegeln</a>';
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
@@ -274,6 +294,8 @@ class M24_Offers {
 			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_restore = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'restore', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_purge   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'purge', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$cnt      = count( $items );
 			$is_draft = ( 'entwurf' === (string) $o->status );
 			$no_disp  = $is_draft ? '—' : (string) $o->offer_no;
@@ -318,16 +340,24 @@ class M24_Offers {
 			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
 			echo '<div class="foot">';
-			if ( $is_draft ) {
-				// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
-				$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
-				echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>'; // D3: gleiches Fenster
+			if ( $f_trash ) {
+				// Papierkorb-Zeile: nur Wiederherstellen + endgültig löschen (keine Storno-/Ansicht-Aktionen).
+				echo '<a href="' . esc_url( $u_restore ) . '" style="color:#1a7f37;font-weight:700;">Wiederherstellen</a>';
+				$del_days = ! empty( $o->deleted_at ) && ( $dts = strtotime( (string) $o->deleted_at . ' UTC' ) ) ? max( 0, 10 - (int) floor( ( time() - $dts ) / DAY_IN_SECONDS ) ) : 10;
+				echo '<span style="color:#8a929c;font-size:12px;">Auto-Löschung in ' . (int) $del_days . ' Tag' . ( 1 === $del_days ? '' : 'en' ) . '</span>';
+				echo '<a href="' . esc_url( $u_purge ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'Angebot ' . esc_js( (string) $o->offer_no ) . ' ENDGÜLTIG löschen? (nicht wiederherstellbar)\');">Endgültig löschen</a></div></div>';
 			} else {
-				echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
-				if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
-				if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
+				if ( $is_draft ) {
+					// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
+					$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
+					echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>'; // D3: gleiches Fenster
+				} else {
+					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
+					if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
+				}
+				echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' in den Papierkorb verschieben?\');">Löschen</a></div></div>';
 			}
-			echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' unwiderruflich löschen?\');">Löschen</a></div></div>';
 		}
 		// #10: Karte anklickbar → Positionsliste ein-/ausklappen (Delegated-Toggle, aria-expanded).
 		echo '<script>(function(){document.addEventListener("click",function(e){var h=e.target.closest?e.target.closest("[data-offer-toggle]"):null;if(!h)return;var pl=h.parentNode&&h.parentNode.querySelector(".m24offl-pos");if(!pl)return;var wasHidden=pl.hasAttribute("hidden");if(wasHidden){pl.removeAttribute("hidden");}else{pl.setAttribute("hidden","");}h.setAttribute("aria-expanded",wasHidden?"true":"false");});})();</script>';
@@ -1686,6 +1716,18 @@ class M24_Offers {
 	}
 
 	/* ── Phase 2: „bezahlt"-Rücksync + manueller Fallback ───────────────── */
+
+	/**
+	 * Papierkorb-Auto-Purge: Angebote, die länger als 10 Tage im Papierkorb liegen, endgültig löschen.
+	 * Täglich per Cron. Reine WP-Zeilen-Löschung — etwaige R2-Dokumente räumt der Desk (Auftrag dort gelöscht).
+	 */
+	public static function purge_trashed(): void {
+		global $wpdb;
+		$t   = self::table();
+		$cut = gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS );
+		$n   = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE deleted_at IS NOT NULL AND deleted_at < %s", $cut ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $n > 0 ) { self::log( 'purge_trashed', 0, $n . ' Angebote endgültig gelöscht (>10 Tage im Papierkorb)' ); }
+	}
 
 	public static function mark_paid( int $offer_id, string $source ): bool {
 		global $wpdb;
