@@ -14,7 +14,8 @@ declare(strict_types=1);
  *   - Normalisierung: mb_strtolower(trim(input))   (Ansatz A strippt zusätzlich ein
  *     optional führendes Flaggen-Emoji — im Desk macht das der Aufrufer)
  *   - Fallback: 5-stellige Zahl -> DE, Wort "bei" -> DE, sonst ''
- *   - Label = Flagge + ' ' + roher Eingabetext (KEINE Kanonisierung von "USA")
+ *   - Label = Flagge + ' ' + Eingabetext OHNE führende Flagge (KEINE Kanonisierung von "USA";
+ *     ein bereits vorhandenes Flaggen-Präfix wird entfernt → nie doppelte Flagge, z. B. Desk „🇨🇭 Schweiz")
  *   - leere Eingabe: getFlag('')='' , getFlagAndCountry('')='—'
  */
 final class CountryFlags
@@ -146,25 +147,33 @@ final class CountryFlags
         return self::isoToFlag(self::countryToIso2($input));
     }
 
-    /** Land -> "Flagge Label" (Label = roher Eingabetext); leer -> '—' */
+    /**
+     * Land -> "Flagge Label"; leer -> '—'.
+     * Label = Eingabetext OHNE ein evtl. bereits vorhandenes führendes Flaggen-Emoji — sonst entsteht eine
+     * Dopplung, wenn der Wert schon mit Flagge kommt (Desk-Sync liefert orders.country als „🇨🇭 Schweiz").
+     * Genau EINE Flagge wird frisch aus dem (intern ohnehin flaggenbereinigten) Wert abgeleitet.
+     */
     public static function getFlagAndCountry(?string $input): string
     {
         if ($input === null || $input === '') return '—';
-        $flag = self::getFlag($input);
-        return $flag !== '' ? $flag . ' ' . $input : $input;
+        $label = trim(self::stripLeadingFlag($input));
+        $flag  = self::getFlag($input);
+        if ($label === '') return $flag !== '' ? $flag : '—'; // Eingabe war nur eine Flagge
+        return $flag !== '' ? $flag . ' ' . $label : $label;
     }
 
     /** strukturiert: flag / label / iso2 getrennt */
     public static function resolve(?string $input): array
     {
-        $iso2 = self::countryToIso2($input);
-        $flag = self::isoToFlag($iso2);
-        $in   = $input ?? '';
+        $iso2  = self::countryToIso2($input);
+        $flag  = self::isoToFlag($iso2);
+        $in    = $input ?? '';
+        $label = trim(self::stripLeadingFlag($in)); // führende Flagge aus dem Label entfernen (keine Dopplung)
         return [
             'input' => $in,
             'iso2'  => $iso2,
             'flag'  => $flag,
-            'label' => $flag !== '' ? $flag . ' ' . $in : $in,
+            'label' => ($flag !== '' && $label !== '') ? $flag . ' ' . $label : ($label !== '' ? $label : $flag),
         ];
     }
 
