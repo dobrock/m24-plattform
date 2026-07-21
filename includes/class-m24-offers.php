@@ -149,8 +149,10 @@ class M24_Offers {
 		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
 		// Backfill-Erfolgsmeldung (inline gerendert).
 		if ( 'backfill' === ( isset( $_GET['done'] ) ? sanitize_key( wp_unslash( $_GET['done'] ) ) : '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-			$bn  = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
-			$btx = $bn > 0 ? sprintf( '✓ %d gesyncte%s Angebot%s neu materialisiert (Datum · Positionen · Summen).', $bn, 1 === $bn ? 's' : '', 1 === $bn ? '' : 'e' ) : 'Keine gesyncten Angebote mit Korrekturbedarf gefunden.';
+			$bn   = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0;    // phpcs:ignore WordPress.Security.NonceVerification
+			$bsk  = isset( $_GET['skip'] ) ? max( 0, (int) $_GET['skip'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+			$btx  = $bn > 0 ? sprintf( '✓ %d gesyncte%s Angebot%s neu materialisiert (Datum · Positionen · Summen).', $bn, 1 === $bn ? 's' : '', 1 === $bn ? '' : 'e' ) : 'Keine gesyncten Angebote mit Korrekturbedarf gefunden.';
+			if ( $bsk > 0 ) { $btx .= sprintf( ' %d Zeile%s mit nicht ermittelbarem Steuerfall übersprungen (bleibt auf 0,00 bis Desk-Re-Push).', $bsk, 1 === $bsk ? '' : 'n' ); }
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $btx ) . '</p></div>';
 		}
 		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS' ); // #9: „Drittland · netto" raus
@@ -168,15 +170,18 @@ class M24_Offers {
 		// Vorschau-Panel „Gesyncte Angebote nachziehen": listet die Zeilen mit Korrekturbedarf (Datum/Positionen/
 		// Summen), erst der zweite Button wendet an. Nonce + Capability wie beim POST-Handler.
 		if ( 'preview' === ( isset( $_GET['backfill'] ) ? sanitize_key( wp_unslash( $_GET['backfill'] ) ) : '' ) && class_exists( 'M24_Desk_Inbound' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-			$cands  = M24_Desk_Inbound::find_backfill_candidates();
-			$cancel = esc_url( add_query_arg( array( 'page' => $page ), admin_url( 'admin.php' ) ) );
+			$bres    = M24_Desk_Inbound::find_backfill_candidates();
+			$cands   = $bres['candidates'];
+			$skipped = (int) $bres['skipped'];
+			$cancel  = esc_url( add_query_arg( array( 'page' => $page ), admin_url( 'admin.php' ) ) );
 			echo '<div style="max-width:1000px;background:#fff;border:1.5px solid #c8a24a;border-radius:12px;padding:18px 20px;margin:0 0 18px">';
 			echo '<h2 style="margin:0 0 8px;font-size:16px">Gesyncte Angebote nachziehen</h2>';
 			if ( empty( $cands ) ) {
-				echo '<p>Keine gesyncten Angebote mit Korrekturbedarf — alles bereits korrekt materialisiert.</p><a class="chip" href="' . $cancel . '">Zurück</a>';
+				echo '<p>Keine gesyncten Angebote mit Korrekturbedarf — alles bereits korrekt materialisiert' . ( $skipped > 0 ? ' (' . $skipped . ' mit nicht ermittelbarem Steuerfall übersprungen)' : '' ) . '.</p><a class="chip" href="' . $cancel . '">Zurück</a>';
 			} else {
 				$cnt = count( $cands );
-				echo '<p>Folgende <b>' . (int) $cnt . '</b> gesyncte' . ( 1 === $cnt ? 's' : '' ) . ' Angebot' . ( 1 === $cnt ? '' : 'e' ) . ' werden mit <b>echtem Datum</b>, <b>Positionen (mit Preis)</b> und <b>Netto/Brutto</b> neu materialisiert. Das Datum wird aus der Auftragsnummer auf den <b>Monatsanfang</b> gesetzt (Tag im WP-Spiegel nicht rekonstruierbar):</p>';
+				echo '<p>Folgende <b>' . (int) $cnt . '</b> gesyncte' . ( 1 === $cnt ? 's' : '' ) . ' Angebot' . ( 1 === $cnt ? '' : 'e' ) . ' werden mit <b>echtem Datum</b>, <b>Positionen (mit Preis)</b> und <b>Netto/Brutto (inkl. korrektem MwSt-Satz)</b> neu materialisiert. Das Datum wird aus der Auftragsnummer auf den <b>Monatsanfang</b> gesetzt (Tag im WP-Spiegel nicht rekonstruierbar):</p>';
+				if ( $skipped > 0 ) { echo '<p style="color:#9a6b25;font-size:12.5px;margin:0 0 8px">' . (int) $skipped . ' weitere Zeile' . ( 1 === $skipped ? '' : 'n' ) . ' mit nicht ermittelbarem Steuerfall (z. B. OSS ohne Desk-Brutto) werden bewusst übersprungen und bleiben auf 0,00 €, bis ein Desk-Re-Push amt/vat_mode liefert.</p>'; }
 				echo '<table class="widefat striped"><thead><tr><th>Nr.</th><th>Kunde</th><th>Datum →</th><th>Positionen</th><th>Netto</th><th>Brutto</th></tr></thead><tbody>';
 				foreach ( $cands as $c ) {
 					$p = $c['preview'];

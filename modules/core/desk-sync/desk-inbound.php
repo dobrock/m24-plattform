@@ -460,7 +460,9 @@ class M24_Desk_Inbound {
         if ( is_string( $items_raw ) ) { $items_raw = json_decode( $items_raw, true ); }
         if ( ! is_array( $items_raw ) ) { $items_raw = array(); }
         $items    = self::normalize_items( $items_raw );
-        $vat_mode = sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) );
+        // Desk-vat_mode → WP-tax_mode-Key speichern, damit der ganze WP-Stack (Labels, compute_totals,
+        // Kunden-Ansicht) den Steuerfall korrekt kennt (roher Desk-Wert = Rate 0).
+        $vat_mode = self::vat_to_wp_taxmode( sanitize_text_field( (string) ( $data['vat_mode'] ?? '' ) ) );
         $tot      = self::derive_totals( $items, $vat_mode, $cland, (float) ( $data['amt'] ?? 0 ) );
         $net   = $tot['net'];
         $tax   = $tot['tax'];
@@ -627,31 +629,77 @@ class M24_Desk_Inbound {
         return $out;
     }
 
+    /** Deutscher Kunde? (Land verbatim: 'DE'/'Deutschland'/'Germany'/…). */
+    private static function is_de_land( string $land ): bool {
+        return in_array( strtoupper( trim( $land ) ), array( 'DE', 'D', 'DEU', 'DEUTSCHLAND', 'GERMANY' ), true );
+    }
+
     /**
-     * Summen aus Positionen + Desk-Brutto (amt) ableiten. Autorität für den Brutto ist amt (falls >0),
-     * sonst die Positionssumme. Netto/USt konsistent zum Steuermodus: DE-Satz ohne §25a → Netto =
-     * Brutto/(1+Satz) (cent-genau = Desk-Brutto); net-Modi → USt 0; §25a separat (ohne ausweisbare USt).
-     * @return array{net:float,tax:float,gross:float,rate:float}
+     * Desk-vat_mode (b2b_de/b2c_de/b2b_eu/b2c_eu/b2c_export) → WP-tax_mode-Key
+     * (b2b_de_19/b2b_eu_net/b2c_eu_oss/drittland_net). Der WP-Stack (Labels, compute_totals, Kunden-Ansicht)
+     * kennt NUR die WP-Keys — der rohe Desk-Wert fiele dort auf Rate 0. Unbekannt → unverändert.
+     */
+    public static function vat_to_wp_taxmode( string $m ): string {
+        switch ( $m ) {
+            case 'b2b_de': case 'b2c_de': case 'b2b_de_19': return 'b2b_de_19';
+            case 'b2b_eu': case 'b2b_eu_net':               return 'b2b_eu_net';
+            case 'b2c_eu': case 'b2c_eu_oss':               return 'b2c_eu_oss';
+            case 'b2c_export': case 'drittland_net':        return 'drittland_net';
+        }
+        return $m;
+    }
+
+    /**
+     * Steuersatz + Bestimmbarkeit für einen (WP- oder Desk-)Steuerfall. 'known'=false → der korrekte
+     * Satz ist ohne Brutto-Anker nicht ermittelbar (OSS-Zielland-Satz / unbekannter Fall bei Nicht-DE).
+     * @return array{rate:float,known:bool}
+     */
+    private static function tax_rate_for_mode( string $mode, string $land ): array {
+        if ( in_array( $mode, array( 'b2b_de_19', 'b2b_de', 'b2c_de' ), true ) ) { return array( 'rate' => 19.0, 'known' => true ); }
+        if ( in_array( $mode, array( 'b2b_eu_net', 'b2b_eu', 'drittland_net', 'b2c_export' ), true ) ) { return array( 'rate' => 0.0, 'known' => true ); }
+        if ( in_array( $mode, array( 'b2c_eu_oss', 'b2c_eu' ), true ) ) { return array( 'rate' => 0.0, 'known' => false ); } // OSS: Satz ohne Brutto unbekannt
+        if ( self::is_de_land( $land ) ) { return array( 'rate' => 19.0, 'known' => true ); } // unbekannter Modus, aber DE → 19 %
+        return array( 'rate' => 0.0, 'known' => false );
+    }
+
+    /**
+     * Summen aus Positionen + (falls vorhanden) Desk-Brutto ableiten — cent-genau = Desk.
+     *   Autorität Brutto = amt (falls >0); sonst aus Netto × (1+Satz) rekonstruiert.
+     *   DE-19 (ohne §25a) → Netto/USt via Satz; net-Modi → USt 0, Brutto = Netto; §25a aus der Steuerbasis raus.
+     *   'determinable' = false NUR wenn KEIN Brutto-Anker (amt<=0) UND der Satz nicht bestimmbar ist (OSS/unbek.
+     *   Nicht-DE) — dann darf der Backfill NICHT mit Brutto=Netto „heilen" (sähe echt aus, wäre falsch).
+     * @return array{net:float,tax:float,gross:float,rate:float,determinable:bool}
      */
     public static function derive_totals( array $items, string $vat_mode, string $land, float $amt ): array {
-        $bd     = M24_Offers::compute_totals( $items, array(), $vat_mode, 0.0, $land );
-        $rate   = (float) ( $bd['rate'] ?? 0 );
-        $has25a = (float) ( $bd['st25a'] ?? 0 ) > 0.0;
+        $net_reg = 0.0; $st25a = 0.0;
+        foreach ( $items as $it ) {
+            $line = (float) ( $it['unit_price'] ?? 0 ) * max( 1, (int) ( $it['qty'] ?? 1 ) );
+            if ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ) { $st25a += $line; } else { $net_reg += $line; }
+        }
+        $r      = self::tax_rate_for_mode( $vat_mode, $land );
+        $rate   = (float) $r['rate'];
+        $has25a = $st25a > 0.0;
+
         if ( $amt > 0.0 ) {
+            // Brutto-Anker vorhanden → Desk-Brutto ist die Wahrheit; Netto/USt konsistent dazu.
             $gross = round( $amt, 2 );
             if ( $rate > 0.0 && ! $has25a ) {
                 $net = round( $gross / ( 1 + $rate / 100 ), 2 );
                 $tax = round( $gross - $net, 2 );
             } else {
-                $net = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
-                $tax = round( (float) $bd['tax'], 2 );
+                $net = round( $net_reg + $st25a, 2 );
+                $tax = round( max( 0.0, $gross - $net ), 2 );
             }
-        } else {
-            $gross = round( (float) $bd['total'], 2 );
-            $net   = round( (float) $bd['net'] + (float) $bd['st25a'], 2 );
-            $tax   = round( (float) $bd['tax'], 2 );
+            return array( 'net' => $net, 'tax' => $tax, 'gross' => $gross, 'rate' => $rate, 'determinable' => true );
         }
-        return array( 'net' => $net, 'tax' => $tax, 'gross' => $gross, 'rate' => $rate );
+
+        // Kein Brutto-Anker → aus dem Steuersatz rekonstruieren; unbestimmbar → Signal an den Aufrufer.
+        if ( ! $r['known'] ) {
+            return array( 'net' => round( $net_reg + $st25a, 2 ), 'tax' => 0.0, 'gross' => 0.0, 'rate' => $rate, 'determinable' => false );
+        }
+        $net = round( $net_reg + $st25a, 2 );
+        $tax = round( $net_reg * $rate / 100, 2 ); // §25a nicht besteuert
+        return array( 'net' => $net, 'tax' => $tax, 'gross' => round( $net + $tax, 2 ), 'rate' => $rate, 'determinable' => true );
     }
 
     /** Monatsanfang (UTC) aus einer YYYYMM…-Auftragsnummer ("202606127" → "2026-06-01 00:00:00"). Sonst null. */
@@ -673,10 +721,17 @@ class M24_Desk_Inbound {
 
         $cust = json_decode( (string) $o->customer_json, true );
         $land = is_array( $cust ) ? (string) ( $cust['land'] ?? '' ) : '';
-        // Vorhandener Brutto als Autorität (falls schon >0 gesetzt); sonst 0 → aus den Positionen rechnen.
-        $tot = self::derive_totals( $items, (string) $o->tax_mode, $land, (float) $o->total_gross );
+        // Steuerfall auf den WP-Key normalisieren (Alt-Zeilen tragen den rohen Desk-vat_mode → sonst Rate 0).
+        $wp_mode = self::vat_to_wp_taxmode( (string) $o->tax_mode );
+        // Vorhandener Brutto als Autorität (falls schon >0 gesetzt); sonst 0 → aus Netto × (1+Satz) rekonstruieren.
+        $tot = self::derive_totals( $items, $wp_mode, $land, (float) $o->total_gross );
+
+        // Steuerfall nicht ermittelbar (OSS/unbekannt, kein Brutto-Anker) → NICHT mit Brutto=Netto „heilen".
+        // Zeile bleibt bewusst auf dem Platzhalter (0,00), bis ein Desk-Re-Push amt/vat_mode liefert.
+        if ( empty( $tot['determinable'] ) ) { return array( 'status' => 'skip' ); }
 
         $changes = array();
+        if ( $wp_mode !== (string) $o->tax_mode )                     { $changes['tax_mode']     = $wp_mode; }
         if ( round( (float) $o->subtotal_net, 2 ) !== $tot['net'] )   { $changes['subtotal_net'] = $tot['net']; }
         if ( round( (float) $o->tax_amount, 2 )   !== $tot['tax'] )   { $changes['tax_amount']   = $tot['tax']; }
         if ( round( (float) $o->total_gross, 2 )  !== $tot['gross'] ) { $changes['total_gross']  = $tot['gross']; }
@@ -699,8 +754,9 @@ class M24_Desk_Inbound {
         }
         if ( null !== $new_sent ) { $changes['sent_at'] = $new_sent; }
 
-        if ( empty( $changes ) ) { return null; }
+        if ( empty( $changes ) ) { return array( 'status' => 'nochange' ); }
         return array(
+            'status'   => 'change',
             'id'       => (int) $o->id,
             'offer_no' => (string) $o->offer_no,
             'changes'  => $changes,
@@ -714,17 +770,21 @@ class M24_Desk_Inbound {
         );
     }
 
-    /** Alle Desk-gespiegelten Angebote (src_json.desk_origin) mit ausstehender Korrektur. */
+    /**
+     * Desk-gespiegelte Angebote (src_json.desk_origin) auswerten.
+     * @return array{candidates:array,skipped:int}  candidates = Zeilen mit Korrektur; skipped = unbestimmbare (übersprungen)
+     */
     public static function find_backfill_candidates(): array {
         global $wpdb;
         $t    = M24_Offers::table();
         $rows = $wpdb->get_results( "SELECT * FROM $t WHERE src_json LIKE '%\"desk_origin\":true%' ORDER BY id DESC LIMIT 500" ); // phpcs:ignore WordPress.DB.PreparedSQL
-        $out  = array();
+        $cands = array(); $skipped = 0;
         foreach ( (array) $rows as $o ) {
             $c = self::compute_backfill( $o );
-            if ( null !== $c ) { $out[] = $c; }
+            if ( 'change' === ( $c['status'] ?? '' ) )    { $cands[] = $c; }
+            elseif ( 'skip' === ( $c['status'] ?? '' ) )  { $skipped++; }
         }
-        return $out;
+        return array( 'candidates' => $cands, 'skipped' => $skipped );
     }
 
     /** POST-Handler: wendet die Korrekturen an (Nonce + Capability). Idempotent → mehrfach ausführbar. */
@@ -732,15 +792,16 @@ class M24_Desk_Inbound {
         if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
         check_admin_referer( 'm24_backfill_synced_offers' );
         global $wpdb;
-        $t = M24_Offers::table();
-        $n = 0;
-        foreach ( self::find_backfill_candidates() as $c ) {
+        $t   = M24_Offers::table();
+        $res = self::find_backfill_candidates();
+        $n   = 0;
+        foreach ( $res['candidates'] as $c ) {
             if ( false !== $wpdb->update( $t, $c['changes'], array( 'id' => $c['id'] ) ) ) {
                 $n++;
                 self::log( 'backfill', 'Angebot ' . $c['offer_no'] . ' (#' . $c['id'] . ') neu materialisiert: ' . wp_json_encode( array_keys( $c['changes'] ) ) );
             }
         }
-        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n ), admin_url( 'admin.php' ) ) );
+        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n, 'skip' => (int) $res['skipped'] ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
