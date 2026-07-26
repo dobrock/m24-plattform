@@ -1071,10 +1071,12 @@ class M24_Offers {
 			M24_Login::create_account_and_send_link( $customer['email'], $customer['name'] );
 			$register_link = true;
 		}
-		self::send_offer_mail( $offer_id );
-
-		// Desk-Push folgt in Phase 2 (interface-only, no-op ohne M24_DESK_TOKEN).
-		do_action( 'm24_offer_sent', $offer_id );
+		// Reihenfolge: ERST W1 (POST /api/orders) → setzt desk_order_num/desk_order_id auf der Zeile, DANN Mail
+		// mit [order_num] im Betreff. Resend erkennen: war schon eine Desk-Order-ID gesetzt, ist dies ein erneuter
+		// Versand (Angebot bereits im Desk) → mail_type 'offer_resend', sonst 'offer'.
+		$prior_desk = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT desk_order_id FROM ' . self::table() . ' WHERE id = %d', $offer_id ) );
+		do_action( 'm24_offer_sent', $offer_id );                       // W1-Push (synchron) → desk_order_num/desk_order_id
+		self::send_offer_mail( $offer_id, '' !== trim( $prior_desk ) ? 'offer_resend' : 'offer' );
 
 		return rest_ensure_response( array(
 			'ok' => true, 'offer_no' => $offer_no, 'token' => $token,
@@ -1799,5 +1801,5 @@ class M24_Offers {
 	// zu halten (render + Mail sind reine Ausgabe). Eingebunden per require in init-Kontext.
 	public static function maybe_render_operator() { M24_Offers_Render::operator(); }
 	public static function maybe_render_customer() { M24_Offers_Render::customer(); }
-	public static function send_offer_mail( int $offer_id ) { M24_Offers_Render::mail( $offer_id ); }
+	public static function send_offer_mail( int $offer_id, string $mail_type = 'offer' ) { M24_Offers_Render::mail( $offer_id, false, $mail_type ); }
 }

@@ -1065,7 +1065,7 @@ class M24_Offers_Render {
 
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
 
-	public static function mail( $offer_id, bool $return_html = false ) {
+	public static function mail( $offer_id, bool $return_html = false, string $mail_type = 'offer' ) {
 		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id ); // #11: Objekt (Vorschau) oder ID
 		if ( ! $o ) { return $return_html ? '' : null; }
 		$cust   = json_decode( (string) $o->customer_json, true ) ?: array();
@@ -1173,7 +1173,16 @@ class M24_Offers_Render {
 		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang, 'footer_legal_slim' => true ) ) : $inner;
 		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
-		wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <service@motorsport24.de>' ) );
+		// Betreff-Token: die DESK-order_num (202607xxx aus der W1-Response) als [order_num] anhängen — der Desk
+		// scannt Antworten darauf. NICHT die WP-Nummer 2026-xxxx. Fehlt sie (Desk aus/Dry-Run) → ohne Token.
+		$desk_num = trim( (string) $o->desk_order_num );
+		if ( '' !== $desk_num ) { $subj .= ' [' . $desk_num . ']'; }
+		// Absender orders@ (Antworten scannt das Desk); KEIN Reply-To, das From überschreibt.
+		$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <orders@motorsport24.de>' ) );
+		// Mail protokollieren (POST /api/orders/:id/mails, retry-gestützt, Endpoint dedupliziert selbst).
+		if ( $sent && class_exists( 'M24_Desk_Push' ) ) {
+			M24_Desk_Push::log_offer_mail( (int) $o->id, $subj, $email, in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer', $html );
+		}
 	}
 
 	/* ── Ablauf-Reminder-Mail (m24_mail_shell) ──────────────────────────── */

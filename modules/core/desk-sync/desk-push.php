@@ -472,6 +472,9 @@ class M24_Desk_Push {
                 self::push_customer( (int) $uid, false );
             }
         }
+
+        // Vorgemerkte Mail-Protokolle erneut zustellen (POST /api/orders/:id/mails, Endpoint dedupliziert).
+        self::retry_mail_log_queue();
     }
 
     /* ── Admin-Aktionen (Monitor) ─────────────────────────────────────────── */
@@ -832,6 +835,69 @@ class M24_Desk_Push {
             ? m24_mail_shell( 'Desk-Update fehlgeschlagen — ' . $op, '<pre style="font:13px/1.6 monospace;white-space:pre-wrap;">' . esc_html( implode( "\n", $lines ) ) . '</pre>', array( 'lang' => 'de', 'footer_legal_slim' => true ) )
             : nl2br( esc_html( implode( "\n", $lines ) ) );
         wp_mail( $to, 'Desk-Update fehlgeschlagen — ' . $op, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    /* ── Mail-Protokoll (POST /api/orders/:id/mails) ──────────────────────── */
+
+    const MAIL_LOG_QUEUE = 'm24_desk_mail_log_queue';
+
+    /**
+     * Versendete Angebots-Mail beim Desk protokollieren. Ziel ist der Desk-Auftrag des Angebots
+     * (desk_order_id). Bei Erfolg fertig; bei Fehler in die Retry-Queue (der Endpoint dedupliziert selbst →
+     * Wiederholung ist gefahrlos). Ohne Desk-Auftrag (Dry-Run/Desk aus) → still übersprungen.
+     */
+    public static function log_offer_mail( int $offer_id, string $subject, string $to, string $mail_type, string $body = '' ): void {
+        if ( ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return; }
+        $o = M24_Offers::get_by_id( $offer_id );
+        if ( ! $o ) { return; }
+        $desk_id = trim( (string) $o->desk_order_id );
+        if ( '' === $desk_id ) { return; } // kein Desk-Auftrag → kein Ziel
+        $payload = array(
+            'subject'   => mb_substr( $subject, 0, 255 ),
+            'to'        => $to,
+            'mail_type' => in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer',
+            'sent_at'   => self::iso_ms(),
+            'body'      => mb_substr( (string) $body, 0, 100000 ),
+        );
+        if ( ! self::post_mail_log( $desk_id, $payload ) ) {
+            self::enqueue_mail_log( $desk_id, $payload );
+        }
+    }
+
+    /** Einzelner POST an den Protokoll-Endpoint. true = übernommen (2xx/409-dedupe). */
+    private static function post_mail_log( string $desk_id, array $payload ): bool {
+        $res    = M24_Rest_Client::request( 'POST', '/api/orders/' . rawurlencode( $desk_id ) . '/mails', $payload, array( 'timeout' => self::TIMEOUT ) );
+        $status = (int) ( $res['status'] ?? 0 );
+        if ( in_array( $status, array( 200, 201, 409 ), true ) ) {
+            self::log( 0, 'mail_logged', 'order ' . $desk_id . ' · ' . (string) $payload['mail_type'] . ' · HTTP ' . $status );
+            return true;
+        }
+        self::log( 0, 'mail_log_failed', 'order ' . $desk_id . ' · HTTP ' . $status . ' → Retry-Queue' );
+        return false;
+    }
+
+    /** Fehlgeschlagenes Mail-Protokoll für den 4h-Retry vormerken (gedeckelt). */
+    private static function enqueue_mail_log( string $desk_id, array $payload ): void {
+        $q = get_option( self::MAIL_LOG_QUEUE, array() );
+        if ( ! is_array( $q ) ) { $q = array(); }
+        $q[] = array( 'desk_id' => $desk_id, 'payload' => $payload, 'tries' => 0 );
+        if ( count( $q ) > 200 ) { $q = array_slice( $q, -200 ); } // Deckel gegen Wildwuchs
+        update_option( self::MAIL_LOG_QUEUE, $q, false );
+    }
+
+    /** Retry der vorgemerkten Mail-Protokolle (aus run_retry). Erfolg/aufgegeben → raus, sonst tries++. */
+    private static function retry_mail_log_queue(): void {
+        $q = get_option( self::MAIL_LOG_QUEUE, array() );
+        if ( ! is_array( $q ) || ! $q ) { return; }
+        $keep = array();
+        foreach ( $q as $e ) {
+            $tries = (int) ( $e['tries'] ?? 0 );
+            if ( $tries >= self::MAX_TRIES ) { continue; } // aufgegeben
+            if ( self::post_mail_log( (string) ( $e['desk_id'] ?? '' ), (array) ( $e['payload'] ?? array() ) ) ) { continue; }
+            $e['tries'] = $tries + 1;
+            $keep[]     = $e;
+        }
+        update_option( self::MAIL_LOG_QUEUE, $keep, false );
     }
 
     /* ── Helfer ───────────────────────────────────────────────────────────── */
