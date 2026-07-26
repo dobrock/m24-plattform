@@ -63,6 +63,12 @@ class M24_Offers_Render {
 		if ( 'Am Lager' === $de ) { return $val; }
 		return ( 'en' === $lang ? 'approx. ' : 'ca. ' ) . $val;
 	}
+	/** Verfügbarkeitsvorbehalt für „Am Lager" (freibleibend) — DE/EN. Ersetzt bei „Am Lager" die Lieferzeit-Zeile. */
+	private static function availability_note( string $lang ): string {
+		return ( 'en' === $lang )
+			? 'Available from stock (subject to prior sale). If the item has already sold by the time your payment arrives, we\'ll produce a new one at short notice.'
+			: 'Sofort ab Lager lieferbar (freibleibend). Sollte der Artikel bei Zahlungseingang bereits verkauft sein, produzieren wir kurzfristig nach.';
+	}
 	/** Feste Reihenfolge der Steuer-Segmente (DE zuerst). */
 	private static function tax_order(): array {
 		return array( 'b2b_de_19', 'b2b_eu_net', 'b2c_eu_oss', 'drittland_net' );
@@ -679,7 +685,7 @@ class M24_Offers_Render {
 				<?php foreach ( $extras as $ex ) : if ( empty( $ex['on'] ) ) { continue; } ?>
 					<div class="m24off-pos m24off-cextra"><div class="m24off-pos-main"><span class="m24off-pos-title"><?php echo esc_html( $ex['label'] ); ?></span></div><div class="m24off-pos-qty"></div><div class="m24off-pos-line"><?php echo esc_html( self::fmt( (float) $ex['amount'] ) ); ?></div></div>
 				<?php endforeach; ?>
-				<?php if ( $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?> <?php echo esc_html( $L['delivery_paynote'] ); ?></p><?php endif; ?>
+				<?php if ( $o->delivery_time ) : ?><?php if ( 'Am Lager' === (string) $o->delivery_time ) : ?><p class="m24off-note"><?php echo esc_html( self::availability_note( self::offer_lang( $o ) ) ); ?></p><?php else : ?><p class="m24off-note"><?php echo esc_html( $L['delivery'] ); ?>: <?php echo esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ); ?> <?php echo esc_html( $L['delivery_paynote'] ); ?></p><?php endif; ?><?php endif; ?>
 					<?php $has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $has_race = true; break; } } ?>
 					<?php if ( $has_race ) : ?><p class="m24off-note m24off-race-note"><?php echo esc_html( $L['race_global'] ); ?></p><?php endif; ?>
 				<?php
@@ -1172,7 +1178,13 @@ class M24_Offers_Render {
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
 			. '<tr><td colspan="3" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;white-space:nowrap;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
 		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
-		if ( $o->delivery_time ) { $inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>'; }
+		if ( $o->delivery_time ) {
+			if ( 'Am Lager' === (string) $o->delivery_time ) { // Verfügbarkeitsvorbehalt statt schlichter Lieferzeit-Zeile
+				$inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( self::availability_note( self::offer_lang( $o ) ) ) . '</p>';
+			} else {
+				$inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( $L['delivery'] ) . ': ' . esc_html( self::delivery_label( (string) $o->delivery_time, self::offer_lang( $o ) ) ) . ' ' . esc_html( $L['delivery_paynote'] ) . '</p>';
+			}
+		}
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
 		$mail_has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $mail_has_race = true; break; } }
 		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#9a6b25;font-weight:700;">' . esc_html( $L['race_global'] ) . '</p>'; } // #2: Brass, fett, Delivery-Time-Größe
