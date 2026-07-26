@@ -45,6 +45,9 @@ class M24_Offers {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_operator' ), 6 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_customer' ), 6 );
+		// Nach-dem-Senden-Benachrichtigungen (Gast-Magic-Link + Angebots-Mail) — entkoppelt via Sofort-Cron,
+		// damit ein hängender Mailversand NIE die Auftragsanlage (W1) oder die Send-Response blockiert.
+		add_action( 'm24_offer_after_send', array( __CLASS__, 'run_after_send_notifications' ), 10, 5 );
 		// Operator-Link in die interne „Neue Anfrage"-Mail einhängen.
 		add_filter( 'm24_inquiry_operator_links', array( __CLASS__, 'operator_mail_link' ), 10, 2 );
 		// Desk-Push beim Senden übernimmt jetzt das Modul core/desk-sync (M24_Desk_Push, Vertrag v1.1, W1).
@@ -1065,18 +1068,24 @@ class M24_Offers {
 			M24_Inquiries_Storage::mark_answered( $inquiry_id, $offer_no, $token );
 		}
 
-		// Gast ohne Konto → Konto-Anlage-Bestätigungslink an die Register→Magic-Link-Strecke andocken.
-		$register_link = false;
-		if ( $account_id <= 0 && class_exists( 'M24_Login' ) ) {
-			M24_Login::create_account_and_send_link( $customer['email'], $customer['name'] );
-			$register_link = true;
-		}
-		// Reihenfolge: ERST W1 (POST /api/orders) → setzt desk_order_num/desk_order_id auf der Zeile, DANN Mail
-		// mit [order_num] im Betreff. Resend erkennen: war schon eine Desk-Order-ID gesetzt, ist dies ein erneuter
-		// Versand (Angebot bereits im Desk) → mail_type 'offer_resend', sonst 'offer'.
+		// ── Reihenfolge KRITISCH: ERST W1 (Auftrag anlegen), DANN Mails. KEIN Mailschritt vor W1. ──
+		// Der W1-Push (POST /api/orders, bounded 10 s) setzt desk_order_num/desk_order_id auf der Zeile.
+		// Resend erkennen (vor W1 lesen): lag schon eine Desk-Order-ID vor → erneuter Versand.
 		$prior_desk = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT desk_order_id FROM ' . self::table() . ' WHERE id = %d', $offer_id ) );
-		do_action( 'm24_offer_sent', $offer_id );                       // W1-Push (synchron) → desk_order_num/desk_order_id
-		self::send_offer_mail( $offer_id, '' !== trim( $prior_desk ) ? 'offer_resend' : 'offer' );
+		do_action( 'm24_offer_sent', $offer_id ); // W1 zuerst → Auftrag entsteht unabhängig vom Mailversand
+		$mail_type     = ( '' !== trim( $prior_desk ) ) ? 'offer_resend' : 'offer';
+		$register_link = ( $account_id <= 0 );
+
+		// Benachrichtigungen (Gast-Magic-Link + Angebots-Mail) ENTKOPPELT einplanen → Response kehrt sofort
+		// zurück, ein hängender Brevo-Call blockiert weder Auftrag noch Frontend. Fällt die Cron-Planung aus
+		// (WP-Cron deaktiviert), synchroner Fallback in run_after_send_notifications (dort try/catch-gekapselt).
+		$scheduled = false;
+		if ( ! ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) ) {
+			$scheduled = (bool) wp_schedule_single_event( time(), 'm24_offer_after_send', array( (int) $offer_id, (int) $account_id, (string) $customer['email'], (string) $customer['name'], $mail_type ) );
+		}
+		if ( ! $scheduled ) {
+			self::run_after_send_notifications( (int) $offer_id, (int) $account_id, (string) $customer['email'], (string) $customer['name'], $mail_type );
+		}
 
 		return rest_ensure_response( array(
 			'ok' => true, 'offer_no' => $offer_no, 'token' => $token,
@@ -1802,4 +1811,19 @@ class M24_Offers {
 	public static function maybe_render_operator() { M24_Offers_Render::operator(); }
 	public static function maybe_render_customer() { M24_Offers_Render::customer(); }
 	public static function send_offer_mail( int $offer_id, string $mail_type = 'offer' ) { M24_Offers_Render::mail( $offer_id, false, $mail_type ); }
+
+	/**
+	 * Entkoppelte Nach-Versand-Benachrichtigungen (Cron-Hook m24_offer_after_send oder synchroner Fallback):
+	 * (a) Gast → passwortloses Konto + Magic-Link, (b) Angebots-Mail. Beide try/catch-gekapselt, damit ein
+	 * hängender/fehlerhafter Mailversand NIE die Auftragsanlage oder die Send-Response beeinflusst.
+	 */
+	public static function run_after_send_notifications( $offer_id, $account_id, $email, $name, $mail_type = 'offer' ) {
+		$offer_id = (int) $offer_id;
+		if ( (int) $account_id <= 0 && class_exists( 'M24_Login' ) ) {
+			try { M24_Login::create_account_and_send_link( (string) $email, (string) $name ); }
+			catch ( \Throwable $e ) { self::log( 'after_send_login_err', $offer_id, $e->getMessage() ); }
+		}
+		try { self::send_offer_mail( $offer_id, in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer' ); }
+		catch ( \Throwable $e ) { self::log( 'after_send_mail_err', $offer_id, $e->getMessage() ); }
+	}
 }
