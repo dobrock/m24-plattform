@@ -143,7 +143,7 @@ class M24_Offers_Render {
 			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
-			'race_global' => 'Verkauf nur für den Rennsport – kein Gutachten, keine Eintragung.',
+			'race_global' => 'Verkauf nur für den Rennsport – keine Straßenzulassung und kein Gutachten',
 			// Garage-Karte (Lösung A) — Online-Ansicht, beide Zustände; Du/Sie je Angebot.
 			'g_title'     => $sie ? 'Dieses Angebot in Ihre Garage übernehmen' : 'Dieses Angebot in meine Garage übernehmen',
 			'g_sub'       => 'Kostenloses Konto — in einer Minute angelegt.',
@@ -171,7 +171,7 @@ class M24_Offers_Render {
 			'tl_received' => 'Received', 'tl_pending' => 'Payment pending', 'tl_shipping' => 'Shipping',
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
-			'race_global' => 'Sold for motorsport use only — no TÜV report, no road registration.',
+			'race_global' => 'Sold for motorsport use only – not road-legal.',
 			'g_title'     => 'Save this offer to my garage',
 			'g_sub'       => 'Free account — set up in a minute.',
 			'g_btn'       => 'Add to my garage',
@@ -1149,9 +1149,14 @@ class M24_Offers_Render {
 			$rows .= '<tr><td colspan="2" style="padding:6px 12px 6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;white-space:nowrap;color:#5a6474;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
 		}
 
-		// Schlicht: „Gültig bis {Datum}" (Datum = Angebotsdatum + VALID_DAYS), ohne Countdown.
+		// Kopfzeile: Überschrift „Angebot {Nr}" links, „Gültig bis {Datum}" rechtsbündig — auf einer Höhe
+		// (2-zellige Tabelle, vertikal mittig). Überschrift ohne „Ihr/Your" (Betreff bleibt davon unberührt).
+		$heading   = ( 'en' === $mlang ? 'Offer ' : 'Angebot ' ) . $o->offer_no;
 		$valid_txt = ( 'en' === $mlang ? 'Valid until ' : 'Gültig bis ' ) . $vu;
-		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( $valid_txt ) . '</p>' : '';
+		$inner  = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;"><tr>'
+			. '<td align="left" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#10243a;">' . esc_html( $heading ) . '</td>'
+			. ( $vu ? '<td align="right" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:13.5px;font-weight:700;color:#9a6b25;white-space:nowrap;">' . esc_html( $valid_txt ) . '</td>' : '' )
+			. '</tr></table>';
 		$greet  = '' !== $sal ? $sal : self::greeting( $cust, $mlang, self::anrede_form( $o ) ); // manuelles Anschreiben hat Vorrang; sonst Du/Sie-Logik
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
@@ -1187,7 +1192,7 @@ class M24_Offers_Render {
 		}
 		// #2: Rennsport-Hinweis EINMAL global (statt pro Position), wenn eine Position Rennsport ist.
 		$mail_has_race = false; foreach ( $items as $ri ) { if ( ! empty( $ri['race'] ) && ! empty( $ri['race_note'] ) ) { $mail_has_race = true; break; } }
-		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#9a6b25;font-weight:700;">' . esc_html( $L['race_global'] ) . '</p>'; } // #2: Brass, fett, Delivery-Time-Größe
+		if ( $mail_has_race ) { $inner .= '<p style="margin:6px 0 0;color:#9a6b25;font-weight:700;text-align:center;">' . esc_html( $L['race_global'] ) . '</p>'; } // #2: Brass, fett, zentriert
 		// Nur bei Netto-Modi die erklärende Steuer-Note zeigen (keine „zzgl. … MwSt."-Zeile).
 		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
 		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
@@ -1213,7 +1218,7 @@ class M24_Offers_Render {
 		$lang = self::offer_lang( $o );
 		// Schlichte, eigene Angebots-Mail-Shell (Desk-Stil): kein Hero-Banner, schwarzes Logo rechts auf Weiß,
 		// Footer nur www. Der geteilte m24_mail_shell (Garage/Alerts/Anfrage) bleibt unangetastet.
-		$html = self::offer_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, $lang );
+		$html = self::offer_mail_shell( '', $inner, $lang ); // Überschrift steckt jetzt in der Kopf-Tabelle in $inner
 		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
 		// Betreff-Token: die DESK-order_num (202607xxx aus der W1-Response) als [order_num] anhängen — der Desk
