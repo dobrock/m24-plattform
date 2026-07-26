@@ -139,7 +139,7 @@ class M24_Offers_Render {
 			'items' => 'Positionen', 'accept' => 'Angebot annehmen', 'paid' => 'Bezahlt', 'expired' => 'Abgelaufen',
 			'provider' => 'Anbieter', 'total_price' => 'Gesamtpreis', 'incl_taxes' => '(inkl. etwaiger Steuern und ausgewiesener Nebenkosten)',
 			'variant' => 'Variante', 'artnr' => 'Art.-Nr.', 'used' => 'gebraucht', 'not_found' => 'Dieses Angebot wurde nicht gefunden.',
-			'your_offer' => $sie ? 'Ihr Angebot' : 'Dein Angebot',
+			'your_offer' => 'Angebot', // Betreff/Überschrift ohne „Ihr/Dein" (Daniel, 0.11.433)
 			'tl_received' => 'Erhalten', 'tl_pending' => 'Zahlung offen', 'tl_shipping' => 'Versand',
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
@@ -167,7 +167,7 @@ class M24_Offers_Render {
 			'items' => 'Items', 'accept' => 'Accept offer', 'paid' => 'Paid', 'expired' => 'Expired',
 			'provider' => 'Provider', 'total_price' => 'Total price', 'incl_taxes' => '(incl. any taxes and itemised additional costs)',
 			'variant' => 'Variant', 'artnr' => 'Part no.', 'used' => 'used', 'not_found' => 'This offer could not be found.',
-			'your_offer' => 'Your offer',
+			'your_offer' => 'Offer', // Betreff ohne „Your" (Daniel, 0.11.433)
 			'tl_received' => 'Received', 'tl_pending' => 'Payment pending', 'tl_shipping' => 'Shipping',
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
