@@ -56,9 +56,12 @@ class M24_Offers_Render {
 	}
 	/** Lieferzeit-Wert in der Angebotssprache (EN-Angebot → englischer Wert, sonst DE). */
 	public static function delivery_label( string $de, string $lang ): string {
-		if ( 'en' !== $lang || '' === $de ) { return $de; }
-		$m = self::delivery_en_map();
-		return $m[ $de ] ?? $de;
+		if ( '' === $de ) { return ''; }
+		$val = ( 'en' === $lang ) ? ( self::delivery_en_map()[ $de ] ?? $de ) : $de;
+		// Lieferzeiten immer unverbindlich als „ca." ausweisen — außer der Lager-Verfügbarkeit („Am Lager"),
+		// die keine Dauer ist (und in der Mail den Verfügbarkeitsvorbehalt-Baustein bekommt).
+		if ( 'Am Lager' === $de ) { return $val; }
+		return ( 'en' === $lang ? 'approx. ' : 'ca. ' ) . $val;
 	}
 	/** Feste Reihenfolge der Steuer-Segmente (DE zuerst). */
 	private static function tax_order(): array {
@@ -703,8 +706,7 @@ class M24_Offers_Render {
 				<?php $tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note; if ( '' !== $tn && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $tn ); ?></p><?php endif; ?>
 			</section>
 
-			<!-- E: Bindungssatz -->
-			<p class="m24off-binding"><?php echo esc_html( self::bindungssatz( self::offer_lang( $o ) ) ); ?></p>
+			<?php // Bindungssatz („…der Kaufvertrag kommt zustande") auf Wunsch entfernt — überall/immer. ?>
 
 			<?php echo self::garage_card_html( $o, $cust, $L, $preview ); // phpcs:ignore WordPress.Security.EscapeOutput — intern escaped ?>
 
@@ -1065,6 +1067,33 @@ class M24_Offers_Render {
 
 	/* ── Angebots-Mail (m24_mail_shell) ─────────────────────────────────── */
 
+	/**
+	 * Schlichte Angebots-Mail-Shell (Desk-Stil) — NUR für die Angebots-Mail (der geteilte m24_mail_shell bleibt
+	 * unverändert). Kein Hero-Banner: schwarzes MOTORSPORT24-Logo rechtsbündig auf weißem Kopf, dünne Trennlinie,
+	 * Body, Footer nur www.motorsport24.de. Pflichtangaben/Rechts-Links trägt der Body ($inner) selbst.
+	 */
+	private static function offer_mail_shell( string $headline, string $inner, string $lang = 'de' ): string {
+		$logo  = esc_url( plugins_url( 'assets/img/motorsport24-logo.jpg', M24_PLATTFORM_FILE ) );
+		$stack = 'font-family:Arial,Helvetica,sans-serif;';
+		return '<!DOCTYPE html><html lang="' . esc_attr( $lang ) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no"></head>'
+			. '<body style="margin:0;padding:0;background:#f2f4f7;-webkit-text-size-adjust:100%;' . $stack . '">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f7;"><tr><td align="center" style="padding:24px 16px;">'
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #e6e9ee;border-radius:8px;overflow:hidden;">'
+			// Kopf: schwarzes Logo rechtsbündig auf Weiß + Trennlinie (kein Marketing-Banner)
+			. '<tr><td style="padding:18px 28px 14px;text-align:right;border-bottom:1px solid #e6e9ee;">'
+			. '<img src="' . $logo . '" alt="MOTORSPORT24.de" height="26" style="display:inline-block;height:26px;width:auto;border:0;outline:none;-ms-interpolation-mode:bicubic;"></td></tr>'
+			// Body
+			. '<tr><td style="padding:22px 28px 20px;' . $stack . 'color:#10243a;font-size:15px;line-height:1.55;">'
+			. ( '' !== (string) $headline ? '<h1 style="margin:0 0 14px;font-size:20px;color:#10243a;' . $stack . '">' . esc_html( $headline ) . '</h1>' : '' )
+			. '<div style="color:#3a414c;' . $stack . '">' . $inner . '</div>' // phpcs:ignore WordPress.Security.EscapeOutput — $inner bereits escaped
+			. '</td></tr>'
+			// Footer: nur www
+			. '<tr><td style="padding:16px 28px;border-top:1px solid #e6e9ee;text-align:center;font-size:12px;' . $stack . '">'
+			. '<a href="https://www.motorsport24.de" style="color:#1f74c4;text-decoration:none;' . $stack . '">www.motorsport24.de</a>'
+			. '</td></tr>'
+			. '</table></td></tr></table></body></html>';
+	}
+
 	public static function mail( $offer_id, bool $return_html = false, string $mail_type = 'offer' ) {
 		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id ); // #11: Objekt (Vorschau) oder ID
 		if ( ! $o ) { return $return_html ? '' : null; }
@@ -1114,7 +1143,9 @@ class M24_Offers_Render {
 			$rows .= '<tr><td colspan="2" style="padding:6px 12px 6px 0;color:#5a6474;">' . esc_html( $ex['label'] ) . '</td><td></td><td style="text-align:right;white-space:nowrap;color:#5a6474;">' . esc_html( self::fmt( (float) $ex['amount'] ) ) . '</td></tr>';
 		}
 
-		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( sprintf( $L['valid_line'], $vu, $mdays, $mplural ) ) . '</p>' : '';
+		// Schlicht: „Gültig bis {Datum}" (Datum = Angebotsdatum + VALID_DAYS), ohne Countdown.
+		$valid_txt = ( 'en' === $mlang ? 'Valid until ' : 'Gültig bis ' ) . $vu;
+		$inner  = $vu ? '<p style="margin:0 0 14px;color:#9a6b25;font-weight:700;font-size:13.5px;">' . esc_html( $valid_txt ) . '</p>' : '';
 		$greet  = '' !== $sal ? $sal : self::greeting( $cust, $mlang, self::anrede_form( $o ) ); // manuelles Anschreiben hat Vorrang; sonst Du/Sie-Logik
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
@@ -1149,13 +1180,12 @@ class M24_Offers_Render {
 		$mail_tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note;
 		if ( $mail_tn && (float) $o->tax_amount <= 0 ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:12px;">' . esc_html( $mail_tn ) . '</p>'; }
 		if ( '' !== trim( $note ) ) { $inner .= '<div style="margin:16px 0;padding:14px 16px;background:#f7f8fa;border-radius:8px;font-size:14px;color:#3a414c;line-height:1.6;white-space:pre-wrap;">' . esc_html( $note ) . '</div>'; }
-		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
+		$inner .= '<p style="margin:22px 0 4px;text-align:center;"><a href="' . esc_url( M24_Offers::view_url( (string) $o->token ) ) . '" style="display:inline-block;background:#0e447e;color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:8px;">' . $L['view_pay'] . '</a></p>';
 		$inner .= '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'; // #3: Leerzeile zwischen CTA-Button und „Online: review…"
 		$inner .= '<p style="margin:0 0 8px;text-align:center;font-size:12px;color:#8a929c;">' . esc_html( $L['cta_sub'] ) . '</p>';
 		$inner .= '<div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>'; // E6: Leerzeile nach dem CTA
 		// a) Garagen-Hinweiszeile (account_hint) komplett entfernt — Mail + Vorschau konsistent ohne diesen Absatz.
-		// E: Bindungssatz (ohne Paragraphen), präzise Paragraphen bleiben in der Ansicht/Belehrung.
-		$inner .= '<p style="margin:16px 0 4px;font-size:12.5px;color:#5a6474;line-height:1.6;">' . esc_html( self::bindungssatz( self::offer_lang( $o ) ) ) . '</p>';
+		// Bindungssatz („…der Kaufvertrag kommt zustande") auf Wunsch entfernt — überall/immer.
 		// Pflichtangaben.
 		$inner .= '<p style="margin:8px 0 0;font-size:12px;color:#8a929c;line-height:1.6;"><strong>' . esc_html( $L['provider'] ) . ':</strong> ' . esc_html( self::company_line() )
 			. '<br><strong>' . esc_html( $L['total_price'] ) . ':</strong> ' . esc_html( self::fmt( (float) $bd['total'] ) ) . ' ' . esc_html( M24_Offers::tax_total_paren( (string) $o->tax_mode, self::offer_lang( $o ) ) ) // Bug A: frischer Endbetrag
@@ -1169,8 +1199,9 @@ class M24_Offers_Render {
 		// Garage-Hinweis NICHT in die Mail — die Garage-Übernahme läuft ausschließlich über die Karte in der Online-Ansicht.
 
 		$lang = self::offer_lang( $o );
-		// #5: Angebots-Mail trägt eine eigene Legalzeile → im Shell-Footer Impressum/Datenschutz weglassen (nur www).
-		$html = function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, array( 'lang' => $lang, 'footer_legal_slim' => true ) ) : $inner;
+		// Schlichte, eigene Angebots-Mail-Shell (Desk-Stil): kein Hero-Banner, schwarzes Logo rechts auf Weiß,
+		// Footer nur www. Der geteilte m24_mail_shell (Garage/Alerts/Anfrage) bleibt unangetastet.
+		$html = self::offer_mail_shell( $L['your_offer'] . ' ' . $o->offer_no, $inner, $lang );
 		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
 		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
 		// Betreff-Token: die DESK-order_num (202607xxx aus der W1-Response) als [order_num] anhängen — der Desk
