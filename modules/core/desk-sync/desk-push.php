@@ -288,6 +288,11 @@ class M24_Desk_Push {
 
         $body = array(
             'source'              => 'wordpress_plugin',
+            // Stabiler, unveränderlicher WP-Angebots-Identifier für den Desk-Duplikat-Upsert. Basiert auf der
+            // Auto-Increment-PK der m24_offers-Zeile → beim ersten Speichern (Entwurf ODER Senden) vergeben,
+            // über Edits/Resends nie geändert (Updates keyen auf id), eindeutig pro Angebot. NICHT ref/order_num
+            // (die Anzeigenummer 2026-xxxx wird erst beim Senden gezogen und ist im Entwurf ein Platzhalter).
+            'wp_offer_uid'        => 'wpoffer_' . (int) $o->id,
             'inquiry_source'      => self::inquiry_source(),
             'inquiry_source_meta' => array(
                 'wp_offer_no' => (string) $o->offer_no,
