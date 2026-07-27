@@ -1225,8 +1225,17 @@ class M24_Offers_Render {
 		// scannt Antworten darauf. NICHT die WP-Nummer 2026-xxxx. Fehlt sie (Desk aus/Dry-Run) → ohne Token.
 		$desk_num = trim( (string) $o->desk_order_num );
 		if ( '' !== $desk_num ) { $subj .= ' [' . $desk_num . ']'; }
-		// Absender orders@ (Antworten scannt das Desk); KEIN Reply-To, das From überschreibt.
+		// Absender orders@ (Antworten scannt das Desk); KEIN Reply-To. Zusätzlich zum From-Header den kanonischen
+		// wp_mail_from(_name)-Filter setzen — SMTP-/Brevo-Plugins respektieren DIESEN Weg eher als den Inline-Header
+		// und setzen den Absender dann nicht auf ihren Default (service@) zurück. Eng gescoped (nur diese Mail),
+		// danach wieder entfernt, damit andere Mails (Garage/Anfrage/Reminder) unberührt bleiben.
+		$force_from = static function () { return 'orders@motorsport24.de'; };
+		$force_name = static function () { return 'MOTORSPORT24'; };
+		add_filter( 'wp_mail_from', $force_from, 99 );
+		add_filter( 'wp_mail_from_name', $force_name, 99 );
 		$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <orders@motorsport24.de>' ) );
+		remove_filter( 'wp_mail_from', $force_from, 99 );
+		remove_filter( 'wp_mail_from_name', $force_name, 99 );
 		// Mail protokollieren (POST /api/orders/:id/mails, retry-gestützt, Endpoint dedupliziert selbst).
 		if ( $sent && class_exists( 'M24_Desk_Push' ) ) {
 			M24_Desk_Push::log_offer_mail( (int) $o->id, $subj, $email, in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer', $html );
