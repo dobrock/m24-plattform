@@ -110,6 +110,42 @@ class M24_Brevo_Client {
 	}
 
 	/**
+	 * Transaktions-Mail über die Brevo-API senden (POST /v3/smtp/email). Der Absender ist damit vollständig
+	 * unter Code-Kontrolle — am wp_mail / Brevo-WP-Plugin-Override (phpmailer_init → Default-Sender) vorbei.
+	 * Genutzt für die Angebots-Mail (sender = orders@). Reply-To wird BEWUSST nicht gesetzt.
+	 *
+	 * @param array $a to, to_name, subject, html, sender_email, sender_name
+	 * @return array Result-Format {ok,code,msg,data}
+	 */
+	public static function send_transactional( array $a ) {
+		$to     = sanitize_email( (string) ( $a['to'] ?? '' ) );
+		$sender = sanitize_email( (string) ( $a['sender_email'] ?? '' ) );
+		if ( ! is_email( $to ) )     { return array( 'ok' => false, 'code' => 0, 'msg' => 'Ungültige Empfänger-E-Mail', 'data' => null ); }
+		if ( ! is_email( $sender ) ) { return array( 'ok' => false, 'code' => 0, 'msg' => 'Ungültiger Absender', 'data' => null ); }
+
+		$to_entry = array( 'email' => $to );
+		$to_name  = trim( (string) ( $a['to_name'] ?? '' ) );
+		if ( '' !== $to_name ) { $to_entry['name'] = $to_name; }
+
+		$payload = array(
+			'sender'      => array( 'email' => $sender, 'name' => (string) ( $a['sender_name'] ?? 'MOTORSPORT24' ) ),
+			'to'          => array( $to_entry ),
+			'subject'     => (string) ( $a['subject'] ?? '' ),
+			'htmlContent' => (string) ( $a['html'] ?? '' ),
+		);
+
+		$res = self::request( 'POST', '/smtp/email', $payload );
+		$log = array( 'to' => self::mask_email( $to ), 'sender' => $sender, 'code' => $res['code'] );
+		if ( $res['ok'] ) {
+			M24_Logger::info( 'brevo', 'Transaktions-Mail OK (' . self::mask_email( $to ) . ')', $log );
+		} else {
+			$log['msg'] = $res['msg'];
+			M24_Logger::error( 'brevo', 'Transaktions-Mail FEHLER (' . self::mask_email( $to ) . ')', $log );
+		}
+		return $res;
+	}
+
+	/**
 	 * Generischer Request gegen die Brevo-API.
 	 *
 	 * @param string      $method        GET|POST|PUT|DELETE
