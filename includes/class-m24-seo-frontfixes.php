@@ -35,6 +35,11 @@ class M24_SEO_Frontfixes {
 		// 7) WebSite + SearchAction nur auf der Startseite.
 		add_action( 'wp_head', array( __CLASS__, 'website_schema' ), 20 );
 
+		// B) Kategorie-Title-Suffix vereinheitlichen: /category/*-Archive nutzen den langen Marken-Suffix
+		// (Titel 76–86 Zeichen) → auf den kurzen „| MOTORSPORT24 seit 2006" umstellen. Nur category-Archive;
+		// Produkt-/Fahrzeug-/Teileseiten bleiben unberührt (bewusst lang: Teilenummern/Modellnamen).
+		add_filter( 'wpseo_set_title', array( __CLASS__, 'category_title_suffix' ), 99 );
+
 		// 1 + 2b) Gekapselter Output-Filter (nur Frontend-HTML), abschaltbar.
 		if ( self::output_fix_enabled() ) {
 			add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), 1 );
@@ -59,6 +64,23 @@ class M24_SEO_Frontfixes {
 			$attr['alt'] = mb_substr( $title, 0, 125 );
 		}
 		return $attr;
+	}
+
+	/* ── B) Kategorie-Title-Suffix ────────────────────────────────────────── */
+
+	/**
+	 * Auf /category/*-Archiven den langen Marken-Suffix („… | MOTORSPORT24 - Hochwertige Rennsport Teile
+	 * seit 2006") durch den kurzen („… | MOTORSPORT24 seit 2006") ersetzen. Keyword/Rest bleibt unverändert.
+	 * Robust gegen Varianten des langen Suffixes: ab „MOTORSPORT24" abschneiden und den kurzen Suffix anhängen.
+	 * Greift NUR für category-Archive; alle anderen Seitentypen unberührt.
+	 */
+	public static function category_title_suffix( $title ) {
+		if ( ! is_category() ) { return $title; }
+		$title  = (string) $title;
+		$anchor = 'MOTORSPORT24';
+		$pos    = strpos( $title, $anchor );
+		if ( false === $pos ) { return $title; } // kein Marken-Suffix → nichts tun
+		return substr( $title, 0, $pos + strlen( $anchor ) ) . ' seit 2006';
 	}
 
 	/* ── 3) hreflang ──────────────────────────────────────────────────────── */
@@ -123,13 +145,16 @@ class M24_SEO_Frontfixes {
 		if ( ! is_string( $html ) || '' === $html ) { return $html; }
 		if ( false === stripos( $html, '</html>' ) || false === stripos( $html, '<body' ) ) { return $html; }
 
-		// (1) Textleere H1 → DIV. Callback prüft, ob der Inhalt (ohne Tags) leer ist → echte Titel-H1 bleibt.
+		// (1) Genau EINE H1 pro Seite: die erste textführende (semantische) H1 bleibt; JEDE weitere H1
+		// (leer ODER gefüllt — z. B. Logo-/Wrapper-H1 oder ein doppelt gerenderter Titel) wird zu <div>
+		// demotet. Die Attribute (class/style) werden 1:1 aufs <div> übernommen → Optik unverändert.
+		$kept = false;
 		$html = preg_replace_callback(
 			'#<h1(\b[^>]*)>(.*?)</h1>#is',
-			static function ( $m ) {
-				return ( '' === trim( wp_strip_all_tags( (string) $m[2] ) ) )
-					? '<div' . $m[1] . '>' . $m[2] . '</div>'
-					: $m[0];
+			static function ( $m ) use ( &$kept ) {
+				$is_empty = ( '' === trim( wp_strip_all_tags( (string) $m[2] ) ) );
+				if ( ! $is_empty && ! $kept ) { $kept = true; return $m[0]; } // erste echte H1 behalten
+				return '<div' . $m[1] . '>' . $m[2] . '</div>';                // alle weiteren + alle leeren → <div>
 			},
 			$html
 		);
