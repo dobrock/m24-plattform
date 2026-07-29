@@ -14,9 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class M24_Robots {
 
 	public static function init() {
-		// Spät (hohe Priorität) → M24 hängt als LETZTES an, damit keine fremde (z. B. Jetpack-)Sitemap-Zeile
-		// danach doppelt angefügt wird.
-		add_filter( 'robots_txt', array( __CLASS__, 'output' ), 99999, 2 );
+		// Als ALLERLETZTES (PHP_INT_MAX) → M24 schreibt robots.txt vollständig neu; jede fremde (z. B. Jetpack-)
+		// Sitemap-/news-Zeile, die vorher via robots_txt-Filter kam, wird verworfen → keine Dubletten.
+		add_filter( 'robots_txt', array( __CLASS__, 'output' ), PHP_INT_MAX, 2 );
 	}
 
 	/**

@@ -61,7 +61,13 @@ class M24_Native_Sitemap {
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ), 20 );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
-		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ), 0 ); // prio 0 → gewinnt /sitemap.xml vor Jetpack
+		// Serve auf 'wp' (läuft VOR template_redirect) → M24 gewinnt /sitemap.xml auch, wenn Jetpack auf
+		// template_redirect bedient. Zusätzlich template_redirect ganz früh als Netz.
+		add_action( 'wp', array( __CLASS__, 'maybe_render' ), 1 );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ), -99999 );
+		// WP Rocket darf /sitemap.xml + /sitemap-m24-*.xml NICHT aus dem Disk-Cache bedienen — sonst läuft
+		// unser PHP nie und Jetpacks gecachte Sitemap bleibt. Vom Rocket-Cache ausschließen.
+		add_filter( 'rocket_cache_reject_uri', array( __CLASS__, 'rocket_reject' ) );
 
 		// Cache-Invalidierung bei Inhaltsänderungen.
 		add_action( 'save_post', array( __CLASS__, 'flush_cache' ) );
@@ -104,6 +110,14 @@ class M24_Native_Sitemap {
 	}
 
 	public static function query_vars( $vars ) { $vars[] = self::QV; return $vars; }
+
+	/** WP-Rocket-Cache-Ausschluss für die Sitemap-Pfade (regex-Fragmente relativ zum Root). */
+	public static function rocket_reject( $uris ) {
+		if ( ! is_array( $uris ) ) { $uris = array(); }
+		$uris[] = '/sitemap\.xml';
+		$uris[] = '/sitemap-m24-(.+)\.xml';
+		return $uris;
+	}
 
 	public static function maybe_flush() {
 		if ( get_option( self::REWRITE_FLAG ) === self::REWRITE_FLAG ) { return; }
