@@ -27,9 +27,9 @@ class M24_Robots {
 			return $output;
 		}
 
-		$sitemap_main = esc_url_raw( home_url( '/sitemap.xml' ) );
-		$sitemap_hubs = esc_url_raw( home_url( '/sitemap-m24-hubs.xml' ) );
-
+		// Genau EINE M24-Sitemap-Zeile: /sitemap.xml ist der native Sitemap-INDEX (enthält die Hubs als
+		// Unter-Sitemap) → die frühere separate Hubs-Zeile entfällt (keine Dubletten/veralteten Einträge).
+		// Jetpack /news-sitemap.xml (falls aktiv) bleibt optional zusätzlich erhalten.
 		$lines = array(
 			'User-agent: *',
 			'Disallow: /wp-admin/',
@@ -39,9 +39,10 @@ class M24_Robots {
 			'Disallow: /*?utm_',
 			'Disallow: /*?karosserie=',
 			'',
-			'Sitemap: ' . $sitemap_main,
-			'Sitemap: ' . $sitemap_hubs,
+			'Sitemap: ' . esc_url_raw( home_url( '/sitemap.xml' ) ),
 		);
+		$news = apply_filters( 'm24_robots_news_sitemap', esc_url_raw( home_url( '/news-sitemap.xml' ) ) );
+		if ( ! empty( $news ) ) { $lines[] = 'Sitemap: ' . $news; }
 
 		return implode( "\n", $lines ) . "\n";
 	}

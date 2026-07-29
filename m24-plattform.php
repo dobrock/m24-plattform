@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.436
+ * Version:           0.11.437
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -170,6 +170,7 @@ require_once M24_PLATTFORM_DIR . 'includes/inquiry-mail-template.php'; // Anfrag
 require_once M24_PLATTFORM_DIR . 'includes/image-optimization.php';    // WebP-Output + Qualität 90 + 4K-Schwelle (reine Filter)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-seo-frontfixes.php'; // SEO/a11y-Frontfixes (H1-Demote, alt, hreflang, WebSite-Schema)
 M24_SEO_Frontfixes::init();
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-native-sitemap.php'; // Native XML-Sitemap-Index (löst Dritt-Plugin ab; SSoT-index-gefiltert)
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-stats-panel.php'; // Statistik-Panel (rechte Spalte, vorerst Platzhalter)
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-settings.php';
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-mail-preview.php'; // Admin-Tool: Mail-/PDF-Vorschau + Test-Versand
@@ -316,7 +317,12 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_Archive::init();
     M24_Catalog_Hub_CPT::init();
     M24_Catalog_Hub::init();
-    M24_Catalog_Hub_Sitemap::init();
+    // Native Sitemap aktiv → sie liefert die Hubs im Index (/sitemap-m24-hubs.xml) selbst; die alte
+    // Einzel-Hub-Sitemap NICHT registrieren (sonst Route-Konflikt auf demselben Pfad).
+    if ( ! ( class_exists( 'M24_Native_Sitemap' ) && M24_Native_Sitemap::enabled() ) ) {
+        M24_Catalog_Hub_Sitemap::init();
+    }
+    M24_Native_Sitemap::init();
     M24_Robots::init();
     M24_Adminbar::init();
     M24_Comments::init();
