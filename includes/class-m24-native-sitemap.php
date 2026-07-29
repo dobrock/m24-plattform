@@ -141,10 +141,16 @@ class M24_Native_Sitemap {
 	/* ── Gemeinsame urlset-Ausgabe ────────────────────────────────────────── */
 
 	/**
-	 * @param array $urls Liste ['loc' => string, 'lastmod' => string|'']
+	 * @param array $urls        Liste ['loc' => string, 'lastmod' => string|'']
+	 * @param bool  $http_verify true → jede URL zusätzlich per HTTP prüfen und 3xx-Redirects verwerfen
+	 *                           (für redirect-anfällige Typen: categories/pages/blog). CPT-Singles/Hubs sind
+	 *                           self-canonical per Konstruktion → kein HTTP nötig.
 	 */
-	private static function urlset( array $urls ): string {
-		$excl_paths = array_map( array( __CLASS__, 'path_only' ), (array) apply_filters( 'm24_sitemap_exclude_urls', array() ) );
+	private static function urlset( array $urls, bool $http_verify = false ): string {
+		$excl_paths = array_map( array( __CLASS__, 'norm_path' ), (array) apply_filters( 'm24_sitemap_exclude_urls', array() ) );
+		$redir_src  = self::redirect_source_paths(); // Regel 2 (SSoT): dieselben Quell-Pfade, die das Plugin 301-umleitet
+		$verify     = $http_verify && (bool) apply_filters( 'm24_sitemap_http_verify', true );
+
 		$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 		$seen = array();
@@ -152,7 +158,10 @@ class M24_Native_Sitemap {
 			$loc = isset( $u['loc'] ) ? (string) $u['loc'] : '';
 			if ( '' === $loc || false !== strpos( $loc, '?' ) ) { continue; }   // Regel 3: keine Param-URLs
 			if ( isset( $seen[ $loc ] ) ) { continue; }
-			if ( in_array( self::path_only( $loc ), $excl_paths, true ) ) { continue; } // Regel 2: Ausschlussliste (z. B. 301-Quellen)
+			$np = self::norm_path( $loc );
+			if ( in_array( $np, $excl_paths, true ) ) { continue; }             // manuelle Ausschlussliste
+			if ( self::is_redirect_source( $np, $redir_src ) ) { continue; }    // Regel 2: plugin-verwaltete 301-Quelle (deterministisch)
+			if ( $verify && self::http_redirects( $loc ) ) { continue; }        // generisch: liefert 3xx → raus
 			$seen[ $loc ] = 1;
 			$xml .= "\t<url>\n\t\t<loc>" . esc_url( $loc ) . "</loc>\n";
 			if ( ! empty( $u['lastmod'] ) ) { $xml .= "\t\t<lastmod>" . esc_html( (string) $u['lastmod'] ) . "</lastmod>\n"; }
@@ -165,6 +174,54 @@ class M24_Native_Sitemap {
 	private static function path_only( string $url ): string {
 		$p = (string) wp_parse_url( $url, PHP_URL_PATH );
 		return '' === $p ? '/' : untrailingslashit( $p );
+	}
+
+	/** Pfad normalisiert: lowercase, ohne Rand-Slashes (wie M24_Catalog_Hub::legacy_redirect). */
+	private static function norm_path( string $url ): string {
+		$p = (string) wp_parse_url( $url, PHP_URL_PATH );
+		if ( '' === $p ) { $p = $url; }
+		return strtolower( trim( rawurldecode( $p ), '/' ) );
+	}
+
+	/**
+	 * Regel 2 (Single Source of Truth): alle 301-Quell-Pfade, die das Plugin selbst umleitet — die exakt
+	 * gleiche Quelle wie M24_Catalog_Hub::legacy_redirect (inkl. der per Filter eingespeisten Fahrzeug-Reclaims).
+	 * So kann die Sitemap NIE eine plugin-umgeleitete Alt-URL listen, und neue 301-Einträge wirken automatisch.
+	 */
+	private static function redirect_source_paths(): array {
+		$paths = array();
+		if ( class_exists( 'M24_Catalog_Hub' ) ) {
+			foreach ( array_keys( (array) M24_Catalog_Hub::legacy_paths() ) as $p )    { $paths[] = self::norm_path( (string) $p ); }
+			foreach ( array_keys( (array) M24_Catalog_Hub::legacy_reclaims() ) as $p ) { $paths[] = self::norm_path( (string) $p ); }
+		}
+		return array_values( array_unique( array_filter( $paths ) ) );
+	}
+
+	/** true, wenn $norm_path exakt ODER als Präfix eine 301-Quelle ist (legacy_paths matcht prefix-basiert). */
+	private static function is_redirect_source( string $norm_path, array $sources ): bool {
+		foreach ( $sources as $src ) {
+			if ( '' === $src ) { continue; }
+			if ( $norm_path === $src || 0 === strpos( $norm_path, $src . '/' ) ) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Generischer Redirect-Check: liefert die URL beim HEAD einen 3xx (ohne zu folgen), ist sie eine
+	 * Weiterleitungs-Quelle → nicht in die Sitemap. Ergebnis 12h gecacht (pro URL), damit der Kalt-Build der
+	 * redirect-anfälligen Sitemaps (categories/pages/blog) nicht bei jedem Abruf erneut per HTTP prüft.
+	 * Transiente Fehler/Timeouts → KEIN Redirect angenommen (echte Inhalte nicht wegen Netzflackern verlieren).
+	 */
+	private static function http_redirects( string $url ): bool {
+		$ck  = 'm24_smap_rc_' . md5( $url );
+		$hit = get_transient( $ck );
+		if ( '3' === $hit ) { return true; }
+		if ( '2' === $hit ) { return false; }
+		$res  = wp_remote_head( $url, array( 'timeout' => 5, 'redirection' => 0, 'sslverify' => true ) );
+		$code = is_wp_error( $res ) ? 0 : (int) wp_remote_retrieve_response_code( $res );
+		$is_redir = ( $code >= 300 && $code < 400 );
+		if ( 0 !== $code ) { set_transient( $ck, $is_redir ? '3' : '2', self::CACHE_TTL ); } // Fehler (0) nicht cachen
+		return $is_redir;
 	}
 
 	/** Post → URL-Eintrag (self-canonical Permalink + lastmod). */
@@ -248,13 +305,13 @@ class M24_Native_Sitemap {
 	public static function build_pages(): string {
 		return self::urlset( self::collect_posts( 'page', static function ( $id ) {
 			return ! self::seo_noindex_post( (int) $id );
-		} ) );
+		} ), true );
 	}
 
 	public static function build_blog(): string {
 		return self::urlset( self::collect_posts( 'post', static function ( $id ) {
 			return ! self::seo_noindex_post( (int) $id );
-		} ) );
+		} ), true );
 	}
 
 	public static function build_categories(): string {
@@ -272,6 +329,6 @@ class M24_Native_Sitemap {
 				$urls[] = array( 'loc' => $link, 'lastmod' => '' );
 			}
 		}
-		return self::urlset( $urls );
+		return self::urlset( $urls, true );
 	}
 }
