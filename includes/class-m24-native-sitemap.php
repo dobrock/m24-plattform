@@ -50,15 +50,53 @@ class M24_Native_Sitemap {
 
 	public static function init() {
 		if ( ! self::enabled() ) { return; }
+
+		// Auto-Flush bei jedem Deploy: neue Plugin-Version → Sitemap-Cache verwerfen (sonst liefert der
+		// 12h-Transient nach einem Code-Fix weiter die alte Sitemap, ohne dass ein Post gespeichert wurde).
+		if ( (string) get_option( 'm24_smap_ver', '' ) !== (string) M24_PLATTFORM_VERSION ) {
+			self::flush_cache();
+			update_option( 'm24_smap_ver', (string) M24_PLATTFORM_VERSION, false );
+		}
+
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ), 20 );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
-		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ), 0 );
-		// Cache-Invalidierung bei Inhaltsänderungen (nicht bei jedem Abruf neu bauen).
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ), 0 ); // prio 0 → gewinnt /sitemap.xml vor Jetpack
+
+		// Cache-Invalidierung bei Inhaltsänderungen.
 		add_action( 'save_post', array( __CLASS__, 'flush_cache' ) );
 		add_action( 'deleted_post', array( __CLASS__, 'flush_cache' ) );
 		add_action( 'edited_term', array( __CLASS__, 'flush_cache' ) );
+		// … und an „Cache leeren" (WP Rocket) + einen generischen Hook + manuellen Rebuild.
+		foreach ( array( 'rocket_purge_cache', 'after_rocket_clean_domain', 'rocket_after_clean_files', 'm24_flush_sitemap' ) as $h ) {
+			add_action( $h, array( __CLASS__, 'flush_cache' ) );
+		}
+		add_action( 'admin_post_m24_sitemap_rebuild', array( __CLASS__, 'handle_rebuild' ) );
+		add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar_node' ), 90 );
 	}
+
+	/** Manueller „Sitemap neu bauen"-Eintrag in der Admin-Bar (nur Admins). */
+	public static function admin_bar_node( $bar ) {
+		if ( ! current_user_can( 'manage_options' ) || ! is_object( $bar ) ) { return; }
+		$bar->add_node( array(
+			'id'    => 'm24-sitemap-rebuild',
+			'title' => 'M24 Sitemap neu bauen',
+			'href'  => wp_nonce_url( admin_url( 'admin-post.php?action=m24_sitemap_rebuild' ), 'm24_sitemap_rebuild' ),
+		) );
+	}
+
+	public static function handle_rebuild() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+		check_admin_referer( 'm24_sitemap_rebuild' );
+		self::flush_cache();
+		// Vorwärmen: Index (baut alle Unter-Sitemaps) sofort neu erzeugen, damit der nächste Crawl frisch ist.
+		self::cached( 'index', array( __CLASS__, 'build_index' ) );
+		wp_safe_redirect( add_query_arg( 'm24_smap', 'rebuilt', wp_get_referer() ?: home_url( '/sitemap.xml' ) ) );
+		exit;
+	}
+
+	/** Cache-Salt: in ALLE Transient-Keys eingemischt → Bump invalidiert Unter-Sitemaps UND Redirect-Checks global. */
+	private static function salt(): string { return (string) get_option( 'm24_smap_salt', '1' ); }
 
 	public static function add_rewrite() {
 		add_rewrite_rule( '^sitemap\.xml$', 'index.php?' . self::QV . '=index', 'top' ); // M24 gewinnt /sitemap.xml
@@ -74,41 +112,51 @@ class M24_Native_Sitemap {
 		update_option( self::REWRITE_FLAG, self::REWRITE_FLAG, false );
 	}
 
+	/** Globale Invalidierung: Salt hochzählen → alle salt-tragenden Transients (Unter-Sitemaps + rc-Checks) verwaisen. */
 	public static function flush_cache() {
-		foreach ( array_keys( self::submaps() ) as $key ) { delete_transient( self::CACHE_PREFIX . $key ); }
-		delete_transient( self::CACHE_PREFIX . 'index' );
+		update_option( 'm24_smap_salt', (string) ( (int) get_option( 'm24_smap_salt', '1' ) + 1 ), false );
 	}
 
 	/* ── Serving ──────────────────────────────────────────────────────────── */
 
 	public static function maybe_render() {
-		$key = get_query_var( self::QV );
-		if ( '' === (string) $key ) { return; }
-		$key = sanitize_key( (string) $key );
+		$key = (string) get_query_var( self::QV );
+		if ( '' === $key ) {
+			// Falls unsere Rewrite-Rule die Route NICHT gewonnen hat (z. B. Jetpack bedient /sitemap.xml):
+			// den Pfad direkt prüfen und die M24-Sitemap ausliefern (template_redirect prio 0 → vor Jetpack).
+			$path = strtolower( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH ) ); // phpcs:ignore
+			if ( '/sitemap.xml' === $path || '/sitemap-m24-index.xml' === $path ) { $key = 'index'; }
+			elseif ( preg_match( '#^/sitemap-m24-([a-z0-9-]+)\.xml$#', $path, $m ) ) { $key = $m[1]; }
+			else { return; }
+		}
+		$key = sanitize_key( $key );
 
 		if ( 'index' === $key ) {
 			$xml = self::cached( 'index', array( __CLASS__, 'build_index' ) );
 		} elseif ( array_key_exists( $key, self::submaps() ) ) {
-			$method = self::submaps()[ $key ];
-			$xml    = self::cached( $key, array( __CLASS__, $method ) );
+			$xml = self::cached( $key, array( __CLASS__, self::submaps()[ $key ] ) );
 		} else {
-			status_header( 404 );
-			return; // unbekannter Sitemap-Key → normal weiter (404)
+			return; // unbekannter Key → normal weiter
 		}
 
+		// XML-Whitespace-Fix (QA #3): globaler Whitespace VOR unserer Ausgabe (Leerzeile außerhalb der PHP-Tags
+		// in irgendeinem Plugin/Theme-File) landet sonst als führendes \n vor <?xml → Viewer bricht ab.
+		// Alle Output-Buffer leeren → <?xml als erstes Byte, unabhängig vom globalen Whitespace.
+		while ( ob_get_level() ) { ob_end_clean(); }
 		if ( ! headers_sent() ) {
 			header( 'Content-Type: application/xml; charset=UTF-8' );
 			header( 'X-Robots-Tag: noindex, follow', true ); // Sitemaps selbst nicht indexieren
 		}
-		echo $xml; // phpcs:ignore WordPress.Security.EscapeOutput — Builder escapen jede URL
+		echo ltrim( $xml ); // phpcs:ignore WordPress.Security.EscapeOutput — Builder escapen jede URL; ltrim = Sicherheitsnetz
 		exit;
 	}
 
 	private static function cached( string $key, $builder ): string {
-		$hit = get_transient( self::CACHE_PREFIX . $key );
+		$tk  = self::CACHE_PREFIX . self::salt() . '_' . $key; // salt im Key → flush_cache() invalidiert global
+		$hit = get_transient( $tk );
 		if ( is_string( $hit ) && '' !== $hit ) { return $hit; }
 		$xml = (string) call_user_func( $builder );
-		set_transient( self::CACHE_PREFIX . $key, $xml, self::CACHE_TTL );
+		set_transient( $tk, $xml, self::CACHE_TTL );
 		return $xml;
 	}
 
@@ -213,7 +261,7 @@ class M24_Native_Sitemap {
 	 * Transiente Fehler/Timeouts → KEIN Redirect angenommen (echte Inhalte nicht wegen Netzflackern verlieren).
 	 */
 	private static function http_redirects( string $url ): bool {
-		$ck  = 'm24_smap_rc_' . md5( $url );
+		$ck  = 'm24_smap_rc_' . self::salt() . '_' . md5( $url );
 		$hit = get_transient( $ck );
 		if ( '3' === $hit ) { return true; }
 		if ( '2' === $hit ) { return false; }
