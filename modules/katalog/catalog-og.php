@@ -106,7 +106,7 @@ class M24_Catalog_OG {
 		$title = M24_Catalog_Hub::seo_title( '' );
 		$desc  = M24_Catalog_Hub::seo_desc( '' );
 		$url   = M24_Catalog_Hub::url( $hub );
-		$img   = M24_Catalog_Hub::og_image_url( $hub );
+		$img   = self::hub_image( $hub );
 
 		$out  = "<!-- M24 Open Graph (Hub) -->\n";
 		$out .= self::tag( 'og:type', 'website' );
@@ -114,35 +114,44 @@ class M24_Catalog_OG {
 		$out .= self::tag( 'og:title', $title );
 		$out .= self::tag( 'og:description', $desc );
 		$out .= self::tag( 'og:url', $url );
-		if ( '' !== $img ) {
-			$out .= self::tag( 'og:image', $img );
-			$out .= self::tag( 'og:image:secure_url', $img );
+		if ( '' !== $img['url'] ) {
+			$out .= self::tag( 'og:image', $img['url'] );
+			$out .= self::tag( 'og:image:secure_url', $img['url'] );
+			if ( $img['w'] > 0 ) { $out .= self::tag( 'og:image:width', (string) $img['w'] ); }
+			if ( $img['h'] > 0 ) { $out .= self::tag( 'og:image:height', (string) $img['h'] ); }
 			$out .= self::tag( 'og:image:alt', $title );
 		}
 		$out .= self::tag( 'twitter:card', 'summary_large_image', 'name' );
 		$out .= self::tag( 'twitter:title', $title, 'name' );
 		$out .= self::tag( 'twitter:description', $desc, 'name' );
-		if ( '' !== $img ) { $out .= self::tag( 'twitter:image', $img, 'name' ); }
+		if ( '' !== $img['url'] ) { $out .= self::tag( 'twitter:image', $img['url'], 'name' ); }
 		return $out;
 	}
 
-	/** Featured Image (full, absolut) inkl. Maße; sonst filterbares Default-Social-Bild. */
+	/** Hub-OG-Bild: erstes Slideshow-Bild als teilbares JPEG (ueber die Attachment-ID). */
+	private static function hub_image( $hub ) {
+		$imgs = (array) M24_Catalog_Hub::images( $hub );
+		if ( ! empty( $imgs[0]['id'] ) ) {
+			$src = M24_Share_Image::for_attachment( (int) $imgs[0]['id'] );
+			if ( $src ) { return array( 'url' => esc_url_raw( $src[0] ), 'w' => (int) $src[1], 'h' => (int) $src[2] ); }
+		}
+		$url = M24_Share_Image::safe_url_or_default( M24_Catalog_Hub::og_image_url( $hub ) );
+		return array( 'url' => '' !== $url ? esc_url_raw( $url ) : '', 'w' => 0, 'h' => 0 );
+	}
+
+	/**
+	 * Featured Image als teilbares JPEG (M24_Share_Image: nie WebP, ohne Photon) inkl. echter
+	 * Masse; sonst filterbares Default-Social-Bild.
+	 */
 	private static function og_image( $id ) {
-		$url = ''; $w = 0; $h = 0;
 		if ( has_post_thumbnail( $id ) ) {
-			$src = wp_get_attachment_image_src( get_post_thumbnail_id( $id ), 'full' );
-			if ( is_array( $src ) && ! empty( $src[0] ) ) {
-				$url = (string) $src[0];
-				$w   = isset( $src[1] ) ? (int) $src[1] : 0;
-				$h   = isset( $src[2] ) ? (int) $src[2] : 0;
-			}
+			$src = M24_Share_Image::for_attachment( get_post_thumbnail_id( $id ) );
+			if ( $src ) { return array( 'url' => esc_url_raw( $src[0] ), 'w' => (int) $src[1], 'h' => (int) $src[2] ); }
 		}
-		if ( '' === $url ) {
-			// Default-Social-Bild = zentraler Platzhalter (eine Quelle). Zusatz-Override via m24_og_default_image.
-			$default = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
-			$url = (string) apply_filters( 'm24_og_default_image', $default );
-			$w = 0; $h = 0;
-		}
-		return array( 'url' => '' !== $url ? esc_url_raw( $url ) : '', 'w' => $w, 'h' => $h );
+		// Default-Social-Bild = zentraler Platzhalter (eine Quelle). Zusatz-Override via m24_og_default_image.
+		$default = function_exists( 'm24_noimg_placeholder_url' ) ? m24_noimg_placeholder_url() : '';
+		$url     = (string) apply_filters( 'm24_og_default_image', $default );
+		$url     = M24_Share_Image::safe_url_or_default( $url ); // WebP/AVIF => Marken-JPEG
+		return array( 'url' => '' !== $url ? esc_url_raw( $url ) : '', 'w' => 0, 'h' => 0 );
 	}
 }

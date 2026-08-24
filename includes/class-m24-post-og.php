@@ -30,9 +30,6 @@ class M24_Post_OG {
 	/** Mindestbreite, ab der ein Bild als Share-Bild taugt (WhatsApp/FB Large-Preview). */
 	const MIN_W = 1200;
 
-	/** Attachment-Meta: Pfad + Masse der erzeugten JPEG-Share-Ableitung (Cache). */
-	const META_SHARE = '_m24_og_share_jpeg';
-
 	/** @var bool Nur unsere eigene Pufferung wieder schliessen. */
 	private static $buffering = false;
 
@@ -198,159 +195,19 @@ class M24_Post_OG {
 		return ( is_array( $meta ) && ! empty( $meta['width'] ) ) ? (int) $meta['width'] : 0;
 	}
 
-	/** Nur Formate, die FB/WhatsApp sicher rendern. WebP/AVIF sind hier bewusst raus. */
-	private static function is_share_safe( $url ) {
-		$path = (string) wp_parse_url( (string) $url, PHP_URL_PATH );
-		return (bool) preg_match( '/\.(jpe?g|png)$/i', $path );
-	}
-
 	/** [url,w,h,alt] zu einem Attachment — garantiert JPEG/PNG, ohne Photon. */
 	private static function from_attachment( $att, $post_id ) {
-		// Photon (i0.wp.com) fuer die finale Meta-URL abschalten → Crawler holen direkt von der
-		// Domain; Photon liefert je nach Accept-Header sonst WebP aus.
-		add_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-		$src = self::share_image( $att );
-		remove_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-		if ( ! $src || ! self::is_share_safe( $src[0] ) ) { return null; }
+		$src = self::share_image( $att ); // Photon-Abschaltung + JPEG-Garantie im Helfer
+		if ( ! $src ) { return null; } // for_attachment() garantiert bereits JPEG/PNG
 
 		$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
 		if ( '' === $alt ) { $alt = get_the_title( $post_id ); }
 		return array( 'url' => esc_url_raw( $src[0] ), 'w' => (int) $src[1], 'h' => (int) $src[2], 'alt' => self::plain( $alt ) );
 	}
 
-	/**
-	 * [url,w,h] einer REALEN JPEG-Datei:
-	 *   1) gecachte M24-Share-JPEG-Ableitung  2) frisch erzeugen  3) Original-JPEG/PNG.
-	 * Die WP-Zwischengroessen werden bewusst NICHT genutzt — auf dieser Installation sind sie
-	 * WebP (Konverter-Plugin via `image_editor_output_format`), und genau das bricht WhatsApp.
-	 */
+	/** Share-Bild = gemeinsame Quelle M24_Share_Image (garantiert JPEG, ohne Photon). */
 	private static function share_image( $att ) {
-		$cached = get_post_meta( $att, self::META_SHARE, true );
-		if ( is_array( $cached ) && ! empty( $cached['path'] ) && file_exists( $cached['path'] ) ) {
-			$url = self::path_to_url( $cached['path'] );
-			if ( $url ) { return array( $url, (int) $cached['w'], (int) $cached['h'] ); }
-		}
-
-		$gen = self::generate_jpeg( $att );
-		if ( $gen ) { return $gen; }
-
-		// Notnagel: Original-JPEG/PNG direkt (echte Masse aus der Datei).
-		$src = self::source_path( $att );
-		if ( $src && preg_match( '/\.(jpe?g|png)$/i', $src ) ) {
-			$url = self::path_to_url( $src );
-			$dim = @getimagesize( $src ); // phpcs:ignore WordPress.PHP.NoSilencedErrors -- defekte Datei => false
-			if ( $url ) { return array( $url, is_array( $dim ) ? (int) $dim[0] : 0, is_array( $dim ) ? (int) $dim[1] : 0 ); }
-		}
-		return null;
-	}
-
-	/**
-	 * Quelldatei fuer die Ableitung: bevorzugt das ORIGINAL-JPEG/PNG, nicht die bereits zu WebP
-	 * konvertierte Fassung. Reihenfolge: WP-Original (`original_image`) → angehaengte Datei →
-	 * gleichnamige Geschwisterdatei mit Bild-Endung (der Konverter laesst das Original liegen).
-	 */
-	private static function source_path( $att ) {
-		$cands = array();
-		if ( function_exists( 'wp_get_original_image_path' ) ) {
-			$orig = wp_get_original_image_path( $att, true );
-			if ( $orig ) { $cands[] = $orig; }
-		}
-		$file = get_attached_file( $att, true );
-		if ( $file ) { $cands[] = $file; }
-
-		$fallback = '';
-		foreach ( $cands as $p ) {
-			if ( ! file_exists( $p ) ) { continue; }
-			if ( preg_match( '/\.(jpe?g|png)$/i', $p ) ) { return $p; }   // Original in gutem Format
-			if ( '' === $fallback ) { $fallback = $p; }                    // z. B. .webp — nur als letzte Wahl
-			// Geschwisterdatei: gleiches Basisnamen-Stem, aber JPEG/PNG (Konverter-Original).
-			$stem = preg_replace( '/\.[^.\/]+$/', '', $p );
-			foreach ( array( 'jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG' ) as $ext ) {
-				if ( file_exists( $stem . '.' . $ext ) ) { return $stem . '.' . $ext; }
-			}
-		}
-		return $fallback;
-	}
-
-	/**
-	 * Erzeugt die Share-Ableitung als ECHTES JPEG (~1200px lange Kante, Q82) und merkt sie am
-	 * Attachment. Zwei Filter sind dabei entscheidend:
-	 *  - `image_editor_output_format` wird fuer die Dauer der Erzeugung geleert → das
-	 *    WebP-Konverter-Plugin kann JPEG nicht mehr auf WebP umbiegen (das war die Ursache).
-	 *  - `wp_editor_set_quality` wird fest auf unseren Wert gezogen (sonst gewinnt der Konverter).
-	 * Die Datei wird NICHT in die Attachment-Metadaten eingetragen → kein Konverter-Hook, der
-	 * sie nachtraeglich zu WebP macht.
-	 */
-	private static function generate_jpeg( $att ) {
-		$src = self::source_path( $att );
-		if ( ! $src || ! file_exists( $src ) ) { return null; }
-
-		$dest = preg_replace( '/\.[^.\/]+$/', '', $src ) . '-m24og.jpg';
-
-		// Schon vorhanden (z. B. nach Cache-Loeschung der Meta) → wiederverwenden.
-		if ( file_exists( $dest ) ) {
-			$dim = @getimagesize( $dest ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-			$url = self::path_to_url( $dest );
-			if ( $url && is_array( $dim ) ) {
-				self::remember( $att, $dest, (int) $dim[0], (int) $dim[1] );
-				return array( $url, (int) $dim[0], (int) $dim[1] );
-			}
-		}
-
-		$q = (int) apply_filters( 'm24_og_jpeg_quality', 82 );
-		add_filter( 'image_editor_output_format', '__return_empty_array', PHP_INT_MAX );
-		add_filter( 'wp_editor_set_quality', array( __CLASS__, 'force_quality' ), PHP_INT_MAX );
-		self::$quality = $q;
-
-		$editor = wp_get_image_editor( $src );
-		$saved  = null;
-		if ( ! is_wp_error( $editor ) ) {
-			$editor->set_quality( $q );
-			$size = $editor->get_size();
-			$w    = is_array( $size ) ? (int) $size['width'] : 0;
-			$h    = is_array( $size ) ? (int) $size['height'] : 0;
-			// ~1200px lange Kante, proportional, kein Upscale (kleinere Bilder bleiben wie sie sind).
-			if ( max( $w, $h ) > self::MIN_W ) { $editor->resize( self::MIN_W, self::MIN_W, false ); }
-			$saved = $editor->save( $dest, 'image/jpeg' ); // Ziel-MIME explizit → nie WebP
-		}
-
-		remove_filter( 'image_editor_output_format', '__return_empty_array', PHP_INT_MAX );
-		remove_filter( 'wp_editor_set_quality', array( __CLASS__, 'force_quality' ), PHP_INT_MAX );
-
-		if ( ! is_array( $saved ) || empty( $saved['path'] ) || ! file_exists( $saved['path'] ) ) { return null; }
-		// Doppelter Boden: haette ein Filter doch ein WebP geschrieben, verwerfen wir das Ergebnis.
-		if ( ! preg_match( '/\.(jpe?g)$/i', $saved['path'] ) ) { return null; }
-
-		$url = self::path_to_url( $saved['path'] );
-		if ( ! $url ) { return null; }
-		self::remember( $att, $saved['path'], (int) $saved['width'], (int) $saved['height'] );
-		return array( $url, (int) $saved['width'], (int) $saved['height'] );
-	}
-
-	/** @var int Qualitaet fuer die laufende Erzeugung (siehe force_quality). */
-	private static $quality = 82;
-
-	/** Qualitaet gegen fremde Filter durchsetzen — gilt nur waehrend generate_jpeg(). */
-	public static function force_quality( $quality ) {
-		return self::$quality;
-	}
-
-	/** Erzeugte Ableitung am Attachment merken (eigene Meta, NICHT in $meta['sizes']). */
-	private static function remember( $att, $path, $w, $h ) {
-		update_post_meta( $att, self::META_SHARE, array( 'path' => $path, 'w' => (int) $w, 'h' => (int) $h ) );
-	}
-
-	/** Dateipfad → oeffentliche URL (ueber das Uploads-Verzeichnis, ohne Photon/Rewrite). */
-	private static function path_to_url( $path ) {
-		$up = wp_get_upload_dir();
-		if ( ! empty( $up['basedir'] ) && 0 === strpos( $path, $up['basedir'] ) ) {
-			return $up['baseurl'] . str_replace( '\\', '/', substr( $path, strlen( $up['basedir'] ) ) );
-		}
-		// Fallback: relativ zu ABSPATH.
-		if ( defined( 'ABSPATH' ) && 0 === strpos( $path, ABSPATH ) ) {
-			return home_url( '/' . ltrim( str_replace( '\\', '/', substr( $path, strlen( ABSPATH ) ) ), '/' ) );
-		}
-		return '';
+		return M24_Share_Image::for_attachment( $att );
 	}
 
 	/**
