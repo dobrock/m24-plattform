@@ -19,7 +19,8 @@
  *  - og:description = wpSEO-Meta (_wpseo_edit_description) → gerendertes meta[description]
  *                     → Excerpt → Inhalt (~160 Zeichen)
  *  - og:image       = Beitragsbild ≥1200px → erstes Inhaltsbild ≥1200px → Beitragsbild
- *                     (kleiner) → festes Marken-Default (1200x630)
+ *                     (kleiner) → festes Marken-Default (1200x630) — IMMER als JPEG,
+ *                     nie WebP (WhatsApp rendert WebP nicht → sonst keine Vorschau)
  *  - twitter:card=summary_large_image + twitter:title/description/image (gleiches Bild)
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -29,22 +30,17 @@ class M24_Post_OG {
 	/** Mindestbreite, ab der ein Bild als Share-Bild taugt (WhatsApp/FB Large-Preview). */
 	const MIN_W = 1200;
 
+	/** Attachment-Meta: Pfad + Masse der erzeugten JPEG-Share-Ableitung (Cache). */
+	const META_SHARE = '_m24_og_share_jpeg';
+
 	/** @var bool Nur unsere eigene Pufferung wieder schliessen. */
 	private static $buffering = false;
 
 	public static function init() {
 		add_action( 'wp_head', array( __CLASS__, 'buffer_start' ), -1000 );
 		add_action( 'wp_head', array( __CLASS__, 'buffer_end' ), 1000 );
-		// Share-Groesse 1200px breit. M24FZ_SEO registriert dieselbe Groesse — doppeltes
-		// add_image_size mit identischen Werten ist unkritisch (gleicher Key, gleiche Werte),
-		// aber wir registrieren nur, wenn sie fehlt (z. B. Fahrzeug-Modul deaktiviert).
-		add_action( 'after_setup_theme', array( __CLASS__, 'register_size' ), 20 );
-	}
-
-	public static function register_size() {
-		if ( ! has_image_size( 'm24_og' ) ) {
-			add_image_size( 'm24_og', 1200, 0, false );
-		}
+		// Bewusst KEINE add_image_size: die WP-Zwischengroessen (auch m24_og) laufen auf dieser
+		// Installation durch die WebP-Konvertierung. Das Share-Bild erzeugen wir selbst als JPEG.
 	}
 
 	/** Nur Einzelansicht regulaerer Beitraege — CPTs haben eigene OG-Quellen. */
@@ -154,7 +150,12 @@ class M24_Post_OG {
 
 	/**
 	 * Bild-Kaskade: Beitragsbild ≥1200 → erstes Inhaltsbild ≥1200 → Beitragsbild (kleiner)
-	 * → Marken-Default. Liefert array{url,w,h,alt} — URL und Maße beschreiben IMMER dieselbe Datei.
+	 * → Marken-Default. Liefert array{url,w,h,alt}.
+	 *
+	 * HARTE REGEL: die finale og:image-URL ist IMMER ein JPEG (bzw. PNG). WhatsApp rendert
+	 * KEIN WebP → ein .webp-og:image bedeutet „keine Vorschau". Deshalb erzeugt
+	 * generate_jpeg() eine echte JPEG-Ableitung; taugt am Ende nichts, greift das
+	 * Marken-Default (JPEG). Kein Pfad darf .webp/.avif ausliefern.
 	 */
 	private static function og_image( $id ) {
 		$thumb = (int) get_post_thumbnail_id( $id );
@@ -178,7 +179,11 @@ class M24_Post_OG {
 			if ( $img ) { return $img; }
 		}
 
-		// 4) Festes Marken-Default (1200x630, liegt im Plugin → immer erreichbar).
+		// 4) Festes Marken-Default (1200x630 JPEG, liegt im Plugin → immer erreichbar).
+		return self::default_image();
+	}
+
+	private static function default_image() {
 		return array(
 			'url' => esc_url_raw( m24_og_default_image_url() ),
 			'w'   => 1200,
@@ -193,14 +198,20 @@ class M24_Post_OG {
 		return ( is_array( $meta ) && ! empty( $meta['width'] ) ) ? (int) $meta['width'] : 0;
 	}
 
-	/** [url,w,h,alt] einer REALEN Datei zu einem Attachment — Photon (i0.wp.com) umgangen. */
+	/** Nur Formate, die FB/WhatsApp sicher rendern. WebP/AVIF sind hier bewusst raus. */
+	private static function is_share_safe( $url ) {
+		$path = (string) wp_parse_url( (string) $url, PHP_URL_PATH );
+		return (bool) preg_match( '/\.(jpe?g|png)$/i', $path );
+	}
+
+	/** [url,w,h,alt] zu einem Attachment — garantiert JPEG/PNG, ohne Photon. */
 	private static function from_attachment( $att, $post_id ) {
-		// Photon fuer die finale Meta-URL abschalten → FB/WhatsApp holt direkt von der Domain
-		// (Photon-URLs mit ?fit=…&ssl=1 sind fuer Crawler unnoetig fehleranfaellig).
+		// Photon (i0.wp.com) fuer die finale Meta-URL abschalten → Crawler holen direkt von der
+		// Domain; Photon liefert je nach Accept-Header sonst WebP aus.
 		add_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
 		$src = self::share_image( $att );
 		remove_filter( 'jetpack_photon_skip_for_url', '__return_true', 99 );
-		if ( ! $src ) { return null; }
+		if ( ! $src || ! self::is_share_safe( $src[0] ) ) { return null; }
 
 		$alt = trim( (string) get_post_meta( $att, '_wp_attachment_image_alt', true ) );
 		if ( '' === $alt ) { $alt = get_the_title( $post_id ); }
@@ -208,64 +219,138 @@ class M24_Post_OG {
 	}
 
 	/**
-	 * [url,w,h] einer echten Datei: m24_og (bei Bedarf on-the-fly erzeugt) → large → Original.
-	 * Gleiches Vorgehen wie M24FZ_SEO::share_image() (dort seit Monaten produktiv erprobt).
+	 * [url,w,h] einer REALEN JPEG-Datei:
+	 *   1) gecachte M24-Share-JPEG-Ableitung  2) frisch erzeugen  3) Original-JPEG/PNG.
+	 * Die WP-Zwischengroessen werden bewusst NICHT genutzt — auf dieser Installation sind sie
+	 * WebP (Konverter-Plugin via `image_editor_output_format`), und genau das bricht WhatsApp.
 	 */
 	private static function share_image( $att ) {
-		$meta = wp_get_attachment_metadata( $att );
-
-		if ( is_array( $meta ) && ! empty( $meta['sizes']['m24_og']['file'] ) ) {
-			$url = self::size_url( $att, $meta['sizes']['m24_og']['file'] );
-			if ( $url ) { return array( $url, (int) $meta['sizes']['m24_og']['width'], (int) $meta['sizes']['m24_og']['height'] ); }
+		$cached = get_post_meta( $att, self::META_SHARE, true );
+		if ( is_array( $cached ) && ! empty( $cached['path'] ) && file_exists( $cached['path'] ) ) {
+			$url = self::path_to_url( $cached['path'] );
+			if ( $url ) { return array( $url, (int) $cached['w'], (int) $cached['h'] ); }
 		}
 
-		$gen = self::generate_og_size( $att );
+		$gen = self::generate_jpeg( $att );
 		if ( $gen ) { return $gen; }
 
-		if ( is_array( $meta ) && ! empty( $meta['sizes']['large']['file'] ) ) {
-			$url = self::size_url( $att, $meta['sizes']['large']['file'] );
-			if ( $url ) { return array( $url, (int) $meta['sizes']['large']['width'], (int) $meta['sizes']['large']['height'] ); }
-		}
-
-		if ( is_array( $meta ) && ! empty( $meta['width'] ) ) {
-			$url = wp_get_attachment_url( $att );
-			if ( $url ) { return array( $url, (int) $meta['width'], (int) $meta['height'] ); }
+		// Notnagel: Original-JPEG/PNG direkt (echte Masse aus der Datei).
+		$src = self::source_path( $att );
+		if ( $src && preg_match( '/\.(jpe?g|png)$/i', $src ) ) {
+			$url = self::path_to_url( $src );
+			$dim = @getimagesize( $src ); // phpcs:ignore WordPress.PHP.NoSilencedErrors -- defekte Datei => false
+			if ( $url ) { return array( $url, is_array( $dim ) ? (int) $dim[0] : 0, is_array( $dim ) ? (int) $dim[1] : 0 ); }
 		}
 		return null;
 	}
 
-	/** m24_og-Zwischengroesse (1200px breit) erzeugen + in den Attachment-Metadaten registrieren. */
-	private static function generate_og_size( $att ) {
-		$path = get_attached_file( $att );
-		if ( ! $path || ! file_exists( $path ) ) { return null; }
-		if ( ! function_exists( 'image_make_intermediate_size' ) ) { require_once ABSPATH . 'wp-admin/includes/image.php'; }
-		add_filter( 'wp_editor_set_quality', array( __CLASS__, 'og_quality' ), 99, 2 );
-		$gen = image_make_intermediate_size( $path, 1200, 0, false ); // kein Crop, proportional
-		remove_filter( 'wp_editor_set_quality', array( __CLASS__, 'og_quality' ), 99 );
-		if ( ! is_array( $gen ) || empty( $gen['file'] ) ) { return null; } // u. a. Original < 1200 (kein Upscale)
+	/**
+	 * Quelldatei fuer die Ableitung: bevorzugt das ORIGINAL-JPEG/PNG, nicht die bereits zu WebP
+	 * konvertierte Fassung. Reihenfolge: WP-Original (`original_image`) → angehaengte Datei →
+	 * gleichnamige Geschwisterdatei mit Bild-Endung (der Konverter laesst das Original liegen).
+	 */
+	private static function source_path( $att ) {
+		$cands = array();
+		if ( function_exists( 'wp_get_original_image_path' ) ) {
+			$orig = wp_get_original_image_path( $att, true );
+			if ( $orig ) { $cands[] = $orig; }
+		}
+		$file = get_attached_file( $att, true );
+		if ( $file ) { $cands[] = $file; }
 
-		$meta = wp_get_attachment_metadata( $att );
-		if ( ! is_array( $meta ) ) { $meta = array(); }
-		if ( empty( $meta['sizes'] ) || ! is_array( $meta['sizes'] ) ) { $meta['sizes'] = array(); }
-		$meta['sizes']['m24_og'] = $gen;
-		wp_update_attachment_metadata( $att, $meta );
-
-		$url = self::size_url( $att, $gen['file'] );
-		return $url ? array( $url, (int) $gen['width'], (int) $gen['height'] ) : null;
+		$fallback = '';
+		foreach ( $cands as $p ) {
+			if ( ! file_exists( $p ) ) { continue; }
+			if ( preg_match( '/\.(jpe?g|png)$/i', $p ) ) { return $p; }   // Original in gutem Format
+			if ( '' === $fallback ) { $fallback = $p; }                    // z. B. .webp — nur als letzte Wahl
+			// Geschwisterdatei: gleiches Basisnamen-Stem, aber JPEG/PNG (Konverter-Original).
+			$stem = preg_replace( '/\.[^.\/]+$/', '', $p );
+			foreach ( array( 'jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG' ) as $ext ) {
+				if ( file_exists( $stem . '.' . $ext ) ) { return $stem . '.' . $ext; }
+			}
+		}
+		return $fallback;
 	}
 
-	/** Kompressionsqualitaet NUR fuer die m24_og-Groesse (kleine Share-Datei). */
-	public static function og_quality( $quality, $mime = '' ) {
-		return (int) apply_filters( 'm24_og_quality', 72, $mime );
+	/**
+	 * Erzeugt die Share-Ableitung als ECHTES JPEG (~1200px lange Kante, Q82) und merkt sie am
+	 * Attachment. Zwei Filter sind dabei entscheidend:
+	 *  - `image_editor_output_format` wird fuer die Dauer der Erzeugung geleert → das
+	 *    WebP-Konverter-Plugin kann JPEG nicht mehr auf WebP umbiegen (das war die Ursache).
+	 *  - `wp_editor_set_quality` wird fest auf unseren Wert gezogen (sonst gewinnt der Konverter).
+	 * Die Datei wird NICHT in die Attachment-Metadaten eingetragen → kein Konverter-Hook, der
+	 * sie nachtraeglich zu WebP macht.
+	 */
+	private static function generate_jpeg( $att ) {
+		$src = self::source_path( $att );
+		if ( ! $src || ! file_exists( $src ) ) { return null; }
+
+		$dest = preg_replace( '/\.[^.\/]+$/', '', $src ) . '-m24og.jpg';
+
+		// Schon vorhanden (z. B. nach Cache-Loeschung der Meta) → wiederverwenden.
+		if ( file_exists( $dest ) ) {
+			$dim = @getimagesize( $dest ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			$url = self::path_to_url( $dest );
+			if ( $url && is_array( $dim ) ) {
+				self::remember( $att, $dest, (int) $dim[0], (int) $dim[1] );
+				return array( $url, (int) $dim[0], (int) $dim[1] );
+			}
+		}
+
+		$q = (int) apply_filters( 'm24_og_jpeg_quality', 82 );
+		add_filter( 'image_editor_output_format', '__return_empty_array', PHP_INT_MAX );
+		add_filter( 'wp_editor_set_quality', array( __CLASS__, 'force_quality' ), PHP_INT_MAX );
+		self::$quality = $q;
+
+		$editor = wp_get_image_editor( $src );
+		$saved  = null;
+		if ( ! is_wp_error( $editor ) ) {
+			$editor->set_quality( $q );
+			$size = $editor->get_size();
+			$w    = is_array( $size ) ? (int) $size['width'] : 0;
+			$h    = is_array( $size ) ? (int) $size['height'] : 0;
+			// ~1200px lange Kante, proportional, kein Upscale (kleinere Bilder bleiben wie sie sind).
+			if ( max( $w, $h ) > self::MIN_W ) { $editor->resize( self::MIN_W, self::MIN_W, false ); }
+			$saved = $editor->save( $dest, 'image/jpeg' ); // Ziel-MIME explizit → nie WebP
+		}
+
+		remove_filter( 'image_editor_output_format', '__return_empty_array', PHP_INT_MAX );
+		remove_filter( 'wp_editor_set_quality', array( __CLASS__, 'force_quality' ), PHP_INT_MAX );
+
+		if ( ! is_array( $saved ) || empty( $saved['path'] ) || ! file_exists( $saved['path'] ) ) { return null; }
+		// Doppelter Boden: haette ein Filter doch ein WebP geschrieben, verwerfen wir das Ergebnis.
+		if ( ! preg_match( '/\.(jpe?g)$/i', $saved['path'] ) ) { return null; }
+
+		$url = self::path_to_url( $saved['path'] );
+		if ( ! $url ) { return null; }
+		self::remember( $att, $saved['path'], (int) $saved['width'], (int) $saved['height'] );
+		return array( $url, (int) $saved['width'], (int) $saved['height'] );
 	}
 
-	/** URL einer Zwischengroesse (gleicher Ordner wie das Original). */
-	private static function size_url( $att, $file ) {
-		$full = wp_get_attachment_url( $att );
-		if ( ! $full ) { return ''; }
-		$full = strtok( $full, '?' ); // evtl. Photon-Query abschneiden
-		$pos  = strrpos( $full, '/' );
-		return ( false === $pos ) ? '' : substr( $full, 0, $pos + 1 ) . $file;
+	/** @var int Qualitaet fuer die laufende Erzeugung (siehe force_quality). */
+	private static $quality = 82;
+
+	/** Qualitaet gegen fremde Filter durchsetzen — gilt nur waehrend generate_jpeg(). */
+	public static function force_quality( $quality ) {
+		return self::$quality;
+	}
+
+	/** Erzeugte Ableitung am Attachment merken (eigene Meta, NICHT in $meta['sizes']). */
+	private static function remember( $att, $path, $w, $h ) {
+		update_post_meta( $att, self::META_SHARE, array( 'path' => $path, 'w' => (int) $w, 'h' => (int) $h ) );
+	}
+
+	/** Dateipfad → oeffentliche URL (ueber das Uploads-Verzeichnis, ohne Photon/Rewrite). */
+	private static function path_to_url( $path ) {
+		$up = wp_get_upload_dir();
+		if ( ! empty( $up['basedir'] ) && 0 === strpos( $path, $up['basedir'] ) ) {
+			return $up['baseurl'] . str_replace( '\\', '/', substr( $path, strlen( $up['basedir'] ) ) );
+		}
+		// Fallback: relativ zu ABSPATH.
+		if ( defined( 'ABSPATH' ) && 0 === strpos( $path, ABSPATH ) ) {
+			return home_url( '/' . ltrim( str_replace( '\\', '/', substr( $path, strlen( ABSPATH ) ) ), '/' ) );
+		}
+		return '';
 	}
 
 	/**
