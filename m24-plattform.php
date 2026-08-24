@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.442
+ * Version:           0.11.444
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -107,6 +107,15 @@ function m24_noimg_placeholder_url() {
 }
 
 /**
+ * Marken-Default fuer Social-Previews (1200x630, im Plugin abgelegt → nach jedem Deploy
+ * garantiert erreichbar). Letzte Stufe der og:image-Kaskade fuer Beitraege, wenn weder
+ * Beitragsbild noch Inhaltsbild taugen. Ueberschreibbar via Filter `m24_og_default_image`.
+ */
+function m24_og_default_image_url() {
+    return apply_filters( 'm24_og_default_image', M24_PLATTFORM_URL . 'assets/img/og-default.jpg' );
+}
+
+/**
  * Globaler Index-Schalter fuer Teile-Detailseiten (Vorbereitung Index-Flip).
  * Konstante M24_TEILE_INDEX (wp-config) hat Vorrang, sonst Option `m24_teile_index`.
  * Default 0 = noindex,follow. true → index,follow. Greift via wpSEO-Filter `wpseo_set_robots`.
@@ -201,6 +210,7 @@ require_once M24_PLATTFORM_DIR . 'includes/admin/class-m24-adminbar.php';   // A
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-comments.php';         // Kommentare site-weit deaktivieren
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seo.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-og.php';       // Open-Graph/Twitter (eine Quelle, ersetzt WPCode-Snippets)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-post-og.php';    // Open-Graph/Twitter fuer regulaere Beitraege (wpSEO liefert dort keins)
 require_once M24_PLATTFORM_DIR . 'inc/detail-original-badge.php';        // „Original BMW-Teil"-Badge (Markenrecht), reiner Helfer
 
 // Gemeinsames Anfrage-Formular-Partial (eine Quelle für beide Modals — Teile + Fahrzeug).
@@ -328,6 +338,7 @@ add_action( 'plugins_loaded', function() {
     M24_Comments::init();
     M24_Catalog_SEO::init();
     M24_Catalog_OG::init();
+    M24_Post_OG::init();
     M24_Inquiry_Submit::init();
     M24_Inquiry_Frontend::init();
     // Gruppierte Suche: REST-Route, Vollergebnis-Routing, Frontend-Assets.
