@@ -189,8 +189,18 @@ class M24_Offers {
 		}
 		if ( 'mirror' === ( isset( $_GET['done'] ) ? sanitize_key( wp_unslash( $_GET['done'] ) ) : '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			$mn  = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+			$mwhy = isset( $_GET['why'] ) ? sanitize_text_field( wp_unslash( $_GET['why'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 			$mtx = $mn > 0 ? sprintf( '✓ %d Desk-Auftr%s der letzten 10 Tage nach WP gespiegelt.', $mn, 1 === $mn ? 'ag' : 'äge' ) : 'Keine neuen Desk-Aufträge der letzten 10 Tage gefunden (bereits alle gespiegelt).';
+			// Wenn der Desk-Pull selbst scheiterte, ist „keine neuen" irreführend — den echten Grund zeigen.
+			if ( '' !== $mwhy ) { $mtx = 'Desk-Abruf ohne Ergebnis: ' . $mwhy; }
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $mtx ) . '</p></div>';
+		}
+		// Ergebnis des Erstabgleichs.
+		if ( isset( $_GET['full'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$full_txt = sanitize_text_field( wp_unslash( $_GET['full'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+			if ( '' !== $full_txt ) {
+				echo '<div class="notice notice-' . ( false !== strpos( $full_txt, '✗' ) ? 'warning' : 'success' ) . ' is-dismissible"><p><strong>Erstabgleich:</strong> ' . esc_html( $full_txt ) . '</p></div>';
+			}
 		}
 		// Ergebnis des Kunden-Seeds.
 		if ( isset( $_GET['seed'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
@@ -230,6 +240,9 @@ class M24_Offers {
 		// Einmaliger Initial-Seed: schickt dem Desk die customer_uid der Bestandskunden. Ohne diesen Schritt
 		// kennt er sie nicht, und Adressänderungen an Altkunden finden in WP nie ihren Empfänger.
 		echo '<a class="chip" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_sync_seed_customers' ), 'm24_sync_seed_customers' ) ) . '" style="border-color:#6b21a8;color:#6b21a8;" title="Einmalig nötig, damit der Desk Bestandskunden zuordnen kann. Mehrfach ausführbar.">⇧ Kunden-Verknüpfung an Desk senden</a>';
+		// Erstabgleich: zieht den kompletten Desk-Bestand ohne Wasserstand. Nötig, weil der inkrementelle
+		// Pull nur Geändertes liefert und Altbestände damit nie ankommen.
+		echo '<a class="chip" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_sync_full_pull' ), 'm24_sync_full_pull' ) ) . '" style="border-color:#0e7a3b;color:#0e7a3b;" title="Holt den kompletten Desk-Bestand statt nur der Änderungen. Einmalig für die Erstverknüpfung; kann dauern." onclick="return confirm(\'Erstabgleich starten? Holt den KOMPLETTEN Desk-Bestand — das kann einige Minuten dauern.\');">⟳ Erstabgleich (Voll-Pull)</a>';
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
 
 		// Vorschau-Panel „Gesyncte Angebote nachziehen": listet die Zeilen mit Korrekturbedarf (Datum/Positionen/

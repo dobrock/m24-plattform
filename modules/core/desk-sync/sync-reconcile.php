@@ -28,11 +28,13 @@ class M24_Sync_Reconcile {
 	const OPT_PREFIX = 'm24_sync_last_reconcile_';
 	const TIMEOUT    = 20;
 	const PAGE       = 200;
-	const MAX_PAGES  = 25;   // Sicherheitsnetz gegen einen Cursor, der nie endet
+	const MAX_PAGES      = 25;   // Sicherheitsnetz gegen einen Cursor, der nie endet
+	const MAX_PAGES_FULL = 250;  // Erstabgleich zieht den kompletten Bestand — entsprechend mehr Luft
 	const OVERLAP    = 120;  // Sekunden Rückgriff gegen Uhren-Drift
 	const ENTITIES   = array( 'orders', 'offer_lines', 'customers' );
 
 	public static function init() {
+		add_action( 'admin_post_m24_sync_full_pull', array( __CLASS__, 'handle_full_pull' ) );
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
 		add_action( self::CRON, array( __CLASS__, 'run_cron' ) );
 		if ( ! wp_next_scheduled( self::CRON ) && self::enabled() ) {
@@ -95,7 +97,7 @@ class M24_Sync_Reconcile {
 	 *
 	 * @return array{ok:bool,fetched:int,applied:int,note:string}
 	 */
-	public static function pull( string $entity, ?string $since = null ): array {
+	public static function pull( string $entity, ?string $since = null, bool $full = false ): array {
 		if ( ! in_array( $entity, self::ENTITIES, true ) ) {
 			return array( 'ok' => false, 'fetched' => 0, 'applied' => 0, 'note' => 'unknown_entity' );
 		}
@@ -103,15 +105,20 @@ class M24_Sync_Reconcile {
 			return array( 'ok' => false, 'fetched' => 0, 'applied' => 0, 'note' => 'Sync nicht scharf oder Desk nicht konfiguriert.' );
 		}
 
-		$since   = $since ?? self::since_for( $entity );
+		// Voll-Pull: OHNE updated_since. Der Wasserstand schließt Altbestände systematisch aus — was sich
+		// seit dem letzten Lauf nicht geändert hat, kommt nie, und genau das sind die Datensätze, bei denen
+		// beiden Seiten die Verknüpfung fehlt (Aufträge ohne desk_order_id, Kunden ohne customer_uid).
+		$since   = $full ? '' : ( $since ?? self::since_for( $entity ) );
 		$started = gmdate( 'Y-m-d\TH:i:s\Z' ); // Wasserstand = Startzeitpunkt, nicht Endzeit: was während
 		                                       // des Laufs drüben passiert, muss der nächste noch sehen.
 		$cursor  = '';
 		$fetched = 0;
 		$applied = 0;
+		$pages   = $full ? self::MAX_PAGES_FULL : self::MAX_PAGES;
 
-		for ( $page = 0; $page < self::MAX_PAGES; $page++ ) {
-			$q = array( 'entity' => $entity, 'updated_since' => $since, 'limit' => self::PAGE );
+		for ( $page = 0; $page < $pages; $page++ ) {
+			$q = array( 'entity' => $entity, 'limit' => self::PAGE );
+			if ( '' !== $since ) { $q['updated_since'] = $since; }
 			if ( '' !== $cursor ) { $q['cursor'] = $cursor; }
 			$path = self::ENDPOINT . '?' . http_build_query( $q, '', '&', PHP_QUERY_RFC3986 );
 
@@ -141,11 +148,55 @@ class M24_Sync_Reconcile {
 			// Records enthalten als `limit`, und ein Vergleich auf die Record-Zahl bräche zu früh ab.
 			$cursor = trim( (string) ( $data['next_cursor'] ?? $data['cursor'] ?? '' ) );
 			if ( '' === $cursor ) { break; }
+			if ( $page === $pages - 1 ) {
+				// Seitenlimit erreicht, obwohl der Desk noch mehr hat. Nicht still abbrechen — sonst sähe
+				// der Lauf erfolgreich aus, obwohl ein Teil fehlt.
+				self::log( 'pull_truncated', $entity . ': Seitenlimit ' . $pages . ' erreicht, es liegt mehr an. Lauf wiederholen.' );
+			}
 		}
 
 		self::set_last_reconcile_at( $entity, $started );
 		self::log( 'pull', $entity . ': ' . $fetched . ' geholt, ' . $applied . ' angewandt (seit ' . $since . ').' );
 		return array( 'ok' => true, 'fetched' => $fetched, 'applied' => $applied, 'note' => 'ok' );
+	}
+
+	/**
+	 * Erstabgleich (Voll-Pull): holt den KOMPLETTEN Desk-Bestand, ohne Wasserstand.
+	 *
+	 * Warum das nötig ist, obwohl es einen inkrementellen Pull gibt: `updated_since` liefert nur, was sich
+	 * seit dem letzten Lauf geändert hat. Ein Auftrag, der seit Monaten unverändert im Desk liegt, kommt
+	 * damit nie — und genau bei denen fehlt die Verknüpfung. Der Voll-Pull holt sie einmalig herein:
+	 * Aufträge lernen dabei ihre desk_order_id (behebt 'unbekannter_auftrag' beim Push), Kunden werden
+	 * über die geseedete customer_uid zugeordnet. Danach genügt wieder der inkrementelle Lauf.
+	 *
+	 * Vorher wird geseedet und gepusht — sonst liest der Pull einen Bestand, für den der Desk unsere uids
+	 * noch nicht kennt, und findet für jeden Datensatz keinen Anker.
+	 *
+	 * @return array je Entität {ok,fetched,applied,note}
+	 */
+	public static function full_pull(): array {
+		if ( ! self::enabled() ) {
+			$err = array( 'ok' => false, 'fetched' => 0, 'applied' => 0, 'note' => 'Sync nicht scharf oder Desk nicht konfiguriert.' );
+			return array_fill_keys( self::ENTITIES, $err );
+		}
+		if ( class_exists( 'M24_Sync_Push' ) ) {
+			M24_Sync_Push::seed_customer_uids();
+			M24_Sync_Push::run_pending();
+		}
+		$out = array();
+		foreach ( self::ENTITIES as $e ) { $out[ $e ] = self::pull( $e, null, true ); }
+		self::log( 'full_pull', self::summary( $out ) );
+		return $out;
+	}
+
+	/** Admin-Button → Erstabgleich, Ergebnis als Notiz zurück in die Liste (PRG, Nonce). */
+	public static function handle_full_pull() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+		check_admin_referer( 'm24_sync_full_pull' );
+		if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 300 ); } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		$r = self::full_pull();
+		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'full' => rawurlencode( self::summary( $r ) ) ), admin_url( 'admin.php' ) ) );
+		exit;
 	}
 
 	/**

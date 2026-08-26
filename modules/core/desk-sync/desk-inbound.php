@@ -845,18 +845,41 @@ class M24_Desk_Inbound {
         $cached = get_transient( 'm24_desk_orders_raw' );
         if ( is_array( $cached ) ) { return $cached; }
         $list = array();
-        if ( class_exists( 'M24_Rest_Client' ) && M24_Rest_Client::is_configured() ) {
-            $res    = M24_Rest_Client::request( 'GET', '/api/orders', null, array( 'timeout' => 20 ) );
-            $status = (int) ( $res['status'] ?? 0 );
-            if ( $status >= 200 && $status < 300 ) {
-                $list = self::extract_order_list( $res['data'] ?? null );
-                self::log( 'desk_pull', 'GET /api/orders → ' . count( $list ) . ' Aufträge.' );
-            } else {
-                self::log( 'desk_pull', 'GET /api/orders HTTP ' . $status . '.' );
-            }
+        self::$last_pull_note = '';
+        if ( ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) {
+            self::$last_pull_note = 'Desk nicht konfiguriert (URL/Token fehlt).';
+            return $list;
         }
-        set_transient( 'm24_desk_orders_raw', $list, 120 );
+        $res    = M24_Rest_Client::request( 'GET', '/api/orders', null, array( 'timeout' => 20 ) );
+        $status = (int) ( $res['status'] ?? 0 );
+        if ( $status >= 200 && $status < 300 ) {
+            $list = self::extract_order_list( $res['data'] ?? null );
+            if ( empty( $list ) ) {
+                // 2xx, aber nichts erkannt: entweder wirklich leer oder eine Antwortform, die
+                // extract_order_list nicht kennt. Die Top-Level-Keys mitloggen, sonst rät man.
+                $keys = is_array( $res['data'] ?? null ) ? implode( ',', array_slice( array_keys( $res['data'] ), 0, 8 ) ) : gettype( $res['data'] ?? null );
+                self::$last_pull_note = 'HTTP 200, aber keine Auftragsliste erkannt (Top-Level: ' . $keys . ').';
+            }
+            self::log( 'desk_pull', 'GET /api/orders → ' . count( $list ) . ' Aufträge. ' . self::$last_pull_note );
+            set_transient( 'm24_desk_orders_raw', $list, 120 ); // nur Erfolge cachen
+            return $list;
+        }
+        // Fehler NICHT cachen — sonst zeigt der Button nach einem Token-/Scope-Fix noch zwei Minuten
+        // lang „0 geladen", und man sucht an der falschen Stelle.
+        $data = is_array( $res['data'] ?? null ) ? $res['data'] : array();
+        self::$last_pull_note = ( 401 === $status || 403 === $status )
+            ? 'HTTP ' . $status . ' — Token/Scope: ' . (string) ( $data['error'] ?? 'nicht autorisiert' ) . ( isset( $data['needed'] ) ? ' (nötig: ' . (string) $data['needed'] . ')' : '' )
+            : 'HTTP ' . $status . ' · ' . (string) ( $res['error'] ?? 'unbekannt' );
+        self::log( 'desk_pull', 'GET /api/orders fehlgeschlagen — ' . self::$last_pull_note );
         return $list;
+    }
+
+    /** Grund des letzten fehlgeschlagenen/leeren Desk-Pulls, für die Admin-Meldung. */
+    public static $last_pull_note = '';
+
+    /** Letzter Pull-Grund, oder '' wenn alles glattlief. */
+    public static function last_pull_note(): string {
+        return (string) self::$last_pull_note;
     }
 
     /** Map desk_order_id ⇒ echtes Datum ('Y-m-d H:i:s' UTC) aus dem Desk-Pull (für den Datums-Backfill). */
@@ -972,7 +995,13 @@ class M24_Desk_Inbound {
         // Spec §5.2: der Button zieht zusätzlich einen sofortigen Reconcile — wer hier klickt, will den
         // aktuellen Desk-Stand sehen und nicht bis zum nächsten Cron-Lauf warten.
         $rec = class_exists( 'M24_Sync_Reconcile' ) ? M24_Sync_Reconcile::pull_all() : array();
-        wp_safe_redirect( add_query_arg( array_filter( array( 'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n, 'rec' => $rec ? M24_Sync_Reconcile::summary( $rec ) : '' ) ), admin_url( 'admin.php' ) ) );
+        wp_safe_redirect( add_query_arg( array_filter( array(
+            'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n,
+            'rec'  => $rec ? M24_Sync_Reconcile::summary( $rec ) : '',
+            // Grund mitgeben, wenn der Legacy-Pull nichts geliefert hat — „0 geladen" allein schickt
+            // einen auf die Suche nach einem Formatfehler, obwohl es meist Token/Scope ist.
+            'why'  => self::last_pull_note(),
+        ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
