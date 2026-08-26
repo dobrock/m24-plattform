@@ -834,10 +834,10 @@ class M24_Settings {
                             <p style="margin-top:10px;">
                                 <label>
                                     <input type="checkbox" name="m24_desk_sync_enabled" value="1" <?php checked( (bool) get_option( 'm24_desk_sync_enabled', 0 ), true ); ?> />
-                                    <?php echo esc_html__( 'Desk-Sync (W1): Angebot beim Versand als Auftrag an M24 Desk pushen (POST /api/orders, Vertrag v1.1).', 'm24-plattform' ); ?>
+                                    <?php echo esc_html__( 'Desk-Sync scharfschalten: Angebots-Push (W1), Zwei-Wege-Abgleich und Ersetzen geänderter Angebote.', 'm24-plattform' ); ?>
                                 </label>
                                 <span class="description" style="display:block;margin-top:2px;">
-                                    <?php echo esc_html__( 'Default AUS. Solange aus, läuft beim Senden nur ein nebenwirkungsfreier Dry-Run. Verbindung/Dry-Run prüfen unter „Desk-Sync". Nutzt dieselbe Desk-Verbindung (API-URL/Key/Fallback-Mail) wie oben.', 'm24-plattform' ); ?>
+                                    <?php echo esc_html__( 'Default AUS. Dieser eine Schalter steuert alles Richtung Desk: W1-Push beim Versand (POST /api/orders), den 10-Minuten-Abgleich in beide Richtungen (/api/sync/changes + /api/sync/apply) und das Ersetzen bereits versendeter Angebote nach Positions-/Adressänderungen. Solange aus, läuft beim Senden nur ein nebenwirkungsfreier Dry-Run und es findet kein Abgleich statt. Verbindung/Dry-Run prüfen unter „Desk-Sync". Nutzt dieselbe Desk-Verbindung (API-URL/Key/Fallback-Mail) wie oben.', 'm24-plattform' ); ?>
                                 </span>
                             </p>
                         </td>
