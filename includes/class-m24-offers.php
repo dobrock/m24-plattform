@@ -364,7 +364,7 @@ class M24_Offers {
 					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
 					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
 					// „Erneut senden": nur für bereits versendete, noch offene Angebote. Der Dialog zeigt die
-					// hinterlegte Adresse vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
+					// hinterlegte Adresse im Modal vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
 					// TODO (sobald der Desk-Token orders:read hat): den Empfänger zusätzlich frisch aus
 					// GET /api/orders/:id vorbefüllen — Adressen werden oft erst im Desk korrigiert. Bis dahin
 					// ist das editierbare Feld die Absicherung, damit nie stillschweigend die alte Adresse zieht.
@@ -376,14 +376,56 @@ class M24_Offers {
 				echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' in den Papierkorb verschieben?\');">Löschen</a></div></div>';
 			}
 		}
+		// „Erneut senden": eigenes In-Page-Modal im Stil der Operator-Vorschau-Lightbox (kein prompt()/confirm()).
+		// Das Empfänger-Feld ist vorbefüllt und editierbar; das bestätigte Ziel wird als ?to= angehängt.
+		// Genau EIN Modal für alle Karten — beim Klick befüllt. Ohne Bestätigung passiert nichts.
+		echo '<style>'
+			. '.m24offl-modal{position:fixed;inset:0;z-index:100090;background:rgba(20,22,26,.55);display:flex;align-items:center;justify-content:center;padding:24px}'
+			. '.m24offl-modal[hidden]{display:none!important}'
+			. '.m24offl-box{background:#fff;border-radius:14px;width:min(520px,96vw);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}'
+			. '.m24offl-mhead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb}'
+			. '.m24offl-mhead b{font-size:15px;color:#10243a}'
+			. '.m24offl-mclose{border:0;background:none;font-size:20px;line-height:1;color:#9aa3b0;cursor:pointer;padding:0 2px}'
+			. '.m24offl-mbody{padding:18px}'
+			. '.m24offl-mbody label{display:block;font-weight:600;font-size:13px;margin-bottom:6px;color:#374151}'
+			. '.m24offl-mbody input{width:100%;height:38px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;font-size:14px;box-sizing:border-box}'
+			. '.m24offl-mbody input:focus{outline:0;border-color:#1f74c4}'
+			. '.m24offl-mhint{margin:8px 0 0;color:#6b7280;font-size:12.5px}'
+			. '.m24offl-merr{margin:8px 0 0;color:#c8102e;font-size:12.5px;font-weight:600}'
+			. '.m24offl-mfoot{display:flex;gap:10px;justify-content:flex-end;padding:14px 18px;border-top:1px solid #e5e7eb;background:#fafbfc}'
+			. '</style>';
+		echo '<div class="m24offl-modal" data-rs-modal hidden role="dialog" aria-modal="true" aria-labelledby="m24offl-rs-title">'
+			. '<div class="m24offl-box">'
+			. '<div class="m24offl-mhead"><b id="m24offl-rs-title">Angebot <span data-rs-no></span> erneut senden</b>'
+			. '<button type="button" class="m24offl-mclose" data-rs-close aria-label="Schließen">&#10005;</button></div>'
+			. '<div class="m24offl-mbody">'
+			. '<label for="m24offl-rs-mail">Empfänger</label>'
+			. '<input type="email" id="m24offl-rs-mail" data-rs-mail autocomplete="off" spellcheck="false">'
+			. '<p class="m24offl-mhint">Adresse prüfen oder korrigieren — gesendet wird an genau diesen Wert.</p>'
+			. '<p class="m24offl-merr" data-rs-err hidden></p>'
+			. '</div>'
+			. '<div class="m24offl-mfoot"><button type="button" class="button" data-rs-close>Abbrechen</button>'
+			. '<button type="button" class="button button-primary" data-rs-send>Senden</button></div>'
+			. '</div></div>';
+		echo '<script>(function(){'
+			. 'var mo=document.querySelector("[data-rs-modal]");if(!mo)return;'
+			. 'var inp=mo.querySelector("[data-rs-mail]"),noEl=mo.querySelector("[data-rs-no]"),err=mo.querySelector("[data-rs-err]");'
+			. 'var href="",last=null;'
+			. 'function shut(){mo.setAttribute("hidden","");err.setAttribute("hidden","");href="";if(last){last.focus();last=null;}}'
+			. 'function open(a){href=a.getAttribute("href");last=a;noEl.textContent=a.getAttribute("data-m24-resend")||"";'
+			. 'inp.value=a.getAttribute("data-m24-mail")||"";err.setAttribute("hidden","");mo.removeAttribute("hidden");inp.focus();inp.select();}'
+			. 'function go(){var v=(inp.value||"").trim();'
+			. 'if(!v||v.indexOf("@")<1||v.indexOf(".",v.indexOf("@"))<0){err.textContent="Bitte eine gültige E-Mail-Adresse eingeben.";err.removeAttribute("hidden");inp.focus();return;}'
+			. 'window.location.href=href+"&to="+encodeURIComponent(v);}'
+			. 'document.addEventListener("click",function(e){'
+			. 'var a=e.target.closest?e.target.closest("[data-m24-resend]"):null;if(a){e.preventDefault();open(a);return;}'
+			. 'if(mo.hasAttribute("hidden"))return;'
+			. 'if(e.target===mo||(e.target.closest&&e.target.closest("[data-rs-close]"))){e.preventDefault();shut();return;}'
+			. 'if(e.target.closest&&e.target.closest("[data-rs-send]")){e.preventDefault();go();}});'
+			. 'document.addEventListener("keydown",function(e){if(mo.hasAttribute("hidden"))return;'
+			. 'if(e.key==="Escape"){shut();}else if(e.key==="Enter"&&e.target===inp){e.preventDefault();go();}});'
+			. '})();</script>';
 		// #10: Karte anklickbar → Positionsliste ein-/ausklappen (Delegated-Toggle, aria-expanded).
-		// „Erneut senden": Adresse vorbefüllt zur Kontrolle UND Korrektur; das Ziel wird als ?to= angehängt.
-		// Abbruch (Cancel) oder Leereingabe → keine Navigation, kein Versand.
-		echo '<script>(function(){document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("[data-m24-resend]"):null;if(!a)return;e.preventDefault();'
-			. 'var no=a.getAttribute("data-m24-resend"),cur=a.getAttribute("data-m24-mail")||"";'
-			. 'var to=window.prompt("Angebot "+no+" erneut senden an:",cur);'
-			. 'if(to===null)return;to=to.trim();if(!to)return;'
-			. 'window.location.href=a.getAttribute("href")+"&to="+encodeURIComponent(to);});})();</script>';
 		echo '<script>(function(){document.addEventListener("click",function(e){var h=e.target.closest?e.target.closest("[data-offer-toggle]"):null;if(!h)return;var pl=h.parentNode&&h.parentNode.querySelector(".m24offl-pos");if(!pl)return;var wasHidden=pl.hasAttribute("hidden");if(wasHidden){pl.removeAttribute("hidden");}else{pl.setAttribute("hidden","");}h.setAttribute("aria-expanded",wasHidden?"true":"false");});})();</script>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
