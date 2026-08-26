@@ -969,7 +969,10 @@ class M24_Desk_Inbound {
             $new_id = self::create_order( (int) $oid, (array) $c['data'], array() );
             if ( $new_id > 0 ) { $n++; self::log( 'mirror', 'Desk-Auftrag #' . $oid . ' → Angebot id ' . $new_id ); }
         }
-        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n ), admin_url( 'admin.php' ) ) );
+        // Spec §5.2: der Button zieht zusätzlich einen sofortigen Reconcile — wer hier klickt, will den
+        // aktuellen Desk-Stand sehen und nicht bis zum nächsten Cron-Lauf warten.
+        $rec = class_exists( 'M24_Sync_Reconcile' ) ? M24_Sync_Reconcile::pull_all() : array();
+        wp_safe_redirect( add_query_arg( array_filter( array( 'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n, 'rec' => $rec ? M24_Sync_Reconcile::summary( $rec ) : '' ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
@@ -1080,7 +1083,8 @@ class M24_Desk_Inbound {
                 self::log( 'backfill', 'Angebot ' . $c['offer_no'] . ' (#' . $c['id'] . ') neu materialisiert: ' . wp_json_encode( array_keys( $c['changes'] ) ) );
             }
         }
-        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n, 'skip' => (int) $res['skipped'] ), admin_url( 'admin.php' ) ) );
+        $rec = class_exists( 'M24_Sync_Reconcile' ) ? M24_Sync_Reconcile::pull_all() : array(); // s. Kommentar im Mirror-Handler
+        wp_safe_redirect( add_query_arg( array_filter( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n, 'skip' => (int) $res['skipped'], 'rec' => $rec ? M24_Sync_Reconcile::summary( $rec ) : '' ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 

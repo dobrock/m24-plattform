@@ -193,6 +193,10 @@ class M24_Sync_LWW {
 		}
 		$args[] = $offer_id;
 		$wpdb->query( $wpdb->prepare( "UPDATE $t SET " . implode( ', ', $set ) . ' WHERE id = %d', $args ) ); // phpcs:ignore WordPress.DB
+
+		// Push-Trigger (§5.1). M24_Sync_Push hängt sich hier ein und plant einen entkoppelten Einzel-Push;
+		// bei origin='desk' passiert nichts, sonst liefe die eben angewandte Änderung zurück (§6).
+		do_action( 'm24_sync_touched', $offer_id, $org );
 	}
 
 	/**

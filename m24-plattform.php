@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.452
+ * Version:           0.11.453
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -166,6 +166,8 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Ange
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-push.php';  // Desk-Sync W1: Angebot → POST /api/orders (Vertrag v1.1)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // Desk-Sync D1–D3: Webhook Desk → WP (LWW-Applier)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-apply.php'; // Bidirektionale Sync: Apply-Seite (orders/offer_lines/customers, record-level LWW)
+require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-push.php'; // Bidirektionale Sync: Push WP → Desk (POST /api/sync/apply)
+require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-reconcile.php'; // Bidirektionale Sync: Reconcile-Pull WP ← Desk (GET /api/sync/changes)
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-desk-sync-monitor.php'; // Admin-Monitor „Desk-Sync"
 M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
@@ -377,6 +379,8 @@ add_action( 'plugins_loaded', function() {
     M24_Offers::init(); // Angebots-Workflow v1 (flag-gated m24_offers_enabled, Default aus)
     M24_Desk_Push::init(); // Desk-Sync W1: Push beim Angebotsversand + Retry-Cron (echter Versand flag-gated, Default aus)
     M24_Desk_Inbound::init(); // Desk-Sync D1–D3: REST m24/v1/desk-sync (Token-gated, LWW, Echo-Schutz)
+    M24_Sync_Reconcile::init(); // Reconcile-Pull (10-Min-Cron) — registriert auch den m24_10min-Takt
+    M24_Sync_Push::init();      // Event-Push nach lokalen Änderungen + Nachzügler-Cron
     M24_Desk_Sync_Monitor::init(); // Admin-Monitor „Desk-Sync"
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)
