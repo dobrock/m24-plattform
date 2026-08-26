@@ -114,7 +114,10 @@ class M24_Brevo_Client {
 	 * unter Code-Kontrolle — am wp_mail / Brevo-WP-Plugin-Override (phpmailer_init → Default-Sender) vorbei.
 	 * Genutzt für die Angebots-Mail (sender = orders@). Reply-To wird BEWUSST nicht gesetzt.
 	 *
-	 * @param array $a to, to_name, subject, html, sender_email, sender_name
+	 * @param array $a to, to_name, subject, html, sender_email, sender_name, attachment
+	 *                  attachment: Liste aus [ 'name' => Dateiname, 'content' => base64 ] (Brevo-Feld
+	 *                  "attachment"). Leere/unvollständige Einträge werden verworfen — eine Mail ohne
+	 *                  Anhang ist besser als gar keine.
 	 * @return array Result-Format {ok,code,msg,data}
 	 */
 	public static function send_transactional( array $a ) {
@@ -134,8 +137,20 @@ class M24_Brevo_Client {
 			'htmlContent' => (string) ( $a['html'] ?? '' ),
 		);
 
+		// Echte Datei-Anhänge (#5: Angebots-PDF). Brevo nimmt sie als base64 im "attachment"-Array entgegen.
+		$files = array();
+		foreach ( (array) ( $a['attachment'] ?? array() ) as $f ) {
+			if ( ! is_array( $f ) ) { continue; }
+			$fname = trim( (string) ( $f['name'] ?? '' ) );
+			$fdata = (string) ( $f['content'] ?? '' );
+			if ( '' === $fname || '' === $fdata ) { continue; }
+			$files[] = array( 'name' => $fname, 'content' => $fdata );
+		}
+		if ( ! empty( $files ) ) { $payload['attachment'] = $files; }
+
 		$res = self::request( 'POST', '/smtp/email', $payload );
 		$log = array( 'to' => self::mask_email( $to ), 'sender' => $sender, 'code' => $res['code'] );
+		if ( ! empty( $files ) ) { $log['attachments'] = wp_list_pluck( $files, 'name' ); }
 		if ( $res['ok'] ) {
 			M24_Logger::info( 'brevo', 'Transaktions-Mail OK (' . self::mask_email( $to ) . ')', $log );
 		} else {

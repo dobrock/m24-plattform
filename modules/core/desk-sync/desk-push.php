@@ -222,7 +222,7 @@ class M24_Desk_Push {
         $extras = json_decode( (string) $o->extras_json, true ) ?: array();
         $src    = json_decode( (string) $o->src_json, true ) ?: array();
 
-        $lang    = ( 'en' === strtolower( (string) ( $src['src_lang'] ?? $o->tax_mode ) ) || 'en' === self::offer_lang( $o ) ) ? 'en' : 'de';
+        $lang    = self::payload_lang( $o ); // Helper = EINE Quelle (W1-Body + offer-artifacts-Param teilen sie)
         $biz     = ( 'b2b' === ( $cust['kundentyp'] ?? 'b2c' ) );
         $land    = trim( (string) ( $cust['land'] ?? '' ) );
         $view    = M24_Offers::view_url( (string) $o->token );
@@ -280,11 +280,7 @@ class M24_Desk_Push {
         // W1-Zusatzfelder: Versanddatum (→ Desk-Status "Angebot raus") + Lieferzeit (→ Desk-Angebots-PDF).
         $offer_date = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : '';
         if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $offer_date ) ) { $offer_date = gmdate( 'Y-m-d' ); } // sent_at fehlt → heute (Push = Versandzeitpunkt)
-        // Desk erwartet den kompakten Code ("6-8", "Am Lager"), NICHT das Anzeige-Label ("6–8 Wochen"):
-        // " Wochen"-Suffix abschneiden und En-/Em-Dash auf Bindestrich normalisieren.
-        $lieferzeit = trim( (string) $o->delivery_time );
-        $lieferzeit = (string) preg_replace( '/\s*Wochen?$/u', '', $lieferzeit );
-        $lieferzeit = trim( str_replace( array( '–', '—' ), '-', $lieferzeit ) );
+        $lieferzeit = self::payload_lieferzeit( $o ); // kompakter Desk-Code, s. Helper
 
         $body = array(
             'source'              => 'wordpress_plugin',
@@ -307,7 +303,7 @@ class M24_Desk_Push {
             // Auftragssumme (Brutto) als Zahl (Punkt-Dezimal) — sonst bleibt orders.amt im Desk leer.
             'amt'         => round( (float) $o->total_gross, 2 ),
             'subj'        => 'Angebot ' . (string) $o->offer_no,
-            'notes'       => mb_substr( (string) ( $src['note'] ?? '' ), 0, 2000 ),
+            'notes'       => self::payload_notes( $o ),
             'phone'       => mb_substr( (string) ( $cust['telefon'] ?? '' ), 0, 40 ),
             'customer'    => array(
                 'email'    => (string) ( $cust['email'] ?? '' ),
@@ -352,6 +348,158 @@ class M24_Desk_Push {
     private static function offer_lang( $o ): string {
         $sj = json_decode( (string) $o->src_json, true );
         return ( is_array( $sj ) && 'en' === ( $sj['lang'] ?? $sj['src_lang'] ?? '' ) ) ? 'en' : 'de';
+    }
+
+    /* ── W1-Parität: Werte, die BEIDE Desk-Calls teilen ───────────────────
+     * POST /api/orders (W1-Body) und GET /api/orders/:id/offer-artifacts (#5) müssen dieselben Werte sehen —
+     * sonst rendert der Desk das PDF gegen seine Defaults und Mail-Body/PDF driften auseinander. Deshalb EINE
+     * Ableitung je Wert, von beiden Aufrufern genutzt (kein Copy&Paste). */
+
+    /** Angebotssprache für den Desk (de|en) — exakt die Ableitung, die auch im W1-Body landet. */
+    public static function payload_lang( $o ): string {
+        $src = json_decode( (string) $o->src_json, true ) ?: array();
+        return ( 'en' === strtolower( (string) ( $src['src_lang'] ?? $o->tax_mode ) ) || 'en' === self::offer_lang( $o ) ) ? 'en' : 'de';
+    }
+
+    /**
+     * Lieferzeit als kompakter Desk-Code ("6-8", "Am Lager"), NICHT als Anzeige-Label ("6–8 Wochen"):
+     * " Wochen"-Suffix abschneiden und En-/Em-Dash auf Bindestrich normalisieren.
+     */
+    public static function payload_lieferzeit( $o ): string {
+        $v = trim( (string) $o->delivery_time );
+        $v = (string) preg_replace( '/\s*Wochen?$/u', '', $v );
+        return trim( str_replace( array( '–', '—' ), '-', $v ) );
+    }
+
+    /** Freitext des Angebots (W1-Feld notes / offer-artifacts-Param note), auf 2000 Zeichen begrenzt. */
+    public static function payload_notes( $o ): string {
+        $src = json_decode( (string) $o->src_json, true ) ?: array();
+        return mb_substr( (string) ( $src['note'] ?? '' ), 0, 2000 );
+    }
+
+    /**
+     * Manuelles Anschreiben (customSalutation). Steht NICHT im W1-Body — der Desk kennt es nur über diesen
+     * Param. Quelle ist dieselbe wie in der Angebots-Mail (src_json.salutation), damit Mail und PDF dieselbe
+     * Anrede tragen.
+     */
+    public static function payload_salutation( $o ): string {
+        $src = json_decode( (string) $o->src_json, true ) ?: array();
+        return mb_substr( trim( (string) ( $src['salutation'] ?? '' ) ), 0, 500 );
+    }
+
+    /* ── #5: Angebots-PDF als echter Mail-Anhang ──────────────────────────
+     * Firmen-Mailsecurity verbrennt den Portal-Login-Link (Einmal-Token) beim Vorab-Scan → der Kunde steht
+     * ohne Angebot da. Deshalb hängt die Angebots-Mail das Desk-PDF zusätzlich als echte Datei an.
+     * Beschaffung: GET /api/orders/:id/offer-artifacts (Service-Token, wie W1) → presigned pdf_url (~300 s)
+     * → sofort serverseitig ziehen. Jeder Fehler ist NICHT fatal: es gibt kein Attachment, die Mail geht
+     * unverändert raus. */
+
+    const PDF_MAX_BYTES = 8388608; // 8 MiB roh (~11 MiB base64) — darüber weist Brevo den Anhang ab
+    const PDF_TIMEOUT   = 20;      // Sekunden für den presigned Download (das Artefakt-GET nutzt self::TIMEOUT)
+
+    /**
+     * Angebots-PDF vom Desk holen und Brevo-fertig (base64) zurückgeben.
+     *
+     * @param object $o m24_offers-Zeile (nach W1 → desk_order_id/desk_order_num gesetzt)
+     * @return array{name:string,content:string}|array{} Leeres Array = kein Anhang (Mail trotzdem senden).
+     */
+    public static function offer_pdf_attachment( $o ): array {
+        $offer_id = (int) ( $o->id ?? 0 );
+        $desk_id  = trim( (string) ( $o->desk_order_id ?? '' ) );
+
+        // Kein Desk-Auftrag (Desk aus, Dry-Run, W1 fehlgeschlagen) → es GIBT kein PDF. Kein Fehler, nur Notiz.
+        if ( '' === $desk_id ) {
+            self::log( $offer_id, 'pdf_skip', 'keine desk_order_id → kein Angebots-PDF (Mail ohne Anhang).' );
+            return array();
+        }
+        // Der Pfad erwartet die INTERNE Order-ID (id aus der W1-Response), nicht order_num (2026xxxxx).
+        // Steht etwas Nicht-Numerisches in der Spalte, quittiert der Desk mit 400 invalid_id → gar nicht erst fragen.
+        if ( ! ctype_digit( $desk_id ) ) {
+            self::pdf_fail( $o, 'desk_order_id ist nicht numerisch (' . $desk_id . ') — offer-artifacts braucht die interne :id.' );
+            return array();
+        }
+        if ( ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) {
+            self::log( $offer_id, 'pdf_skip', 'Desk nicht konfiguriert → Mail ohne Anhang.' );
+            return array();
+        }
+
+        // Die 3 optionalen Params aus derselben Quelle wie der W1-Body (Parität, s. payload_*-Helper).
+        // IMMER mitsenden, auch leer: der Desk persistiert lieferzeit/note/salutation NICHT auf der Order —
+        // er nimmt sie nur aus dem Request. Ein weggelassener Param fällt daher nicht auf den W1-Wert zurück,
+        // sondern auf die Versand-Defaults (lieferzeit → '3-5'). Bei leerer Lieferzeit stünde im Desk-Text
+        // plötzlich "3-5 Wochen". Freitexte werden von http_build_query RFC3986-kodiert (Umlaute, \n, &).
+        $params = array(
+            'lang'       => self::payload_lang( $o ),
+            'lieferzeit' => self::payload_lieferzeit( $o ),
+            'note'       => self::payload_notes( $o ),
+            'salutation' => self::payload_salutation( $o ),
+        );
+
+        $path = '/api/orders/' . rawurlencode( $desk_id ) . '/offer-artifacts?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
+        $res  = M24_Rest_Client::request( 'GET', $path, null, array( 'timeout' => self::TIMEOUT ) );
+        $data = is_array( $res['data'] ?? null ) ? $res['data'] : array();
+
+        if ( empty( $res['ok'] ) ) {
+            self::pdf_fail( $o, 'offer-artifacts HTTP ' . (int) ( $res['status'] ?? 0 ) . ' · ' . self::error_detail( $data, $res ) );
+            return array();
+        }
+
+        $pdf_url  = trim( (string) ( $data['pdf_url'] ?? '' ) );
+        $pdf_name = trim( (string) ( $data['pdf_name'] ?? '' ) );
+        if ( '' === $pdf_url || ! preg_match( '#^https://#i', $pdf_url ) ) {
+            self::pdf_fail( $o, 'offer-artifacts ohne brauchbare pdf_url.' );
+            return array();
+        }
+
+        // Presigned URL SOFORT ziehen (~300 s gültig). Bewusst blankes wp_remote_get: KEIN X-API-Key —
+        // ein zusätzlicher Auth-Header bricht die Signaturprüfung mancher Object-Stores.
+        $dl = wp_remote_get( $pdf_url, array( 'timeout' => self::PDF_TIMEOUT, 'redirection' => 3, 'sslverify' => true ) );
+        if ( is_wp_error( $dl ) ) {
+            self::pdf_fail( $o, 'pdf_url nicht ladbar: ' . $dl->get_error_message() );
+            return array();
+        }
+        $code = (int) wp_remote_retrieve_response_code( $dl );
+        $body = (string) wp_remote_retrieve_body( $dl );
+        $ctype = (string) wp_remote_retrieve_header( $dl, 'content-type' );
+        if ( $code < 200 || $code >= 300 ) {
+            self::pdf_fail( $o, 'pdf_url HTTP ' . $code . ' (content-type=' . $ctype . ').' );
+            return array();
+        }
+        // Inhalt prüfen, nicht nur den Header: presigned Stores liefern gern application/octet-stream.
+        if ( '%PDF' !== substr( $body, 0, 4 ) ) {
+            self::pdf_fail( $o, 'Antwort ist kein PDF (content-type=' . $ctype . ', ' . strlen( $body ) . ' Bytes).' );
+            return array();
+        }
+        if ( strlen( $body ) > self::PDF_MAX_BYTES ) {
+            self::pdf_fail( $o, 'PDF zu groß für den Mail-Anhang (' . strlen( $body ) . ' Bytes > ' . self::PDF_MAX_BYTES . ').' );
+            return array();
+        }
+
+        $name = self::pdf_filename( $pdf_name, (string) ( $data['order_num'] ?? $o->desk_order_num ?? '' ), (string) ( $o->offer_no ?? '' ) );
+        self::log( $offer_id, 'pdf_ok', 'Angebots-PDF angehängt: ' . $name . ' (' . strlen( $body ) . ' Bytes, content-type=' . $ctype . ').' );
+        return array( 'name' => $name, 'content' => base64_encode( $body ) );
+    }
+
+    /** Dateiname für den Anhang: pdf_name → <order_num>.pdf → Angebot-<offer_no>.pdf; immer sicherer Basename. */
+    private static function pdf_filename( string $pdf_name, string $order_num, string $offer_no ): string {
+        $name = sanitize_file_name( basename( $pdf_name ) );
+        if ( '' === $name && '' !== trim( $order_num ) ) { $name = sanitize_file_name( trim( $order_num ) . '.pdf' ); }
+        if ( '' === $name && '' !== trim( $offer_no ) )  { $name = sanitize_file_name( 'Angebot-' . trim( $offer_no ) . '.pdf' ); }
+        if ( '' === $name ) { $name = 'Angebot.pdf'; }
+        if ( ! preg_match( '/\.pdf$/i', $name ) ) { $name .= '.pdf'; }
+        return $name;
+    }
+
+    /** PDF-Beschaffung fehlgeschlagen: sauber loggen, aber NIE den Mailversand blockieren. */
+    private static function pdf_fail( $o, string $detail ): void {
+        self::log( (int) ( $o->id ?? 0 ), 'pdf_failed', $detail . ' → Mail geht ohne Anhang raus.' );
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( 'desk_sync', 'warning', 'Angebots-PDF nicht anhängbar — Mail ohne Anhang', array(
+                'offer_no'      => (string) ( $o->offer_no ?? '' ),
+                'desk_order_id' => (string) ( $o->desk_order_id ?? '' ),
+                'detail'        => $detail,
+            ) );
+        }
     }
 
     /* ── Persistenz / Fallback / Retry ────────────────────────────────────── */

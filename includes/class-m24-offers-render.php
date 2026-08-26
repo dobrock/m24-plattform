@@ -1230,6 +1230,15 @@ class M24_Offers_Render {
 		// via phpmailer_init seinen Default-Sender (service@) und überschreibt sowohl From-Header ALS AUCH
 		// wp_mail_from. Deshalb die EINE Angebots-Mail direkt über die Brevo-Transaktions-API senden (sender
 		// vollständig unter Code-Kontrolle) — genau der Weg, über den der Desk heute schon von orders@ sendet.
+		// #5 (0.11.447): Angebots-PDF IMMER als echten Anhang mitschicken. Firmen-Mailsecurity ruft den
+		// Portal-Link vorab ab und verbrennt dabei das Einmal-Token → der Kunde steht ohne Angebot da. Das
+		// Desk-PDF (GET /api/orders/:id/offer-artifacts → presigned URL, ~300 s) wird hier serverseitig
+		// gezogen. Scheitert das, bleibt $attach leer und die Mail geht unverändert raus (nur Log, kein Abbruch).
+		$attach = array();
+		if ( class_exists( 'M24_Desk_Push' ) ) {
+			$att = M24_Desk_Push::offer_pdf_attachment( $o );
+			if ( ! empty( $att['name'] ) && ! empty( $att['content'] ) ) { $attach[] = $att; }
+		}
 		$sent = false;
 		if ( class_exists( 'M24_Brevo_Client' ) && M24_Brevo_Client::is_configured() ) {
 			$res  = M24_Brevo_Client::send_transactional( array(
@@ -1239,6 +1248,7 @@ class M24_Offers_Render {
 				'html'         => $html,
 				'sender_email' => 'orders@motorsport24.de',
 				'sender_name'  => 'MOTORSPORT24',
+				'attachment'   => $attach,
 			) );
 			$sent = ! empty( $res['ok'] );
 		}
@@ -1249,7 +1259,11 @@ class M24_Offers_Render {
 			$force_name = static function () { return 'MOTORSPORT24'; };
 			add_filter( 'wp_mail_from', $force_from, 99 );
 			add_filter( 'wp_mail_from_name', $force_name, 99 );
-			$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <orders@motorsport24.de>' ) );
+			// wp_mail kennt nur Dateipfade → das bereits geladene PDF kurz in den Upload-Ordner schreiben und
+			// direkt nach dem Versand wieder löschen. Klappt das Schreiben nicht, geht die Mail ohne Anhang.
+			$tmp_pdf = self::tmp_attachment_file( $attach );
+			$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <orders@motorsport24.de>' ), '' !== $tmp_pdf ? array( $tmp_pdf ) : array() );
+			if ( '' !== $tmp_pdf ) { wp_delete_file( $tmp_pdf ); }
 			remove_filter( 'wp_mail_from', $force_from, 99 );
 			remove_filter( 'wp_mail_from_name', $force_name, 99 );
 		}
@@ -1257,6 +1271,26 @@ class M24_Offers_Render {
 		if ( $sent && class_exists( 'M24_Desk_Push' ) ) {
 			M24_Desk_Push::log_offer_mail( (int) $o->id, $subj, $email, in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer', $html );
 		}
+	}
+
+	/**
+	 * #5: base64-Anhang für den wp_mail-Notpfad kurzzeitig als Datei ablegen (wp_mail nimmt nur Pfade).
+	 * Ziel ist der Upload-Ordner, Name gehärtet, Rückgabe '' wenn nichts geschrieben werden konnte.
+	 * Der Aufrufer löscht die Datei unmittelbar nach dem Versand.
+	 */
+	private static function tmp_attachment_file( array $attach ): string {
+		if ( empty( $attach[0]['content'] ) ) { return ''; }
+		$bin = base64_decode( (string) $attach[0]['content'], true );
+		if ( false === $bin || '' === $bin ) { return ''; }
+		$up = wp_upload_dir();
+		if ( ! empty( $up['error'] ) || empty( $up['basedir'] ) ) { return ''; }
+		$dir = trailingslashit( $up['basedir'] ) . 'm24-tmp';
+		if ( ! wp_mkdir_p( $dir ) ) { return ''; }
+		$path = trailingslashit( $dir ) . wp_unique_filename( $dir, sanitize_file_name( (string) ( $attach[0]['name'] ?? 'Angebot.pdf' ) ) );
+		global $wp_filesystem;
+		if ( ! $wp_filesystem ) { require_once ABSPATH . 'wp-admin/includes/file.php'; WP_Filesystem(); }
+		if ( ! $wp_filesystem || ! $wp_filesystem->put_contents( $path, $bin, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : false ) ) { return ''; }
+		return $path;
 	}
 
 	/* ── Ablauf-Reminder-Mail (m24_mail_shell) ──────────────────────────── */
