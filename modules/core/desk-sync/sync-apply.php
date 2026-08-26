@@ -37,7 +37,7 @@ class M24_Sync_Apply {
 
 	/** Kopf-Felder, deren Änderung einen Supersede auslösen kann. Status/Zahlung/Tracking gehören NICHT
 	 * dazu: das sind Abwicklungsdaten, die nichts am Angebot selbst ändern. */
-	const MATERIAL_FIELDS = array( 'ship_firma', 'ship_name', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land', 'country' );
+	const MATERIAL_FIELDS = array( 'ship_firma', 'ship_name', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land', 'country', 'sender_email' );
 
 	/**
 	 * Kopf-Felder, die der Desk setzen darf: Desk-Wire-Feld → WP-Spalte. Feldnamen laut Desk-Vertrag
@@ -60,6 +60,20 @@ class M24_Sync_Apply {
 		'ship_land'     => 'ship_land',
 		'supersedes'    => 'supersedes',
 		'superseded_by' => 'superseded_by',
+	);
+
+	/**
+	 * Kundendaten, die am ORDERS-Record hängen → Schlüssel im customer_json des Angebots.
+	 *
+	 * Der Desk führt Empfänger und Land auf der Auftragszeile mit (sender_email, cust, country), nicht
+	 * nur auf der Kundenzeile. Ohne diese Übernahme bleibt die Angebots-Momentaufnahme auf dem alten
+	 * Stand: die Liste zeigt weiter die alte Adresse, und — schlimmer — die Angebots-Mail liest ihren
+	 * Empfänger aus genau diesem Feld und ginge erneut an die falsche Adresse.
+	 */
+	const ORDER_CUSTOMER_FIELDS = array(
+		'sender_email' => 'email',
+		'cust'         => 'name',
+		'country'      => 'land',
 	);
 
 	/** Kunden-Felder: Wire-Feld → User-Meta. Deckt sich mit M24_Desk_Inbound::CUSTOMER_MAP. */
@@ -182,6 +196,12 @@ class M24_Sync_Apply {
 			$cols['deleted_at'] = '' !== $del ? M24_Sync_LWW::from_iso( $del ) : null;
 		}
 
+		// Empfänger/Name/Land aus dem Auftrags-Record in die Angebots-Momentaufnahme übernehmen.
+		$snap = self::merge_customer_snapshot( (string) $o->customer_json, $rec );
+		if ( null !== $snap ) {
+			$cols['customer_json'] = $snap;
+		}
+
 		if ( ! empty( $cols ) ) {
 			$wpdb->update( M24_Offers::table(), $cols, array( 'id' => (int) $o->id ) );
 		}
@@ -197,6 +217,35 @@ class M24_Sync_Apply {
 		}
 		self::log( 'applied_order', $uid . ' (' . (string) $o->offer_no . ') · Felder: ' . implode( ',', array_keys( $cols ) ) );
 		return self::res( $uid, true, self::rev_of( (int) $o->id ) );
+	}
+
+	/**
+	 * customer_json des Angebots mit den Kundendaten aus einem orders-Record zusammenführen.
+	 *
+	 * Gibt das neue JSON zurück, oder null wenn sich nichts ändert — dann bleibt die Spalte unangetastet
+	 * und ein reiner Status-Push schreibt sie nicht sinnlos neu.
+	 *
+	 * @return string|null
+	 */
+	private static function merge_customer_snapshot( string $customer_json, array $rec ): ?string {
+		$cust = json_decode( $customer_json, true );
+		$cust = is_array( $cust ) ? $cust : array();
+		$dirty = false;
+		foreach ( self::ORDER_CUSTOMER_FIELDS as $field => $key ) {
+			if ( ! array_key_exists( $field, $rec ) ) { continue; }
+			$v = trim( (string) $rec[ $field ] );
+			if ( '' === $v ) { continue; } // ein leeres Feld ist keine Korrektur, sondern ein fehlender Wert
+			if ( 'email' === $key ) {
+				$v = sanitize_email( $v );
+				if ( ! is_email( $v ) ) { continue; } // nie eine kaputte Adresse in den Versand-Snapshot
+			} else {
+				$v = sanitize_text_field( $v );
+			}
+			if ( (string) ( $cust[ $key ] ?? '' ) === $v ) { continue; }
+			$cust[ $key ] = $v;
+			$dirty = true;
+		}
+		return $dirty ? (string) wp_json_encode( $cust ) : null;
 	}
 
 	/* ── offer_lines (Positionen, §3) ─────────────────────────────────────── */
