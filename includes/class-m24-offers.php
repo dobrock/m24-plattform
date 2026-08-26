@@ -163,6 +163,7 @@ class M24_Offers {
 		$f_s  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';        // phpcs:ignore WordPress.Security.NonceVerification
 		$f_nv = isset( $_GET['nv'] ) ? (int) $_GET['nv'] : 0;                                       // phpcs:ignore WordPress.Security.NonceVerification — „nicht angesehen"
 		$f_trash = isset( $_GET['trash'] ) ? (int) $_GET['trash'] : 0;                              // phpcs:ignore WordPress.Security.NonceVerification — Papierkorb-Ansicht
+		$f_nr = isset( $_GET['nr'] ) ? (int) $_GET['nr'] : 0;                                       // phpcs:ignore WordPress.Security.NonceVerification — „Neuversand nötig" (Supersede-Ergebnis)
 
 		// Papierkorb-Zähler (gelöschte Zeilen) für die Chip-Beschriftung.
 		$trash_n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE deleted_at IS NOT NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -171,6 +172,7 @@ class M24_Offers {
 		$where[] = $f_trash ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL'; // Papierkorb vs. aktive Angebote
 		if ( ! $f_trash && isset( $badges[ $f_st ] ) ) { $where[] = 'status = %s'; $args[] = $f_st; }
 		if ( ! $f_trash && $f_nv ) { $where[] = "viewed_last_at IS NULL AND status <> 'entwurf'"; } // nur versendete, vom Kunden noch nicht geöffnete
+		if ( ! $f_trash && $f_nr ) { $where[] = 'needs_resend = 1'; } // Supersede-Ergebnis, wartet auf manuellen Versand
 		if ( '' !== $f_s ) { $like = '%' . $wpdb->esc_like( $f_s ) . '%'; $where[] = '( offer_no LIKE %s OR customer_json LIKE %s )'; $args[] = $like; $args[] = $like; }
 		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
@@ -207,6 +209,11 @@ class M24_Offers {
 		foreach ( array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'versandt', 'erledigt', 'abgelehnt', 'storniert' ) as $k ) { echo $chip( $k, $badges[ $k ][0] ); }
 		// „Nicht angesehen"-Chip: toggelt nv (unabhängig vom Status-Filter), Suche bleibt erhalten.
 		echo '<a class="chip' . ( $f_nv ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nv' => ( $f_nv ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '">Nicht angesehen</a>';
+		// „Neuversand nötig"-Chip: erscheint nur, wenn es solche Angebote gibt (Supersede-Ergebnis).
+		$nr_n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE needs_resend = 1 AND deleted_at IS NULL" ); // phpcs:ignore WordPress.DB
+		if ( $nr_n > 0 || $f_nr ) {
+			echo '<a class="chip' . ( $f_nr ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array_filter( array( 'page' => $page, 'nr' => ( $f_nr ? 0 : 1 ), 's' => $f_s ) ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#9a3412;color:#9a3412;">⚠ Neuversand nötig (' . (int) $nr_n . ')</a>';
+		}
 		// Papierkorb-Chip (nur wenn etwas drin liegt oder gerade aktiv): Soft-Delete-Ansicht mit Wiederherstellen.
 		if ( $trash_n > 0 || $f_trash ) {
 			echo '<a class="chip' . ( $f_trash ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'page' => $page, 'trash' => ( $f_trash ? 0 : 1 ) ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#6b7280;color:#374151;">🗑 Papierkorb (' . (int) $trash_n . ')</a>';
@@ -347,6 +354,25 @@ class M24_Offers {
 					$viewed_html = '<div class="sentat" style="color:#b45309;">Noch nicht angesehen</div>';
 				}
 			}
+			// Sync-Status (Spec §7). Vier Zustände, bewusst als kleine Zeile unter dem Namen statt als
+			// weiterer Badge oben — die Meta-Zeile ist voll und der Sync ist Nebeninformation.
+			$sync_html = '';
+			if ( ! $is_draft ) {
+				$bits = array();
+				if ( 'desk' === (string) ( $o->origin ?? '' ) && ! empty( $o->updated_at ) && ( $uts = strtotime( (string) $o->updated_at . ' UTC' ) ) ) {
+					$bits[] = '<span style="color:#0e447e;">⇩ Desk-Änderung ' . esc_html( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y H:i', $uts ) : gmdate( 'd.m.Y H:i', $uts ) ) . '</span>';
+				}
+				if ( (int) ( $o->rev ?? 0 ) > (int) ( $o->last_synced_rev ?? 0 ) && '' !== (string) ( $o->wp_offer_uid ?? '' ) ) {
+					$bits[] = '<span style="color:#b45309;" title="Lokale Änderung, die der Desk noch nicht kennt — der Sync holt das nach.">⇧ Push offen</span>';
+				}
+				if ( '' !== (string) ( $o->superseded_by ?? '' ) ) {
+					$bits[] = '<span style="color:#6b7280;">ersetzt durch ' . esc_html( self::offer_no_for_uid( (string) $o->superseded_by ) ) . '</span>';
+				}
+				if ( '' !== (string) ( $o->supersedes ?? '' ) ) {
+					$bits[] = '<span style="color:#6b7280;">ersetzt ' . esc_html( self::offer_no_for_uid( (string) $o->supersedes ) ) . '</span>';
+				}
+				if ( ! empty( $bits ) ) { $sync_html = '<div class="sentat">' . implode( ' · ', $bits ) . '</div>'; }
+			}
 			// #10: eingeklappte Positionsliste (aus items_json).
 			$pos_html = '';
 			foreach ( $items as $it ) {
@@ -358,7 +384,7 @@ class M24_Offers {
 					. '<span class="pl-t">' . esc_html( $t ) . '</span><span class="pl-q">' . (int) $q . ' ×</span><span class="pl-p">' . esc_html( $up ) . '</span></div>';
 			}
 			echo '<div class="card">';
-			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . $sync_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
 			echo '<div class="foot">';
 			if ( $f_trash ) {
@@ -374,6 +400,11 @@ class M24_Offers {
 					echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>'; // D3: gleiches Fenster
 				} else {
 					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+					// Supersede-Ergebnis (Spec §3/§7): das neue Angebot wartet auf den manuellen Versand.
+					// Bewusst kein Auto-Mail — wer ersetzt, will vorher draufschauen.
+					if ( ! empty( $o->needs_resend ) ) {
+						echo '<span style="color:#9a3412;font-weight:700;" title="Positionen oder Adresse haben sich nach dem Versand geändert — dieses Angebot ersetzt das alte und muss noch raus.">⚠ Neuversand nötig</span>';
+					}
 					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
 					// „Erneut senden": nur für bereits versendete, noch offene Angebote. Der Dialog zeigt die
 					// hinterlegte Adresse im Modal vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
@@ -388,6 +419,30 @@ class M24_Offers {
 				echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' in den Papierkorb verschieben?\');">Löschen</a></div></div>';
 			}
 		}
+		// Sync-Puls (Spec §7): pollt den Stand und blendet einen Hinweis ein, wenn der Desk etwas geändert
+		// hat. Bewusst KEIN automatisches Neuladen — der Admin könnte gerade in einem Formular oder Modal
+		// stehen, und ein Reload unter den Händen wäre schlimmer als ein veralteter Wert.
+		echo '<style>.m24offl-pulse{position:sticky;top:32px;z-index:50;margin:0 0 14px;display:none}'
+			. '.m24offl-pulse.on{display:block}'
+			. '.m24offl-pulse .inner{background:#0e447e;color:#fff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:14px;max-width:1000px;box-shadow:0 6px 20px rgba(14,68,126,.25)}'
+			. '.m24offl-pulse b{font-size:13.5px}.m24offl-pulse button{margin-left:auto;background:#fff;color:#0e447e;border:0;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer}'
+			. '</style>';
+		echo '<div class="m24offl-pulse" data-pulse><div class="inner"><b data-pulse-text></b>'
+			. '<button type="button" data-pulse-reload>Liste neu laden</button></div></div>';
+		echo '<script>(function(){'
+			. 'var box=document.querySelector("[data-pulse]");if(!box||!window.fetch)return;'
+			. 'var txt=box.querySelector("[data-pulse-text]"),url=' . wp_json_encode( rest_url( self::NS . '/offers/pulse' ) ) . ',nonce=' . wp_json_encode( wp_create_nonce( 'wp_rest' ) ) . ';'
+			. 'var base=null;'
+			. 'function look(){fetch(url,{headers:{"X-WP-Nonce":nonce},credentials:"same-origin"})'
+			. '.then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.ok)return;'
+			. 'if(base===null){base=d.max_updated||"";return;}'
+			. 'if((d.max_updated||"")!==base){'
+			. 'var n=d.needs_resend>0?(" · "+d.needs_resend+"× Neuversand nötig"):"";'
+			. 'txt.textContent="Der Desk hat Angebote geändert"+n+".";box.classList.add("on");}'
+			. '}).catch(function(){});}'
+			. 'look();setInterval(look,60000);'
+			. 'box.querySelector("[data-pulse-reload]").addEventListener("click",function(){window.location.reload();});'
+			. '})();</script>';
 		// „Erneut senden": eigenes In-Page-Modal im Stil der Operator-Vorschau-Lightbox (kein prompt()/confirm()).
 		// Das Empfänger-Feld ist vorbefüllt und editierbar; das bestätigte Ziel wird als ?to= angehängt.
 		// Genau EIN Modal für alle Karten — beim Klick befüllt. Ohne Bestätigung passiert nichts.
@@ -510,6 +565,31 @@ class M24_Offers {
 		);
 	}
 
+	/**
+	 * Sync-Puls: jüngste Änderung + Zahl der offenen Punkte. Die Liste pollt das und blendet einen
+	 * Hinweis ein, wenn sich drüben etwas getan hat — bewusst KEIN automatisches Neuladen: der Admin
+	 * könnte gerade in einem Formular stehen.
+	 */
+	public static function handle_pulse() {
+		global $wpdb;
+		$t = self::table();
+		return rest_ensure_response( array(
+			'ok'            => true,
+			'max_updated'   => (string) $wpdb->get_var( "SELECT MAX(updated_at) FROM $t WHERE deleted_at IS NULL" ), // phpcs:ignore WordPress.DB
+			'desk_changes'  => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE origin = 'desk' AND deleted_at IS NULL" ), // phpcs:ignore WordPress.DB
+			'needs_push'    => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE rev > last_synced_rev AND wp_offer_uid <> ''" ), // phpcs:ignore WordPress.DB
+			'needs_resend'  => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t WHERE needs_resend = 1 AND deleted_at IS NULL" ), // phpcs:ignore WordPress.DB
+		) );
+	}
+
+	/** wp_offer_uid → Angebotsnummer, für die lesbare Supersede-Verknüpfung in der Liste. */
+	public static function offer_no_for_uid( string $uid ): string {
+		if ( '' === $uid ) { return ''; }
+		global $wpdb;
+		$no = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT offer_no FROM ' . self::table() . ' WHERE wp_offer_uid = %s LIMIT 1', $uid ) ); // phpcs:ignore WordPress.DB
+		return '' !== $no ? $no : $uid;
+	}
+
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
 
 	private static function next_number(): string {
@@ -606,6 +686,11 @@ class M24_Offers {
 
 	public static function register_routes() {
 		$admin = function () { return current_user_can( 'manage_options' ); };
+		// Sync-Puls (Spec §7): billiger Endpoint für den „geändert"-Indikator der Liste. Liefert nur
+		// Zeitstempel und Zähler, keine Angebotsdaten — er wird im Minutentakt gepollt.
+		register_rest_route( self::NS, '/offers/pulse', array(
+			'methods' => 'GET', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_pulse' ),
+		) );
 		register_rest_route( self::NS, '/offers/parts', array(
 			'methods' => 'GET', 'permission_callback' => $admin, 'callback' => array( __CLASS__, 'handle_parts_search' ),
 		) );
