@@ -114,7 +114,19 @@ class M24_Sync_Apply {
 			$todo = self::$material;
 			self::$material = array();
 			foreach ( $todo as $offer_id => $reason ) {
-				M24_Sync_Supersede::maybe_supersede( (int) $offer_id, (string) $reason );
+				// Gekapselt: die Datensätze der Charge sind zu diesem Zeitpunkt bereits geschrieben. Ein
+				// Fehler beim Ersetzen darf den Lauf nicht mitreißen und schon gar nicht die Antwort an den
+				// Desk verschlucken — sonst gilt eine angewandte Änderung drüben als nicht angekommen.
+				try {
+					M24_Sync_Supersede::maybe_supersede( (int) $offer_id, (string) $reason );
+				} catch ( \Throwable $e ) {
+					self::log( 'supersede_error', 'Angebot ' . (int) $offer_id . ': ' . $e->getMessage() );
+					if ( class_exists( 'M24_Error_Log' ) ) {
+						M24_Error_Log::capture( 'sync_apply', 'error', 'Supersede fehlgeschlagen — Angebot unverändert', array(
+							'offer_id' => (int) $offer_id, 'grund' => (string) $reason, 'fehler' => $e->getMessage(),
+						) );
+					}
+				}
 			}
 		}
 		return array( 'entity' => $entity, 'results' => $results );

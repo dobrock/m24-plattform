@@ -592,7 +592,15 @@ class M24_Offers {
 
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
 
-	private static function next_number(): string {
+	/**
+	 * Nächste Angebotsnummer ziehen (Format 2026-0042).
+	 *
+	 * ACHTUNG, Nebenwirkung: verbraucht die Nummer aus dem Jahres-Zähler. Nur aufrufen, wenn wirklich ein
+	 * Angebot entsteht — Entwürfe bekommen bewusst einen Platzhalter statt einer echten Nummer.
+	 *
+	 * public, weil M24_Sync_Supersede beim Ersetzen eines versendeten Angebots eine neue Nummer braucht.
+	 */
+	public static function next_number(): string {
 		$year = (int) ( function_exists( 'wp_date' ) ? wp_date( 'Y' ) : gmdate( 'Y' ) );
 		$key  = 'm24_offer_seq_' . $year;
 		// Start bei {Jahr}-1000 (wie Garagen-Nr.): Zähler mindestens auf 999 → nächste Nummer = 1000.
