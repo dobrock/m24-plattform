@@ -1100,6 +1100,10 @@ class M24_Offers_Render {
 			. '</table></td></tr></table></body></html>';
 	}
 
+	/**
+	 * Angebots-Mail rendern und senden. $return_html=true liefert nur das HTML (Vorschau, kein Versand).
+	 * @return bool|string|null true/false = Versanderfolg; String = HTML bei $return_html; null = Angebot fehlt.
+	 */
 	public static function mail( $offer_id, bool $return_html = false, string $mail_type = 'offer' ) {
 		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id ); // #11: Objekt (Vorschau) oder ID
 		if ( ! $o ) { return $return_html ? '' : null; }
@@ -1271,6 +1275,7 @@ class M24_Offers_Render {
 		if ( $sent && class_exists( 'M24_Desk_Push' ) ) {
 			M24_Desk_Push::log_offer_mail( (int) $o->id, $subj, $email, in_array( $mail_type, array( 'offer', 'offer_resend' ), true ) ? $mail_type : 'offer', $html );
 		}
+		return (bool) $sent; // „Erneut senden" meldet echten Erfolg statt einer Blindmeldung
 	}
 
 	/**

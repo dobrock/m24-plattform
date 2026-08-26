@@ -114,11 +114,12 @@ class M24_Offers {
 		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 
 		// Zeilen-Aktion (Stornieren/Papierkorb/Wiederherstellen/…) — nur Admin, nonce-geschützt. Idempotent → Refresh unschädlich.
-		$notice = '';
+		$notice      = '';
+		$notice_type = 'success'; // „Erneut senden" kann fachlich scheitern → dann rot statt grün
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
 				if ( 'delete' === $do ) {
@@ -139,6 +140,10 @@ class M24_Offers {
 					$wpdb->update( $t, array( 'status' => 'storniert' ), array( 'id' => $id ) );
 					self::log( 'cancelled', $id, $no );
 					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
+				} elseif ( 'resend' === $do ) {
+					$r = self::resend_offer_mail( $id, isset( $_GET['to'] ) ? sanitize_email( wp_unslash( $_GET['to'] ) ) : '' );
+					$notice = $r['msg'];
+					if ( ! $r['ok'] ) { $notice_type = 'error'; }
 				} elseif ( 'paid' === $do ) {
 						self::mark_paid( $id, 'manual' );
 						self::log( 'paid_manual', $id, $no );
@@ -167,7 +172,7 @@ class M24_Offers {
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
 
 				echo '<div class="wrap m24offl"><h1 class="wp-heading-inline">Angebote</h1> <a href="' . esc_url( add_query_arg( array( self::QV_NEW => 1 ), home_url( '/' ) ) ) . '" target="_blank" rel="noopener" class="page-title-action" style="background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:0;">+ Neues Angebot</a><hr class="wp-header-end">';
-		if ( '' !== $notice ) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
+		if ( '' !== $notice ) { echo '<div class="notice notice-' . esc_attr( $notice_type ) . ' is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
 		// Backfill-Erfolgsmeldung (inline gerendert).
 		if ( 'backfill' === ( isset( $_GET['done'] ) ? sanitize_key( wp_unslash( $_GET['done'] ) ) : '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			$bn   = isset( $_GET['n'] ) ? max( 0, (int) $_GET['n'] ) : 0;    // phpcs:ignore WordPress.Security.NonceVerification
@@ -297,6 +302,7 @@ class M24_Offers {
 			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_resend = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'resend', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_restore = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'restore', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_purge   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'purge', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$cnt      = count( $items );
@@ -357,15 +363,95 @@ class M24_Offers {
 				} else {
 					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
 					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
+					// „Erneut senden": nur für bereits versendete, noch offene Angebote. Der Dialog zeigt die
+					// hinterlegte Adresse vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
+					// TODO (sobald der Desk-Token orders:read hat): den Empfänger zusätzlich frisch aus
+					// GET /api/orders/:id vorbefüllen — Adressen werden oft erst im Desk korrigiert. Bis dahin
+					// ist das editierbare Feld die Absicherung, damit nie stillschweigend die alte Adresse zieht.
+					if ( in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
+						echo '<a href="' . esc_url( $u_resend ) . '" style="color:#0e447e;font-weight:700;" data-m24-resend="' . esc_attr( (string) $o->offer_no ) . '" data-m24-mail="' . esc_attr( (string) ( $cust['email'] ?? '' ) ) . '">Erneut senden</a>';
+					}
 					if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
 				}
 				echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' in den Papierkorb verschieben?\');">Löschen</a></div></div>';
 			}
 		}
 		// #10: Karte anklickbar → Positionsliste ein-/ausklappen (Delegated-Toggle, aria-expanded).
+		// „Erneut senden": Adresse vorbefüllt zur Kontrolle UND Korrektur; das Ziel wird als ?to= angehängt.
+		// Abbruch (Cancel) oder Leereingabe → keine Navigation, kein Versand.
+		echo '<script>(function(){document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("[data-m24-resend]"):null;if(!a)return;e.preventDefault();'
+			. 'var no=a.getAttribute("data-m24-resend"),cur=a.getAttribute("data-m24-mail")||"";'
+			. 'var to=window.prompt("Angebot "+no+" erneut senden an:",cur);'
+			. 'if(to===null)return;to=to.trim();if(!to)return;'
+			. 'window.location.href=a.getAttribute("href")+"&to="+encodeURIComponent(to);});})();</script>';
 		echo '<script>(function(){document.addEventListener("click",function(e){var h=e.target.closest?e.target.closest("[data-offer-toggle]"):null;if(!h)return;var pl=h.parentNode&&h.parentNode.querySelector(".m24offl-pos");if(!pl)return;var wasHidden=pl.hasAttribute("hidden");if(wasHidden){pl.removeAttribute("hidden");}else{pl.setAttribute("hidden","");}h.setAttribute("aria-expanded",wasHidden?"true":"false");});})();</script>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
+	}
+
+	/* ── „Erneut senden" (Zeilen-Aktion) ────────────────────────────────── */
+
+	/** Angebote, die erneut versendet werden dürfen: bereits raus, aber noch im Kunden-Dialog. */
+	const RESEND_STATUS = array( 'offen', 'versandt' );
+
+	/**
+	 * Dieselbe Angebots-Mail nochmal senden — typischer Fall: die Adresse war vertippt.
+	 *
+	 * Bewusst NUR die Mail: kein neues Angebot, keine neue offer_no, kein erneuter W1-Push
+	 * (do_action('m24_offer_sent') wird NICHT gefeuert) und kein neuer Token. Weicht $to von der
+	 * gespeicherten Adresse ab, wird der customer_json-Snapshot vorher korrigiert — sonst ginge die
+	 * Mail wieder an den Vertipper. valid_until bleibt unangetastet: ein Re-Send darf die
+	 * Bindungsfrist nicht heimlich verlängern.
+	 *
+	 * @param int    $offer_id Angebot.
+	 * @param string $to       Empfängeradresse (Pflicht; der Dialog reicht die geprüfte/korrigierte durch).
+	 * @return array{ok:bool,msg:string}
+	 */
+	public static function resend_offer_mail( int $offer_id, string $to ): array {
+		global $wpdb;
+		$o = self::get_by_id( $offer_id );
+		if ( ! $o ) { return array( 'ok' => false, 'msg' => 'Angebot nicht gefunden.' ); }
+		$no = (string) $o->offer_no;
+		if ( ! empty( $o->deleted_at ) ) { return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' liegt im Papierkorb — erst wiederherstellen.' ); }
+		if ( ! in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
+			return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' hat den Status „' . (string) $o->status . '" — „Erneut senden" gibt es nur für offene/versandte Angebote.' );
+		}
+
+		$cust = json_decode( (string) $o->customer_json, true ) ?: array();
+		$old  = trim( (string) ( $cust['email'] ?? '' ) );
+		$to   = trim( $to );
+		// Ohne explizites Ziel wird NICHT gesendet. Der Dialog liefert es immer mit; ein blanker Link-Aufruf
+		// (Browser-Prefetch, kopierte URL) läuft damit ins Leere statt still an die alte Adresse zu mailen.
+		if ( '' === $to ) {
+			return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' nicht gesendet: kein Empfänger übergeben — bitte „Erneut senden" in der Liste benutzen.' );
+		}
+		if ( ! is_email( $to ) ) {
+			return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' nicht gesendet: „' . $to . '" ist keine gültige E-Mail-Adresse.' );
+		}
+		$target = $to;
+
+		// Korrigierte Adresse in den Snapshot übernehmen, BEVOR gesendet wird — M24_Offers_Render::mail()
+		// lädt die Zeile frisch und zieht den Empfänger aus genau diesem Feld.
+		$changed = ( strtolower( $target ) !== strtolower( $old ) );
+		if ( $changed ) {
+			$cust['email'] = $target;
+			$wpdb->update( self::table(), array( 'customer_json' => wp_json_encode( $cust ) ), array( 'id' => $offer_id ) );
+			self::log( 'resend_email_fixed', $offer_id, $no . ': ' . $old . ' → ' . $target );
+		}
+
+		$sent = (bool) M24_Offers_Render::mail( $offer_id, false, 'offer_resend' );
+		if ( ! $sent ) {
+			self::log( 'resend_failed', $offer_id, $no . ' → ' . $target );
+			return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' konnte nicht an ' . $target . ' gesendet werden — siehe Fehler-Log.' );
+		}
+
+		// „Gesendet am" nachziehen (valid_until bleibt bewusst stehen).
+		$wpdb->update( self::table(), array( 'sent_at' => current_time( 'mysql', true ) ), array( 'id' => $offer_id ) );
+		self::log( 'resent', $offer_id, $no . ' → ' . $target );
+		return array(
+			'ok'  => true,
+			'msg' => 'Angebot ' . $no . ' erneut gesendet an ' . $target . ( $changed ? ' (Adresse korrigiert, vorher ' . $old . ').' : '.' ),
+		);
 	}
 
 	/* ── Nummernkreis 2026-0042 ─────────────────────────────────────────── */
