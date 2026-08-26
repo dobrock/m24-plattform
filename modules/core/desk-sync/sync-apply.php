@@ -209,6 +209,15 @@ class M24_Sync_Apply {
 		$idx   = M24_Sync_LWW::find_line( $items, $luid );
 		$tombs = M24_Sync_LWW::tombstones( $o );
 
+		// Vorläufige Desk-UID (Bestandszeile, die noch nie eine WP-uid gesehen hat): NICHT als neue Zeile
+		// anlegen. Der Desk adoptiert unsere line_uid erst beim Push WP→Desk — pullen wir vorher, hätten wir
+		// dieselbe Position zweimal: einmal unter unserer uid, einmal unter seiner geliehenen. Kennen wir die
+		// uid dagegen schon, ist die Adoption gelaufen und die Zeile wird normal verarbeitet.
+		if ( null === $idx && ! empty( $rec['line_uid_vorlaeufig'] ) ) {
+			self::log( 'line_deferred', $key . ' — vorläufige Desk-uid, Adoption steht aus (erst pushen, dann pullen).' );
+			return self::res( $key, false, 0, 'line_uid_vorlaeufig' );
+		}
+
 		// Lokaler Stand der Zeile: die aktive Position, sonst ihr Tombstone, sonst gar nichts (= neu).
 		$local = array();
 		if ( null !== $idx ) {

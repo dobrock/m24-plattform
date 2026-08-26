@@ -78,8 +78,13 @@ class M24_Sync_Reconcile {
 
 	/* ── Pull ─────────────────────────────────────────────────────────────── */
 
-	/** Alle Entitäten. Reihenfolge ist Absicht: Kopf vor Positionen, damit die Zeile schon existiert. */
-	public static function pull_all(): array {
+	/**
+	 * Alle Entitäten. Zwei Reihenfolgen stecken hier drin: Kopf vor Positionen (damit die Zeile existiert,
+	 * bevor ihre Positionen ankommen) — und für den Button-Pfad vorher noch die offenen Pushes, damit der
+	 * Desk unsere line_uids adoptiert hat, bevor wir seine lesen.
+	 */
+	public static function pull_all( bool $push_first = true ): array {
+		if ( $push_first && class_exists( 'M24_Sync_Push' ) ) { M24_Sync_Push::run_pending(); }
 		$out = array();
 		foreach ( self::ENTITIES as $e ) { $out[ $e ] = self::pull( $e ); }
 		return $out;
@@ -143,10 +148,17 @@ class M24_Sync_Reconcile {
 		return array( 'ok' => true, 'fetched' => $fetched, 'applied' => $applied, 'note' => 'ok' );
 	}
 
-	/** Cron-Lauf. */
+	/**
+	 * Cron-Lauf. Reihenfolge ist Absicht: ERST ausstehende Pushes, DANN pullen.
+	 *
+	 * Der Desk adoptiert unsere line_uid im Moment des Push. Zöge der Pull zuerst, kämen Bestandszeilen
+	 * noch unter der vorläufigen Desk-uid herein — der Applier hält sie dann zurück (line_uid_vorlaeufig)
+	 * und die Runde wäre verschenkt. Push zuerst heißt: die Adoption ist durch, bevor wir lesen.
+	 */
 	public static function run_cron(): void {
 		if ( ! self::enabled() ) { return; }
-		$r = self::pull_all();
+		if ( class_exists( 'M24_Sync_Push' ) ) { M24_Sync_Push::run_pending(); }
+		$r = self::pull_all( false ); // Push ist oben schon gelaufen
 		$sum = 0;
 		foreach ( $r as $one ) { $sum += (int) ( $one['applied'] ?? 0 ); }
 		if ( $sum > 0 ) { self::log( 'cron', $sum . ' Änderung(en) aus dem Desk übernommen.' ); }
