@@ -369,7 +369,7 @@ class M24_Offers {
 					// GET /api/orders/:id vorbefüllen — Adressen werden oft erst im Desk korrigiert. Bis dahin
 					// ist das editierbare Feld die Absicherung, damit nie stillschweigend die alte Adresse zieht.
 					if ( in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
-						echo '<a href="' . esc_url( $u_resend ) . '" style="color:#0e447e;font-weight:700;" data-m24-resend="' . esc_attr( (string) $o->offer_no ) . '" data-m24-mail="' . esc_attr( (string) ( $cust['email'] ?? '' ) ) . '">Erneut senden</a>';
+						echo '<a href="' . esc_url( $u_resend ) . '" style="color:#0e447e;" data-m24-resend="' . esc_attr( (string) $o->offer_no ) . '" data-m24-mail="' . esc_attr( (string) ( $cust['email'] ?? '' ) ) . '">Erneut senden</a>';
 					}
 					if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
 				}
