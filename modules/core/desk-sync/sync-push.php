@@ -28,7 +28,8 @@ class M24_Sync_Push {
 	const EVENT       = 'm24_sync_push_offer';
 	const TIMEOUT     = 15;
 	const BATCH       = 25;  // Angebote je Cron-Lauf — hält den Request kurz
-	const MAX_RECORDS = 200; // Records je HTTP-Call (Desk-Limit ist 500 — bewusst darunter)
+	const MAX_RECORDS = 500; // Desk-Limit. Die Zeilen EINES Auftrags dürfen nie über Calls zerrissen
+	                         // werden — die line_uid-Adoption braucht sie als Satz (s. push_offer).
 
 	public static function init() {
 		// Sofort-Push nach jeder lokalen Änderung (M24_Sync_LWW::touch feuert das).
@@ -116,7 +117,15 @@ class M24_Sync_Push {
 			return;
 		}
 
+		// ALLE Zeilen des Auftrags in EINEM apply-Call. Die line_uid-Adoption des Desk identifiziert eine
+		// Bestandszeile über Artikel + Menge und zieht die Reihenfolge nur bei Mehrdeutigkeit heran
+		// (derselbe Artikel in derselben Menge mehrfach) — dieses Kriterium greift nur, wenn er den
+		// kompletten Satz sieht. Einzeln geschickt funktioniert es, aber ohne diesen Entscheider.
 		$lines = self::line_records( $o );
+		if ( count( $lines ) > self::MAX_RECORDS ) {
+			// Rein theoretisch (so viele Positionen hat kein Angebot), aber lieber laut als still zerrissen.
+			self::log( 'lines_oversized', (string) $o->offer_no . ' hat ' . count( $lines ) . ' Zeilen > ' . self::MAX_RECORDS . ' — die Adoption kann die Reihenfolge nicht mehr als Ganzes werten.' );
+		}
 		if ( ! empty( $lines ) ) {
 			$res = self::send( 'offer_lines', $lines );
 			if ( empty( $res['ok'] ) ) {
