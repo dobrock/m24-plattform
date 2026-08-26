@@ -1220,7 +1220,8 @@ class M24_Offers_Render {
 		// Footer nur www. Der geteilte m24_mail_shell (Garage/Alerts/Anfrage) bleibt unangetastet.
 		$html = self::offer_mail_shell( '', $inner, $lang ); // Überschrift steckt jetzt in der Kopf-Tabelle in $inner
 		if ( $return_html ) { return $html; } // #11: Vorschau — nur HTML, kein Versand
-		$subj = $L['your_offer'] . ' ' . $o->offer_no . ( 'en' === $lang ? ' from MOTORSPORT24' : ' von MOTORSPORT24' );
+		// #3 (0.11.443): Betreff = Desk-Master, wörtlich, OHNE WP-offer_no im Text. Token (order_num) folgt separat unten.
+		$subj = ( 'en' === $lang ? 'Your Quote from MOTORSPORT24' : 'Ihr Angebot von MOTORSPORT24' );
 		// Betreff-Token: die DESK-order_num (202607xxx aus der W1-Response) als [order_num] anhängen — der Desk
 		// scannt Antworten darauf. NICHT die WP-Nummer 2026-xxxx. Fehlt sie (Desk aus/Dry-Run) → ohne Token.
 		$desk_num = trim( (string) $o->desk_order_num );
