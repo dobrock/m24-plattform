@@ -260,6 +260,12 @@ class M24_Desk_Inbound {
         if ( false === $wpdb->update( $t, $cols, array( 'id' => (int) $o->id ) ) ) {
             throw new Exception( 'DB-Update m24_offers fehlgeschlagen: ' . $wpdb->last_error );
         }
+        // Spec §1/§4: angewandte Desk-Änderung stempeln (origin='desk') und sofort als gesynct verbuchen —
+        // damit der Echo-Schutz sie nicht als lokale Änderung wieder nach oben pusht.
+        if ( class_exists( 'M24_Sync_LWW' ) ) {
+            M24_Sync_LWW::touch( (int) $o->id, 'desk' );
+            M24_Sync_LWW::mark_synced( (int) $o->id );
+        }
 
         // D1: gemeldeter Zahlungseingang → Angebot als bezahlt führen (mark_paid ist idempotent und feuert
         // m24_offer_paid; ohne das bliebe payment_date eine Spalte, die niemand liest).
@@ -578,7 +584,14 @@ class M24_Desk_Inbound {
 
         $ok = $wpdb->insert( $t, $row );
         if ( false === $ok ) { return 0; }
-        return (int) $wpdb->insert_id;
+        $new_id = (int) $wpdb->insert_id;
+        // Sync-Identität + LWW-Startwerte. origin='desk': die Zeile stammt aus dem Desk-Spiegel, nicht
+        // aus WP — sonst hielte der Echo-Schutz sie für eine lokale Änderung und pushte sie zurück.
+        if ( $new_id > 0 && class_exists( 'M24_Sync_LWW' ) ) {
+            M24_Sync_LWW::init_row( $new_id, 'desk', (int) ( $row['account_id'] ?? 0 ) );
+            M24_Sync_LWW::mark_synced( $new_id );
+        }
+        return $new_id;
     }
 
     /** Snapshot = aktueller Feldstand, damit der nächste push_customer() keinen Scheindiff sieht. */

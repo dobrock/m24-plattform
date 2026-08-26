@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.450
+ * Version:           0.11.451
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '025' );
+define( 'M24_PLATTFORM_DB_VERSION',  '026' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -157,6 +157,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-cleanup.php'; // Admi
 M24_Admin_Cleanup::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-country-flags.php'; // Länder → ISO2 + Emoji-Flagge (Ansatz A)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-deepl.php';        // DeepL: EN-Angebots-Positionstitel on-demand (Hash-Cache)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-sync-lww.php';    // Bidirektionale LWW-Sync: Identität (uids) + Konfliktregel + rev/updated_at
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers.php';       // Angebots-Workflow v1 (flag-gated m24_offers_enabled)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-offer-bridge.php'; // Garage → Angebot: Operator-Einstieg (manage_options)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        // Angebots-Annahme: Login-Gate + Magic-Link-Rückkehr (keine Gastannahme)

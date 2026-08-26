@@ -126,10 +126,12 @@ class M24_Offers {
 					// Soft-Delete → Papierkorb (10 Tage wiederherstellbar). Bleibt als Tombstone: Re-Sync legt
 					// die gesyncte Zeile über die vorhandene desk_order_id NICHT wieder als aktiv an.
 					$wpdb->update( $t, array( 'deleted_at' => current_time( 'mysql', true ) ), array( 'id' => $id ) );
+					M24_Sync_LWW::touch( $id, 'wp' ); // Tombstone propagiert per LWW (Spec §4) — nie hart löschen im Sync
 					self::log( 'trashed', $id, $no );
 					$notice = 'Angebot ' . $no . ' in den Papierkorb verschoben (10 Tage wiederherstellbar).';
 				} elseif ( 'restore' === $do ) {
 					$wpdb->update( $t, array( 'deleted_at' => null ), array( 'id' => $id ) );
+					M24_Sync_LWW::touch( $id, 'wp' );
 					self::log( 'restored', $id, $no );
 					$notice = 'Angebot ' . $no . ' wiederhergestellt.';
 				} elseif ( 'purge' === $do ) {
@@ -138,6 +140,7 @@ class M24_Offers {
 					$notice = 'Angebot ' . $no . ' endgültig gelöscht.';
 				} elseif ( 'storno' === $do ) {
 					$wpdb->update( $t, array( 'status' => 'storniert' ), array( 'id' => $id ) );
+					M24_Sync_LWW::touch( $id, 'wp' );
 					self::log( 'cancelled', $id, $no );
 					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
 				} elseif ( 'resend' === $do ) {
@@ -150,6 +153,7 @@ class M24_Offers {
 						$notice = 'Angebot ' . $no . ' als bezahlt/bestätigt markiert.';
 					} else {
 					$wpdb->update( $t, array( 'status' => 'entwurf' ), array( 'id' => $id ) );
+					M24_Sync_LWW::touch( $id, 'wp' );
 					self::log( 'reactivated', $id, $no );
 					$notice = 'Angebot ' . $no . ' reaktiviert (Entwurf).';
 				}
@@ -478,6 +482,7 @@ class M24_Offers {
 		if ( $changed ) {
 			$cust['email'] = $target;
 			$wpdb->update( self::table(), array( 'customer_json' => wp_json_encode( $cust ) ), array( 'id' => $offer_id ) );
+			M24_Sync_LWW::touch( $offer_id, 'wp' ); // korrigierte Adresse muss zum Desk propagieren
 			self::log( 'resend_email_fixed', $offer_id, $no . ': ' . $old . ' → ' . $target );
 		}
 
@@ -489,6 +494,7 @@ class M24_Offers {
 
 		// „Gesendet am" nachziehen (valid_until bleibt bewusst stehen).
 		$wpdb->update( self::table(), array( 'sent_at' => current_time( 'mysql', true ) ), array( 'id' => $offer_id ) );
+		M24_Sync_LWW::touch( $offer_id, 'wp' );
 		self::log( 'resent', $offer_id, $no . ' → ' . $target );
 		return array(
 			'ok'  => true,
@@ -740,6 +746,7 @@ class M24_Offers {
 			// Adresse an den Auftrag (Spalten) + ans Konto (User-Meta) persistieren.
 			if ( class_exists( 'M24_Offer_Address' ) && ! empty( $val['billing'] ) ) {
 				M24_Offer_Address::persist( (int) $o->id, $acc, $val['billing'], $val['shipping'], ! empty( $val['ship_diff'] ) );
+				M24_Sync_LWW::touch( (int) $o->id, 'wp' ); // nach der Adress-Persistenz: Stempel deckt Status UND Adresse ab
 			}
 			self::log( 'accepted', (int) $o->id, (string) $o->offer_no );
 			if ( class_exists( 'M24_Error_Log' ) ) {
@@ -1179,6 +1186,8 @@ class M24_Offers {
 			$row['offer_no'] = $offer_no;
 			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) );
 			$offer_id = $draft_id;
+			M24_Sync_LWW::init_row( $offer_id, 'wp', (int) $account_id ); // idempotent: setzt uids nur, falls noch leer
+			M24_Sync_LWW::touch( $offer_id, 'wp' );
 		} else {
 			$token           = bin2hex( random_bytes( 16 ) );
 			$offer_no        = self::next_number();
@@ -1186,6 +1195,7 @@ class M24_Offers {
 			$row['offer_no'] = $offer_no;
 			$wpdb->insert( self::table(), $row );
 			$offer_id = (int) $wpdb->insert_id;
+			M24_Sync_LWW::init_row( $offer_id, 'wp', (int) $account_id ); // Sync-Identität + LWW-Startwerte
 		}
 		if ( '' !== $ikey ) { set_transient( $ikey, array( 'offer_id' => $offer_id ), 600 ); } // Anlage fertig -> Key->Angebot (10 min); Doppel-Sends bekommen dieses zurueck
 		self::log( 'sent', $offer_id, $offer_no );
@@ -1283,12 +1293,15 @@ class M24_Offers {
 		if ( $existing && 'entwurf' === (string) $existing->status ) {
 			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) ); // offer_no/token unverändert
 			$id = $draft_id;
+			M24_Sync_LWW::init_row( $id, 'wp', (int) ( $row['account_id'] ?? 0 ) );
+			M24_Sync_LWW::touch( $id, 'wp' );
 		} else {
 			// Eindeutiger Platzhalter statt '' (UNIQUE-Spalte) — KEIN next_number(), also kein Sequenz-Verbrauch.
 			$row['offer_no'] = 'E-' . bin2hex( random_bytes( 8 ) );
 			$row['token']    = bin2hex( random_bytes( 16 ) );
 			$wpdb->insert( self::table(), $row );
 			$id = (int) $wpdb->insert_id;
+			M24_Sync_LWW::init_row( $id, 'wp', (int) ( $row['account_id'] ?? 0 ) );
 		}
 		self::log( 'draft_saved', $id, '' );
 
@@ -1334,6 +1347,7 @@ class M24_Offers {
 		$wpdb->insert( self::table(), $row );
 		$id = (int) $wpdb->insert_id;
 		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Entwurf konnte nicht angelegt werden.' ); }
+		M24_Sync_LWW::init_row( $id, 'wp', (int) ( $row['account_id'] ?? 0 ) );
 		self::log( 'draft_from_garage', $id, '' );
 		return array( 'ok' => true, 'draft_id' => $id, 'edit_url' => add_query_arg( array( self::QV_NEW => 1, 'draft' => $id ), home_url( '/' ) ) );
 	}
@@ -1447,6 +1461,9 @@ class M24_Offers {
 			elseif ( array_key_exists( 'st25a', $it ) )   { $tax25a = ! empty( $it['st25a'] ); } // Abwärtskompat
 			else                                          { $tax25a = (bool) $meta['tax25a']; }
 			$out[] = array(
+				// Stabile Zeilen-ID für Line-Item-LWW (Sync-Spec §0/§3). MUSS erhalten bleiben, sonst gilt eine
+				// bearbeitete Zeile drüben als gelöscht+neu und zwei gleichzeitige Edits verwerfen sich gegenseitig.
+				'line_uid'   => ( ! empty( $it['line_uid'] ) && is_string( $it['line_uid'] ) ) ? $it['line_uid'] : M24_Sync_LWW::new_uid(),
 				'teil_id'    => $teil_id,
 				'title'      => $title,
 				'title_de'   => sanitize_text_field( (string) ( $it['title_de'] ?? $title ) ), // v3.1: DE-Titel (Freitext)
@@ -1723,6 +1740,7 @@ class M24_Offers {
 			'sent_at'      => null,
 		) );
 		$offer_id = (int) $wpdb->insert_id;
+		M24_Sync_LWW::init_row( $offer_id, 'wp', (int) $account );
 		self::log( 'draft_request', $offer_id, $offer_no );
 		return array( 'ok' => true, 'offer_no' => $offer_no, 'offer_id' => $offer_id, 'token' => $token );
 	}
@@ -1873,6 +1891,10 @@ class M24_Offers {
 		$o = self::get_by_id( $offer_id );
 		if ( ! $o || 'bezahlt' === $o->status ) { return false; }
 		$wpdb->update( self::table(), array( 'status' => 'bezahlt', 'paid_at' => current_time( 'mysql', true ) ), array( 'id' => $offer_id ) );
+		// LWW stempeln. origin = Quelle: eine vom Desk gemeldete Zahlung ist KEINE lokale Änderung —
+		// sonst liefe sie über den Echo-Schutz hinweg als WP→Desk-Push zurück (Spec §4).
+		M24_Sync_LWW::touch( $offer_id, 'desk' === $source ? 'desk' : 'wp' );
+		if ( 'desk' === $source ) { M24_Sync_LWW::mark_synced( $offer_id ); }
 		self::log( 'paid:' . $source, $offer_id, (string) $o->offer_no );
 		do_action( 'm24_offer_paid', $offer_id, $source );
 		return true;
