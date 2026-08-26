@@ -14,6 +14,7 @@
  *
  * Overlap: der Pull setzt bewusst ein paar Sekunden vor dem letzten Stand an. Zwei Uhren laufen nie
  * exakt gleich, und ein Datensatz, der genau auf der Grenze liegt, fiele sonst zwischen zwei Läufe.
+ * `updated_since` ist Desk-seitig inklusiv (>=), doppelt Geholtes ist durch den idempotenten Apply harmlos.
  *
  * @package M24_Plattform
  */
@@ -130,8 +131,11 @@ class M24_Sync_Reconcile {
 				}
 			}
 
-			$cursor = trim( (string) ( $data['cursor'] ?? $data['next_cursor'] ?? '' ) );
-			if ( '' === $cursor || count( $records ) < self::PAGE ) { break; }
+			// Abbruch AUSSCHLIESSLICH über next_cursor. Bei entity=offer_lines zählt `limit` KÖPFE, nicht
+			// Zeilen (die Zeilen eines Auftrags kommen immer vollständig) — eine Seite kann also mehr
+			// Records enthalten als `limit`, und ein Vergleich auf die Record-Zahl bräche zu früh ab.
+			$cursor = trim( (string) ( $data['next_cursor'] ?? $data['cursor'] ?? '' ) );
+			if ( '' === $cursor ) { break; }
 		}
 
 		self::set_last_reconcile_at( $entity, $started );

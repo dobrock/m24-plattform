@@ -244,29 +244,7 @@ class M24_Desk_Push {
             $line  = $unit * $qty;
             $url   = trim( (string) ( $it['url'] ?? '' ) );
             if ( '' === $url || ! preg_match( '#^https?://#i', $url ) ) { $url = $view; } // Fallback: valide Angebots-URL
-            $mapped[] = array(
-                // Pflicht für den Desk-Validator:
-                'src_url'    => $url,
-                'src_pillar' => self::item_pillar( $it ),
-                'src_lang'   => $lang,
-                'src_modell' => (string) ( $src['src_modell'] ?? '' ),
-                'src_pid'    => (string) ( (int) ( $it['teil_id'] ?? 0 ) ?: (string) ( $src['src_pid'] ?? '' ) ),
-                // Numerische Order-Felder (DB NUMERIC(10,2)) — Punkt-Dezimal, KEIN DE-String.
-                'amt'        => round( $unit, 2 ), // VK je Einheit (numerisch)
-                'einkauf'    => 0.0,               // kein EK in Angeboten bekannt
-                // Anzeigefelder für Desk-UI/PDF (DE-Format als String):
-                'art'        => (string) ( $it['title'] ?? '' ),
-                'qty'        => (string) $qty,
-                'price'      => number_format( $unit, 2, ',', '.' ),
-                'gesamt'     => '€ ' . number_format( $line, 2, ',', '.' ),
-                'delivery'   => (string) $o->delivery_time,
-                'note'       => (string) ( $it['art_nr'] ?? '' ),
-                'is25a'      => ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ),
-                'customs'    => false,
-                'coo'        => false,
-                'hs_code'    => (string) ( $it['hs_code'] ?? '' ),
-                'weight_kg'  => (string) ( $it['weight_kg'] ?? '' ),
-            );
+            $mapped[] = self::map_item( $it, $url, $lang, $src, (string) $o->delivery_time );
         }
         foreach ( $extras as $ex ) {
             if ( empty( $ex['on'] ) ) { continue; }
@@ -325,6 +303,45 @@ class M24_Desk_Push {
         );
         if ( $dry_run ) { $body['dry_run'] = true; }
         return $body;
+    }
+
+    /**
+     * Eine Position ins Desk-Wire-Format. Extrahiert aus build_payload, weil der Sync-Push (offer_lines)
+     * exakt dieselben Feldnamen verwenden MUSS — zwei getrennte Mappings wären genau die Sorte Abweichung,
+     * die erst auffällt, wenn im Desk die Hälfte der Felder leer bleibt.
+     *
+     * einkauf/notes gehen bewusst NICHT mit: Marge und interne Notizen haben auf dem öffentlichen
+     * Webserver nichts verloren (Politik des D-Kanals, vom Desk am 26.08. bestätigt).
+     */
+    public static function map_item( array $it, string $url, string $lang, array $src, string $delivery ): array {
+        $qty  = max( 1, (int) ( $it['qty'] ?? 1 ) );
+        $unit = (float) ( $it['unit_price'] ?? 0 );
+        $line = $unit * $qty;
+        return array(
+            // Stabile Zeilen-ID — der Desk übernimmt sie und würfelt sie nie neu (Vertrag 26.08.).
+            'line_uid'   => (string) ( $it['line_uid'] ?? '' ),
+            // Pflicht für den Desk-Validator:
+            'src_url'    => $url,
+            'src_pillar' => self::item_pillar( $it ),
+            'src_lang'   => $lang,
+            'src_modell' => (string) ( $src['src_modell'] ?? '' ),
+            'src_pid'    => (string) ( (int) ( $it['teil_id'] ?? 0 ) ?: (string) ( $src['src_pid'] ?? '' ) ),
+            // Numerische Order-Felder (DB NUMERIC(10,2)) — Punkt-Dezimal, KEIN DE-String.
+            'amt'        => round( $unit, 2 ), // VK je Einheit (numerisch)
+            'einkauf'    => 0.0,               // kein EK in Angeboten bekannt
+            // Anzeigefelder für Desk-UI/PDF (DE-Format als String):
+            'art'        => (string) ( $it['title'] ?? '' ),
+            'qty'        => (string) $qty,
+            'price'      => number_format( $unit, 2, ',', '.' ),
+            'gesamt'     => '€ ' . number_format( $line, 2, ',', '.' ),
+            'delivery'   => $delivery,
+            'note'       => (string) ( $it['art_nr'] ?? '' ),
+            'is25a'      => ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ),
+            'customs'    => false,
+            'coo'        => false,
+            'hs_code'    => (string) ( $it['hs_code'] ?? '' ),
+            'weight_kg'  => (string) ( $it['weight_kg'] ?? '' ),
+        );
     }
 
     /**

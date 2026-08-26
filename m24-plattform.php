@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.454
+ * Version:           0.11.455
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -168,6 +168,7 @@ require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // D
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-apply.php'; // Bidirektionale Sync: Apply-Seite (orders/offer_lines/customers, record-level LWW)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-push.php'; // Bidirektionale Sync: Push WP → Desk (POST /api/sync/apply)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-reconcile.php'; // Bidirektionale Sync: Reconcile-Pull WP ← Desk (GET /api/sync/changes)
+require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-supersede.php'; // Bidirektionale Sync: Supersede — versendetes Angebot ersetzen statt still ändern
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-desk-sync-monitor.php'; // Admin-Monitor „Desk-Sync"
 M24_DeepL::init();
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-preis-altlink.php'; // [preis]-Altlink-Filter (tote „Online bestellen"-Buttons auf Alt-Shops)
@@ -381,6 +382,7 @@ add_action( 'plugins_loaded', function() {
     M24_Desk_Inbound::init(); // Desk-Sync D1–D3: REST m24/v1/desk-sync (Token-gated, LWW, Echo-Schutz)
     M24_Sync_Reconcile::init(); // Reconcile-Pull (10-Min-Cron) — registriert auch den m24_10min-Takt
     M24_Sync_Push::init();      // Event-Push nach lokalen Änderungen + Nachzügler-Cron
+    M24_Sync_Supersede::init(); // Verzögerter W1-Push des Ersatz-Angebots (Desk rendert das PDF)
     M24_Desk_Sync_Monitor::init(); // Admin-Monitor „Desk-Sync"
     M24_Lang_Endpoint::init(); // /sprache/?to=de|en
     add_action( 'init', [ 'M24_B2B', 'init' ] ); // B2B/Händler-Auth (Rolle, Token-Cron, Admin-Sperre)

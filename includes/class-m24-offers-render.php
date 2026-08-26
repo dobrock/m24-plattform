@@ -601,6 +601,10 @@ class M24_Offers_Render {
 			if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
 			// Entwürfe haben zwar einen Token, sind aber noch nicht versendet → Kunden-Ansicht inaktiv (wie „nicht gefunden").
 			if ( $o && 'entwurf' === (string) $o->status ) { $o = null; }
+			// Papierkorb/ersetzt → Link tot. Betrifft den Supersede (Spec §3.1: „Kunden-Zugriffslink
+			// deaktivieren"): nach dem Ersetzen darf der alte Link kein überholtes Angebot mehr zeigen,
+			// sonst nimmt der Kunde die alten Preise an. Das Archiv-PDF bleibt als Beleg erhalten.
+			if ( $o && ! empty( $o->deleted_at ) ) { $o = null; }
 			if ( ! $o ) {
 				echo self::head( 'Angebot' ) . '</head><body class="m24off-cust"><div class="m24off-wrap"><div class="m24off-card"><p>Dieses Angebot wurde nicht gefunden. / This offer could not be found.</p></div></div></body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput
 				exit;

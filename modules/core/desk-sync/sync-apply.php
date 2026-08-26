@@ -28,31 +28,38 @@ class M24_Sync_Apply {
 	/** Läuft gerade ein Apply? Der Push-Trigger fragt das ab und pusht dann NICHT zurück (§4). */
 	public static $applying = false;
 
-	/** Kopf-Felder, die der Desk setzen darf: Wire-Feld → Spalte in m24_offers. */
+	/**
+	 * Angebote mit materieller Änderung (Positionen/Preise/Adresse) in der laufenden Charge.
+	 * Der Supersede-Test läuft EINMAL pro Angebot am Ende — sonst entstünden bei einem Edit an drei
+	 * Positionen drei Ersatz-Angebote.
+	 */
+	private static $material = array();
+
+	/** Kopf-Felder, deren Änderung einen Supersede auslösen kann. Status/Zahlung/Tracking gehören NICHT
+	 * dazu: das sind Abwicklungsdaten, die nichts am Angebot selbst ändern. */
+	const MATERIAL_FIELDS = array( 'ship_firma', 'ship_name', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land', 'country' );
+
+	/**
+	 * Kopf-Felder, die der Desk setzen darf: Desk-Wire-Feld → WP-Spalte. Feldnamen laut Desk-Vertrag
+	 * vom 26.08. — `delivery_days`, nicht delivery_time. bill_* steht NICHT im Vertrag: die
+	 * Rechnungsadresse pflegt WP bei der Angebotsannahme, der Desk führt nur die Lieferanschrift.
+	 * `ship_name` ist der Sonderfall — er kommt als eine Zeile und wird gesplittet (wie im D-Kanal).
+	 */
 	const ORDER_FIELDS = array(
-		'status'         => 'status',
-		'delivery_time'  => 'delivery_time',
-		'payment_date'   => 'payment_date',
-		'carrier'        => 'carrier',
-		'tracking'       => 'tracking',
-		'bill_firma'     => 'bill_firma',
-		'bill_anrede'    => 'bill_anrede',
-		'bill_vorname'   => 'bill_vorname',
-		'bill_nachname'  => 'bill_nachname',
-		'bill_strasse'   => 'bill_strasse',
-		'bill_plz'       => 'bill_plz',
-		'bill_ort'       => 'bill_ort',
-		'bill_land'      => 'bill_land',
-		'bill_ustid'     => 'bill_ustid',
-		'bill_telefon'   => 'bill_telefon',
-		'ship_firma'     => 'ship_firma',
-		'ship_strasse'   => 'ship_strasse',
-		'ship_strasse2'  => 'ship_strasse2',
-		'ship_plz'       => 'ship_plz',
-		'ship_ort'       => 'ship_ort',
-		'ship_land'      => 'ship_land',
-		'supersedes'     => 'supersedes',
-		'superseded_by'  => 'superseded_by',
+		'status'        => 'status',
+		'delivery_days' => 'delivery_time',
+		'payment_date'  => 'payment_date',
+		'carrier'       => 'carrier',
+		'tracking'      => 'tracking',
+		'ship_firma'    => 'ship_firma',
+		'ship_name'     => '',            // → ship_anrede/ship_vorname/ship_nachname
+		'ship_strasse'  => 'ship_strasse',
+		'ship_strasse2' => 'ship_strasse2',
+		'ship_plz'      => 'ship_plz',
+		'ship_ort'      => 'ship_ort',
+		'ship_land'     => 'ship_land',
+		'supersedes'    => 'supersedes',
+		'superseded_by' => 'superseded_by',
 	);
 
 	/** Kunden-Felder: Wire-Feld → User-Meta. Deckt sich mit M24_Desk_Inbound::CUSTOMER_MAP. */
@@ -100,6 +107,16 @@ class M24_Sync_Apply {
 		} finally {
 			self::$applying = $prev;
 		}
+
+		// Supersede (Spec §3) NACH der Charge — außerhalb von $applying, damit der W1-Push des
+		// Ersatz-Angebots nicht am Echo-Schutz hängenbleibt.
+		if ( ! $prev && ! empty( self::$material ) && class_exists( 'M24_Sync_Supersede' ) ) {
+			$todo = self::$material;
+			self::$material = array();
+			foreach ( $todo as $offer_id => $reason ) {
+				M24_Sync_Supersede::maybe_supersede( (int) $offer_id, (string) $reason );
+			}
+		}
 		return array( 'entity' => $entity, 'results' => $results );
 	}
 
@@ -107,10 +124,22 @@ class M24_Sync_Apply {
 
 	private static function apply_order( array $rec ): array {
 		global $wpdb;
-		$uid = trim( (string) ( $rec['wp_offer_uid'] ?? '' ) );
-		if ( '' === $uid ) { return self::res( '', false, 0, 'missing_wp_offer_uid' ); }
+		$uid     = trim( (string) ( $rec['wp_offer_uid'] ?? '' ) );
+		$desk_id = trim( (string) ( $rec['desk_order_id'] ?? '' ) );
 
-		$o = self::offer_by_uid( $uid );
+		$o = '' !== $uid ? self::offer_by_uid( $uid ) : null;
+		if ( ! $o && '' !== $desk_id ) {
+			// Desk-Auftrag ohne uid → über die Desk-ID zuordnen und die uid nachtragen. Der nächste Push
+			// meldet sie zusammen mit desk_order_id zurück, damit der Desk sie übernehmen kann.
+			$o = self::offer_by_desk_id( $desk_id );
+			if ( $o ) {
+				if ( '' === (string) $o->wp_offer_uid ) { M24_Sync_LWW::init_row( (int) $o->id, 'desk', (int) $o->account_id ); }
+				$o  = self::offer_by_uid( M24_Sync_LWW::offer_uid( (int) $o->id ) ) ?: $o;
+				$uid = (string) $o->wp_offer_uid;
+				self::log( 'uid_bootstrap', 'desk_order_id ' . $desk_id . ' → ' . $uid );
+			}
+		}
+		if ( '' === $uid && ! $o ) { return self::res( '', false, 0, 'missing_wp_offer_uid' ); }
 		if ( ! $o ) { return self::res( $uid, false, 0, 'not_found' ); }
 
 		if ( ! self::wins_over( $rec, $o ) ) {
@@ -121,7 +150,14 @@ class M24_Sync_Apply {
 		foreach ( self::ORDER_FIELDS as $field => $col ) {
 			if ( ! array_key_exists( $field, $rec ) ) { continue; }
 			$v = $rec[ $field ];
-			if ( 'payment_date' === $field ) {
+			if ( 'ship_name' === $field ) {
+				// Der Desk führt einen einzeiligen Empfängernamen; WP hat drei Spalten dafür.
+				$parts = preg_split( '/\s+/', trim( sanitize_text_field( (string) $v ) ) ) ?: array();
+				$anr   = ( ! empty( $parts ) && in_array( $parts[0], array( 'Herr', 'Frau', 'Herrn' ), true ) ) ? array_shift( $parts ) : '';
+				$cols['ship_anrede']   = $anr;
+				$cols['ship_nachname'] = count( $parts ) > 0 ? (string) array_pop( $parts ) : '';
+				$cols['ship_vorname']  = implode( ' ', $parts );
+			} elseif ( 'payment_date' === $field ) {
 				$cols[ $col ] = '' !== (string) $v ? M24_Sync_LWW::from_iso( (string) $v ) : null;
 			} else {
 				$cols[ $col ] = is_scalar( $v ) ? sanitize_text_field( (string) $v ) : null;
@@ -142,6 +178,11 @@ class M24_Sync_Apply {
 		// Eine vom Desk gemeldete Zahlung soll denselben Weg nehmen wie über D1 (Status + Hook).
 		if ( ! empty( $cols['payment_date'] ) ) { M24_Offers::mark_paid( (int) $o->id, 'desk' ); }
 
+		// Adressänderung an einem versendeten Angebot ist materiell → Supersede-Kandidat.
+		$addr = array_intersect( array_keys( $rec ), self::MATERIAL_FIELDS );
+		if ( ! empty( $addr ) && ! empty( $cols ) ) {
+			self::$material[ (int) $o->id ] = 'Adresse geändert (' . implode( ',', $addr ) . ')';
+		}
 		self::log( 'applied_order', $uid . ' (' . (string) $o->offer_no . ') · Felder: ' . implode( ',', array_keys( $cols ) ) );
 		return self::res( $uid, true, self::rev_of( (int) $o->id ) );
 	}
@@ -218,6 +259,7 @@ class M24_Sync_Apply {
 		M24_Sync_LWW::touch( (int) $o->id, 'desk' );
 		M24_Sync_LWW::mark_synced( (int) $o->id );
 
+		self::$material[ (int) $o->id ] = 'Positionen geändert';
 		self::log( 'applied_line', $key . ( $deleted ? ' (gelöscht)' : '' ) . ' → Summen neu: ' . number_format( (float) $bd['total'], 2, ',', '.' ) );
 		return self::res( $key, true, (int) ( $rec['rev'] ?? 1 ) );
 	}
@@ -230,14 +272,17 @@ class M24_Sync_Apply {
 	private static function line_from_record( array $rec, array $local ): array {
 		$line = $local;
 		$line['line_uid'] = (string) $rec['line_uid'];
-		foreach ( array( 'title', 'title_de', 'title_en', 'art_nr', 'variant' ) as $k ) {
+		// Desk-Feldnamen laut Vertrag: `art` ist der Titel, `amt` der numerische Einzelpreis (`price` ist
+		// nur die DE-formatierte Anzeige), `note` die Artikelnummer, `is25a` die Differenzbesteuerung.
+		if ( array_key_exists( 'art', $rec ) )    { $line['title']   = sanitize_text_field( (string) $rec['art'] ); }
+		if ( array_key_exists( 'note', $rec ) )   { $line['art_nr']  = sanitize_text_field( (string) $rec['note'] ); }
+		if ( array_key_exists( 'qty', $rec ) )    { $line['qty']     = max( 1, (int) $rec['qty'] ); }
+		if ( array_key_exists( 'amt', $rec ) )    { $line['unit_price'] = round( (float) $rec['amt'], 2 ); }
+		if ( array_key_exists( 'is25a', $rec ) )  { $line['tax25a']  = (bool) $rec['is25a']; }
+		if ( array_key_exists( 'src_pid', $rec ) && ctype_digit( (string) $rec['src_pid'] ) ) { $line['teil_id'] = (int) $rec['src_pid']; }
+		foreach ( array( 'hs_code', 'weight_kg' ) as $k ) {
 			if ( array_key_exists( $k, $rec ) ) { $line[ $k ] = sanitize_text_field( (string) $rec[ $k ] ); }
 		}
-		if ( array_key_exists( 'qty', $rec ) )        { $line['qty']        = max( 1, (int) $rec['qty'] ); }
-		if ( array_key_exists( 'unit_price', $rec ) ) { $line['unit_price'] = round( (float) $rec['unit_price'], 2 ); }
-		if ( array_key_exists( 'teil_id', $rec ) )    { $line['teil_id']    = (int) $rec['teil_id']; }
-		if ( array_key_exists( 'tax25a', $rec ) )     { $line['tax25a']     = (bool) $rec['tax25a']; }
-		if ( array_key_exists( 'custom', $rec ) )     { $line['custom']     = (bool) $rec['custom']; }
 
 		// Pflichtfelder für eine im Desk NEU angelegte Zeile, die WP sonst nirgends herbekommt.
 		if ( ! isset( $line['title'] ) )      { $line['title'] = ''; }
@@ -265,6 +310,15 @@ class M24_Sync_Apply {
 		if ( '' === $cuid ) { return self::res( '', false, 0, 'missing_customer_uid' ); }
 
 		$uid = self::user_by_customer_uid( $cuid );
+		if ( $uid <= 0 ) {
+			// uid-Bootstrap: Desk-Kunde ohne customer_uid, aber mit desk_customer_id → Konto darüber
+			// finden und die uid vergeben/nachtragen.
+			$uid = self::user_by_desk_customer_id( trim( (string) ( $rec['desk_customer_id'] ?? '' ) ) );
+			if ( $uid > 0 ) {
+				$cuid = M24_Sync_LWW::customer_uid( $uid ); // legt sie an, falls noch keine da ist
+				self::log( 'uid_bootstrap', 'desk_customer_id → user ' . $uid . ' = ' . $cuid );
+			}
+		}
 		if ( $uid <= 0 ) {
 			// Kein Konto (Gast-Kunde) — die Adresse lebt dann nur im Angebots-Snapshot.
 			$n = self::sync_offer_snapshots( $cuid, $rec );
@@ -338,6 +392,27 @@ class M24_Sync_Apply {
 		global $wpdb;
 		$t = M24_Offers::table();
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE wp_offer_uid = %s LIMIT 1", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/**
+	 * uid-Bootstrap (Abweichung 1 des Desk-Vertrags): Desk-eigene Aufträge tragen noch keine
+	 * wp_offer_uid, dafür eine desk_order_id. Über die findet WP seinen Spiegel und meldet die uid beim
+	 * nächsten Push zurück — erst dadurch kommen Desk-Neuanlagen überhaupt je in den Sync.
+	 */
+	private static function offer_by_desk_id( string $desk_id ) {
+		global $wpdb;
+		if ( '' === $desk_id ) { return null; }
+		$t = M24_Offers::table();
+		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE desk_order_id = %s LIMIT 1", $desk_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/** Gegenstück für Kunden: Konto über die Desk-Kunden-ID finden (User-Meta aus dem D-Kanal). */
+	private static function user_by_desk_customer_id( string $desk_cid ): int {
+		if ( '' === $desk_cid || ! class_exists( 'M24_Desk_Push' ) ) { return 0; }
+		$u = get_users( array( // phpcs:ignore WordPress.DB.SlowDBQuery
+			'meta_key' => M24_Desk_Push::CUST_META, 'meta_value' => $desk_cid, 'number' => 1, 'fields' => 'ID',
+		) );
+		return ! empty( $u ) ? (int) $u[0] : 0;
 	}
 
 	private static function user_by_customer_uid( string $cuid ): int {

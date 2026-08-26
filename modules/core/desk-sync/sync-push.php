@@ -28,7 +28,7 @@ class M24_Sync_Push {
 	const EVENT       = 'm24_sync_push_offer';
 	const TIMEOUT     = 15;
 	const BATCH       = 25;  // Angebote je Cron-Lauf — hält den Request kurz
-	const MAX_RECORDS = 200; // Records je HTTP-Call
+	const MAX_RECORDS = 200; // Records je HTTP-Call (Desk-Limit ist 500 — bewusst darunter)
 
 	public static function init() {
 		// Sofort-Push nach jeder lokalen Änderung (M24_Sync_LWW::touch feuert das).
@@ -94,10 +94,26 @@ class M24_Sync_Push {
 		if ( ! $o || '' === (string) $o->wp_offer_uid ) { return; }
 		if ( ! M24_Sync_LWW::needs_push( $o ) ) { return; } // schon drüben — nichts zu tun
 
+		// Abweichung 2 des Desk-Vertrags: /api/sync/apply legt KEINE Aufträge an. Existiert der Auftrag
+		// drüben noch nicht (keine desk_order_id), ist W1 zuständig — ein Sync-Push liefe hier nur in
+		// 'unbekannter_auftrag'. W1 läuft beim Versand bzw. über die Retry-Queue.
+		if ( '' === trim( (string) $o->desk_order_id ) ) {
+			self::log( 'push_deferred', (string) $o->offer_no . ' hat keine desk_order_id — Anlage läuft über W1, nicht über den Sync.' );
+			return;
+		}
+
 		$head = self::send( 'orders', array( self::order_record( $o ) ) );
 		if ( empty( $head['ok'] ) ) {
 			self::log( 'push_failed', (string) $o->offer_no . ' · orders → ' . (string) ( $head['note'] ?? '' ) );
 			return; // last_synced_* NICHT setzen → der Cron versucht es erneut
+		}
+		// Abweichung 3: der Desk gewinnt bei exaktem Gleichstand, ein unverändert wiederholter Push kommt
+		// also als applied:false/lww_aelter zurück. Das ist Idempotenz — als erledigt verbuchen, sonst
+		// pusht der Cron dieselbe Revision endlos. Ein echtes Problem ist nur 'unbekannter_auftrag'.
+		$verdict = self::verdict( $head['results'] );
+		if ( 'unknown' === $verdict ) {
+			self::log( 'push_unknown', (string) $o->offer_no . ' — Desk kennt den Auftrag nicht (W1 ausstehend?).' );
+			return;
 		}
 
 		$lines = self::line_records( $o );
@@ -116,25 +132,62 @@ class M24_Sync_Push {
 		self::log( 'pushed', (string) $o->offer_no . ' (rev ' . (int) $o->rev . ', ' . count( $lines ) . ' Positionen)' );
 	}
 
-	/** Kopf-Record fürs Wire-Format. Feldnamen wie in M24_Sync_Apply::ORDER_FIELDS (beide Seiten gleich). */
+	/**
+	 * Kopf-Record im Desk-Wire-Format. Feldnamen laut Desk-Vertrag vom 26.08. — bewusst NICHT die
+	 * WP-Spaltennamen: `amt` statt total_gross, `delivery_days` statt delivery_time, `order_num` statt
+	 * desk_order_num. bill_* steht nicht im Vertrag und geht deshalb nicht raus.
+	 *
+	 * desk_order_id/desk_customer_id fahren mit, damit der Desk einen Datensatz zuordnen kann, der bei
+	 * ihm noch keine uid trägt (uid-Bootstrap, Abweichung 1 des Desk-Vertrags).
+	 */
 	public static function order_record( $o ): array {
+		$cust = json_decode( (string) $o->customer_json, true );
+		$cust = is_array( $cust ) ? $cust : array();
+		$biz  = ( 'b2b' === (string) ( $cust['kundentyp'] ?? 'b2c' ) );
+		$land = trim( (string) ( $cust['land'] ?? '' ) );
+
 		$rec = M24_Sync_LWW::envelope( $o );
-		$rec['offer_no']      = (string) $o->offer_no;
-		$rec['desk_order_id'] = (string) $o->desk_order_id;
-		$rec['status']        = (string) $o->status;
-		$rec['delivery_time'] = (string) $o->delivery_time;
-		$rec['currency']      = (string) $o->currency;
-		$rec['subtotal_net']  = (float) $o->subtotal_net;
-		$rec['tax_amount']    = (float) $o->tax_amount;
-		$rec['total_gross']   = (float) $o->total_gross;
-		$rec['supersedes']    = (string) $o->supersedes;
-		$rec['superseded_by'] = (string) $o->superseded_by;
-		foreach ( array( 'bill_firma', 'bill_anrede', 'bill_vorname', 'bill_nachname', 'bill_strasse', 'bill_plz', 'bill_ort', 'bill_land', 'bill_ustid', 'bill_telefon',
-			'ship_firma', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land', 'carrier', 'tracking' ) as $col ) {
+		$rec['desk_order_id']    = (string) $o->desk_order_id;
+		$rec['desk_customer_id'] = self::desk_customer_id( $o );
+		$rec['order_num']        = (string) $o->desk_order_num;
+		$rec['ref']              = (string) $o->offer_no;   // WP-Angebotsnummer als Referenz
+		$rec['subj']             = 'Angebot ' . (string) $o->offer_no;
+		$rec['amt']              = round( (float) $o->total_gross, 2 );
+		$rec['status']           = (string) $o->status;
+		$rec['country']          = '' !== $land ? $land : 'Deutschland';
+		$rec['biz']              = $biz;
+		$rec['sender_email']     = (string) ( $cust['email'] ?? '' );
+		$rec['inquiry_source']   = class_exists( 'M24_Desk_Push' ) ? M24_Desk_Push::inquiry_source() : 'offer';
+		$rec['supersedes']       = (string) $o->supersedes;
+		$rec['superseded_by']    = (string) $o->superseded_by;
+		$rec['carrier']          = (string) $o->carrier;
+		$rec['tracking']         = (string) $o->tracking;
+		$rec['payment_date']     = ! empty( $o->payment_date ) ? M24_Sync_LWW::to_iso( (string) $o->payment_date ) : null;
+
+		if ( class_exists( 'M24_Desk_Push' ) ) {
+			$rec['sender_lang']   = M24_Desk_Push::payload_lang( $o );
+			$rec['delivery_days'] = M24_Desk_Push::payload_lieferzeit( $o ); // kompakter Code, wie in W1
+			$rec['vat_mode']      = M24_Desk_Push::vat_mode( (string) $o->tax_mode, $biz, $land );
+		}
+		$rec['offer_date'] = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : null;
+		$cs = json_decode( (string) $o->completed_steps, true );
+		if ( is_array( $cs ) ) { $rec['completed_steps'] = array_values( array_map( 'strval', $cs ) ); }
+
+		// Lieferadresse: ship_name setzt sich wie im D-Kanal aus Anrede + Vor- + Nachname zusammen.
+		$rec['ship_name'] = trim( implode( ' ', array_filter( array(
+			(string) $o->ship_anrede, (string) $o->ship_vorname, (string) $o->ship_nachname,
+		) ) ) );
+		foreach ( array( 'ship_firma', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land' ) as $col ) {
 			$rec[ $col ] = (string) ( $o->$col ?? '' );
 		}
-		$rec['payment_date'] = ! empty( $o->payment_date ) ? M24_Sync_LWW::to_iso( (string) $o->payment_date ) : null;
 		return $rec;
+	}
+
+	/** Desk-Kunden-ID vom verknüpften Konto (User-Meta), für den uid-Bootstrap der Gegenseite. */
+	private static function desk_customer_id( $o ): string {
+		$acc = (int) $o->account_id;
+		if ( $acc <= 0 || ! class_exists( 'M24_Desk_Push' ) ) { return ''; }
+		return (string) get_user_meta( $acc, M24_Desk_Push::CUST_META, true );
 	}
 
 	/**
@@ -144,37 +197,40 @@ class M24_Sync_Push {
 	public static function line_records( $o ): array {
 		$out   = array();
 		$uid   = (string) $o->wp_offer_uid;
+		$view  = M24_Offers::view_url( (string) $o->token );
+		$src   = json_decode( (string) $o->src_json, true );
+		$src   = is_array( $src ) ? $src : array();
+		$lang  = class_exists( 'M24_Desk_Push' ) ? M24_Desk_Push::payload_lang( $o ) : 'de';
+		$deliv = class_exists( 'M24_Desk_Push' ) ? M24_Desk_Push::payload_lieferzeit( $o ) : (string) $o->delivery_time;
+
 		$items = json_decode( (string) $o->items_json, true );
 		foreach ( (array) ( is_array( $items ) ? $items : array() ) as $it ) {
 			if ( ! is_array( $it ) || empty( $it['line_uid'] ) ) { continue; }
-			$out[] = array(
-				'wp_offer_uid' => $uid,
-				'line_uid'     => (string) $it['line_uid'],
-				'teil_id'      => (int) ( $it['teil_id'] ?? 0 ),
-				'title'        => (string) ( $it['title'] ?? '' ),
-				'title_de'     => (string) ( $it['title_de'] ?? '' ),
-				'title_en'     => (string) ( $it['title_en'] ?? '' ),
-				'art_nr'       => (string) ( $it['art_nr'] ?? '' ),
-				'variant'      => (string) ( $it['variant'] ?? '' ),
-				'qty'          => max( 1, (int) ( $it['qty'] ?? 1 ) ),
-				'unit_price'   => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
-				'tax25a'       => ! empty( $it['tax25a'] ),
-				'custom'       => ! empty( $it['custom'] ),
-				'updated_at'   => M24_Sync_LWW::to_iso( (string) ( $it['updated_at'] ?? '' ) ),
-				'origin'       => (string) ( $it['origin'] ?? 'wp' ),
-				'rev'          => (int) ( $it['rev'] ?? 1 ),
-				'deleted_at'   => null,
-			);
+			$url = trim( (string) ( $it['url'] ?? '' ) );
+			if ( '' === $url || ! preg_match( '#^https?://#i', $url ) ) { $url = $view; }
+			// Dieselbe Mapping-Methode wie W1 — ein zweites Item-Format wäre genau die Abweichung,
+			// die erst auffällt, wenn im Desk die Hälfte der Felder leer bleibt.
+			$rec = class_exists( 'M24_Desk_Push' ) ? M24_Desk_Push::map_item( $it, $url, $lang, $src, $deliv ) : array();
+			$rec['wp_offer_uid'] = $uid;
+			$rec['line_uid']     = (string) $it['line_uid'];
+			$rec['updated_at']   = M24_Sync_LWW::to_iso( (string) ( $it['updated_at'] ?? '' ) );
+			$rec['origin']       = (string) ( $it['origin'] ?? 'wp' );
+			$rec['rev']          = (int) ( $it['rev'] ?? 1 );
+			$rec['deleted_at']   = null;
+			unset( $rec['einkauf'] ); // geht nie raus (Marge)
+			$out[] = $rec;
 		}
+		// Tombstones MÜSSEN mit: ein Teil-Push löscht Desk-seitig nichts, Entfernen geht nur explizit.
 		foreach ( M24_Sync_LWW::tombstones( $o ) as $t ) {
 			if ( empty( $t['line_uid'] ) ) { continue; }
+			$iso = M24_Sync_LWW::to_iso( (string) ( $t['deleted_at'] ?? '' ) );
 			$out[] = array(
 				'wp_offer_uid' => $uid,
 				'line_uid'     => (string) $t['line_uid'],
-				'updated_at'   => M24_Sync_LWW::to_iso( (string) ( $t['deleted_at'] ?? '' ) ),
+				'updated_at'   => $iso,
 				'origin'       => (string) ( $t['origin'] ?? 'wp' ),
 				'rev'          => (int) ( $t['rev'] ?? 1 ),
-				'deleted_at'   => M24_Sync_LWW::to_iso( (string) ( $t['deleted_at'] ?? '' ) ),
+				'deleted_at'   => $iso,
 			);
 		}
 		return $out;
@@ -211,6 +267,19 @@ class M24_Sync_Push {
 			if ( '' !== $upd ) { $rec['updated_at'] = M24_Sync_LWW::to_iso( $upd ); }
 		}
 		return $rec;
+	}
+
+	/**
+	 * Was sagt der Desk zu einer Charge? 'unknown' nur, wenn er den Auftrag gar nicht kennt — dann ist
+	 * W1 dran. Ein 'lww_aelter' bedeutet, dass drüben schon der gleiche oder ein neuerer Stand liegt:
+	 * für uns erledigt.
+	 */
+	private static function verdict( array $results ): string {
+		foreach ( $results as $r ) {
+			if ( ! empty( $r['applied'] ) ) { continue; }
+			if ( 'unbekannter_auftrag' === (string) ( $r['reason'] ?? '' ) ) { return 'unknown'; }
+		}
+		return 'ok';
 	}
 
 	/**
