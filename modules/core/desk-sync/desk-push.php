@@ -99,7 +99,10 @@ class M24_Desk_Push {
      * sonst schickt WP die eben eingespielte Desk-Änderung sofort wieder an Desk. Alle on_*-Trigger fragen das ab.
      */
     private static function applying_inbound(): bool {
-        return class_exists( 'M24_Desk_Inbound' ) && M24_Desk_Inbound::$applying;
+        if ( class_exists( 'M24_Desk_Inbound' ) && M24_Desk_Inbound::$applying ) { return true; }
+        // Auch der neue Sync-Applier (orders/offer_lines/customers) muss den Rückpush unterdrücken —
+        // sonst liefe jede angewandte Desk-Änderung sofort als WP→Desk-Push zurück (Spec §4).
+        return class_exists( 'M24_Sync_Apply' ) && M24_Sync_Apply::$applying;
     }
 
     /* ── Trigger ──────────────────────────────────────────────────────────── */

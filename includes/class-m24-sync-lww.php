@@ -144,20 +144,29 @@ class M24_Sync_LWW {
 		global $wpdb;
 		if ( $offer_id <= 0 ) { return; }
 		$t = M24_Offers::table();
-		$o = $wpdb->get_row( $wpdb->prepare( "SELECT id, wp_offer_uid, customer_uid, account_id FROM $t WHERE id = %d", $offer_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$o = $wpdb->get_row( $wpdb->prepare( "SELECT id, wp_offer_uid, customer_uid, account_id, updated_at FROM $t WHERE id = %d", $offer_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		if ( ! $o ) { return; }
 
-		$data = array(
-			'updated_at' => self::now(),
-			'origin'     => in_array( $origin, self::ORIGINS, true ) ? $origin : 'wp',
-			'rev'        => 1,
-		);
+		// Streng idempotent: nur ergänzen, was fehlt. Die Methode läuft auch auf bereits initialisierten
+		// Zeilen (Entwurf → Senden ruft sie erneut) — ein bedingungsloses rev=1 würde die Revision dort
+		// zurückwerfen und die Gegenseite hielte ihren älteren Stand für den neueren.
+		$fresh = ( null === $o->updated_at || '' === (string) $o->updated_at );
+		$data  = array();
+		if ( $fresh ) {
+			$data['updated_at'] = self::now();
+			$data['origin']     = in_array( $origin, self::ORIGINS, true ) ? $origin : 'wp';
+			$data['rev']        = 1;
+		}
 		if ( '' === (string) $o->wp_offer_uid ) { $data['wp_offer_uid'] = self::offer_uid( $offer_id ); }
 		if ( '' === (string) $o->customer_uid ) {
 			$acc = $account_id > 0 ? $account_id : (int) $o->account_id;
 			$data['customer_uid'] = self::customer_uid( $acc );
 		}
+		if ( empty( $data ) ) { return; }
 		$wpdb->update( $t, $data, array( 'id' => $offer_id ) );
+		if ( $fresh ) {
+			self::restamp_lines( $offer_id, array(), (string) $data['origin'] ); // Neuanlage → alle Positionen rev=1
+		}
 	}
 
 	/**
@@ -206,6 +215,171 @@ class M24_Sync_LWW {
 	 */
 	public static function needs_push( $o ): bool {
 		return (int) ( $o->rev ?? 0 ) > (int) ( $o->last_synced_rev ?? 0 );
+	}
+
+	/* ── Positionen: Line-Item-LWW (Spec §3) ─────────────────────────────
+	 * LWW gilt PRO Position, nicht nur am Kopf: zwei fast gleichzeitige Edits an verschiedenen Zeilen
+	 * dürfen sich nicht gegenseitig verwerfen. Jede Position trägt deshalb line_uid + updated_at/origin/rev
+	 * direkt im Item-JSON. Entfernte Zeilen wandern als Tombstone nach deleted_lines_json (eigene Spalte,
+	 * damit items_json weiterhin genau die aktiven Positionen enthält — s. Migration 027). */
+
+	/** Felder, die eine Position fachlich ausmachen. Nur deren Änderung ist eine Änderung im Sync-Sinn. */
+	const LINE_MATERIAL = array( 'teil_id', 'title', 'title_de', 'title_en', 'art_nr', 'variant', 'qty', 'unit_price', 'tax25a', 'custom' );
+
+	/** Materieller Fingerabdruck einer Position — Reihenfolge und Sync-Metadaten zählen bewusst nicht mit. */
+	public static function line_signature( array $it ): string {
+		$sig = array();
+		foreach ( self::LINE_MATERIAL as $k ) {
+			$v = $it[ $k ] ?? null;
+			if ( is_bool( $v ) ) { $v = $v ? '1' : '0'; }
+			if ( is_float( $v ) ) { $v = number_format( $v, 2, '.', '' ); } // 10 und 10.00 sind dieselbe Position
+			$sig[ $k ] = is_scalar( $v ) ? (string) $v : '';
+		}
+		return md5( (string) wp_json_encode( $sig ) );
+	}
+
+	/** Index einer Position im Array anhand ihrer line_uid; null wenn nicht enthalten. */
+	public static function find_line( array $items, string $line_uid ): ?int {
+		foreach ( $items as $i => $it ) {
+			if ( is_array( $it ) && (string) ( $it['line_uid'] ?? '' ) === $line_uid ) { return (int) $i; }
+		}
+		return null;
+	}
+
+	/**
+	 * Positionen nach einem lokalen Speichern stempeln: nur fachlich geänderte und neue Zeilen bekommen
+	 * rev+1 bzw. rev=1. Unveränderte Zeilen behalten ihren Stand — sonst sähe die Gegenseite bei jedem
+	 * Speichern alle Zeilen als geändert und gewänne jeden Konflikt allein durch häufigeres Speichern.
+	 *
+	 * @param array  $new    Positionen nach dem Edit (bereits durch clean_items gelaufen, mit line_uid).
+	 * @param array  $old    Positionen vor dem Edit.
+	 * @param string $origin 'wp' | 'desk'
+	 * @return array{items:array,tombstones:array} Gestempelte Positionen + Tombstones der entfernten Zeilen.
+	 */
+	public static function stamp_lines( array $new, array $old, string $origin = 'wp' ): array {
+		$org = in_array( $origin, self::ORIGINS, true ) ? $origin : 'wp';
+		$now = self::now();
+
+		$by_uid = array();
+		foreach ( $old as $o ) {
+			if ( is_array( $o ) && ! empty( $o['line_uid'] ) ) { $by_uid[ (string) $o['line_uid'] ] = $o; }
+		}
+
+		$seen = array();
+		foreach ( $new as $i => $it ) {
+			if ( ! is_array( $it ) ) { continue; }
+			$uid = (string) ( $it['line_uid'] ?? '' );
+			if ( '' === $uid ) { $uid = self::new_uid(); $new[ $i ]['line_uid'] = $uid; }
+			$seen[ $uid ] = true;
+			$prev = $by_uid[ $uid ] ?? null;
+
+			if ( null === $prev ) {                       // neue Zeile
+				$new[ $i ]['rev']        = 1;
+				$new[ $i ]['updated_at'] = $now;
+				$new[ $i ]['origin']     = $org;
+				continue;
+			}
+			if ( self::line_signature( $it ) === self::line_signature( $prev ) ) { // unverändert → Stand behalten
+				$new[ $i ]['rev']        = (int) ( $prev['rev'] ?? 1 );
+				$new[ $i ]['updated_at'] = (string) ( $prev['updated_at'] ?? $now );
+				$new[ $i ]['origin']     = (string) ( $prev['origin'] ?? $org );
+				continue;
+			}
+			$new[ $i ]['rev']        = (int) ( $prev['rev'] ?? 1 ) + 1;  // geändert
+			$new[ $i ]['updated_at'] = $now;
+			$new[ $i ]['origin']     = $org;
+		}
+
+		// Was vorher da war und jetzt fehlt, ist gelöscht — als Tombstone festhalten, nicht still verlieren.
+		$tombs = array();
+		foreach ( $by_uid as $uid => $o ) {
+			if ( isset( $seen[ $uid ] ) ) { continue; }
+			$tombs[] = array(
+				'line_uid'   => $uid,
+				'deleted_at' => $now,
+				'rev'        => (int) ( $o['rev'] ?? 1 ) + 1,
+				'origin'     => $org,
+			);
+		}
+		return array( 'items' => $new, 'tombstones' => $tombs );
+	}
+
+	/**
+	 * Positionen NACH einem Schreibvorgang gegen ihren vorherigen Stand nachstempeln.
+	 *
+	 * Die Speicherpfade (Senden, Entwurf) bauen ihr $row und schreiben items_json in einem Rutsch —
+	 * den Diff kann man daher erst danach ziehen. Also: alten Stand vorher merken, hinterher hier
+	 * durchreichen. Nur fachlich geänderte Zeilen bekommen rev+1, entfernte werden zu Tombstones.
+	 *
+	 * @param array $old_items Positionen VOR dem Schreiben (leer bei Neuanlage → alles rev=1).
+	 */
+	public static function restamp_lines( int $offer_id, array $old_items, string $origin = 'wp' ): void {
+		global $wpdb;
+		$o = M24_Offers::get_by_id( $offer_id );
+		if ( ! $o ) { return; }
+		$items = json_decode( (string) $o->items_json, true );
+		if ( ! is_array( $items ) || empty( $items ) ) { return; }
+
+		$stamped = self::stamp_lines( $items, $old_items, $origin );
+		$tombs   = self::merge_tombstones( self::tombstones( $o ), $stamped['tombstones'] );
+		$wpdb->update( M24_Offers::table(), array(
+			'items_json'         => wp_json_encode( $stamped['items'] ),
+			'deleted_lines_json' => wp_json_encode( $tombs ),
+		), array( 'id' => $offer_id ) );
+	}
+
+	/** Tombstone-Liste einer Angebotszeile lesen (deleted_lines_json). */
+	public static function tombstones( $o ): array {
+		$t = json_decode( (string) ( $o->deleted_lines_json ?? '' ), true );
+		return is_array( $t ) ? $t : array();
+	}
+
+	/**
+	 * Tombstones zusammenführen: je line_uid gewinnt der höhere rev. Verhindert, dass ein zweites
+	 * Speichern einen bereits propagierten Tombstone auf eine kleinere rev zurücksetzt.
+	 */
+	public static function merge_tombstones( array $existing, array $add ): array {
+		$by = array();
+		foreach ( array_merge( $existing, $add ) as $t ) {
+			if ( ! is_array( $t ) || empty( $t['line_uid'] ) ) { continue; }
+			$uid = (string) $t['line_uid'];
+			if ( ! isset( $by[ $uid ] ) || (int) ( $t['rev'] ?? 0 ) >= (int) ( $by[ $uid ]['rev'] ?? 0 ) ) {
+				$by[ $uid ] = $t;
+			}
+		}
+		return array_values( $by );
+	}
+
+	/**
+	 * Positionen eines Angebots lokal speichern: stempeln, Tombstones fortschreiben, Kopf-Summen aus den
+	 * Positionen NEU BERECHNEN (Spec §3: Summen werden nicht separat gesynct) und den Kopf stempeln.
+	 */
+	public static function save_lines( int $offer_id, array $items, string $origin = 'wp' ): bool {
+		global $wpdb;
+		$o = M24_Offers::get_by_id( $offer_id );
+		if ( ! $o ) { return false; }
+
+		$old     = json_decode( (string) $o->items_json, true );
+		$old     = is_array( $old ) ? $old : array();
+		$stamped = self::stamp_lines( $items, $old, $origin );
+		$tombs   = self::merge_tombstones( self::tombstones( $o ), $stamped['tombstones'] );
+
+		$extras = json_decode( (string) $o->extras_json, true );
+		$extras = is_array( $extras ) ? $extras : array();
+		$cust   = json_decode( (string) $o->customer_json, true );
+		$cust   = is_array( $cust ) ? $cust : array();
+		$bd     = M24_Offers::compute_totals( $stamped['items'], $extras, (string) $o->tax_mode, (float) $o->tax_rate, (string) ( $cust['land'] ?? '' ) );
+
+		$wpdb->update( M24_Offers::table(), array(
+			'items_json'         => wp_json_encode( $stamped['items'] ),
+			'deleted_lines_json' => wp_json_encode( $tombs ),
+			'subtotal_net'       => $bd['net'] + $bd['st25a'],
+			'tax_amount'         => $bd['tax'],
+			'total_gross'        => $bd['total'],
+		), array( 'id' => $offer_id ) );
+
+		self::touch( $offer_id, $origin );
+		return true;
 	}
 
 	/** LWW-Felder einer Zeile fürs Wire-Format (Push/Apply-Body). */

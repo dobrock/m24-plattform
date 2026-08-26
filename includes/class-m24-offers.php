@@ -1180,6 +1180,10 @@ class M24_Offers {
 			return rest_ensure_response( array( 'ok' => true, 'offer_no' => (string) $draft->offer_no, 'token' => (string) $draft->token, 'duplicate' => true, 'message' => 'Angebot ' . $draft->offer_no . ' wurde gesendet.' ) );
 		}
 		if ( $draft && 'entwurf' === (string) $draft->status ) {
+			// Positionsstand vor dem Schreiben festhalten — der Line-Item-Diff (rev-Bump je geänderter
+			// Zeile, Tombstone je entfernter) lässt sich nur gegen den alten Stand ziehen.
+			$prev_items      = json_decode( (string) $draft->items_json, true );
+			$prev_items      = is_array( $prev_items ) ? $prev_items : array();
 			$token           = (string) $draft->token ?: bin2hex( random_bytes( 16 ) );
 			$offer_no        = self::next_number();
 			$row['token']    = $token;
@@ -1187,6 +1191,7 @@ class M24_Offers {
 			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) );
 			$offer_id = $draft_id;
 			M24_Sync_LWW::init_row( $offer_id, 'wp', (int) $account_id ); // idempotent: setzt uids nur, falls noch leer
+			M24_Sync_LWW::restamp_lines( $offer_id, $prev_items, 'wp' );
 			M24_Sync_LWW::touch( $offer_id, 'wp' );
 		} else {
 			$token           = bin2hex( random_bytes( 16 ) );
@@ -1291,9 +1296,12 @@ class M24_Offers {
 		$draft_id = (int) ( $p['draft_id'] ?? 0 );
 		$existing = $draft_id > 0 ? self::get_by_id( $draft_id ) : null;
 		if ( $existing && 'entwurf' === (string) $existing->status ) {
+			$prev_items = json_decode( (string) $wpdb->get_var( $wpdb->prepare( 'SELECT items_json FROM ' . self::table() . ' WHERE id = %d', $draft_id ) ), true );
+			$prev_items = is_array( $prev_items ) ? $prev_items : array();
 			$wpdb->update( self::table(), $row, array( 'id' => $draft_id ) ); // offer_no/token unverändert
 			$id = $draft_id;
 			M24_Sync_LWW::init_row( $id, 'wp', (int) ( $row['account_id'] ?? 0 ) );
+			M24_Sync_LWW::restamp_lines( $id, $prev_items, 'wp' );
 			M24_Sync_LWW::touch( $id, 'wp' );
 		} else {
 			// Eindeutiger Platzhalter statt '' (UNIQUE-Spalte) — KEIN next_number(), also kein Sequenz-Verbrauch.
