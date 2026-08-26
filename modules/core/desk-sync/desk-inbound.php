@@ -145,8 +145,34 @@ class M24_Desk_Inbound {
         }
 
         $entity = strtolower( trim( (string) ( $p['entity'] ?? '' ) ) );
+
+        // ── Sync-Format (Vertrag v1.3): { entity: orders|offer_lines|customers, records: [...] }
+        // Der Desk pusht seine Änderungen laut §5.3 an genau diesen Kanal, aber mit record-level
+        // updated_at/origin/rev statt der alten field_updated_at-Stempel. Diese Records gehören an
+        // M24_Sync_Apply — nur der kennt customer_uid, line_uid, Positionen und den Supersede.
+        // Ohne diese Weiche liefe ein Desk-Event-Push in „entity unbekannt" und die Änderung käme
+        // erst mit dem nächsten Reconcile an (oder bei Bestandsdaten: nie).
+        if ( is_array( $p['records'] ?? null ) && in_array( $entity, array( 'orders', 'offer_lines', 'customers' ), true ) ) {
+            if ( ! class_exists( 'M24_Sync_Apply' ) ) {
+                return self::bad( 'Sync-Applier nicht verfügbar.' );
+            }
+            $key = trim( (string) $req->get_header( 'X-Idempotency-Key' ) );
+            if ( '' !== $key && get_transient( self::seen_key( $key ) ) ) {
+                self::log( 'replay', $entity . ' — Key bereits gesehen, kein erneuter Write.' );
+                return new WP_REST_Response( array( 'status' => 'replay' ), 200 );
+            }
+            $out = M24_Sync_Apply::records( $entity, $p['records'] );
+            if ( '' !== $key ) { set_transient( self::seen_key( $key ), 1, self::SEEN_TTL ); }
+            $n = 0;
+            foreach ( (array) ( $out['results'] ?? array() ) as $one ) {
+                if ( ! empty( $one['applied'] ) ) { $n++; }
+            }
+            self::log( 'sync_push', $entity . ': ' . $n . '/' . count( $p['records'] ) . ' angewandt.' );
+            return new WP_REST_Response( $out, 200 );
+        }
+
         if ( ! in_array( $entity, array( 'order', 'customer' ), true ) ) {
-            return self::bad( 'entity fehlt oder ist unbekannt (erwartet: order|customer).' );
+            return self::bad( 'entity fehlt oder ist unbekannt (erwartet: order|customer bzw. orders|offer_lines|customers mit records).' );
         }
         $data = is_array( $p['data'] ?? null ) ? $p['data'] : null;
         if ( null === $data ) {
