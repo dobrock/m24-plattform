@@ -108,14 +108,20 @@ class M24_Sync_LWW {
 	}
 
 	/**
-	 * Stabile Kunden-ID. Mit Konto hängt sie am User (alle Angebote desselben Kontos teilen sie),
-	 * ohne Konto wird eine frische vergeben — Gäste sollen nicht vom Sync ausgeschlossen sein.
+	 * Stabile Kunden-ID.
+	 *
+	 * Mit Konto ist sie die WP-Account-ID als String — deterministisch statt zufällig. Das ist der
+	 * Unterschied, der Altbestände überhaupt verknüpfbar macht: eine UUID kennt nur, wer sie schon einmal
+	 * bekommen hat, während eine ableitbare ID nach einem einmaligen E-Mail-Match auf beiden Seiten
+	 * identisch reproduziert werden kann. Sie ist außerdem im Log lesbar.
+	 *
+	 * Ohne Konto (Gast) bleibt es bei einer UUID — es gibt dann keine stabile Größe, aus der sich etwas
+	 * ableiten ließe, und ausschließen wollen wir Gäste nicht.
 	 */
 	public static function customer_uid( int $account_id ): string {
 		if ( $account_id <= 0 ) { return self::new_uid(); }
-		$uid = (string) get_user_meta( $account_id, self::CUST_UID_META, true );
-		if ( '' === $uid ) {
-			$uid = self::new_uid();
+		$uid = (string) $account_id;
+		if ( (string) get_user_meta( $account_id, self::CUST_UID_META, true ) !== $uid ) {
 			update_user_meta( $account_id, self::CUST_UID_META, $uid );
 		}
 		return $uid;

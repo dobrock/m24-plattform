@@ -32,6 +32,8 @@ class M24_Sync_Push {
 	                         // werden — die line_uid-Adoption braucht sie als Satz (s. push_offer).
 
 	public static function init() {
+		// Einmaliger Initial-Seed der Kunden-uids (Admin-Button in der Angebote-Liste).
+		add_action( 'admin_post_m24_sync_seed_customers', array( __CLASS__, 'handle_seed_customers' ) );
 		// Sofort-Push nach jeder lokalen Änderung (M24_Sync_LWW::touch feuert das).
 		add_action( 'm24_sync_touched', array( __CLASS__, 'on_touched' ), 10, 2 );
 		add_action( self::EVENT, array( __CLASS__, 'push_offer' ), 10, 1 );
@@ -276,6 +278,77 @@ class M24_Sync_Push {
 			if ( '' !== $upd ) { $rec['updated_at'] = M24_Sync_LWW::to_iso( $upd ); }
 		}
 		return $rec;
+	}
+
+	/** Admin-Button → Seed ausführen, Ergebnis als Notiz zurück in die Liste (PRG, Nonce). */
+	public static function handle_seed_customers() {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
+		check_admin_referer( 'm24_sync_seed_customers' );
+		$r    = self::seed_customer_uids();
+		$note = empty( $r['ok'] )
+			? 'Kunden-Verknüpfung fehlgeschlagen: ' . (string) $r['note']
+			: sprintf( '%d Kunden-Verknüpfung(en) an den Desk gesendet%s.', (int) $r['sent'], (int) $r['skipped'] > 0 ? ', ' . (int) $r['skipped'] . ' ohne Desk-Kunden-ID übersprungen' : '' );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'seed' => rawurlencode( $note ) ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	/**
+	 * Initial-Seed der customer_uid für Bestandskunden.
+	 *
+	 * Das Problem, das er löst: WP ist laut Vertrag die vergebende Seite für customer_uid, und Migration
+	 * 026 hat sie für alle Bestandskunden angelegt. Beim Desk ankommen tut sie aber nur über
+	 * push_offer() — und das läuft ausschließlich, wenn ein Angebot lokal geändert wurde. Für einen
+	 * Altbestand, dessen Angebote alle synced sind, passiert das nie. Ergebnis: der Desk kennt die uid
+	 * nicht, kann sie nicht adoptieren, und jede Adressänderung an einem Altkunden findet drüben keinen
+	 * Empfänger. Genau deshalb braucht es einen einmaligen, aktiven Push.
+	 *
+	 * Gepusht wird je Kunde EIN Record mit customer_uid + desk_customer_id — mehr braucht der Desk nicht,
+	 * um die Verknüpfung herzustellen. Idempotent: ein zweiter Lauf schickt dieselben Paare, der Desk
+	 * hängt eine bestehende uid laut Vertrag nie um.
+	 *
+	 * @return array{ok:bool,sent:int,skipped:int,note:string}
+	 */
+	public static function seed_customer_uids(): array {
+		global $wpdb;
+		if ( ! self::enabled() ) {
+			return array( 'ok' => false, 'sent' => 0, 'skipped' => 0, 'note' => 'Sync nicht scharf oder Desk nicht konfiguriert.' );
+		}
+		$t = M24_Offers::table();
+		// Nur Kunden, deren Auftrag der Desk überhaupt kennt (desk_order_id gesetzt) — für alles andere
+		// gibt es drüben nichts zu verknüpfen.
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB
+			"SELECT customer_uid, account_id, MAX(id) AS oid
+			   FROM $t
+			  WHERE customer_uid <> '' AND desk_order_id <> '' AND deleted_at IS NULL
+			  GROUP BY customer_uid, account_id"
+		);
+
+		$records = array();
+		$skipped = 0;
+		foreach ( (array) $rows as $r ) {
+			$dcid = ( (int) $r->account_id > 0 && class_exists( 'M24_Desk_Push' ) )
+				? (string) get_user_meta( (int) $r->account_id, M24_Desk_Push::CUST_META, true )
+				: '';
+			if ( '' === $dcid ) {
+				// Ohne Desk-Kunden-ID hat der Desk keinen Anker für die Zuordnung. Nicht raten — melden.
+				$skipped++;
+				continue;
+			}
+			$o = M24_Offers::get_by_id( (int) $r->oid );
+			if ( ! $o ) { $skipped++; continue; }
+			$rec = self::customer_record( $o );
+			if ( empty( $rec ) ) { $skipped++; continue; }
+			$rec['desk_customer_id'] = $dcid;
+			$records[] = $rec;
+		}
+
+		if ( empty( $records ) ) {
+			return array( 'ok' => true, 'sent' => 0, 'skipped' => $skipped, 'note' => 'nichts zu verknüpfen' );
+		}
+		$res = self::send( 'customers', $records );
+		$note = empty( $res['ok'] ) ? (string) ( $res['note'] ?? 'Fehler' ) : 'ok';
+		self::log( 'seed_customer_uids', count( $records ) . ' Kunden-uid(s) gepusht, ' . $skipped . ' ohne Desk-Kunden-ID übersprungen · ' . $note );
+		return array( 'ok' => ! empty( $res['ok'] ), 'sent' => count( $records ), 'skipped' => $skipped, 'note' => $note );
 	}
 
 	/**

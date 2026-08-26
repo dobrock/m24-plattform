@@ -192,6 +192,13 @@ class M24_Offers {
 			$mtx = $mn > 0 ? sprintf( '✓ %d Desk-Auftr%s der letzten 10 Tage nach WP gespiegelt.', $mn, 1 === $mn ? 'ag' : 'äge' ) : 'Keine neuen Desk-Aufträge der letzten 10 Tage gefunden (bereits alle gespiegelt).';
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $mtx ) . '</p></div>';
 		}
+		// Ergebnis des Kunden-Seeds.
+		if ( isset( $_GET['seed'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$seed_txt = sanitize_text_field( wp_unslash( $_GET['seed'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+			if ( '' !== $seed_txt ) {
+				echo '<div class="notice notice-' . ( false !== strpos( $seed_txt, 'fehlgeschlagen' ) ? 'warning' : 'success' ) . ' is-dismissible"><p>' . esc_html( $seed_txt ) . '</p></div>';
+			}
+		}
 		// Reconcile-Ergebnis der beiden Sync-Buttons (Spec §5.2) — „orders 3/12 · customers 1/1" bzw. der Fehler.
 		if ( isset( $_GET['rec'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			$rec_txt = sanitize_text_field( wp_unslash( $_GET['rec'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
@@ -220,6 +227,9 @@ class M24_Offers {
 		}
 		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'backfill' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#c8a24a;color:#9a6b25;">↻ Gesyncte Angebote nachziehen</a>';
 		echo '<a class="chip" href="' . esc_url( add_query_arg( array( 'page' => $page, 'mirror' => 'preview' ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#0e447e;color:#0e447e;">⇩ Desk-Aufträge (10 Tage) spiegeln</a>';
+		// Einmaliger Initial-Seed: schickt dem Desk die customer_uid der Bestandskunden. Ohne diesen Schritt
+		// kennt er sie nicht, und Adressänderungen an Altkunden finden in WP nie ihren Empfänger.
+		echo '<a class="chip" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_sync_seed_customers' ), 'm24_sync_seed_customers' ) ) . '" style="border-color:#6b21a8;color:#6b21a8;" title="Einmalig nötig, damit der Desk Bestandskunden zuordnen kann. Mehrfach ausführbar.">⇧ Kunden-Verknüpfung an Desk senden</a>';
 		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
 
 		// Vorschau-Panel „Gesyncte Angebote nachziehen": listet die Zeilen mit Korrekturbedarf (Datum/Positionen/

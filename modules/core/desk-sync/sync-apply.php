@@ -328,17 +328,25 @@ class M24_Sync_Apply {
 	 */
 	private static function apply_customer( array $rec ): array {
 		$cuid = trim( (string) ( $rec['customer_uid'] ?? '' ) );
-		if ( '' === $cuid ) { return self::res( '', false, 0, 'missing_customer_uid' ); }
+		$dcid = trim( (string) ( $rec['desk_customer_id'] ?? '' ) );
+		// Bestandskunden im Desk tragen NOCH KEINE customer_uid — WP hat sie vergeben, der Desk übernimmt
+		// sie erst mit unserem nächsten Push. Solange kommt der Record nur mit desk_customer_id herein.
+		// Der darf deshalb NICHT abgewiesen werden: sonst erreicht keine einzige Adressänderung an einem
+		// Altbestand jemals WP (genau dieser Fall — Adresse im Desk geändert, WP zeigt weiter die alte).
+		if ( '' === $cuid && '' === $dcid ) { return self::res( '', false, 0, 'missing_customer_uid' ); }
 
-		$uid = self::user_by_customer_uid( $cuid );
-		if ( $uid <= 0 ) {
-			// uid-Bootstrap: Desk-Kunde ohne customer_uid, aber mit desk_customer_id → Konto darüber
-			// finden und die uid vergeben/nachtragen.
-			$uid = self::user_by_desk_customer_id( trim( (string) ( $rec['desk_customer_id'] ?? '' ) ) );
+		$uid = '' !== $cuid ? self::user_by_customer_uid( $cuid ) : 0;
+		if ( $uid <= 0 && '' !== $dcid ) {
+			// uid-Bootstrap über die Desk-Kunden-ID (liegt als User-Meta aus der W1-Response vor).
+			$uid = self::user_by_desk_customer_id( $dcid );
 			if ( $uid > 0 ) {
 				$cuid = M24_Sync_LWW::customer_uid( $uid ); // legt sie an, falls noch keine da ist
-				self::log( 'uid_bootstrap', 'desk_customer_id → user ' . $uid . ' = ' . $cuid );
+				self::log( 'uid_bootstrap', 'desk_customer_id ' . $dcid . ' → user ' . $uid . ' = ' . $cuid );
 			}
+		}
+		if ( $uid <= 0 && '' === $cuid ) {
+			// Weder uid noch Konto — für den Snapshot-Weg fehlt der Schlüssel. Nicht raten.
+			return self::res( $dcid, false, 0, 'kein_customer_uid_match' );
 		}
 		if ( $uid <= 0 ) {
 			// Kein Konto (Gast-Kunde) — die Adresse lebt dann nur im Angebots-Snapshot.
