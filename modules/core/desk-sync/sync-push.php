@@ -288,7 +288,7 @@ class M24_Sync_Push {
 		$note = empty( $r['ok'] )
 			? 'Kunden-Verknüpfung fehlgeschlagen: ' . (string) $r['note']
 			: sprintf( '%d Kunden-Verknüpfung(en) an den Desk gesendet%s.', (int) $r['sent'], (int) $r['skipped'] > 0 ? ', ' . (int) $r['skipped'] . ' ohne Desk-Kunden-ID übersprungen' : '' );
-		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'seed' => rawurlencode( $note ) ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-desk-sync', 'seed' => rawurlencode( $note ) ), admin_url( 'admin.php' ) ) );
 		exit;
 	}
 

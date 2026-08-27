@@ -71,6 +71,31 @@ class M24_Desk_Sync_Monitor {
         $all = array_sum( $counts );
         echo $chip( '', 'Alle', $all ) . $chip( 'synced', 'Synced', $counts['synced'] ?? 0 ) . $chip( 'failed', 'Failed', $counts['failed'] ?? 0 ) . $chip( 'confirm_failed', 'Confirm-Fail', $counts['confirm_failed'] ?? 0 ) . $chip( 'pending', 'Pending', $counts['pending'] ?? 0 ) . $chip( 'needs_update', 'Needs update', $counts['needs_update'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput
 
+        // ── Werkzeuge. Bewusst hier und nicht in der Angebote-Liste: das sind Wartungsaktionen mit
+        // Desk-Verkehr, keine Arbeitsschritte am einzelnen Angebot. In der Liste standen sie zwischen
+        // den Status-Filtern und luden zum versehentlichen Klicken ein.
+        $seed_note = isset( $_GET['seed'] ) ? sanitize_text_field( wp_unslash( $_GET['seed'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $full_note = isset( $_GET['full'] ) ? sanitize_text_field( wp_unslash( $_GET['full'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $bf_note   = isset( $_GET['bf'] ) ? sanitize_text_field( wp_unslash( $_GET['bf'] ) ) : '';     // phpcs:ignore WordPress.Security.NonceVerification
+        foreach ( array( $seed_note, $full_note, $bf_note ) as $n ) {
+            if ( '' !== $n ) {
+                $warn = ( false !== strpos( $n, '✗' ) || false !== strpos( $n, 'fehlgeschlagen' ) );
+                echo '<div class="notice notice-' . ( $warn ? 'warning' : 'success' ) . ' is-dismissible"><p>' . esc_html( $n ) . '</p></div>';
+            }
+        }
+
+        echo '<h2 style="margin-top:22px;">Werkzeuge</h2>';
+        echo '<p class="description" style="margin:0 0 10px;">Wartungsaktionen mit Desk-Verkehr. Der Erstabgleich ist für die einmalige Verknüpfung gedacht; im Normalbetrieb erledigt das der 10-Minuten-Abgleich.</p>';
+        echo '<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">';
+        if ( ! $enabled || ! $configured ) {
+            echo '<em style="color:#b45309;">Desk-Sync ist nicht scharf — die Werkzeuge bleiben wirkungslos, bis der Schalter in den Einstellungen gesetzt ist.</em>';
+        } else {
+            echo '<a class="button button-primary" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_sync_full_pull' ), 'm24_sync_full_pull' ) ) . '" onclick="return confirm(\'Erstabgleich starten? Holt den KOMPLETTEN Desk-Bestand — das kann einige Minuten dauern.\');">⟳ Erstabgleich (Voll-Pull)</a>';
+            echo '<a class="button" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_sync_seed_customers' ), 'm24_sync_seed_customers' ) ) . '" title="Schickt dem Desk die customer_uid der Bestandskunden. Mehrfach ausführbar.">⇧ Kunden-Verknüpfung an Desk senden</a>';
+            echo '<a class="button" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_backfill_synced_offers' ), 'm24_backfill_synced_offers' ) ) . '" title="Gesyncte Angebote neu materialisieren (Datum · Positionen · Summen).">↻ Gesyncte Angebote nachziehen</a>';
+        }
+        echo '</p>';
+
         echo '<h2 style="margin-top:18px;">Aufträge (W1 Anlage / W2 Confirm)</h2>';
         echo '<table class="widefat striped"><thead><tr>'
             . '<th>Angebot</th><th>Richtung</th><th>Status</th><th>Desk-Auftrag</th><th>Versuche</th><th>Letzter Versuch</th><th>Fehlerdetails</th><th>Aktion</th>'

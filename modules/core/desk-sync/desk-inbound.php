@@ -90,8 +90,6 @@ class M24_Desk_Inbound {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
         // Backfill: bereits gespiegelte Desk-Angebote nachträglich korrekt materialisieren (Summen/Datum/Positionen).
         add_action( 'admin_post_m24_backfill_synced_offers', array( __CLASS__, 'handle_backfill_synced' ) );
-        // 10-Tage-Mirror: Desk-native Aufträge (noch nicht in WP) als Spiegel anlegen (Upsert, keine Dubletten).
-        add_action( 'admin_post_m24_mirror_backfill', array( __CLASS__, 'handle_mirror_backfill' ) );
     }
 
     public static function register_routes() {
@@ -965,71 +963,8 @@ class M24_Desk_Inbound {
         );
     }
 
-    /**
-     * 10-Tage-Mirror: Desk-Aufträge, die (a) in WP noch NICHT als Spiegel existieren (Upsert-Guard über
-     * desk_order_id) und (b) höchstens $days alt sind. Ohne Datum → nicht sicher einordbar, übersprungen.
-     * @return array{new:array,existing:int,undated:int,pulled:int,keys:array}
-     */
-    public static function find_mirror_candidates( int $days = 10 ): array {
-        global $wpdb; $t = M24_Offers::table();
-        $rows   = self::fetch_desk_orders();
-        $cutoff = time() - $days * DAY_IN_SECONDS;
-        $new = array(); $existing = 0; $undated = 0; $keys = array();
-        foreach ( $rows as $r ) {
-            if ( ! is_array( $r ) ) { continue; }
-            if ( empty( $keys ) ) { $keys = array_keys( $r ); } // Diagnose: Feldnamen der ersten Zeile (Mapping prüfen)
-            $oid = self::pulled_order_id( $r );
-            if ( '' === $oid ) { continue; }
-            // Zuerst die günstigen Filter (Datum), dann erst die DB-Existenzabfrage.
-            $date = self::extract_order_date( $r );
-            $ts   = '' !== $date ? strtotime( $date . ' UTC' ) : 0;
-            if ( ! $ts ) { $undated++; continue; }                  // ohne Datum nicht sicher einordbar
-            if ( $ts < $cutoff ) { continue; }                      // älter als N Tage
-            $ex = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE desk_order_id = %s LIMIT 1", $oid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            if ( $ex > 0 ) { $existing++; continue; }               // schon gespiegelt → kein Duplikat
-            $norm  = self::normalize_pulled_order( $r );
-            $steps = is_array( $norm['completed_steps'] ) ? $norm['completed_steps'] : array();
-            $new[] = array(
-                'desk_id' => $oid,
-                'data'    => $norm,
-                'preview' => array(
-                    'order_num' => (string) ( '' !== $norm['order_num'] ? $norm['order_num'] : 'D-' . $oid ),
-                    'name'      => (string) $norm['cust'],
-                    'date'      => substr( $date, 0, 10 ),
-                    'status'    => self::status_from_steps( $steps, (string) $norm['status'] ) ?: 'offen',
-                    'gross'     => (float) $norm['amt'],
-                ),
-            );
-        }
-        return array( 'new' => $new, 'existing' => $existing, 'undated' => $undated, 'pulled' => count( $rows ), 'keys' => $keys );
-    }
 
     /** POST-Handler: legt für die 10-Tage-Kandidaten WP-Spiegel an (idempotent über desk_order_id). */
-    public static function handle_mirror_backfill() {
-        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Keine Berechtigung.', 'm24-plattform' ) ); }
-        check_admin_referer( 'm24_mirror_backfill' );
-        global $wpdb; $t = M24_Offers::table();
-        $res = self::find_mirror_candidates( 10 );
-        $n = 0;
-        foreach ( $res['new'] as $c ) {
-            $oid = (string) $c['desk_id'];
-            // Re-Check unmittelbar vor dem Insert (Race-/Doppelklick-sicher) → nie ein Duplikat.
-            if ( (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE desk_order_id = %s LIMIT 1", $oid ) ) > 0 ) { continue; } // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $new_id = self::create_order( (int) $oid, (array) $c['data'], array() );
-            if ( $new_id > 0 ) { $n++; self::log( 'mirror', 'Desk-Auftrag #' . $oid . ' → Angebot id ' . $new_id ); }
-        }
-        // Spec §5.2: der Button zieht zusätzlich einen sofortigen Reconcile — wer hier klickt, will den
-        // aktuellen Desk-Stand sehen und nicht bis zum nächsten Cron-Lauf warten.
-        $rec = class_exists( 'M24_Sync_Reconcile' ) ? M24_Sync_Reconcile::pull_all() : array();
-        wp_safe_redirect( add_query_arg( array_filter( array(
-            'page' => 'm24-offers', 'done' => 'mirror', 'n' => $n,
-            'rec'  => $rec ? M24_Sync_Reconcile::summary( $rec ) : '',
-            // Grund mitgeben, wenn der Legacy-Pull nichts geliefert hat — „0 geladen" allein schickt
-            // einen auf die Suche nach einem Formatfehler, obwohl es meist Token/Scope ist.
-            'why'  => self::last_pull_note(),
-        ) ), admin_url( 'admin.php' ) ) );
-        exit;
-    }
 
     /**
      * Ermittelt für eine Desk-gespiegelte Angebotszeile die zu korrigierenden Felder (Summen/Positionen/Status/Datum).
@@ -1139,7 +1074,12 @@ class M24_Desk_Inbound {
             }
         }
         $rec = class_exists( 'M24_Sync_Reconcile' ) ? M24_Sync_Reconcile::pull_all() : array(); // s. Kommentar im Mirror-Handler
-        wp_safe_redirect( add_query_arg( array_filter( array( 'page' => 'm24-offers', 'done' => 'backfill', 'n' => $n, 'skip' => (int) $res['skipped'], 'rec' => $rec ? M24_Sync_Reconcile::summary( $rec ) : '' ) ), admin_url( 'admin.php' ) ) );
+        $bf = $n > 0
+            ? sprintf( '✓ %d gesyncte%s Angebot%s neu materialisiert (Datum · Positionen · Summen).', $n, 1 === $n ? 's' : '', 1 === $n ? '' : 'e' )
+            : 'Keine gesyncten Angebote mit Korrekturbedarf gefunden.';
+        if ( (int) $res['skipped'] > 0 ) { $bf .= sprintf( ' %d Zeile(n) mit nicht ermittelbarem Steuerfall übersprungen.', (int) $res['skipped'] ); }
+        if ( $rec ) { $bf .= ' · Abgleich: ' . M24_Sync_Reconcile::summary( $rec ); }
+        wp_safe_redirect( add_query_arg( array( 'page' => 'm24-desk-sync', 'bf' => rawurlencode( $bf ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 

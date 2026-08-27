@@ -76,6 +76,38 @@ class M24_Sync_Apply {
 		'country'      => 'land',
 	);
 
+	/**
+	 * Desk-Status → WP-Status. Die beiden Systeme führen unterschiedliche Vokabulare; der Desk schickt
+	 * englische Lebenszyklus-Begriffe, WP zeigt deutsche Pills und leitet daraus Aktionen ab (z. B. ob
+	 * „Erneut senden" erscheint).
+	 *
+	 * Ein unbekannter Wert wird NICHT übernommen — der bestehende Status bleibt stehen. Das ist die
+	 * Lehre aus „Offered": ein roh durchgereichter Fremdstatus fällt aus jeder WP-Statusliste heraus,
+	 * bekommt keine Badge-Farbe und blendet stillschweigend Aktionen aus, die der Vorgang bräuchte.
+	 */
+	const STATUS_MAP = array(
+		'draft'      => 'entwurf',
+		'offer'      => 'offen',
+		'offered'    => 'offen',
+		'quote'      => 'offen',
+		'quoted'     => 'offen',
+		'open'       => 'offen',
+		'confirmed'  => 'angenommen',
+		'accepted'   => 'angenommen',
+		'payment'    => 'bezahlt',
+		'paid'       => 'bezahlt',
+		'shipped'    => 'versandt',
+		'sent'       => 'versandt',
+		'done'       => 'erledigt',
+		'completed'  => 'erledigt',
+		'closed'     => 'erledigt',
+		'rejected'   => 'abgelehnt',
+		'declined'   => 'abgelehnt',
+		'cancelled'  => 'storniert',
+		'canceled'   => 'storniert',
+		'expired'    => 'abgelaufen',
+	);
+
 	/** Kunden-Felder: Wire-Feld → User-Meta. Deckt sich mit M24_Desk_Inbound::CUSTOMER_MAP. */
 	const CUSTOMER_FIELDS = array(
 		'anrede'   => '_m24_anrede',
@@ -176,6 +208,12 @@ class M24_Sync_Apply {
 		foreach ( self::ORDER_FIELDS as $field => $col ) {
 			if ( ! array_key_exists( $field, $rec ) ) { continue; }
 			$v = $rec[ $field ];
+			if ( 'status' === $field ) {
+				$st = self::normalize_status( $rec );
+				if ( '' === $st ) { continue; } // unbekannt → lokalen Status behalten
+				$cols[ $col ] = $st;
+				continue;
+			}
 			if ( 'ship_name' === $field ) {
 				// Der Desk führt einen einzeiligen Empfängernamen; WP hat drei Spalten dafür.
 				$parts = preg_split( '/\s+/', trim( sanitize_text_field( (string) $v ) ) ) ?: array();
@@ -217,6 +255,28 @@ class M24_Sync_Apply {
 		}
 		self::log( 'applied_order', $uid . ' (' . (string) $o->offer_no . ') · Felder: ' . implode( ',', array_keys( $cols ) ) );
 		return self::res( $uid, true, self::rev_of( (int) $o->id ) );
+	}
+
+	/**
+	 * Eingehenden Status auf die WP-Domäne bringen. Leerer Rückgabewert = nicht übernehmen.
+	 *
+	 * completed_steps hat Vorrang vor dem groben status-Feld — genau wie im alten D-Kanal
+	 * (M24_Desk_Inbound::status_from_steps), damit beide Wege denselben Status errechnen.
+	 */
+	public static function normalize_status( array $rec ): string {
+		if ( is_array( $rec['completed_steps'] ?? null ) && class_exists( 'M24_Desk_Inbound' ) ) {
+			$from_steps = M24_Desk_Inbound::status_from_steps( $rec['completed_steps'], (string) ( $rec['status'] ?? '' ) );
+			if ( '' !== $from_steps ) { return $from_steps; }
+		}
+		$raw = strtolower( trim( (string) ( $rec['status'] ?? '' ) ) );
+		if ( '' === $raw ) { return ''; }
+		if ( isset( self::STATUS_MAP[ $raw ] ) ) { return self::STATUS_MAP[ $raw ]; }
+		// Schon ein WP-Status (der Desk spiegelt ihn zurück)? Dann unverändert übernehmen.
+		if ( in_array( $raw, array( 'entwurf', 'offen', 'angenommen', 'bezahlt', 'versandt', 'erledigt', 'abgelehnt', 'storniert', 'abgelaufen' ), true ) ) {
+			return $raw;
+		}
+		self::log( 'status_unmapped', 'Unbekannter Desk-Status "' . $raw . '" — lokaler Status bleibt.' );
+		return '';
 	}
 
 	/**

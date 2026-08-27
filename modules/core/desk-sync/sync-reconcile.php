@@ -195,7 +195,7 @@ class M24_Sync_Reconcile {
 		check_admin_referer( 'm24_sync_full_pull' );
 		if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 300 ); } // phpcs:ignore WordPress.PHP.NoSilencedErrors
 		$r = self::full_pull();
-		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-offers', 'full' => rawurlencode( self::summary( $r ) ) ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'm24-desk-sync', 'full' => rawurlencode( 'Erstabgleich: ' . self::summary( $r ) ) ), admin_url( 'admin.php' ) ) );
 		exit;
 	}
 
