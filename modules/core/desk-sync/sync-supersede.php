@@ -70,7 +70,38 @@ class M24_Sync_Supersede {
 			self::log( 'skip_already', (string) $o->offer_no . ' ist bereits ersetzt durch ' . (string) $o->superseded_by );
 			return null;
 		}
-		if ( ! empty( $o->deleted_at ) ) { return null; }
+		if ( ! empty( $o->deleted_at ) ) {
+			self::log( 'skip_deleted', (string) $o->offer_no . ' liegt im Papierkorb — nichts zu ersetzen.' );
+			return null;
+		}
+		// Das Angebot IST bereits ein Ersatz (trägt supersedes) und wurde noch nicht versendet: dann
+		// steht der Neuversand ohnehin aus, ein weiterer Ersatz erzeugte nur eine Kette von Karteileichen.
+		if ( '' !== trim( (string) $o->supersedes ) && ! empty( $o->needs_resend ) ) {
+			self::log( 'skip_pending', (string) $o->offer_no . ' wartet selbst noch auf den Neuversand — kein zweiter Ersatz.' );
+			return null;
+		}
+		// Dubletten-Schutz: Teilen sich zwei aktive Zeilen dieselbe Desk-Order, ist unklar, welche die
+		// gültige ist — dann wird nicht ersetzt, sondern gemeldet. Ein Supersede würde die Verwirrung
+		// verdoppeln statt sie aufzulösen (siehe 2026-1044/1045).
+		if ( '' !== trim( (string) $o->desk_order_id ) ) {
+			global $wpdb;
+			$twin = (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				'SELECT COUNT(*) FROM ' . M24_Offers::table() . ' WHERE desk_order_id = %s AND deleted_at IS NULL',
+				(string) $o->desk_order_id
+			) );
+			if ( $twin > 1 ) {
+				self::log( 'skip_duplicate', sprintf(
+					'%s: %d aktive Angebote teilen Desk-Auftrag #%s — kein Supersede, bitte zuerst die Dublette klären.',
+					(string) $o->offer_no, $twin, (string) $o->desk_order_id
+				) );
+				if ( class_exists( 'M24_Error_Log' ) ) {
+					M24_Error_Log::capture( 'sync_supersede', 'warning', 'Supersede wegen Dublette ausgesetzt', array(
+						'offer_no' => (string) $o->offer_no, 'desk_order_id' => (string) $o->desk_order_id, 'aktive' => $twin,
+					) );
+				}
+				return null;
+			}
+		}
 
 		return self::execute( $o, $reason );
 	}

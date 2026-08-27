@@ -266,9 +266,20 @@ class M24_Sync_Apply {
 		if ( ! empty( $cols['payment_date'] ) ) { M24_Offers::mark_paid( (int) $o->id, 'desk' ); }
 
 		// Adressänderung an einem versendeten Angebot ist materiell → Supersede-Kandidat.
+		//
+		// ABER NIEMALS bei einem Löschsignal: Der Desk schickt im Tombstone den VOLLEN Record mit, also
+		// auch die Adressfelder. Ohne diese Ausnahme liest der Vergleich dort eine „Änderung", und aus
+		// einem simplen Löschen wird ein Ersatz-Angebot — beim Aufräumen der Dublette 2026-1044/1045 ist
+		// genau das passiert: die Zeile, die bleiben sollte, wurde getrasht und durch eine neue ersetzt.
+		// Ein Tombstone bedeutet „weg", nicht „geändert".
+		$is_tombstone = '' !== trim( (string) ( $rec['deleted_at'] ?? '' ) );
 		$addr = array_intersect( array_keys( $rec ), self::MATERIAL_FIELDS );
-		if ( ! empty( $addr ) && ! empty( $cols ) ) {
+		if ( ! $is_tombstone && ! empty( $addr ) && ! empty( $cols ) ) {
 			self::$material[ (int) $o->id ] = 'Adresse geändert (' . implode( ',', $addr ) . ')';
+		} elseif ( $is_tombstone ) {
+			// Falls dieselbe Charge vorher eine materielle Änderung an dieser Zeile gemeldet hat, ist sie
+			// mit dem Löschen hinfällig — sonst supersedet der Lauf am Ende doch noch.
+			unset( self::$material[ (int) $o->id ] );
 		}
 		if ( ! empty( $cols['deleted_at'] ) ) {
 			self::log( 'trashed', $uid . ' (' . (string) $o->offer_no . ') → Papierkorb (Desk-Löschung).' );
@@ -409,7 +420,11 @@ class M24_Sync_Apply {
 		M24_Sync_LWW::touch( (int) $o->id, 'desk' );
 		M24_Sync_LWW::mark_synced( (int) $o->id );
 
-		self::$material[ (int) $o->id ] = 'Positionen geändert';
+		// Auch hier: eine gelöschte ZEILE an einem Angebot ist eine Positionsänderung — ein gelöschtes
+		// ANGEBOT nicht. Trägt der Kopf bereits einen Tombstone, gibt es nichts mehr zu ersetzen.
+		if ( empty( $o->deleted_at ) ) {
+			self::$material[ (int) $o->id ] = 'Positionen geändert';
+		}
 		self::log( 'applied_line', $key . ( $deleted ? ' (gelöscht)' : '' ) . ' → Summen neu: ' . number_format( (float) $bd['total'], 2, ',', '.' ) );
 		return self::res( $key, true, (int) ( $rec['rev'] ?? 1 ) );
 	}

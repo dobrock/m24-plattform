@@ -50,26 +50,53 @@ class M24_Inquiries {
         }
         self::$initialized = true;
 
-        // Sub-Module laden, sobald sie existieren
-        require_once __DIR__ . '/inquiries-form.php';
-        M24_Inquiries_Form::init();
-        require_once __DIR__ . '/inquiries-sidebar.php';
-        M24_Inquiries_Sidebar::init();
-        require_once __DIR__ . '/inquiries-validation.php';
-        M24_Inquiries_Validation::init();
-        require_once __DIR__ . '/inquiries-storage.php';
-        M24_Inquiries_Storage::init();
-        require_once __DIR__ . '/inquiries-mock.php';
-        M24_Inquiries_Mock::init();
-        // require_once __DIR__ . '/inquiries-source-tracker.php';
-        require_once __DIR__ . '/inquiries-m24-push.php';
-        M24_Inquiries_Push::init();
-        require_once __DIR__ . '/inquiries-mail-fallback.php';
-        M24_Inquiries_Mail_Fallback::init();
+        // Sub-Module laden. Bewusst NICHT mit blankem require_once: fehlt eine Datei im Deploy, riss der
+        // Fatal die komplette Seite mit — zuletzt seit 17.07. auf jeder Produktseite und bei
+        // /wp-json/m24/v1/view-ping, ausgelöst durch eine fehlende inquiries-form.php. Die Datei liegt im
+        // Repo; ein einzelner Übertragungsfehler darf den Shop trotzdem nicht lahmlegen.
+        //
+        // Jetzt: fehlende Datei überspringen, einmal täglich melden, Rest weiterladen. Das Anfrage-Formular
+        // fehlt dann — sichtbar, aber die Seite lebt.
+        foreach ( array(
+            'inquiries-form.php'           => 'M24_Inquiries_Form',
+            'inquiries-sidebar.php'        => 'M24_Inquiries_Sidebar',
+            'inquiries-validation.php'     => 'M24_Inquiries_Validation',
+            'inquiries-storage.php'        => 'M24_Inquiries_Storage',
+            'inquiries-mock.php'           => 'M24_Inquiries_Mock',
+            'inquiries-m24-push.php'       => 'M24_Inquiries_Push',
+            'inquiries-mail-fallback.php'  => 'M24_Inquiries_Mail_Fallback',
+        ) as $file => $class ) {
+            $path = __DIR__ . '/' . $file;
+            if ( ! is_readable( $path ) ) {
+                self::report_missing( $file );
+                continue;
+            }
+            require_once $path;
+            if ( class_exists( $class ) && method_exists( $class, 'init' ) ) {
+                $class::init();
+            } else {
+                self::report_missing( $file . ' (Klasse ' . $class . ' fehlt)' );
+            }
+        }
         // require_once __DIR__ . '/inquiries-retry-job.php';
         // if ( is_admin() ) {
         //     require_once __DIR__ . '/inquiries-admin-monitor.php';
         // }
+    }
+
+    /**
+     * Fehlendes Sub-Modul melden — einmal pro Tag und Datei, damit ein Deploy-Fehler auffaellt, ohne das
+     * Log bei jedem Seitenaufruf zuzumuellen.
+     */
+    private static function report_missing( string $file ): void {
+        $key = 'm24_inq_missing_' . md5( $file );
+        if ( get_transient( $key ) ) { return; }
+        set_transient( $key, 1, DAY_IN_SECONDS );
+        $msg = 'Anfrage-Modul fehlt im Deploy: ' . $file . ' — Funktion eingeschraenkt, Seite laeuft weiter.';
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( 'inquiries', 'error', $msg, array( 'datei' => $file, 'pfad' => __DIR__ ) );
+        }
+        error_log( 'M24 Plattform: ' . $msg );
     }
 
     /**
