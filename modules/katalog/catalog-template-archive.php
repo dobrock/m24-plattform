@@ -355,6 +355,27 @@ class M24_Catalog_Archive {
 	public static function garage_chip_html( int $post_id ): string {
 		if ( ! class_exists( 'M24_Garage_Cart' ) || ! M24_Garage_Cart::quick_controls_visible() ) { return ''; }
 		$in = M24_Garage_Cart::has_id( $post_id );
+
+		// Ausführungen (Preisoptionen). Bei GENAU EINER wird direkt eingelegt — jeder Artikel hat
+		// mindestens eine, ein Dialog dafür wäre ein sinnloser Zwischenschritt. Erst ab zwei entscheidet
+		// die Auswahl über Lieferumfang UND Preis, und dann darf nicht stillschweigend options[0] gelten.
+		$opts_json = '';
+		if ( class_exists( 'M24_Catalog_Pricing' ) ) {
+			$po = M24_Catalog_Pricing::get_options( $post_id );
+			$os = is_array( $po['options'] ?? null ) ? $po['options'] : array();
+			if ( count( $os ) > 1 ) {
+				$slim = array();
+				foreach ( $os as $o ) {
+					$slim[] = array(
+						'label'  => (string) ( $o['label'] ?? '' ),
+						'artnr'  => (string) ( $o['art_nr'] ?? '' ),
+						'brutto' => (float) ( $o['brutto'] ?? 0 ),
+						'fmt'    => (string) ( $o['brutto_fmt'] ?? '' ),
+					);
+				}
+				$opts_json = (string) wp_json_encode( $slim );
+			}
+		}
 		// Zwei Icons, per CSS umgeschaltet: Plus im Normalzustand, Haken wenn drin. Beide inline, damit
 		// beim Umschalten nichts nachgeladen wird und der Wechsel sofort sichtbar ist.
 		$icon = '<svg class="m24-card__garage-add" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
@@ -363,9 +384,11 @@ class M24_Catalog_Archive {
 			// m24-garage-open  → der Delegated-Handler in m24-garage.js greift (inkl. preventDefault +
 			//                     stopImmediatePropagation, sonst navigiert der umschließende Kartenlink)
 			// m24-garage-toggle → nur damit wählt er beim zweiten Klick /remove statt erneut /add
-			'<button type="button" class="m24-card__garage m24-garage-open m24-garage-toggle%s" data-garage-id="%d" aria-pressed="%s" aria-label="%s" title="%s">%s</button>',
+			'<button type="button" class="m24-card__garage m24-garage-open m24-garage-toggle%s" data-garage-id="%d"%s data-garage-title="%s" aria-pressed="%s" aria-label="%s" title="%s">%s</button>',
 			$in ? ' is-in is-ingarage' : '',
 			$post_id,
+			'' !== $opts_json ? ' data-garage-options="' . esc_attr( $opts_json ) . '"' : '',
+			esc_attr( get_the_title( $post_id ) ),
 			$in ? 'true' : 'false',
 			esc_attr( $in ? 'Aus der Garage entfernen' : 'In die Garage' ),
 			esc_attr( $in ? 'Aus der Garage entfernen' : 'In die Garage' ),

@@ -218,11 +218,21 @@ class M24_Offers {
 		$f_sort = isset( $_GET['sort'] ) ? sanitize_key( wp_unslash( $_GET['sort'] ) ) : 'sent'; // phpcs:ignore WordPress.Security.NonceVerification
 		if ( ! isset( $sort_map[ $f_sort ] ) ) { $f_sort = 'sent'; }
 		$sort_col = $sort_map[ $f_sort ];
-		// Zeilen ohne Wert (Entwürfe ohne Sendedatum, Angebote ohne Desk-Kontakt) ans ENDE — verstreut
-		// dazwischen wirken sie wie Sortierfehler. id DESC als stabiler Tiebreaker bei gleichem Datum.
-		$order = ( 'total_gross' === $sort_col )
-			? 'total_gross DESC, id DESC'
-			: $sort_col . ' IS NULL, ' . $sort_col . ' DESC, id DESC';
+		// Zeilen OHNE Datum ans Ende zu schieben war falsch: sent_at IS NULL heißt nicht „sehr alt",
+		// sondern „noch nicht gesendet" — das sind die frischesten Zeilen und die einzigen, an denen
+		// jemand etwas tun muss. Hinter den April sortiert versteckt die Liste genau die Arbeit.
+		//
+		// Deshalb alle Zeilen auf EINE Zeitachse: gesendete nach Sendedatum, ungesendete nach ihrer
+		// letzten Änderung. Ein frisch entstandener Ersatz steht damit oben, ein drei Wochen alter
+		// ungesendeter Entwurf rutscht von selbst nach unten — was ein pauschales „NULLs zuerst" nicht
+		// leisten würde. created_at als letzte Rückfallebene ist NOT NULL, die Kette greift also immer.
+		$order_map = array(
+			'sent_at'     => 'COALESCE(sent_at, updated_at, created_at) DESC, id DESC',
+			'updated_at'  => 'COALESCE(updated_at, created_at) DESC, id DESC',
+			// total_gross ist NOT NULL DEFAULT 0 — Zeilen ohne Preis stehen bei DESC ohnehin hinten.
+			'total_gross' => 'total_gross DESC, id DESC',
+		);
+		$order = $order_map[ $sort_col ];
 		$q = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY ' . $order . ' LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
 		// Die Liste ist nicht paginiert, sondern bei 300 Zeilen gekappt. Das war bisher unsichtbar und

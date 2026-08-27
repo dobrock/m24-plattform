@@ -128,6 +128,82 @@
 
 	/* ── „In meine Garage"-Buttons: Herz-Toggle (nur eingeloggt) ── */
 	// Zustand: nicht drin = Herz umrandet + „In meine Garage"; drin = Herz ausgefüllt + „In meiner Garage".
+	/* ── Ausführungs-Dialog ─────────────────────────────────────────────────
+	   Eigener Dialog statt confirm(): die Auswahl entscheidet über Lieferumfang UND Preis, das Label
+	   trägt den kompletten Lieferumfang und muss umbrechen dürfen. Rückgabe sind exakt die drei Werte,
+	   die der Handler ohnehin von der Artikelseite liest — kein zweiter Vertrag. */
+	var vdEl = null;
+	/** HTML-Escape für die Dialog-Inhalte (Label und Art.-Nr. sind gepflegte Freitexte). */
+	function esc(v) {
+		return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+			return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+		});
+	}
+	function m24VariantDialog(btn, opts) {
+		if (!opts || !opts.length) { return; }
+		if (!vdEl) {
+			vdEl = document.createElement('div');
+			vdEl.className = 'm24vd';
+			vdEl.setAttribute('role', 'dialog');
+			vdEl.setAttribute('aria-modal', 'true');
+			vdEl.setAttribute('aria-labelledby', 'm24vd-t');
+			document.body.appendChild(vdEl);
+		}
+		var title = btn.getAttribute('data-garage-title') || 'Artikel';
+		var sel = 0;
+		var rows = opts.map(function (o, i) {
+			return '<label class="m24vd-o"><input type="radio" name="m24vd" value="' + i + '"' + (i === 0 ? ' checked' : '') + '>'
+				+ '<span class="m24vd-ol"><span class="m24vd-lab">' + esc(o.label || 'Standard') + '</span>'
+				+ (o.artnr ? '<small>Art.-Nr. ' + esc(o.artnr) + '</small>' : '') + '</span>'
+				+ '<span class="m24vd-p">' + esc(o.fmt || '') + '</span></label>';
+		}).join('');
+		vdEl.innerHTML = '<div class="m24vd-box">'
+			+ '<div class="m24vd-h"><div><b id="m24vd-t">Ausführung wählen</b><small>' + esc(title) + '</small></div>'
+			+ '<button type="button" class="m24vd-x" data-vd-close aria-label="Schließen">&#10005;</button></div>'
+			+ '<div class="m24vd-list">' + rows + '</div>'
+			+ '<div class="m24vd-f"><span>Gesamt <b data-vd-sum>' + esc(opts[0].fmt || '') + '</b></span>'
+			+ '<button type="button" class="m24vd-go" data-vd-go>In die Garage</button></div></div>';
+		vdEl.hidden = false;
+		document.body.classList.add('m24vd-lock');
+
+		var sumEl = vdEl.querySelector('[data-vd-sum]');
+		var first = vdEl.querySelector('input[name="m24vd"]');
+		if (first) { first.focus(); }
+
+		function shut() {
+			vdEl.hidden = true;
+			document.body.classList.remove('m24vd-lock');
+			document.removeEventListener('keydown', onKey);
+			vdEl.onclick = null;
+			try { btn.focus(); } catch (e) {}
+		}
+		function onKey(ev) {
+			if ('Escape' === ev.key) { shut(); return; }
+			if ('Tab' !== ev.key) { return; }
+			// Fokus im Dialog halten — sonst tabbt man hinter den Overlay und klickt ins Leere.
+			var f = vdEl.querySelectorAll('input,button');
+			if (!f.length) { return; }
+			var a = f[0], z = f[f.length - 1];
+			if (ev.shiftKey && document.activeElement === a) { ev.preventDefault(); z.focus(); }
+			else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
+		}
+		document.addEventListener('keydown', onKey);
+
+		vdEl.onclick = function (ev) {
+			if (ev.target === vdEl || ev.target.closest('[data-vd-close]')) { shut(); return; }
+			var r = ev.target.closest ? ev.target.closest('input[name="m24vd"]') : null;
+			if (r) { sel = parseInt(r.value, 10) || 0; if (sumEl) { sumEl.textContent = opts[sel].fmt || ''; } return; }
+			if (!ev.target.closest('[data-vd-go]')) { return; }
+			var o = opts[sel];
+			// Genau die drei Attribute, die der Handler von der Artikelseite kennt.
+			btn.setAttribute('data-variant-label', o.label || '');
+			btn.setAttribute('data-variant-artnr', o.artnr || '');
+			btn.setAttribute('data-variant-brutto', String(o.brutto || ''));
+			shut();
+			btn.click(); // erneut — jetzt mit Auswahl, der Dialog-Zweig greift nicht mehr
+		};
+	}
+
 	function setGarageBtn(btn, inGarage) {
 		if (!btn) { return; }
 		btn.classList.toggle('is-ingarage', !!inGarage);
@@ -191,6 +267,15 @@
 			// Gast-DOI-Dialog (M24_Garage::render_modal) NICHT öffnen: Bubble-Listener vorab kappen.
 			e.preventDefault();
 			e.stopImmediatePropagation();
+
+			// Artikel mit mehreren Ausführungen: erst wählen lassen. Ohne Auswahl bepreist der Server mit
+			// options[0] — dann stünde ein konkreter Betrag zu einer Ausführung, die niemand festgehalten
+			// hat, und genau daraus wird später ein falsches Angebot. Nur beim Hinzufügen; Entfernen
+			// braucht keine Auswahl. Der Dialog schreibt die drei data-variant-* zurück und klickt erneut.
+			var rawOpts = btn.getAttribute('data-garage-options');
+			if (rawOpts && !btn.classList.contains('is-ingarage') && !btn.getAttribute('data-variant-label')) {
+				try { m24VariantDialog(btn, JSON.parse(rawOpts)); return; } catch (err) { /* kaputtes JSON → normal weiter */ }
+			}
 			var pid = parseInt(btn.getAttribute('data-garage-id') || '0', 10);
 			if (!pid) { return; }
 			if (btn.dataset.m24gcBusy === '1') { return; }

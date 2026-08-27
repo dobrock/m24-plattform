@@ -101,3 +101,32 @@
 .m24-card__pricenote { font-size: 11.5px; color: var(--muted); }
 /* Verkauft-Karte: kein Preis → Art.-Nr. ans untere Ende (buendig mit Preiszeile aktiver Karten). */
 .m24-card--sold .m24-card__meta { margin-top: auto; }
+
+
+/* ── Ausführungs-Dialog (Quick-Add bei mehreren Preisoptionen) ──────────────
+   Die Liste scrollt, der Dialog wächst nie über den Bildschirm: wie viele Optionen ein Artikel hat,
+   weiß niemand — zwei müssen so gut aussehen wie zwanzig. Das Label trägt den kompletten
+   Lieferumfang und darf deshalb umbrechen, nicht abschneiden. */
+.m24vd{position:fixed;inset:0;z-index:100095;background:rgba(20,22,26,.55);display:flex;align-items:center;justify-content:center;padding:24px}
+.m24vd[hidden]{display:none!important}
+body.m24vd-lock{overflow:hidden}
+.m24vd-box{background:#fff;border-radius:14px;width:min(460px,96vw);max-height:min(86vh,720px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.m24vd-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e5e7eb}
+.m24vd-h b{display:block;font-size:15px;color:#10243a}
+.m24vd-h small{display:block;color:#6b7280;font-size:12.5px;margin-top:2px}
+.m24vd-x{border:0;background:none;font-size:18px;line-height:1;color:#9aa3b0;cursor:pointer;padding:0 2px}
+.m24vd-x:focus-visible,.m24vd-go:focus-visible{outline:2px solid #1763AD;outline-offset:2px}
+.m24vd-list{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 0}
+.m24vd-o{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;cursor:pointer;border-bottom:1px solid #f1f3f5}
+.m24vd-o:last-child{border-bottom:0}
+.m24vd-o:hover{background:#f7f9fc}
+.m24vd-o input{margin:3px 0 0;flex:0 0 auto;accent-color:#1763AD}
+.m24vd-o:focus-within{background:#eef3fb}
+.m24vd-ol{flex:1;min-width:0}
+.m24vd-lab{display:block;font-size:14px;color:#111417;line-height:1.4;overflow-wrap:anywhere}
+.m24vd-ol small{display:block;color:#6b7280;font-size:12px;margin-top:2px}
+.m24vd-p{flex:0 0 auto;font-weight:700;font-size:14px;color:#10243a;white-space:nowrap}
+.m24vd-f{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-top:1px solid #e5e7eb;background:#fafbfc}
+.m24vd-f b{font-size:15px;color:#10243a}
+.m24vd-go{border:0;border-radius:8px;background:#1763AD;color:#fff;font-weight:700;font-size:14px;padding:10px 18px;cursor:pointer}
+.m24vd-go:hover{background:#0e447e}

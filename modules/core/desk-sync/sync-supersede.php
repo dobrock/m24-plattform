@@ -31,6 +31,12 @@ class M24_Sync_Supersede {
 	const EVENT = 'm24_sync_supersede_push';
 
 	/**
+	 * Platzhalter in superseded_by, mit dem ein Lauf das Angebot beansprucht, bevor der Ersatz existiert.
+	 * Wird von execute() durch die echte uid ersetzt. Bewusst ein Wert, der nie eine gültige uid ist.
+	 */
+	const CLAIM = '__wird_ersetzt__';
+
+	/**
 	 * Nur diese Stati gelten als „draußen beim Kunden". Storniert und erledigt lösen keinen Supersede aus —
 	 * da ist der Vorgang beendet und ein Ersatz-Angebot wäre Unsinn (bestätigt 26.08.).
 	 */
@@ -57,8 +63,10 @@ class M24_Sync_Supersede {
 	 * @return int|null Neue Angebots-ID, oder null wenn kein Supersede nötig/möglich war.
 	 */
 	public static function maybe_supersede( int $offer_id, string $reason = '' ): ?int {
+		global $wpdb;
 		$o = M24_Offers::get_by_id( $offer_id );
 		if ( ! $o ) { return null; }
+		$old_id = (int) $o->id;
 
 		// Noch nicht versendet → Positions-/Adress-Edits fließen normal per LWW, das PDF entsteht
 		// ohnehin erst beim Versand.
@@ -67,7 +75,9 @@ class M24_Sync_Supersede {
 		// Idempotenz (§3): ein bereits ersetztes Angebot wird nicht ein zweites Mal ersetzt. Ohne diesen
 		// Guard erzeugte jeder weitere Sync-Lauf eine neue Kopie.
 		if ( '' !== trim( (string) $o->superseded_by ) ) {
-			self::log( 'skip_already', (string) $o->offer_no . ' ist bereits ersetzt durch ' . (string) $o->superseded_by );
+			self::log( 'skip_already', self::CLAIM === (string) $o->superseded_by
+				? (string) $o->offer_no . ': ein Ersatz wird gerade angelegt.'
+				: (string) $o->offer_no . ' ist bereits ersetzt durch ' . (string) $o->superseded_by );
 			return null;
 		}
 		if ( ! empty( $o->deleted_at ) ) {
@@ -103,7 +113,50 @@ class M24_Sync_Supersede {
 			}
 		}
 
-		return self::execute( $o, $reason );
+		// ── Vorhandenen, noch nicht versendeten Nachfolger WIEDERVERWENDEN statt einen zweiten anzulegen.
+		// Trägt schon ein Angebot supersedes = diese uid und wartet auf den Versand, ist der Ersatz da;
+		// ein weiterer wäre nur eine Karteileiche mehr.
+		$pending = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			'SELECT id, offer_no FROM ' . M24_Offers::table()
+			. ' WHERE supersedes = %s AND deleted_at IS NULL AND sent_at IS NULL ORDER BY id ASC LIMIT 1',
+			(string) $o->wp_offer_uid
+		) );
+		if ( $pending ) {
+			// Rückverweis nachziehen, falls er beim vorherigen Lauf nicht ankam — sonst zeigt das alte
+			// Angebot ins Leere und der Idempotenz-Guard oben greift beim nächsten Mal wieder nicht.
+			if ( '' === trim( (string) $o->superseded_by ) ) {
+				$wpdb->update( M24_Offers::table(), array( 'superseded_by' => M24_Sync_LWW::offer_uid( (int) $pending->id ) ), array( 'id' => $old_id ) );
+			}
+			self::log( 'reuse_pending', sprintf(
+				'%s: Ersatz %s existiert bereits und wartet auf den Versand — kein zweiter angelegt.',
+				(string) $o->offer_no, (string) $pending->offer_no
+			) );
+			return (int) $pending->id;
+		}
+
+		// ── Atomar beanspruchen, BEVOR etwas entsteht.
+		// Der Guard oben liest superseded_by, geschrieben wird es aber erst am Ende von execute() —
+		// dazwischen liegen mehrere DB-Operationen. Zwei Apply-Läufe in diesem Fenster sehen beide ein
+		// leeres Feld und legen beide an. Genau so sind 2026-1052 und 2026-1053 entstanden, beide mit
+		// "ersetzt 2026-1051".
+		//
+		// Das bedingte UPDATE entscheidet den Wettlauf in der Datenbank: nur EIN Lauf trifft eine Zeile
+		// mit leerem superseded_by, alle weiteren bekommen 0 betroffene Zeilen und steigen aus.
+		$claimed = $wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
+			'UPDATE ' . M24_Offers::table() . " SET superseded_by = %s WHERE id = %d AND ( superseded_by = '' OR superseded_by IS NULL )",
+			self::CLAIM, $old_id
+		) );
+		if ( ! $claimed ) {
+			self::log( 'skip_race', (string) $o->offer_no . ': ein paralleler Lauf legt den Ersatz bereits an.' );
+			return null;
+		}
+
+		$new_id = self::execute( $o, $reason );
+		if ( null === $new_id ) {
+			// Anlage gescheitert → Anspruch zurückgeben, sonst bleibt das Angebot für immer gesperrt.
+			$wpdb->update( M24_Offers::table(), array( 'superseded_by' => '' ), array( 'id' => $old_id, 'superseded_by' => self::CLAIM ) );
+		}
+		return $new_id;
 	}
 
 	/** Führt die Ersetzung aus. */
@@ -166,7 +219,7 @@ class M24_Sync_Supersede {
 		// M24_Offers_Render::customer), das archivierte PDF bleibt als Beleg bestehen.
 		$wpdb->update( $t, array(
 			'deleted_at'    => current_time( 'mysql', true ),
-			'superseded_by' => $new_uid,
+			'superseded_by' => $new_uid, // ersetzt den CLAIM-Platzhalter aus maybe_supersede()
 		), array( 'id' => $old ) );
 		M24_Sync_LWW::touch( $old, 'wp' );
 
