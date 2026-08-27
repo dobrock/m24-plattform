@@ -227,9 +227,14 @@ class M24_Sync_Apply {
 					(string) $o->updated_at, (int) $o->rev
 				) );
 				if ( class_exists( 'M24_Error_Log' ) ) {
+					// MIT den Zeitstempeln. Ohne sie zeigte der Eintrag nur die Revisionen — und weil die
+					// Regel zuerst updated_at vergleicht und rev erst bei exakt gleicher Zeit heranzieht,
+					// las sich ein zufaelliger rev-Gleichstand wie der Grund der Ablehnung. Er war es nie.
 					M24_Error_Log::capture( 'sync_apply', 'warning', 'Desk-Löschung nicht übernommen (LWW)', array(
 						'offer_no' => (string) $o->offer_no, 'desk_order_id' => (string) $o->desk_order_id,
 						'lokal_rev' => (int) $o->rev, 'eingehend_rev' => (int) ( $rec['rev'] ?? 0 ),
+						'lokal_stand' => (string) $o->updated_at, 'eingehend_stand' => (string) ( $rec['updated_at'] ?? '—' ),
+						'entschieden_an' => M24_Sync_LWW::to_ms( (string) $o->updated_at ) === M24_Sync_LWW::to_ms( (string) ( $rec['updated_at'] ?? '' ) ) ? 'rev' : 'updated_at',
 					) );
 				}
 			}
