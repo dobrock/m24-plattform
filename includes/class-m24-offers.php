@@ -2015,7 +2015,12 @@ class M24_Offers {
 		global $wpdb;
 		$t   = self::table();
 		$cut = gmdate( 'Y-m-d H:i:s', time() - 10 * DAY_IN_SECONDS );
-		$n   = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE deleted_at IS NOT NULL AND deleted_at < %s", $cut ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// Abgelöste Angebote sind AUSGENOMMEN. Sie liegen zwar im Papierkorb, sind aber keine
+		// Papierkorb-Fälle, sondern Belege: das Dokument, das der Kunde tatsächlich bekommen hat. Mit
+		// ihnen verschwände auch die Kette superseded_by — und damit die Möglichkeit, eine Kundenantwort
+		// auf die alte Nummer noch zuzuordnen. Genau diese Spur hinterlassen Antworten, die „keine Zeile
+		// in orders, auch keine gelöschte" melden.
+		$n   = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE deleted_at IS NOT NULL AND deleted_at < %s AND ( superseded_by = '' OR superseded_by IS NULL )", $cut ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		if ( $n > 0 ) { self::log( 'purge_trashed', 0, $n . ' Angebote endgültig gelöscht (>10 Tage im Papierkorb)' ); }
 	}
 

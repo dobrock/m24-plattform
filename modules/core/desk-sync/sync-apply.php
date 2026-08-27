@@ -35,9 +35,24 @@ class M24_Sync_Apply {
 	 */
 	private static $material = array();
 
-	/** Kopf-Felder, deren Änderung einen Supersede auslösen kann. Status/Zahlung/Tracking gehören NICHT
-	 * dazu: das sind Abwicklungsdaten, die nichts am Angebot selbst ändern. */
-	const MATERIAL_FIELDS = array( 'ship_firma', 'ship_name', 'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land', 'country', 'sender_email' );
+	/**
+	 * SPALTEN, deren tatsächliche Wertänderung einen Supersede auslösen darf.
+	 *
+	 * Bewusst Spaltennamen, keine Wire-Feldnamen: verglichen wird der alte Zeilenwert gegen den neuen,
+	 * nicht die Anwesenheit eines Feldes im Record. Der Desk schickt immer den vollen Record — wer nur
+	 * die Feldnamen prüft, findet immer eine „Änderung".
+	 *
+	 * `sender_email` steht hier NICHT, obwohl es zur Adresse gehört: Eine korrigierte E-Mail ändert
+	 * nichts am Angebot, nur den Empfänger. Dafür gibt es „Erneut senden" — ein Ersatz-Angebot mit neuer
+	 * Nummer wäre die falsche Antwort auf einen Tippfehler in der Adresse.
+	 *
+	 * Status, Zahlung, Carrier und Tracking fehlen ebenfalls: Abwicklungsdaten ändern nichts am Angebot.
+	 */
+	const MATERIAL_COLS = array(
+		'ship_firma', 'ship_anrede', 'ship_vorname', 'ship_nachname',
+		'ship_strasse', 'ship_strasse2', 'ship_plz', 'ship_ort', 'ship_land',
+		'delivery_time',
+	);
 
 	/**
 	 * Kopf-Felder, die der Desk setzen darf: Desk-Wire-Feld → WP-Spalte. Feldnamen laut Desk-Vertrag
@@ -273,9 +288,18 @@ class M24_Sync_Apply {
 		// genau das passiert: die Zeile, die bleiben sollte, wurde getrasht und durch eine neue ersetzt.
 		// Ein Tombstone bedeutet „weg", nicht „geändert".
 		$is_tombstone = '' !== trim( (string) ( $rec['deleted_at'] ?? '' ) );
-		$addr = array_intersect( array_keys( $rec ), self::MATERIAL_FIELDS );
-		if ( ! $is_tombstone && ! empty( $addr ) && ! empty( $cols ) ) {
-			self::$material[ (int) $o->id ] = 'Adresse geändert (' . implode( ',', $addr ) . ')';
+		// WERTE vergleichen, nicht Feldnamen. Die alte Fassung bildete die Schnittmenge aus
+		// array_keys($rec) und der Feldliste — beides Konstanten. Ergebnis war bei JEDEM Lauf dieselbe
+		// volle Liste, und jedes versendete Angebot wurde grundlos ersetzt (vier Fälle in 46 Minuten).
+		// Normalisiert wird vor dem Vergleich: NULL, "" und Whitespace sind derselbe leere Wert, sonst
+		// meldet ein NULL→"" schon eine Änderung.
+		$changed = array();
+		foreach ( self::MATERIAL_COLS as $col ) {
+			if ( ! array_key_exists( $col, $cols ) ) { continue; }
+			if ( self::norm( $o->$col ?? null ) !== self::norm( $cols[ $col ] ) ) { $changed[] = $col; }
+		}
+		if ( ! $is_tombstone && ! empty( $changed ) ) {
+			self::$material[ (int) $o->id ] = 'Adresse geändert (' . implode( ',', $changed ) . ')';
 		} elseif ( $is_tombstone ) {
 			// Falls dieselbe Charge vorher eine materielle Änderung an dieser Zeile gemeldet hat, ist sie
 			// mit dem Löschen hinfällig — sonst supersedet der Lauf am Ende doch noch.
@@ -308,6 +332,18 @@ class M24_Sync_Apply {
 		}
 		self::log( 'status_unmapped', 'Unbekannter Desk-Status "' . $raw . '" — lokaler Status bleibt.' );
 		return '';
+	}
+
+	/**
+	 * Wert für den Änderungsvergleich normalisieren.
+	 *
+	 * NULL, "" und "  " sind derselbe leere Wert — ohne das meldet schon ein NULL→"" eine Änderung, und
+	 * genau solche Scheinänderungen haben Angebote grundlos ersetzt. Whitespace wird zusammengezogen,
+	 * Groß-/Kleinschreibung bleibt erheblich (aus „Hamburg" wird nicht „HAMBURG" ohne Anlass).
+	 */
+	private static function norm( $v ): string {
+		if ( null === $v ) { return ''; }
+		return trim( (string) preg_replace( '/\s+/u', ' ', (string) $v ) );
 	}
 
 	/**
@@ -423,7 +459,7 @@ class M24_Sync_Apply {
 		// Auch hier: eine gelöschte ZEILE an einem Angebot ist eine Positionsänderung — ein gelöschtes
 		// ANGEBOT nicht. Trägt der Kopf bereits einen Tombstone, gibt es nichts mehr zu ersetzen.
 		if ( empty( $o->deleted_at ) ) {
-			self::$material[ (int) $o->id ] = 'Positionen geändert';
+			self::$material[ (int) $o->id ] = 'Positionen geändert (' . $luid . ')';
 		}
 		self::log( 'applied_line', $key . ( $deleted ? ' (gelöscht)' : '' ) . ' → Summen neu: ' . number_format( (float) $bd['total'], 2, ',', '.' ) );
 		return self::res( $key, true, (int) ( $rec['rev'] ?? 1 ) );

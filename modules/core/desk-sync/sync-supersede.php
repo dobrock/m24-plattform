@@ -62,8 +62,23 @@ class M24_Sync_Supersede {
 	 * @param string $reason   Was sich geändert hat, fürs Log.
 	 * @return int|null Neue Angebots-ID, oder null wenn kein Supersede nötig/möglich war.
 	 */
+	/**
+	 * Notschalter. Solange an, entsteht kein Ersatz-Angebot mehr — die Sync-Änderung wird trotzdem
+	 * normal angewandt, nur eben am bestehenden Angebot. Gedacht für den Fall, dass der Auslöser wieder
+	 * zu oft feuert: lieber ein Angebot, das nachgezogen wurde, als eines, das grundlos ersetzt wird.
+	 *
+	 *     add_filter( 'm24_sync_supersede_enabled', '__return_false' );
+	 */
+	public static function enabled(): bool {
+		return (bool) apply_filters( 'm24_sync_supersede_enabled', true );
+	}
+
 	public static function maybe_supersede( int $offer_id, string $reason = '' ): ?int {
 		global $wpdb;
+		if ( ! self::enabled() ) {
+			self::log( 'disabled', 'Supersede ist abgeschaltet (m24_sync_supersede_enabled) — Angebot ' . $offer_id . ' bleibt unverändert.' );
+			return null;
+		}
 		$o = M24_Offers::get_by_id( $offer_id );
 		if ( ! $o ) { return null; }
 		$old_id = (int) $o->id;
@@ -193,6 +208,11 @@ class M24_Sync_Supersede {
 			'src_json'      => (string) $o->src_json,
 			'customer_uid'  => (string) $o->customer_uid, // derselbe Kunde
 			'supersedes'    => (string) $o->wp_offer_uid,
+			// Zusätzlich die NUMMERN des Vorgängers. supersedes allein hält nur die interne uid — aus der
+			// lässt sich nach einem Löschen der Vorgängerzeile keine Nummer mehr rekonstruieren, und eine
+			// Kundenantwort auf die alte Nummer wäre nicht mehr zuzuordnen. Am Nachfolger überlebt sie.
+			'supersedes_no'   => (string) $o->offer_no,
+			'supersedes_desk' => (string) $o->desk_order_num,
 			'needs_resend'  => 1,
 			'created_at'    => current_time( 'mysql', true ),
 			'sent_at'       => null,
@@ -266,4 +286,23 @@ class M24_Sync_Supersede {
 			M24_Logger::info( 'sync_supersede', $step, array( 'msg' => $msg ) );
 		}
 	}
+}
+
+/**
+ * WP-CLI: irrtuemliche Abloesungen zuruecknehmen. Trockenlauf ist die Vorgabe.
+ *
+ *     wp m24 supersede-undo --ids=2026-1052,2026-1053
+ *     wp m24 supersede-undo --ids=2026-1052,2026-1053 --go
+ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    WP_CLI::add_command( 'm24 supersede-undo', function ( $args, $assoc ) {
+        $ids = array_filter( array_map( 'trim', explode( ',', (string) ( $assoc['ids'] ?? '' ) ) ) );
+        if ( empty( $ids ) ) { WP_CLI::error( '--ids= fehlt (Nummern der ERSATZ-Angebote, z. B. 2026-1052).' ); }
+        $go = isset( $assoc['go'] );
+        $r  = M24_Sync_Supersede::undo( $ids, $go );
+        WP_CLI::log( $go ? 'AUSGEFUEHRT:' : 'TROCKENLAUF — nichts geaendert:' );
+        foreach ( $r['zeilen'] as $l ) { WP_CLI::log( '  ' . $l ); }
+        if ( ! $go ) { WP_CLI::warning( 'Mit --go ausfuehren.' ); }
+        else { WP_CLI::success( 'Fertig.' ); }
+    } );
 }
