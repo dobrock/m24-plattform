@@ -346,6 +346,26 @@
 .m24gt-it{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #e5e7eb;text-decoration:none;color:#111417}
 .m24gt-it img,.m24gt-thumb-ph{width:56px;height:42px;object-fit:cover;border-radius:6px;background:#e5e7eb;flex:0 0 auto}
 .m24gt-it-main{flex:1;min-width:0}
+
+/* ── Schnell-Entfernen im Panel ──────────────────────────────────────────────
+   Eigene Spalte am Zeilenende, immer sichtbar: auf Touch gibt es kein Hover, und ein Knopf, den man
+   erst hervorlocken muss, wird nicht gefunden. In Ruhe zurückhaltend grau, erst beim Hover rot —
+   die Zeile soll nicht nach Gefahr aussehen, solange niemand hinzeigt. */
+.m24gt-rm{flex:0 0 auto;align-self:center;width:28px;height:28px;border:0;border-radius:50%;
+  background:transparent;color:#9CA3AF;display:flex;align-items:center;justify-content:center;
+  padding:0;cursor:pointer;transition:background-color .12s ease,color .12s ease}
+.m24gt-rm:hover{background:#FDECEA;color:#C0392B}
+.m24gt-rm:focus-visible{outline:2px solid #1763AD;outline-offset:2px}
+.m24gt-rm svg{display:block;pointer-events:none}
+/* Rückgängig-Streifen: steht an der Stelle der entfernten Zeile und übernimmt deren Maße, damit die
+   Liste nicht springt. */
+.m24gt-undo{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 0;border-bottom:1px solid #e5e7eb;color:#5a6474;font-size:14px}
+.m24gt-undo-btn{border:0;background:none;color:#1763AD;font-weight:700;font-size:14px;
+  cursor:pointer;padding:4px 6px;border-radius:6px}
+.m24gt-undo-btn:hover{background:#eef3fb}
+.m24gt-undo-btn:focus-visible{outline:2px solid #1763AD;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){ .m24gt-rm{transition:none} }
 .m24gt-it .t{font-size:13.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .m24gt-it-meta{color:#6b7280;font-size:12px;margin-top:2px}
 .m24gt-it .p{margin-left:auto;font-weight:700;font-size:13.5px;white-space:nowrap;align-self:flex-start}

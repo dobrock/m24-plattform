@@ -315,6 +315,20 @@ class M24_Garage_Cart {
 	 * 0 = nicht eingeloggt (Gast).
 	 */
 	/**
+	 * Sind die Schnellbedienungen sichtbar (Quick-Add-Chip auf der Kachel, ✕ im Panel)?
+	 *
+	 * EIN Schalter für beide, damit die Freigabe später ein Handgriff bleibt und kein zweiter Umbau:
+	 *     add_filter( 'm24_garage_quickcontrols_visible', '__return_true' );
+	 *
+	 * Vorgabe: nur Admins. Die Elemente sollen erst im Alltag erprobt sein, bevor Kunden sie sehen.
+	 * NICHT betroffen ist der reguläre „In meine Garage"-Knopf auf der Artikelseite — der bleibt für
+	 * alle sichtbar.
+	 */
+	public static function quick_controls_visible(): bool {
+		return (bool) apply_filters( 'm24_garage_quickcontrols_visible', current_user_can( 'manage_options' ) );
+	}
+
+	/**
 	 * Post-IDs, die im Garage-Cart des aktuellen Kontos liegen — als Set (id => true).
 	 *
 	 * Für den Quick-Add-Chip auf den Katalog-Kacheln: der Zustand muss beim Rendern feststehen, sonst
@@ -1631,6 +1645,8 @@ class M24_Garage_Cart {
 			'notifyMaster' => esc_url_raw( rest_url( self::NS . '/garage/notify-master' ) ),
 			'reorder'  => esc_url_raw( rest_url( self::NS . '/garage/reorder' ) ),
 			'sendMail' => esc_url_raw( rest_url( self::NS . '/garage/send' ) ),
+			// Schnellbedienungen (Chip + ✕ im Panel) — s. quick_controls_visible().
+			'quickControls' => self::quick_controls_visible(),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
 			'loggedIn' => self::current_account_id() > 0,
 			'pageUrl'  => self::page_url(),

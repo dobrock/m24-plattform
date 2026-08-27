@@ -46,6 +46,92 @@
 		}
 	}
 
+	/* ── Schnell-Entfernen (✕) ──────────────────────────────────────────────
+	   Die ganze Zeile ist ein <a>. Der Knopf muss den Klick deshalb vollständig kappen, sonst navigiert
+	   der Browser zum Artikel, statt zu entfernen. Kein confirm(): ein Bestätigungsdialog für eine
+	   Aktion, die einen Klick kostet und rückgängig zu machen ist, hält nur auf. Stattdessen ersetzt ein
+	   Rückgängig-Streifen die Zeile — sichtbar an derselben Stelle, 6 s lang. */
+	var UNDO_MS = 6000;
+
+	function rmBtn(it) {
+		var label = 'aus der Garage entfernen';
+		return '<button type="button" class="m24gt-rm" data-m24gt-rm aria-label="'
+			+ esc((it.title || 'Position') + ' ' + label) + '" title="Entfernen">'
+			+ '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">'
+			+ '<path d="M18 6 6 18M6 6l12 12"/></svg></button>';
+	}
+
+	/** Zeile durch den Rückgängig-Streifen ersetzen; nach UNDO_MS ist die Entfernung endgültig. */
+	function showUndo(row, it) {
+		var strip = document.createElement('div');
+		strip.className = 'm24gt-undo';
+		strip.innerHTML = '<span>Entfernt</span><button type="button" class="m24gt-undo-btn">Rückgängig</button>';
+		row.parentNode.replaceChild(strip, row);
+		var t = setTimeout(function () { if (strip.parentNode) { strip.parentNode.removeChild(strip); } }, UNDO_MS);
+		strip.querySelector('.m24gt-undo-btn').addEventListener('click', function () {
+			clearTimeout(t);
+			// Wieder anlegen und neu zeichnen — die Position landet dadurch an ihrer alten Stelle,
+			// weil der Server die Reihenfolge führt.
+			post('/add', { post_id: it.post_id || it.id, post_type: it.post_type || '' }).then(function () {
+				load();
+			});
+		});
+	}
+
+	/** POST an einen Garage-Endpunkt (dieselbe Basis wie der Rest des Panels). */
+	function post(path, body) {
+		return fetch(cfg.rest + path, {
+			method: 'POST', credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce || '' },
+			body: JSON.stringify(body || {})
+		}).then(function (r) { return r.json(); }).catch(function () { return null; });
+	}
+
+	if (itemsEl) {
+		itemsEl.addEventListener('click', function (e) {
+			var btn = e.target.closest ? e.target.closest('[data-m24gt-rm]') : null;
+			if (!btn) { return; }
+			e.preventDefault();
+			e.stopPropagation();
+			var row = btn.closest('.m24gt-it');
+			if (!row || row.dataset.busy === '1') { return; }
+			row.dataset.busy = '1';
+			var pid = parseInt(row.getAttribute('data-post-id') || '0', 10);
+			var it = { post_id: pid, post_type: row.getAttribute('data-post-type') || '' };
+			post('/remove', { post_id: pid }).then(function (d) {
+				row.dataset.busy = '';
+				if (!d || !d.ok) { return; }
+				// Kopfzähler, Fußsumme und Reiter-Badge nachziehen …
+				applyTotals(d);
+				// … und die Kachel-Chips derselben ID, falls im Hintergrund sichtbar.
+				document.querySelectorAll('.m24-card__garage[data-garage-id="' + pid + '"]').forEach(function (chip) {
+					chip.classList.remove('is-in', 'is-ingarage');
+					chip.setAttribute('aria-pressed', 'false');
+					chip.setAttribute('aria-label', 'In die Garage');
+					chip.setAttribute('title', 'In die Garage');
+				});
+				if (typeof d.count === 'number' && d.count <= 0) { load(); return; } // Leer-Zustand serverseitig
+				showUndo(row, it);
+			});
+		});
+	}
+
+	/** Zähler/Summe aus einer Server-Antwort übernehmen und das gemeinsame Event feuern. */
+	function applyTotals(d) {
+		var count = (typeof d.count === 'number') ? d.count : null;
+		if (null !== count) {
+			if (cntEl) { cntEl.textContent = count; }
+			var gno = cfg.garageNo ? ' · ' + cfg.garageNo : '';
+			if (subEl) { subEl.textContent = count + ' Position' + (1 === count ? '' : 'en') + gno; }
+		}
+		if (sumEl && d.grand_fmt) { sumEl.innerHTML = esc(d.grand_fmt); }
+		try {
+			document.dispatchEvent(new CustomEvent('m24:garage:changed', {
+				detail: { count: count, total: (typeof d.total === 'number' ? d.total : count) }
+			}));
+		} catch (e) {}
+	}
+
 	function render(d) {
 		var items = (d && d.items) || [], count = items.length;
 		if (cntEl) { cntEl.textContent = count; }
@@ -60,7 +146,11 @@
 				row.innerHTML = (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24gt-thumb-ph"></span>')
 					+ '<div class="m24gt-it-main"><div class="t">' + esc(it.title) + '</div>'
 					+ '<div class="m24gt-it-meta">' + (it.artnr ? 'Art.-Nr. ' + esc(it.artnr) + ' · ' : '') + '×' + (it.qty || 1) + (it.variant ? ' · Variante: ' + esc(it.variant) : '') + '</div></div>'
-					+ '<div class="p">' + esc(it.line_fmt || it.unit_fmt || 'auf Anfrage') + '</div>';
+					+ '<div class="p">' + esc(it.line_fmt || it.unit_fmt || 'auf Anfrage') + '</div>'
+					// Schnell-Entfernen. Hinter demselben Schalter wie der Kachel-Chip (quick_controls_visible).
+					+ (cfg.quickControls ? rmBtn(it) : '');
+				row.setAttribute('data-post-id', it.post_id || it.id || '');
+				row.setAttribute('data-post-type', it.post_type || '');
 				itemsEl.appendChild(row);
 			});
 		}

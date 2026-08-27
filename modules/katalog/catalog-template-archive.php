@@ -324,6 +324,10 @@ class M24_Catalog_Archive {
 	 */
 	public static function garage_chip_hydration_script(): string {
 		static $done = false;
+		// Kein Chip → nichts zu hydrieren. Ohne diese Prüfung läge auf jeder Kategorieseite ein
+		// Inline-Script, das über ein leeres NodeList iteriert: unnötige Bytes und beim nächsten
+		// Lesen irreführend, weil es Funktionalität suggeriert, die gar nicht ausgeliefert wird.
+		if ( ! class_exists( 'M24_Garage_Cart' ) || ! M24_Garage_Cart::quick_controls_visible() ) { return ''; }
 		if ( $done || is_user_logged_in() ) { return ''; } // eingeloggt: Zustand kommt aus dem Markup
 		$done = true;
 		return '<script>(function(){try{'
@@ -349,7 +353,8 @@ class M24_Catalog_Archive {
 	 * existiert serverseitig nicht.
 	 */
 	public static function garage_chip_html( int $post_id ): string {
-		$in = class_exists( 'M24_Garage_Cart' ) && M24_Garage_Cart::has_id( $post_id );
+		if ( ! class_exists( 'M24_Garage_Cart' ) || ! M24_Garage_Cart::quick_controls_visible() ) { return ''; }
+		$in = M24_Garage_Cart::has_id( $post_id );
 		// Zwei Icons, per CSS umgeschaltet: Plus im Normalzustand, Haken wenn drin. Beide inline, damit
 		// beim Umschalten nichts nachgeladen wird und der Wechsel sofort sichtbar ist.
 		$icon = '<svg class="m24-card__garage-add" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
