@@ -130,3 +130,8 @@ body.m24vd-lock{overflow:hidden}
 .m24vd-f b{font-size:15px;color:#10243a}
 .m24vd-go{border:0;border-radius:8px;background:#1763AD;color:#fff;font-weight:700;font-size:14px;padding:10px 18px;cursor:pointer}
 .m24vd-go:hover{background:#0e447e}
+
+/* Gewaehlte Ausfuehrung an der Kachel — direkt unter der Steuerzeile, weil die Option ueber den Preis
+   entscheidet und dort gelesen wird. */
+.m24-card__variant{display:block;color:#0E447E;font-size:12px;font-weight:600;line-height:1.35;margin-top:2px;overflow-wrap:anywhere}
+.m24-card__variant[hidden]{display:none!important}

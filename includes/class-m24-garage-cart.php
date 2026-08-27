@@ -350,6 +350,39 @@ class M24_Garage_Cart {
 		return $cache;
 	}
 
+	/**
+	 * Gewaehlte Ausfuehrung eines Beitrags in der Garage des aktuellen Kontos.
+	 *
+	 * Fuer die Katalog-Kachel: liegt der Artikel mit einer bestimmten Option drin, zeigt die Karte deren
+	 * Preis statt „ab …" und das Label darunter. Ohne diesen serverseitigen Weg waere die Angabe nach
+	 * jedem Reload verschwunden — und die Kachel behauptete wieder einen „ab"-Preis, der nicht stimmt.
+	 *
+	 * Eine Abfrage je Request (statischer Cache), wie bei current_ids().
+	 *
+	 * @return array{label:string,brutto_fmt:string}
+	 */
+	public static function chosen_variant( int $post_id ): array {
+		static $cache = null;
+		if ( null === $cache ) {
+			$cache = array();
+			$acc   = self::current_account_id();
+			if ( $acc > 0 ) {
+				global $wpdb;
+				$rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB
+					'SELECT post_id, variant_label, variant_price FROM ' . self::table() . " WHERE account_id = %d AND variant_label <> ''",
+					$acc
+				) );
+				foreach ( (array) $rows as $r ) {
+					$cache[ (int) $r->post_id ] = array(
+						'label'      => (string) $r->variant_label,
+						'brutto_fmt' => ( null !== $r->variant_price && '' !== (string) $r->variant_price ) ? self::fmt( (float) $r->variant_price ) : '',
+					);
+				}
+			}
+		}
+		return $cache[ $post_id ] ?? array( 'label' => '', 'brutto_fmt' => '' );
+	}
+
 	/** Liegt dieser Beitrag in der Garage des aktuellen Kontos? */
 	public static function has_id( int $post_id ): bool {
 		$ids = self::current_ids();

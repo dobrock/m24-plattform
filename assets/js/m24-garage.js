@@ -199,9 +199,42 @@
 			btn.setAttribute('data-variant-label', o.label || '');
 			btn.setAttribute('data-variant-artnr', o.artnr || '');
 			btn.setAttribute('data-variant-brutto', String(o.brutto || ''));
+			btn.setAttribute('data-variant-price-fmt', o.fmt || ''); // formatiert, fuer die Kachel-Anzeige
 			shut();
 			btn.click(); // erneut — jetzt mit Auswahl, der Dialog-Zweig greift nicht mehr
 		};
+	}
+
+	/**
+	 * Preis und Ausfuehrung an der Kachel nachfuehren.
+	 *
+	 * Die Option entscheidet ueber den Preis — also gehoert sie dorthin, wo man den Preis liest, nicht
+	 * unter den Chip. Nach dem Einlegen steht der KONKRETE Preis statt „ab …", darunter das Label.
+	 * Beim Entfernen kehrt „ab …" zurueck: ein „ab"-Preis, der nach der Auswahl stehenbliebe, waere
+	 * schlicht falsch.
+	 */
+	function setCardVariant(btn, label, bruttoFmt) {
+		var card = btn.closest ? btn.closest('.m24-card') : null;
+		if (!card) { return; }
+		var priceEl = card.querySelector('.m24-card__price');
+		var varEl   = card.querySelector('[data-card-variant]');
+
+		var valEl = priceEl ? priceEl.querySelector('[data-price-val]') : null;
+		if (priceEl && valEl) {
+			var ab = priceEl.querySelector('.m24-card__ab');
+			if (label && bruttoFmt) {
+				if (ab) { ab.hidden = true; }              // „ab" weg — der Preis ist jetzt konkret
+				valEl.textContent = bruttoFmt;
+			} else {
+				// Nur zurueckstellen, wenn es ueberhaupt ein „ab"-Preis war (data-price-ab).
+				if (ab && '1' === priceEl.getAttribute('data-price-ab')) { ab.hidden = false; }
+				valEl.textContent = priceEl.getAttribute('data-price-base') || valEl.textContent;
+			}
+		}
+		if (varEl) {
+			if (label) { varEl.textContent = '✓ ' + label; varEl.hidden = false; }
+			else { varEl.textContent = ''; varEl.hidden = true; }
+		}
 	}
 
 	function setGarageBtn(btn, inGarage) {
@@ -214,6 +247,17 @@
 			var lbl = inGarage ? 'Aus der Garage entfernen' : 'In die Garage';
 			btn.setAttribute('aria-label', lbl);
 			btn.setAttribute('title', lbl);
+			// Ausfuehrung an der Kachel mitfuehren. Beim Entfernen leeren — sonst behauptet die Karte
+			// weiter einen konkreten Preis fuer etwas, das gar nicht mehr in der Garage liegt.
+			if (inGarage) {
+				setCardVariant(btn, btn.getAttribute('data-variant-label') || '', btn.getAttribute('data-variant-price-fmt') || '');
+			} else {
+				setCardVariant(btn, '', '');
+				btn.removeAttribute('data-variant-label');
+				btn.removeAttribute('data-variant-artnr');
+				btn.removeAttribute('data-variant-brutto');
+				btn.removeAttribute('data-variant-price-fmt');
+			}
 		}
 		btn.setAttribute('aria-pressed', inGarage ? 'true' : 'false');
 		var svg = btn.querySelector('.m24-btn-i');

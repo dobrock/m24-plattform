@@ -239,13 +239,34 @@ class M24_Catalog_Archive {
 		$vp  = function_exists( 'm24_variant_price_info' ) ? m24_variant_price_info( $post_id ) : array();
 		$ab  = ( ! empty( $vp['hat_varianten'] ) && empty( $vp['alle_gleich'] ) );
 		$val = $ab ? $vp['min_fmt'] : $p['brutto_fmt'];
+
+		// Liegt der Artikel bereits MIT einer gewaehlten Ausfuehrung in der Garage, gilt deren Preis —
+		// nicht „ab …". Serverseitig gerendert, damit die Angabe einen Reload uebersteht; das Frontend
+		// aktualisiert sie danach nur noch beim Ein- und Auslegen.
+		$chosen = '';
+		if ( class_exists( 'M24_Garage_Cart' ) ) {
+			$pick = M24_Garage_Cart::chosen_variant( $post_id );
+			if ( ! empty( $pick['label'] ) ) {
+				$chosen = (string) $pick['label'];
+				if ( ! empty( $pick['brutto_fmt'] ) ) { $val = (string) $pick['brutto_fmt']; $ab = false; }
+			}
+		}
 		$pre = $ab ? '<span class="m24-card__ab">ab&nbsp;</span>' : '';
 
+		// data-Anker fuer den Quick-Add: nach der Auswahl einer Ausfuehrung ersetzt das Frontend den
+		// „ab"-Preis durch den konkreten und haengt das Label unter die Steuerzeile. Der Ausgangswert
+		// muss dabei erhalten bleiben, damit beim Entfernen „ab …" zurueckkehrt — deshalb steht er hier
+		// als data-base im Markup und wird nicht aus dem sichtbaren Text zurueckgerechnet.
 		return sprintf(
-			'<span class="m24-card__price">%s%s</span><span class="m24-card__pricenote">%s</span>',
+			'<span class="m24-card__price" data-price-base="%s" data-price-ab="%s">%s<span data-price-val>%s</span></span>'
+			. '<span class="m24-card__pricenote">%s</span><span class="m24-card__variant" data-card-variant%s>%s</span>',
+			esc_attr( $val ),
+			$ab ? '1' : '0',
 			$pre,
 			esc_html( $val ),
-			$note
+			$note,
+			'' !== $chosen ? '' : ' hidden',
+			'' !== $chosen ? esc_html( '✓ ' . $chosen ) : ''
 		);
 	}
 
