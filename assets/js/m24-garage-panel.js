@@ -10,7 +10,10 @@
 	if (!root || !cfg.rest) { return; }
 	var $ = function (s) { return root.querySelector(s); };
 	var tab = $('[data-m24gt-open]'), panel = $('[data-m24gt-panel]'), ov = $('[data-m24gt-overlay]');
-	var selfReload = true; // false, während das Panel selbst ein m24garage:changed auslöst
+	// Eigene Events markieren, statt ein Flag über die Zeit zu setzen: ein Zeitfenster verschluckt auch
+	// FREMDE Events, die zufällig hineinfallen — etwa das eines Kachel-Chips. Dann bleibt die Zeile im
+	// Panel stehen, während Zähler und Summe stimmen (der Chip setzt die selbst). Am Event erkannt,
+	// gibt es dieses Fenster nicht.
 	var cntEl = $('[data-m24gt-cnt]'), subEl = $('[data-m24gt-sub]'), itemsEl = $('[data-m24gt-items]'), sumEl = $('[data-m24gt-sum]');
 	var prev = -1;
 
@@ -70,7 +73,11 @@
 		var strip = document.createElement('div');
 		strip.className = 'm24gt-undo';
 		strip.innerHTML = '<span>Entfernt</span><button type="button" class="m24gt-undo-btn">Rückgängig</button>';
-		row.parentNode.replaceChild(strip, row);
+		// Die Zeile kann zwischenzeitlich verschwunden sein (paralleler Reload). Dann den Streifen
+		// oben anhaengen statt zu brechen — er ist die einzige Spur der Loeschung.
+		if (row && row.parentNode) { row.parentNode.replaceChild(strip, row); }
+		else if (itemsEl) { itemsEl.insertBefore(strip, itemsEl.firstChild); }
+		else { return; }
 		openUndos.push(strip);
 		strip.querySelector('.m24gt-undo-btn').addEventListener('click', function () {
 			dropUndos(strip); // nur die anderen aufräumen, dieser hier wird ohnehin gleich neu gezeichnet
@@ -78,6 +85,63 @@
 			// weil der Server die Reihenfolge führt.
 			post('/add', { post_id: it.post_id || it.id, post_type: it.post_type || '' }).then(function () {
 				load();
+			});
+		});
+	}
+
+	/* ── Garage leeren ──────────────────────────────────────────────────────
+	   Zweistufig ohne natives confirm(): die Rückfrage erscheint an derselben Stelle. Danach ein
+	   Rückgängig-Streifen OBEN in der Liste, ohne Timer — wiederhergestellt wird serverseitig aus einer
+	   Sicherung, damit Ausführungen, Mengen und Reihenfolge vollständig zurückkommen. */
+	var clearWrap = $('[data-m24gt-clearwrap]');
+	if (clearWrap) {
+		var askEl  = clearWrap.querySelector('[data-m24gt-clearask]');
+		var linkEl = clearWrap.querySelector('[data-m24gt-clear]');
+		function askOff() { if (askEl) { askEl.hidden = true; } if (linkEl) { linkEl.hidden = false; } }
+
+		clearWrap.addEventListener('click', function (e) {
+			if (e.target.closest('[data-m24gt-clear]')) {
+				e.preventDefault();
+				if (linkEl) { linkEl.hidden = true; }
+				if (askEl) { askEl.hidden = false; }
+				var yes = clearWrap.querySelector('[data-m24gt-clearyes]');
+				if (yes) { yes.focus(); }
+				return;
+			}
+			if (e.target.closest('[data-m24gt-clearno]')) { e.preventDefault(); askOff(); if (linkEl) { linkEl.focus(); } return; }
+			if (!e.target.closest('[data-m24gt-clearyes]')) { return; }
+			e.preventDefault();
+			askOff();
+			dropUndos();
+			post('/clear', {}).then(function (d) {
+				if (!d || !d.ok) { return; }
+				applyTotals(d);
+				// Alle Kachel-Chips zurücksetzen — sonst behaupten sie weiter „liegt drin".
+				document.querySelectorAll('.m24-card__garage.is-in').forEach(function (chip) {
+					chip.classList.remove('is-in', 'is-ingarage');
+					chip.setAttribute('aria-pressed', 'false');
+					chip.setAttribute('aria-label', 'In die Garage');
+				});
+				render({ items: [], grand_fmt: d.grand_fmt || '0,00 €' });
+                if (d.cleared > 0) { showClearUndo(d.cleared); }
+			});
+		});
+	}
+
+	/** Rückgängig-Streifen nach dem Leeren — oben in der Liste, ohne Timer. */
+	function showClearUndo(n) {
+		if (!itemsEl) { return; }
+		var strip = document.createElement('div');
+		strip.className = 'm24gt-undo';
+		strip.innerHTML = '<span>Garage geleert (' + n + ')</span>'
+			+ '<button type="button" class="m24gt-undo-btn">Rückgängig</button>';
+		itemsEl.insertBefore(strip, itemsEl.firstChild);
+		openUndos.push(strip);
+		strip.querySelector('.m24gt-undo-btn').addEventListener('click', function () {
+			post('/restore', {}).then(function (d) {
+				dropUndos();
+				load(); // frisch zeichnen — Reihenfolge und Ausführungen kommen vom Server
+				if (d && d.ok) { applyTotals(d); }
 			});
 		});
 	}
@@ -145,10 +209,9 @@
 			// Zusätzlich das ALTE Event: daran hängen die Bestandshörer (Garage-Seite, Operator-Relabel)
 			// — ohne das aktualisiert außerhalb des Panels nichts. selfReload verhindert dabei, dass
 			// unser eigener Listener load() auslöst und den Rückgängig-Streifen wegrendert.
-			selfReload = false;
+			detail.source = 'm24gt-panel'; // Marker: unser eigenes Event, kein Reload nötig
 			document.dispatchEvent(new CustomEvent('m24garage:changed', { detail: detail }));
-			selfReload = true;
-		} catch (e) { selfReload = true; }
+		} catch (e) {}
 	}
 
 	function render(d) {
@@ -173,6 +236,7 @@
 				itemsEl.appendChild(row);
 			});
 		}
+		if (clearWrap) { clearWrap.hidden = count <= 0; } // leere Garage → nichts zu leeren
 		root.hidden = count <= 0;              // leere Garage → Tab weg
 		if (prev >= 0 && count > prev) { pulse(); } // Zuwachs → Tab pulst
 		prev = count;
@@ -223,7 +287,12 @@
 
 	if (tab) { tab.addEventListener('click', function () { load(); open(); }); }
 	root.addEventListener('click', function (e) { if (e.target.closest('[data-m24gt-close]') || e.target === ov) { close(); } });
-	document.addEventListener('m24garage:changed', function () { if (selfReload) { load(); } });
+	document.addEventListener('m24garage:changed', function (e) {
+		// Nur fremde Auslöser laden neu. Das eigene Event traegt den Marker — sonst zeichnete der Reload
+		// den Rueckgaengig-Streifen weg, also genau die Rueckversicherung, die gerade gebraucht wird.
+		if (e && e.detail && 'm24gt-panel' === e.detail.source) { return; }
+		load();
+	});
 
 	// Operator-Einstieg: „Angebot anfragen" → „Angebot erstellen" (nur bei serverseitigem isOperator). Klick legt
 	// serverseitig einen Angebots-Entwurf an (Preise §25a-korrekt) und öffnet den Builder. Kunden sehen unverändert.

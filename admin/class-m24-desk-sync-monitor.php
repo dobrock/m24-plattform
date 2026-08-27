@@ -96,6 +96,43 @@ class M24_Desk_Sync_Monitor {
         }
         echo '</p>';
 
+        // ── Mehrfach-Nachfolger. Der schaerfere Test als „gleicher Kunde, gleicher Betrag": er trifft
+        // genau den Supersede-Race, unabhaengig von Kunde und Summe, und benennt die Waise — den
+        // Nachfolger, auf den der Vorgaenger NICHT zurueckzeigt (bei 2026-1052/1053 war das 1052).
+        // Der Race selbst ist seit 0.11.475 durch ein atomares UPDATE ausgeschlossen; das hier ist die
+        // Wache, weil sich ein Wettlauf nicht durch Tests widerlegen laesst.
+        $multi = $wpdb->get_results( // phpcs:ignore WordPress.DB
+            "SELECT n.supersedes AS vorgaenger_uid, COUNT(*) AS anzahl,
+                    GROUP_CONCAT(n.offer_no ORDER BY n.id SEPARATOR ', ') AS nachfolger,
+                    GROUP_CONCAT(n.id ORDER BY n.id SEPARATOR ',') AS ids
+               FROM $t n
+              WHERE n.supersedes <> '' AND n.deleted_at IS NULL
+              GROUP BY n.supersedes HAVING COUNT(*) > 1
+              ORDER BY MAX(n.id) DESC LIMIT 25"
+        );
+        if ( ! empty( $multi ) ) {
+            echo '<h2 style="margin-top:22px;">Mehrfache Nachfolger <span style="color:#c8102e;">(' . count( $multi ) . ')</span></h2>';
+            echo '<p class="description" style="margin:0 0 10px;">Mehr als ein Ersatz-Angebot fuer denselben Vorgaenger. Gueltig ist der, auf den der Vorgaenger in <code>superseded_by</code> zeigt — die uebrigen sind Waisen aus einem parallelen Lauf und koennen in den Papierkorb.</p>';
+            echo '<table class="widefat striped"><thead><tr><th>Vorgänger</th><th>Nachfolger</th><th>Gültig laut Vorgänger</th><th>Waise(n)</th></tr></thead><tbody>';
+            foreach ( $multi as $m ) {
+                $vor = $wpdb->get_row( $wpdb->prepare( "SELECT id, offer_no, superseded_by FROM $t WHERE wp_offer_uid = %s LIMIT 1", (string) $m->vorgaenger_uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $gueltig = '';
+                if ( $vor && '' !== (string) $vor->superseded_by ) {
+                    $gueltig = (string) $wpdb->get_var( $wpdb->prepare( "SELECT offer_no FROM $t WHERE wp_offer_uid = %s LIMIT 1", (string) $vor->superseded_by ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                }
+                $alle    = array_map( 'trim', explode( ',', (string) $m->nachfolger ) );
+                $waisen  = ( '' !== $gueltig ) ? array_values( array_diff( $alle, array( $gueltig ) ) ) : $alle;
+                printf(
+                    '<tr><td>%s</td><td>%s</td><td>%s</td><td><strong>%s</strong></td></tr>',
+                    esc_html( $vor ? (string) $vor->offer_no : (string) $m->vorgaenger_uid ),
+                    esc_html( (string) $m->nachfolger ),
+                    '' !== $gueltig ? esc_html( $gueltig ) : '<em>kein Rückverweis</em>',
+                    esc_html( implode( ', ', $waisen ) )
+                );
+            }
+            echo '</tbody></table>';
+        }
+
         // ── Dubletten-Report. Bewusst nur Anzeige mit Vorschlag, kein Auto-Merge: welche der beiden
         // Zeilen die gültige ist, hängt daran, welche der Kunde per Mail bekommen hat — das weiß die
         // Datenbank nicht. Automatisch zu löschen hieße raten.

@@ -966,6 +966,16 @@ class M24_Garage_Cart {
 			'permission_callback' => array( __CLASS__, 'check' ),
 			'callback'            => array( __CLASS__, 'handle_add' ),
 		) );
+		register_rest_route( self::NS, '/garage/cart/clear', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_clear' ),
+		) );
+		register_rest_route( self::NS, '/garage/cart/restore', array(
+			'methods'             => 'POST',
+			'permission_callback' => array( __CLASS__, 'check' ),
+			'callback'            => array( __CLASS__, 'handle_restore' ),
+		) );
 		register_rest_route( self::NS, '/garage/cart/remove', array(
 			'methods'             => 'POST',
 			'permission_callback' => array( __CLASS__, 'check' ),
@@ -1431,6 +1441,73 @@ class M24_Garage_Cart {
 		return rest_ensure_response( self::state( $acc, $pid, $pt ) );
 	}
 
+	/** User-Meta, in dem die geleerte Garage fuer das Rueckgaengig liegt. */
+	const UNDO_META = '_m24_garage_undo';
+
+	/**
+	 * Garage in einem Zug leeren — mit vollstaendig wiederherstellbarem Zustand.
+	 *
+	 * Die Zeilen werden VOR dem Loeschen roh gesichert (inkl. Variante, Menge und sort_order) und aus
+	 * dieser Sicherung zurueckgeschrieben. Bewusst serverseitig und nicht aus der Frontend-Liste
+	 * rekonstruiert: dort fehlen sort_order und die Roh-Variantenfelder, und ein einzelner
+	 * fehlgeschlagener /add-Aufruf beim Wiederherstellen liesse eine halbe Garage zurueck.
+	 */
+	public static function handle_clear( WP_REST_Request $req ) {
+		self::maybe_ensure_table();
+		$acc = self::current_account_id();
+		if ( $acc <= 0 ) { return rest_ensure_response( array( 'ok' => false, 'count' => 0 ) ); }
+
+		global $wpdb;
+		$t    = self::table();
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE account_id = %d", $acc ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( empty( $rows ) ) {
+			return rest_ensure_response( array( 'ok' => true, 'count' => 0, 'cleared' => 0, 'grand_fmt' => self::fmt( 0 ) ) );
+		}
+		update_user_meta( $acc, self::UNDO_META, wp_json_encode( $rows ) );
+		$wpdb->delete( $t, array( 'account_id' => $acc ) );
+
+		return rest_ensure_response( array(
+			'ok'         => true,
+			'count'      => 0,
+			'cleared'    => count( $rows ),
+			'can_undo'   => true,
+			'grand_fmt'  => self::fmt( 0 ),
+		) );
+	}
+
+	/** Die zuletzt geleerte Garage zurueckholen. Idempotent: ohne Sicherung passiert nichts. */
+	public static function handle_restore( WP_REST_Request $req ) {
+		self::maybe_ensure_table();
+		$acc = self::current_account_id();
+		if ( $acc <= 0 ) { return rest_ensure_response( array( 'ok' => false ) ); }
+
+		$raw  = (string) get_user_meta( $acc, self::UNDO_META, true );
+		$rows = json_decode( $raw, true );
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return rest_ensure_response( array( 'ok' => false, 'reason' => 'nichts_zu_holen' ) );
+		}
+
+		global $wpdb;
+		$t = self::table();
+		$back = 0;
+		foreach ( $rows as $r ) {
+			if ( ! is_array( $r ) ) { continue; }
+			unset( $r['id'] ); // frische PK, sonst kollidiert es mit zwischenzeitlich Angelegtem
+			$r['account_id'] = $acc;
+			if ( false !== $wpdb->insert( $t, $r ) ) { $back++; }
+		}
+		delete_user_meta( $acc, self::UNDO_META );
+
+		$items = self::items( $acc );
+		list( , $grand_fmt ) = self::grand_total( $items );
+		return rest_ensure_response( array(
+			'ok'        => true,
+			'restored'  => $back,
+			'count'     => count( $items ),
+			'grand_fmt' => $grand_fmt,
+		) );
+	}
+
 	public static function handle_remove( WP_REST_Request $req ) {
 		self::maybe_ensure_table();
 		$res = self::resolve_post( $req );
@@ -1619,6 +1696,16 @@ class M24_Garage_Cart {
 					<a class="m24gt-btn m24gt-btn-ghost" data-m24gt-cta-inquire href="<?php echo esc_url( self::page_url() ); ?>">Angebot anfragen</a>
 					<button type="button" class="m24gt-btn m24gt-btn-share" data-m24gt-share hidden>Garage teilen (7 Tage)</button>
 					<div class="m24gt-sharebox" data-m24gt-sharebox hidden><input type="text" readonly data-m24gt-shareurl><button type="button" data-m24gt-copy>Kopieren</button></div>
+					<?php // „Garage leeren": bewusst ein ruhiger Textlink UNTER den Aktionen, kein gefüllter Knopf.
+					// Eine löschende Aktion soll nicht mit „Angebot anfragen" um Aufmerksamkeit konkurrieren.
+					// Zweistufig ohne natives confirm() — die Rückfrage erscheint an derselben Stelle. ?>
+					<div class="m24gt-clear" data-m24gt-clearwrap hidden>
+						<button type="button" class="m24gt-clear-link" data-m24gt-clear>Garage leeren</button>
+						<span class="m24gt-clear-ask" data-m24gt-clearask hidden>Wirklich leeren?
+							<button type="button" class="m24gt-clear-yes" data-m24gt-clearyes>Ja, alles entfernen</button>
+							<button type="button" class="m24gt-clear-no" data-m24gt-clearno>Abbrechen</button>
+						</span>
+					</div>
 				</div>
 			</aside>
 		</div>

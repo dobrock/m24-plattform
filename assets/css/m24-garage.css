@@ -428,3 +428,19 @@ body.m24gt-lock{overflow:hidden}
 .m24sa-consent a{color:#1f74c4}
 .m24sa-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden}
 .m24sa-submit{width:100%;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 'Saira',Arial,sans-serif;padding:14px;cursor:pointer;margin-top:4px}
+
+
+/* ── „Garage leeren" ───────────────────────────────────────────────────────
+   Ruhiger Textlink unter den Aktionen, kein gefuellter Knopf: eine loeschende Aktion soll nicht mit
+   „Angebot anfragen" um Aufmerksamkeit konkurrieren. Die Rueckfrage erscheint an derselben Stelle. */
+.m24gt-clear{margin-top:10px;text-align:center;font-size:13px;line-height:1.6}
+.m24gt-clear[hidden]{display:none!important}
+.m24gt-clear-link{border:0;background:none;color:#8a929c;font:inherit;text-decoration:underline;cursor:pointer;padding:4px 6px;border-radius:6px}
+.m24gt-clear-link:hover{color:#C0392B}
+.m24gt-clear-ask{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;color:#5a6474}
+.m24gt-clear-ask[hidden]{display:none!important}
+.m24gt-clear-yes{border:0;background:none;color:#C0392B;font:inherit;font-weight:700;cursor:pointer;padding:4px 6px;border-radius:6px}
+.m24gt-clear-yes:hover{background:#FDECEA}
+.m24gt-clear-no{border:0;background:none;color:#1763AD;font:inherit;font-weight:600;cursor:pointer;padding:4px 6px;border-radius:6px}
+.m24gt-clear-no:hover{background:#eef3fb}
+.m24gt-clear-link:focus-visible,.m24gt-clear-yes:focus-visible,.m24gt-clear-no:focus-visible{outline:2px solid #1763AD;outline-offset:2px}
