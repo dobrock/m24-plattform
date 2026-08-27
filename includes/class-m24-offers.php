@@ -203,13 +203,40 @@ class M24_Offers {
 		if ( ! $f_trash && $f_nv ) { $where[] = "viewed_last_at IS NULL AND status <> 'entwurf'"; } // nur versendete, vom Kunden noch nicht geöffnete
 		if ( ! $f_trash && $f_nr ) { $where[] = 'needs_resend = 1'; } // Supersede-Ergebnis, wartet auf manuellen Versand
 		if ( '' !== $f_s ) { $like = '%' . $wpdb->esc_like( $f_s ) . '%'; $where[] = '( offer_no LIKE %s OR customer_json LIKE %s )'; $args[] = $like; $args[] = $like; }
-		$q    = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300';
+		// Sortierung MUSS dem entsprechen, was die Karte anzeigt. Bis 0.11.473 lief sie über `id DESC` —
+		// also über den Anlagezeitpunkt der WP-Zeile —, angezeigt wurde aber sent_at (bei gespiegelten
+		// Aufträgen das echte Desk-Angebotsdatum). Bei nachgespiegelten Aufträgen liegen beide weit
+		// auseinander, und die Liste sah unsortiert aus, obwohl sie streng sortiert war: nur eben nach
+		// einer Spalte, die nirgends steht.
+		//
+		// Spaltennamen kommen ausschließlich aus dieser Whitelist, nie aus dem Request.
+		$sort_map = array(
+			'sent'   => 'sent_at',      // Vorgabe: „Gesendet am", wie auf der Karte
+			'desk'   => 'updated_at',   // „Desk-Änderung", ebenfalls auf der Karte sichtbar
+			'amount' => 'total_gross',
+		);
+		$f_sort = isset( $_GET['sort'] ) ? sanitize_key( wp_unslash( $_GET['sort'] ) ) : 'sent'; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! isset( $sort_map[ $f_sort ] ) ) { $f_sort = 'sent'; }
+		$sort_col = $sort_map[ $f_sort ];
+		// Zeilen ohne Wert (Entwürfe ohne Sendedatum, Angebote ohne Desk-Kontakt) ans ENDE — verstreut
+		// dazwischen wirken sie wie Sortierfehler. id DESC als stabiler Tiebreaker bei gleichem Datum.
+		$order = ( 'total_gross' === $sort_col )
+			? 'total_gross DESC, id DESC'
+			: $sort_col . ' IS NULL, ' . $sort_col . ' DESC, id DESC';
+		$q = 'SELECT * FROM ' . $t . ' WHERE ' . implode( ' AND ', $where ) . ' ORDER BY ' . $order . ' LIMIT 300';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $q, $args ) ) : $wpdb->get_results( $q ); // phpcs:ignore WordPress.DB.PreparedSQL
+		// Die Liste ist nicht paginiert, sondern bei 300 Zeilen gekappt. Das war bisher unsichtbar und
+		// mit `id DESC` auch harmlos (es fehlten die ältesten Anlagen). Nach der Sortierumstellung fehlen
+		// je nach Auswahl die ältesten Sendedaten bzw. die kleinsten Beträge — das gehört gesagt, sonst
+		// sucht jemand ein Angebot, das schlicht abgeschnitten ist.
+		if ( count( (array) $rows ) >= 300 ) {
+			echo '<div class="notice notice-info is-dismissible"><p>Es werden die ersten 300 Angebote dieser Sortierung gezeigt. Ältere sind über die Filter und die Suche erreichbar.</p></div>';
+		}
 
 				echo '<div class="wrap m24offl"><h1 class="wp-heading-inline">Angebote</h1> <a href="' . esc_url( add_query_arg( array( self::QV_NEW => 1 ), home_url( '/' ) ) ) . '" target="_blank" rel="noopener" class="page-title-action" style="background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;border:0;">+ Neues Angebot</a><hr class="wp-header-end">';
 		if ( '' !== $notice ) { echo '<div class="notice notice-' . esc_attr( $notice_type ) . ' is-dismissible"><p>' . esc_html( $notice ) . '</p></div>'; }
 		$tax_lbl = array( 'b2b_de_19' => 'DE · 19 %', 'b2b_eu_net' => 'EU B2B · netto', 'b2c_eu_oss' => 'EU B2C · OSS' ); // #9: „Drittland · netto" raus
-		echo '<style>.m24offl .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}.m24offl .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}.m24offl .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}.m24offl .srch{margin-left:auto;display:flex;gap:6px}.m24offl .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}.m24offl .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;max-width:1000px;padding:16px 18px}.m24offl .crow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.m24offl .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}.m24offl .who b{font-size:15px}.m24offl .who div{color:#6b7280;font-size:12.5px}.m24offl .meta{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}.m24offl .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#9a6b25;font-size:15px}.m24offl .tx{color:#6b7280;font-size:12px}.m24offl .sum{font-weight:800;font-size:16px}.m24offl .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;color:#fff}.m24offl .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24offl .foot a{text-decoration:none}@media(max-width:700px){.m24offl .meta{width:100%;margin-left:58px}}</style>';
+		echo '<style>.m24offl .flt{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap;align-items:center}.m24offl .chip{padding:7px 14px;border-radius:999px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;color:#111417}.m24offl .chip.on{background:#0e447e;border-color:#0e447e;color:#fff}.m24offl .m24offl-sort{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#6b7280;font-weight:600}.m24offl .m24offl-sort .chip{padding:5px 11px;font-size:12.5px}.m24offl .srch{margin-left:auto;display:flex;gap:6px}.m24offl .srch input{height:34px;border:1.5px solid #e5e7eb;border-radius:8px;padding:0 12px;min-width:220px}.m24offl .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;max-width:1000px;padding:16px 18px}.m24offl .crow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.m24offl .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:0 0 auto}.m24offl .who b{font-size:15px}.m24offl .who div{color:#6b7280;font-size:12.5px}.m24offl .meta{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}.m24offl .no{font-family:Saira Condensed,sans-serif;font-weight:700;color:#9a6b25;font-size:15px}.m24offl .tx{color:#6b7280;font-size:12px}.m24offl .sum{font-weight:800;font-size:16px}.m24offl .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;color:#fff}.m24offl .foot{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px dashed #e5e7eb;font-size:13px;flex-wrap:wrap}.m24offl .foot a{text-decoration:none}@media(max-width:700px){.m24offl .meta{width:100%;margin-left:58px}}</style>';
 		echo '<style>.m24offl .crow{cursor:pointer}.m24offl .who b{margin-right:2px}.m24offl .flagc{font-size:13px;color:#374151}.m24offl .sentat{color:#8a929c;font-size:12px;margin-top:2px}.m24offl .sumwrap{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.m24offl .sum em{font-style:normal;font-weight:600;color:#6b7280;font-size:12px}.m24offl .sum2{font-size:12.5px;color:#6b7280;font-weight:600}.m24offl .m24offl-pos{border-top:1px dashed #e5e7eb;margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:8px}.m24offl .crow[aria-expanded="false"] + .m24offl-pos{display:none}.m24offl .m24offl-pos .pl-row{display:flex;align-items:center;gap:10px;font-size:13px}.m24offl .m24offl-pos img,.m24offl .m24offl-pos .pl-ph{width:34px;height:34px;border-radius:6px;object-fit:cover;background:#eef0f2;flex:0 0 auto}.m24offl .m24offl-pos .pl-t{flex:1;min-width:0}.m24offl .m24offl-pos .pl-q{color:#6b7280;white-space:nowrap}.m24offl .m24offl-pos .pl-p{font-weight:700;color:#111;white-space:nowrap}</style>';
 		$base = admin_url( 'admin.php?page=' . $page );
 		$chip = function ( $key, $label ) use ( $f_st, $base, $f_s ) { return '<a class="chip' . ( $f_st === $key ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'st' => $key, 's' => $f_s ), $base ) ) . '">' . esc_html( $label ) . '</a>'; };
@@ -226,7 +253,16 @@ class M24_Offers {
 		if ( $trash_n > 0 || $f_trash ) {
 			echo '<a class="chip' . ( $f_trash ? ' on' : '' ) . '" href="' . esc_url( add_query_arg( array( 'page' => $page, 'trash' => ( $f_trash ? 0 : 1 ) ), admin_url( 'admin.php' ) ) ) . '" style="border-color:#6b7280;color:#374151;">🗑 Papierkorb (' . (int) $trash_n . ')</a>';
 		}
-		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
+		// Sortier-Umschaltung. Absichtlich als Links (wie die Chips) statt als JS-Select: bleibt linkbar,
+		// funktioniert ohne JS und hält alle übrigen Filter.
+		$sort_lbl = array( 'sent' => 'Gesendet', 'desk' => 'Desk-Änderung', 'amount' => 'Betrag' );
+		echo '<span class="m24offl-sort">Sortieren:';
+		foreach ( $sort_lbl as $sk => $sl ) {
+			$su = add_query_arg( array_filter( array( 'page' => $page, 'st' => $f_st, 's' => $f_s, 'nv' => ( $f_nv ? 1 : 0 ), 'sort' => $sk ) ), admin_url( 'admin.php' ) );
+			echo '<a class="chip' . ( $f_sort === $sk ? ' on' : '' ) . '" href="' . esc_url( $su ) . '">' . esc_html( $sl ) . '</a>';
+		}
+		echo '</span>';
+		echo '<form class="srch" method="get"><input type="hidden" name="page" value="' . esc_attr( $page ) . '"><input type="hidden" name="st" value="' . esc_attr( $f_st ) . '"><input type="hidden" name="nv" value="' . esc_attr( (string) $f_nv ) . '"><input type="hidden" name="sort" value="' . esc_attr( $f_sort ) . '"><input type="search" name="s" value="' . esc_attr( $f_s ) . '" placeholder="Nr., Name oder E-Mail"><button class="button">Suchen</button></form></div>';
 
 
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::open_layout(); } // Statistik-Panel rechts
