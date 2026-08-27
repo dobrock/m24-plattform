@@ -228,6 +228,15 @@ class M24_Desk_Inbound {
         global $wpdb;
         $t = M24_Offers::table();
         $o = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE desk_order_id = %s LIMIT 1", (string) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        // Zweiter Anker: die Desk-Angebotsnummer. Ohne ihn entsteht eine Dublette, sobald derselbe Vorgang
+        // in WP schon unter der Desk-Nummer liegt, aber (noch) ohne desk_order_id — dann greift der
+        // Anker oben nicht und create_order() legt ein zweites Angebot an. Genau so entstand das Paar
+        // 2026-1044 / 2026-1045. Statt anzulegen wird die vorhandene Zeile adoptiert: desk_order_id
+        // nachtragen, Nummer behalten.
+        if ( ! $o ) {
+            $o = self::adopt_by_order_num( (int) $id, $data );
+        }
         if ( ! $o ) {
             // Upsert: nicht gefunden → Desk-originären Auftrag als plugin-natives Angebot anlegen, mit Kunde verknüpfen.
             $new_id = self::create_order( $id, $data, $stamps );
@@ -467,6 +476,39 @@ class M24_Desk_Inbound {
      * KEIN mark_paid/Hook-Feuern (Echo- + Mail-Vermeidung) — Status wird direkt gesetzt.
      * @return int neue offer-id, 0 bei Fehler.
      */
+    /**
+     * Ein lokal bereits vorhandenes Angebot über die Desk-Angebotsnummer adoptieren.
+     *
+     * Greift, wenn derselbe Vorgang in beiden Systemen entstanden ist oder die Verknüpfung verloren ging.
+     * Bedingung: die Nummer stimmt UND die Zeile trägt noch keine fremde desk_order_id — eine bestehende
+     * Zuordnung wird nie umgehängt, das wäre ein stiller Identitätswechsel.
+     *
+     * @return object|null Die adoptierte Zeile, oder null wenn es nichts zu adoptieren gibt.
+     */
+    private static function adopt_by_order_num( int $desk_id, array $data ) {
+        global $wpdb;
+        $t   = M24_Offers::table();
+        $num = trim( sanitize_text_field( (string) ( $data['order_num'] ?? $data['ref'] ?? '' ) ) );
+        if ( '' === $num ) { return null; }
+
+        $o = $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            "SELECT * FROM $t WHERE ( offer_no = %s OR desk_order_num = %s ) AND ( desk_order_id = '' OR desk_order_id IS NULL ) ORDER BY id ASC LIMIT 1",
+            $num, $num
+        ) );
+        if ( ! $o ) { return null; }
+
+        $wpdb->update( $t, array(
+            'desk_order_id'  => (string) $desk_id,
+            'desk_order_num' => $num,
+        ), array( 'id' => (int) $o->id ) );
+        if ( class_exists( 'M24_Sync_LWW' ) ) { M24_Sync_LWW::init_row( (int) $o->id, 'desk', (int) $o->account_id ); }
+        self::log( 'adopted', 'order #' . $desk_id . ' → vorhandenes Angebot ' . $num . ' (id ' . (int) $o->id . ') verknüpft statt Dublette angelegt.' );
+
+        $o->desk_order_id  = (string) $desk_id;
+        $o->desk_order_num = $num;
+        return $o;
+    }
+
     private static function create_order( int $desk_id, array $data, array $stamps ): int {
         global $wpdb;
         $t = M24_Offers::table();
@@ -502,7 +544,16 @@ class M24_Desk_Inbound {
         $offer_no = mb_substr( sanitize_text_field( (string) ( $data['order_num'] ?? $data['ref'] ?? '' ) ), 0, 20 );
         if ( '' === $offer_no ) { $offer_no = 'D-' . $desk_id; }
         $exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE offer_no = %s LIMIT 1", $offer_no ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        if ( $exists > 0 ) { $offer_no = mb_substr( 'D-' . $desk_id, 0, 20 ); }
+        if ( $exists > 0 ) {
+            // Nummer ist belegt und die Adoption oben hat nicht gegriffen (die Zeile trägt bereits eine
+            // andere desk_order_id) — echte Nummernkreis-Kollision. Ausweichnummer, aber laut loggen:
+            // beide Systeme vergeben aus 2026-10xx, das gehört zwischen Desk und WP geklärt.
+            $offer_no = mb_substr( 'D-' . $desk_id, 0, 20 );
+            self::log( 'number_collision', 'Desk-Nummer bereits in WP vergeben (id ' . $exists . ') → Ausweichnummer ' . $offer_no . '. Nummernkreis prüfen.' );
+            if ( class_exists( 'M24_Error_Log' ) ) {
+                M24_Error_Log::capture( 'desk_sync', 'warning', 'Nummernkreis-Kollision Desk/WP', array( 'desk_order_id' => $desk_id, 'belegt_von_id' => $exists, 'ausweich' => $offer_no ) );
+            }
+        }
 
         // Kunden-Snapshot fürs Angebot: Name/E-Mail/Land aus der Order-Zeile (Liste gruppiert danach). Die
         // restlichen Stammdaten (Firma/Adresse/USt/EORI/Typ) trägt die Order NICHT — vom verknüpften Konto

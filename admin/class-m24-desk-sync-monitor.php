@@ -96,6 +96,42 @@ class M24_Desk_Sync_Monitor {
         }
         echo '</p>';
 
+        // ── Dubletten-Report. Bewusst nur Anzeige mit Vorschlag, kein Auto-Merge: welche der beiden
+        // Zeilen die gültige ist, hängt daran, welche der Kunde per Mail bekommen hat — das weiß die
+        // Datenbank nicht. Automatisch zu löschen hieße raten.
+        $dups = $wpdb->get_results( // phpcs:ignore WordPress.DB
+            "SELECT a.id AS id_a, a.offer_no AS no_a, a.desk_order_id AS dk_a, a.sent_at AS sent_a, a.status AS st_a,
+                    b.id AS id_b, b.offer_no AS no_b, b.desk_order_id AS dk_b, b.sent_at AS sent_b, b.status AS st_b,
+                    a.total_gross AS amt
+               FROM $t a
+               JOIN $t b ON b.id > a.id
+                        AND b.deleted_at IS NULL AND a.deleted_at IS NULL
+                        AND ABS(b.total_gross - a.total_gross) < 0.01
+                        AND b.customer_json = a.customer_json
+                        AND b.status <> 'entwurf' AND a.status <> 'entwurf'
+              ORDER BY a.id DESC LIMIT 25"
+        );
+        if ( ! empty( $dups ) ) {
+            echo '<h2 style="margin-top:22px;">Mögliche Dubletten</h2>';
+            echo '<p class="description" style="margin:0 0 10px;">Gleicher Kunde, gleicher Betrag, beide aktiv. Entsteht, wenn derselbe Vorgang in beiden Systemen angelegt wurde. <strong>Nichts wird automatisch gelöscht</strong> — maßgeblich ist, welche Nummer der Kunde per Mail bekommen hat.</p>';
+            echo '<table class="widefat striped"><thead><tr><th>Angebot A</th><th>Angebot B</th><th>Betrag</th><th>Hinweis</th></tr></thead><tbody>';
+            foreach ( $dups as $d ) {
+                // Der mit Desk-Verknüpfung ist der wahrscheinlichere Original — die Desk-Nummer ging raus.
+                $keep = ( '' !== (string) $d->dk_a ) ? (string) $d->no_a : ( ( '' !== (string) $d->dk_b ) ? (string) $d->no_b : '' );
+                $hint = '' !== $keep
+                    ? 'Vermutlich behalten: <strong>' . esc_html( $keep ) . '</strong> (mit Desk-Verknüpfung). Die andere Zeile über die Angebote-Liste in den Papierkorb.'
+                    : 'Keine Desk-Verknüpfung an beiden — manuell entscheiden.';
+                printf(
+                    '<tr><td>%s<br><small>id %d · %s%s</small></td><td>%s<br><small>id %d · %s%s</small></td><td>%s €</td><td>%s</td></tr>',
+                    esc_html( (string) $d->no_a ), (int) $d->id_a, esc_html( (string) $d->st_a ), '' !== (string) $d->dk_a ? ' · Desk #' . esc_html( (string) $d->dk_a ) : '',
+                    esc_html( (string) $d->no_b ), (int) $d->id_b, esc_html( (string) $d->st_b ), '' !== (string) $d->dk_b ? ' · Desk #' . esc_html( (string) $d->dk_b ) : '',
+                    esc_html( number_format( (float) $d->amt, 2, ',', '.' ) ),
+                    $hint // phpcs:ignore WordPress.Security.EscapeOutput — oben escaped
+                );
+            }
+            echo '</tbody></table>';
+        }
+
         echo '<h2 style="margin-top:18px;">Aufträge (W1 Anlage / W2 Confirm)</h2>';
         echo '<table class="widefat striped"><thead><tr>'
             . '<th>Angebot</th><th>Richtung</th><th>Status</th><th>Desk-Auftrag</th><th>Versuche</th><th>Letzter Versuch</th><th>Fehlerdetails</th><th>Aktion</th>'
