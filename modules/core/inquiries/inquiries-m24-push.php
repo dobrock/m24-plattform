@@ -53,6 +53,9 @@ class M24_Inquiries_Push {
 
     const CRON_HOOK_PUSH  = 'm24_inquiry_push';
     const CRON_HOOK_RETRY = 'm24_inquiry_push_retry';
+    const CRON_HOOK_WATCH = 'm24_inquiry_push_watchdog';
+    /** Ab wann eine Anfrage ohne Desk-Nummer als haengend gilt (Minuten). Grosszuegig: Retries duerfen laufen. */
+    const STUCK_AFTER_MIN = 30;
 
     /** Initialer Retry-Delay in Sekunden bei 5xx — D.3 macht draus echten Backoff. */
     const INITIAL_RETRY_DELAY = 60;
@@ -75,6 +78,16 @@ class M24_Inquiries_Push {
 
         // Sobald der Desk-Token gesetzt ist: aufgeschobene Pushs nachholen (Set/Unset-sicher, gedrosselt).
         add_action( 'admin_init', [ __CLASS__, 'maybe_resume_deferred' ] );
+
+        // Waechter: haengengebliebene Anfragen sichtbar machen. Der Ausfall ab 14.08. blieb zwei Wochen
+        // unbemerkt — nicht weil nichts geloggt wurde, sondern weil das Log ERFOLG meldete. Deshalb
+        // prueft der Waechter nicht Log-Eintraege, sondern den tatsaechlichen Zustand: liegt am Eintrag
+        // eine Desk-Auftragsnummer? Alles andere ist Behauptung.
+        add_action( 'admin_notices', [ __CLASS__, 'stuck_notice' ] );
+        add_action( self::CRON_HOOK_WATCH, [ __CLASS__, 'run_watchdog' ] );
+        if ( ! wp_next_scheduled( self::CRON_HOOK_WATCH ) ) {
+            wp_schedule_event( time() + 900, 'hourly', self::CRON_HOOK_WATCH );
+        }
     }
 
     /** Aufgeschobene Anfragen (Desk war ohne Token) neu einplanen, sobald der Desk konfiguriert ist. */
@@ -139,14 +152,34 @@ class M24_Inquiries_Push {
         }
         delete_post_meta( $post_id, '_m24_push_deferred' );
 
-        // Sofort, nicht zukuenftig — WP-Cron picked es beim naechsten Page-Load.
-        $scheduled = wp_schedule_single_event( time(), self::CRON_HOOK_PUSH, [ $post_id ] );
-
+        // Bevorzugt entkoppelt ueber WP-Cron — ein haengender Desk-Call darf das Absenden des Formulars
+        // nicht verzoegern. ABER: mit DISABLE_WP_CRON gibt es keinen Page-Load-Trigger, der Job bliebe
+        // fuer immer in wp_options.cron liegen. Genau das ist ab 14.08.2026 passiert: 16 Anfragen
+        // hingen zwei Wochen fest, ohne dass irgendwo ein Fehler auftauchte.
+        //
+        // Tueckisch daran: wp_schedule_single_event() meldet auch dann Erfolg — es PLANT ja korrekt, nur
+        // ausgefuehrt wird nie. Der frueher hier geloggte "scheduled: true" war deshalb wertlos.
+        // Gleiche Absicherung wie beim Angebotsversand (class-m24-offers.php:1305).
+        $cron_off  = defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON;
+        $scheduled = false;
+        if ( ! $cron_off ) {
+            $scheduled = ( false !== wp_schedule_single_event( time(), self::CRON_HOOK_PUSH, [ $post_id ] ) );
+        }
         if ( class_exists( 'M24_Logger' ) ) {
-            M24_Logger::info( 'inquiries_push', 'Push scheduled', [
+            M24_Logger::info( 'inquiries_push', $scheduled ? 'Push scheduled' : 'Push laeuft synchron', [
                 'post_id'   => $post_id,
-                'scheduled' => $scheduled !== false,
+                'scheduled' => $scheduled,
+                'cron_off'  => $cron_off,
             ] );
+        }
+        if ( ! $scheduled ) {
+            // Synchron durchziehen. Gekapselt: ein Fehler im Push darf das Absenden des Formulars nicht
+            // mit einem Fatal quittieren — der Nutzer hat seine Anfrage korrekt abgeschickt.
+            try {
+                self::run_push( $post_id );
+            } catch ( \Throwable $e ) {
+                self::log_warning( $post_id, 'Synchroner Push fehlgeschlagen: ' . $e->getMessage() );
+            }
         }
     }
 
@@ -168,6 +201,19 @@ class M24_Inquiries_Push {
         $post = get_post( $post_id );
         if ( ! $post || $post->post_type !== M24_Inquiries_Storage::CPT_SLUG ) {
             self::log_warning( $post_id, 'Push-Job auf nicht-existierendem oder falschem Posttyp' );
+            return;
+        }
+
+        // DUBLETTEN-RIEGEL: liegt bereits eine Desk-Auftragsnummer am Eintrag, wurde er drueben angelegt —
+        // dann NIE erneut pushen. Der Status-Guard darunter reicht dafuer nicht: steht derselbe Eintrag
+        // mehrfach in wp_options.cron (jeder Seitenaufbau kann neu geplant haben), laufen zwei Jobs so
+        // dicht hintereinander, dass der zweite startet, bevor der erste den Status geschrieben hat.
+        // Genau so sind 2026-1047 und 2026-1048 fuer denselben Formidable-Eintrag entstanden.
+        $have_num = trim( (string) get_post_meta( $post_id, '_m24_desk_order_num', true ) );
+        if ( '' !== $have_num ) {
+            self::log_info( $post_id, 'Push uebersprungen — Eintrag ist bereits im Desk angelegt', [
+                'desk_order_num' => $have_num,
+            ] );
             return;
         }
 
@@ -558,18 +604,129 @@ class M24_Inquiries_Push {
      *
      * Maximal 120 Zeichen (DB-Spalte mock_log.idempotency_key).
      */
+    /**
+     * Gezielter Nachlauf fuer haengende Anfragen — WP-CLI:
+     *
+     *     wp m24 inquiry-repush                 (Trockenlauf ueber alle haengenden)
+     *     wp m24 inquiry-repush --ids=1254,1255 (Trockenlauf, nur diese)
+     *     wp m24 inquiry-repush --ids=1254 --go (senden)
+     *
+     * Trockenlauf ist die Vorgabe: bei einem Live-System entscheidet man erst, was passieren WUERDE.
+     * Der Dublettenschutz ist doppelt — Eintraege mit _m24_desk_order_num werden uebersprungen, und
+     * run_push() prueft es selbst noch einmal.
+     *
+     * @param array $ids Formidable-/CPT-IDs; leer = alle haengenden.
+     * @param bool  $go  false = nur anzeigen.
+     * @return array{geprueft:int,gesendet:int,uebersprungen:array,zeilen:array}
+     */
+    public static function repush( array $ids = [], bool $go = false ): array {
+        $posts = [];
+        if ( ! empty( $ids ) ) {
+            foreach ( $ids as $id ) {
+                $p = get_post( (int) $id );
+                if ( $p && M24_Inquiries_Storage::CPT_SLUG === $p->post_type ) { $posts[] = $p; }
+            }
+        } else {
+            $posts = self::stuck_inquiries( 200 );
+        }
+
+        $out = [ 'geprueft' => count( $posts ), 'gesendet' => 0, 'uebersprungen' => [], 'zeilen' => [] ];
+        foreach ( $posts as $p ) {
+            $num = trim( (string) get_post_meta( $p->ID, '_m24_desk_order_num', true ) );
+            if ( '' !== $num ) {
+                $out['uebersprungen'][] = sprintf( '#%d — bereits im Desk (%s)', $p->ID, $num );
+                continue;
+            }
+            $out['zeilen'][] = sprintf(
+                '#%d · %s · %s',
+                $p->ID,
+                mysql2date( 'd.m.Y H:i', (string) $p->post_date ),
+                (string) $p->post_title
+            );
+            if ( ! $go ) { continue; }
+            self::run_push( (int) $p->ID );
+            if ( '' !== trim( (string) get_post_meta( $p->ID, '_m24_desk_order_num', true ) ) ) { $out['gesendet']++; }
+        }
+        return $out;
+    }
+
+    /**
+     * Anfragen, die laenger als STUCK_AFTER_MIN warten und KEINE Desk-Auftragsnummer tragen.
+     *
+     * Bewusst am Zustand gemessen (_m24_desk_order_num), nicht am Log: "scheduled: true" stand zwei
+     * Wochen lang bei jeder Anfrage, waehrend nichts ankam.
+     *
+     * @return array<int,\WP_Post>
+     */
+    public static function stuck_inquiries( int $limit = 50 ): array {
+        $q = new WP_Query( [
+            'post_type'      => M24_Inquiries_Storage::CPT_SLUG,
+            'post_status'    => 'any',
+            'posts_per_page' => $limit,
+            'orderby'        => 'date',
+            'order'          => 'ASC',
+            'date_query'     => [ [ 'before' => gmdate( 'Y-m-d H:i:s', time() - self::STUCK_AFTER_MIN * MINUTE_IN_SECONDS ), 'inclusive' => true ] ],
+            'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery
+                'relation' => 'OR',
+                [ 'key' => '_m24_desk_order_num', 'compare' => 'NOT EXISTS' ],
+                [ 'key' => '_m24_desk_order_num', 'value' => '', 'compare' => '=' ],
+            ],
+            'no_found_rows'  => true,
+        ] );
+        return $q->posts ?: [];
+    }
+
+    /** Stuendlicher Lauf: haengende Anfragen ins Fehler-Log, damit es auch ohne Backend-Besuch auffaellt. */
+    public static function run_watchdog(): void {
+        $stuck = self::stuck_inquiries( 200 );
+        if ( empty( $stuck ) ) { return; }
+        $ids = array_map( static function ( $p ) { return (int) $p->ID; }, $stuck );
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( 'inquiries_push', 'error', sprintf(
+                '%d Anfrage(n) ohne Desk-Bestaetigung, aelteste seit %s',
+                count( $ids ), (string) $stuck[0]->post_date_gmt
+            ), [ 'post_ids' => array_slice( $ids, 0, 40 ), 'schwelle_min' => self::STUCK_AFTER_MIN ] );
+        }
+        error_log( sprintf( 'M24 Plattform: %d Anfrage(n) haengen ohne Desk-Push (aelteste #%d).', count( $ids ), $ids[0] ) );
+    }
+
+    /** Backend-Hinweis auf den M24-Seiten — der Weg, auf dem es Daniel tatsaechlich sieht. */
+    public static function stuck_notice(): void {
+        if ( ! current_user_can( 'manage_options' ) ) { return; }
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        $id     = $screen ? (string) $screen->id : '';
+        // Nur auf Dashboard und den M24-Seiten — nicht ueberall im Backend nerven.
+        if ( 'dashboard' !== $id && false === strpos( $id, 'm24' ) ) { return; }
+
+        $stuck = self::stuck_inquiries( 50 );
+        if ( empty( $stuck ) ) { return; }
+        $n     = count( $stuck );
+        $since = mysql2date( 'd.m.Y H:i', (string) $stuck[0]->post_date );
+        printf(
+            '<div class="notice notice-error"><p><strong>%d Anfrage%s ohne Desk-Bestaetigung.</strong> '
+            . 'Die aelteste wartet seit %s. Diese Eintraege sind in WordPress angekommen, aber nicht im Desk angelegt — '
+            . 'pruefe den Cron und das Fehler-Log (Kontext <code>inquiries_push</code>).</p></div>',
+            (int) $n, 1 === $n ? '' : 'n', esc_html( $since )
+        );
+    }
+
     public static function build_idempotency_key( $post ) {
         $host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
         $host = preg_replace( '/[^a-zA-Z0-9]+/', '_', $host );
         $host = trim( $host, '_' );
         if ( $host === '' ) { $host = 'unknown'; }
 
-        $modified = strtotime( (string) $post->post_modified_gmt );
-        if ( ! $modified ) {
-            $modified = time();
-        }
-
-        $key = sprintf( 'm24_wp_%s_%d_%d', $host, (int) $post->ID, (int) $modified );
+        // Bewusst OHNE post_modified: der Key muss ueber die Lebensdauer des Vorgangs konstant bleiben,
+        // sonst ist er als Idempotenz-Schutz wertlos. Wird der Eintrag zwischen zwei Push-Versuchen auch
+        // nur angefasst (Anrede nachgetragen, Status beruehrt, Meta geschrieben), aendert sich
+        // post_modified — und der Desk sieht einen fremden Key, also einen NEUEN Auftrag. Genau dieser
+        // Mechanismus hat beim Abarbeiten des Rueckstaus Dubletten erzeugt: 2026-1047 ohne Anrede,
+        // 2026-1048 mit "Herr", derselbe Formidable-Eintrag #1265.
+        //
+        // Die CPT-ID identifiziert den Vorgang eindeutig und aendert sich nie. Genau das braucht ein
+        // Idempotency-Key — er soll wiederholte Zustellung DESSELBEN Vorgangs erkennen, nicht dessen
+        // Inhalt versionieren.
+        $key = sprintf( 'm24_wp_%s_%d', $host, (int) $post->ID );
         return mb_substr( $key, 0, 120 );
     }
 
@@ -593,4 +750,33 @@ class M24_Inquiries_Push {
             M24_Logger::error( 'inquiry_push', $message, array_merge( [ 'post_id' => $post_id ], $extra ) );
         }
     }
+}
+
+/**
+ * WP-CLI: gezielter Nachlauf haengender Anfragen. Trockenlauf ist die Vorgabe — auf einem Live-System
+ * schaut man erst, was passieren wuerde, und sendet dann.
+ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    WP_CLI::add_command( 'm24 inquiry-repush', function ( $args, $assoc ) {
+        $ids = [];
+        if ( ! empty( $assoc['ids'] ) ) {
+            $ids = array_filter( array_map( 'intval', preg_split( '/[^0-9]+/', (string) $assoc['ids'] ) ) );
+        }
+        $go  = isset( $assoc['go'] );
+        $r   = M24_Inquiries_Push::repush( $ids, $go );
+
+        WP_CLI::log( sprintf( '%s — %d Eintrag/Eintraege geprueft.', $go ? 'SENDEN' : 'TROCKENLAUF', (int) $r['geprueft'] ) );
+        foreach ( $r['uebersprungen'] as $line ) { WP_CLI::log( '  uebersprungen: ' . $line ); }
+        if ( empty( $r['zeilen'] ) ) {
+            WP_CLI::success( 'Nichts zu senden — alle geprueften Eintraege tragen bereits eine Desk-Nummer.' );
+            return;
+        }
+        WP_CLI::log( $go ? 'Gesendet:' : 'Wuerde senden:' );
+        foreach ( $r['zeilen'] as $line ) { WP_CLI::log( '  ' . $line ); }
+        if ( $go ) {
+            WP_CLI::success( sprintf( '%d von %d erfolgreich im Desk angelegt.', (int) $r['gesendet'], count( $r['zeilen'] ) ) );
+        } else {
+            WP_CLI::warning( 'Trockenlauf — nichts gesendet. Mit --go ausfuehren.' );
+        }
+    } );
 }
