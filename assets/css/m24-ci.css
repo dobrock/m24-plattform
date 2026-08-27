@@ -62,7 +62,17 @@
   padding:0;cursor:pointer;z-index:2;transition:transform .12s ease,background-color .12s ease,border-color .12s ease,color .12s ease}
 .m24-card__garage:hover{transform:scale(1.08)}
 .m24-card__garage:focus-visible{outline:2px solid #1763AD;outline-offset:2px}
-.m24-card__garage svg{display:block;pointer-events:none}
+/* Icon-Farbe explizit am SVG setzen, nicht nur am Button.
+   Das SVG traegt stroke="currentColor" als Praesentationsattribut — das erbt normalerweise vom Button.
+   Fremd-CSS (Theme) faerbt SVGs innerhalb von Karten aber direkt ein (gemessen: #1F74C4, nicht einmal
+   unser Ruheton), und eine Regel am Element schlaegt jede Vererbung. Deshalb hier stroke UND color
+   ausdruecklich mitgeben, in Ruhe wie im Aktivzustand — sonst stand das Haekchen blau auf blau. */
+.m24-card__garage svg{display:block;pointer-events:none;stroke:currentColor}
+.m24-card__garage .m24-card__garage-add,
+.m24-card__garage .m24-card__garage-in{color:#1763AD;stroke:#1763AD}
+.m24-card__garage.is-in .m24-card__garage-add,
+.m24-card__garage.is-in .m24-card__garage-in,
+.m24-card__garage.is-in:hover .m24-card__garage-in{color:#fff;stroke:#fff}
 /* Zustand: Plus ↔ Haken. Beide Icons liegen im Markup, umgeschaltet wird per CSS — so ist der
    Wechsel sofort da und lädt nichts nach. */
 .m24-card__garage .m24-card__garage-in{display:none}
