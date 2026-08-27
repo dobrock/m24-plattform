@@ -201,6 +201,23 @@ class M24_Sync_Apply {
 		if ( ! $o ) { return self::res( $uid, false, 0, 'not_found' ); }
 
 		if ( ! self::wins_over( $rec, $o ) ) {
+			// Ein verworfener Tombstone ist der Fall, den man garantiert sucht: das Angebot bleibt in WP
+			// sichtbar, obwohl es im Desk gelöscht wurde. Deshalb hier eigens benennen statt unter
+			// 'discarded_lww' zu verschwinden — mit beiden Ständen, damit man sofort sieht, wer führt.
+			if ( '' !== trim( (string) ( $rec['deleted_at'] ?? '' ) ) ) {
+				self::log( 'tombstone_discarded', sprintf(
+					'%s (%s): Löschsignal verworfen — eingehend %s/rev %d gegen lokal %s/rev %d. Angebot bleibt aktiv.',
+					$uid, (string) $o->offer_no,
+					(string) ( $rec['updated_at'] ?? '—' ), (int) ( $rec['rev'] ?? 0 ),
+					(string) $o->updated_at, (int) $o->rev
+				) );
+				if ( class_exists( 'M24_Error_Log' ) ) {
+					M24_Error_Log::capture( 'sync_apply', 'warning', 'Desk-Löschung nicht übernommen (LWW)', array(
+						'offer_no' => (string) $o->offer_no, 'desk_order_id' => (string) $o->desk_order_id,
+						'lokal_rev' => (int) $o->rev, 'eingehend_rev' => (int) ( $rec['rev'] ?? 0 ),
+					) );
+				}
+			}
 			return self::res( $uid, false, (int) $o->rev, 'discarded_lww' );
 		}
 
@@ -252,6 +269,9 @@ class M24_Sync_Apply {
 		$addr = array_intersect( array_keys( $rec ), self::MATERIAL_FIELDS );
 		if ( ! empty( $addr ) && ! empty( $cols ) ) {
 			self::$material[ (int) $o->id ] = 'Adresse geändert (' . implode( ',', $addr ) . ')';
+		}
+		if ( ! empty( $cols['deleted_at'] ) ) {
+			self::log( 'trashed', $uid . ' (' . (string) $o->offer_no . ') → Papierkorb (Desk-Löschung).' );
 		}
 		self::log( 'applied_order', $uid . ' (' . (string) $o->offer_no . ') · Felder: ' . implode( ',', array_keys( $cols ) ) );
 		return self::res( $uid, true, self::rev_of( (int) $o->id ) );

@@ -338,6 +338,13 @@ class M24_Desk_Inbound {
         }
         if ( empty( $o->deleted_at ) ) {
             $wpdb->update( $t, array( 'deleted_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $o->id ) );
+            // Stempeln, sonst trägt die gelöschte Zeile weiter den alten Stand und gilt beim nächsten
+            // Abgleich als unverändert. origin='desk' + mark_synced: die Löschung kam von drüben und
+            // darf nicht als lokale Änderung zurücklaufen.
+            if ( class_exists( 'M24_Sync_LWW' ) ) {
+                M24_Sync_LWW::touch( (int) $o->id, 'desk' );
+                M24_Sync_LWW::mark_synced( (int) $o->id );
+            }
             self::log( 'deleted', 'order #' . $desk_id . ' (' . (string) $o->offer_no . ') → Papierkorb.' );
         }
         return array( 'status' => 'deleted', 'entity' => 'order', 'id' => $desk_id, 'offer_id' => (int) $o->id );
