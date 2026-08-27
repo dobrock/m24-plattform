@@ -54,6 +54,9 @@ $pag = paginate_links( array(
 				// Modell-gefiltertes Archiv → dieses Modell als Herkunfts-Kontext an die Breadcrumb mitgeben.
 				echo M24_Catalog_Archive::card_html( get_the_ID(), true, (string) $modell ); // phpcs:ignore WordPress.Security.EscapeOutput
 			endwhile;
+			// Gast-Zustand der Chips synchron nachtragen — muss VOR dem ersten Paint laufen, deshalb hier
+			// unmittelbar hinter dem Grid und nicht in einem Ready-Handler.
+			echo M24_Catalog_Archive::garage_chip_hydration_script(); // phpcs:ignore WordPress.Security.EscapeOutput
 			?>
 		</div>
 		<?php if ( $pag ) : ?>

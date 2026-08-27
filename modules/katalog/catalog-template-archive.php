@@ -290,9 +290,12 @@ class M24_Catalog_Archive {
 		$link = get_permalink( $post_id );
 		if ( '' !== $from ) { $link = add_query_arg( 'from', $from, $link ); }
 
+		// Quick-Add-Chip auf dem Bild. Verkaufte Artikel bekommen keinen — die kann man nicht mehr merken.
+		$chip = $is_sold ? '' : self::garage_chip_html( $post_id );
+
 		return sprintf(
 			// Kartentitel als div (kein Heading) — H-Struktur sauber (genau 1 H1, Sektionen H2).
-			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%8$s%7$s</span></a></article>',
+			'<article class="m24-card%1$s"><a class="m24-card__link" href="%2$s"><span class="m24-card__media">%3$s%4$s%9$s</span><span class="m24-card__body"><div class="m24-card__title">%5$s</div>%6$s%8$s%7$s</span></a></article>',
 			$is_sold ? ' m24-card--sold' : '',
 			esc_url( $link ),
 			$thumb,
@@ -300,7 +303,68 @@ class M24_Catalog_Archive {
 			esc_html( $title ),
 			$meta_html,
 			$price_block,
-			$desc_html
+			$desc_html,
+			$chip
+		);
+	}
+
+	/**
+	 * Synchrones Inline-Snippet, das den Chip-Zustand für GÄSTE setzt — vor dem ersten Paint.
+	 *
+	 * Für eingeloggte Nutzer steht der Zustand serverseitig im Markup. Gäste haben serverseitig keinen:
+	 * ihre Garage lebt ausschließlich in localStorage['m24_guest_garage']. Würde man das in einem
+	 * DOMContentLoaded- oder defer-Handler nachtragen, stünden die Chips einen Frame lang auf
+	 * „nicht drin" und sprängen sichtbar um.
+	 *
+	 * Deshalb: ein blockierendes Inline-Script unmittelbar hinter dem Grid. Es läuft, während der Parser
+	 * dort steht — die Kacheln davor existieren bereits im DOM, gepaintet ist noch nichts. Kein
+	 * Netzwerkzugriff, ein localStorage-Lesevorgang, danach übernimmt die reguläre Garage-JS.
+	 *
+	 * Wird nur einmal je Seite ausgegeben (mehrere Grids teilen sich das Snippet).
+	 */
+	public static function garage_chip_hydration_script(): string {
+		static $done = false;
+		if ( $done || is_user_logged_in() ) { return ''; } // eingeloggt: Zustand kommt aus dem Markup
+		$done = true;
+		return '<script>(function(){try{'
+			. 'var raw=window.localStorage.getItem("m24_guest_garage");if(!raw)return;'
+			. 'var arr=JSON.parse(raw);if(!Array.isArray(arr)||!arr.length)return;'
+			. 'var ids={};for(var i=0;i<arr.length;i++){var o=arr[i];var p=parseInt((o&&(o.post_id||o.id))||o,10);if(p)ids[p]=1;}'
+			. 'var els=document.querySelectorAll(".m24-card__garage");'
+			. 'for(var j=0;j<els.length;j++){var el=els[j];'
+			. 'if(!ids[parseInt(el.getAttribute("data-garage-id")||"0",10)])continue;'
+			. 'el.classList.add("is-in","is-ingarage");el.setAttribute("aria-pressed","true");'
+			. 'el.setAttribute("aria-label","Aus der Garage entfernen");el.setAttribute("title","Aus der Garage entfernen");}'
+			. '}catch(e){}})();</script>';
+	}
+
+	/**
+	 * Quick-Add-Chip („in die Garage") auf der Kachel.
+	 *
+	 * Die Klasse `m24-garage-toggle` ist Pflicht, nicht Kosmetik: der Handler in m24-garage.js wählt nur
+	 * mit ihr den /remove-Pfad. Ohne sie legt der zweite Klick ein zweites Mal an, statt zu entfernen.
+	 *
+	 * Zustand: für eingeloggte Nutzer steht er hier serverseitig fest. Gäste bekommen ihn synchron vor
+	 * dem ersten Paint aus localStorage nachgetragen (s. garage_chip_hydration_script) — ihre Garage
+	 * existiert serverseitig nicht.
+	 */
+	public static function garage_chip_html( int $post_id ): string {
+		$in = class_exists( 'M24_Garage_Cart' ) && M24_Garage_Cart::has_id( $post_id );
+		// Zwei Icons, per CSS umgeschaltet: Plus im Normalzustand, Haken wenn drin. Beide inline, damit
+		// beim Umschalten nichts nachgeladen wird und der Wechsel sofort sichtbar ist.
+		$icon = '<svg class="m24-card__garage-add" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+			. '<svg class="m24-card__garage-in" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+		return sprintf(
+			// m24-garage-open  → der Delegated-Handler in m24-garage.js greift (inkl. preventDefault +
+			//                     stopImmediatePropagation, sonst navigiert der umschließende Kartenlink)
+			// m24-garage-toggle → nur damit wählt er beim zweiten Klick /remove statt erneut /add
+			'<button type="button" class="m24-card__garage m24-garage-open m24-garage-toggle%s" data-garage-id="%d" aria-pressed="%s" aria-label="%s" title="%s">%s</button>',
+			$in ? ' is-in is-ingarage' : '',
+			$post_id,
+			$in ? 'true' : 'false',
+			esc_attr( $in ? 'Aus der Garage entfernen' : 'In die Garage' ),
+			esc_attr( $in ? 'Aus der Garage entfernen' : 'In die Garage' ),
+			$icon // phpcs:ignore WordPress.Security.EscapeOutput — statisches Inline-SVG
 		);
 	}
 

@@ -89,8 +89,10 @@
 	})();
 
 	/* ── Zähler (Schwebe-FAB + jeder Header-Slot mit [data-m24-garage-count]) ── */
-	function updateCount(count) {
+	var lastTotal = null; // Stückzahl aus der letzten Server-Antwort, für m24:garage:changed.detail.total
+	function updateCount(count, total) {
 		if (typeof count !== 'number') { return; }
+		if (typeof total === 'number') { lastTotal = total; }
 		document.querySelectorAll('[data-m24-garage-count]').forEach(function (el) {
 			el.textContent = String(count);
 		});
@@ -98,6 +100,14 @@
 		if (fab) { fab.classList.toggle('is-empty', count <= 0); }
 		// Paket G: Garage-Panel/Tab informieren (Zähler live + Pulse bei Zuwachs).
 		try { document.dispatchEvent(new CustomEvent('m24garage:changed', { detail: { count: count } })); } catch (e) {}
+		// Neues Event für den Quick-Add-Chip und alles, was künftig mithören will. Bewusst zusätzlich zum
+		// alten: das hört bereits Bestandscode ab, und ein Umbenennen bräche ihn still.
+		// count = Positionen, total = Stückzahl über alle Positionen (bei 1 Stück je Position identisch).
+		try {
+			document.dispatchEvent(new CustomEvent('m24:garage:changed', {
+				detail: { count: count, total: (typeof lastTotal === 'number' ? lastTotal : count) }
+			}));
+		} catch (e) {}
 	}
 
 	/* ── Toast ── */
@@ -121,6 +131,14 @@
 	function setGarageBtn(btn, inGarage) {
 		if (!btn) { return; }
 		btn.classList.toggle('is-ingarage', !!inGarage);
+		// Der Kachel-Chip schaltet sein Icon über .is-in um (Plus ↔ Haken) und braucht ein sprechendes
+		// Label: aria-pressed allein sagt einem Screenreader nicht, was der Klick tun WIRD.
+		btn.classList.toggle('is-in', !!inGarage);
+		if (btn.classList.contains('m24-card__garage')) {
+			var lbl = inGarage ? 'Aus der Garage entfernen' : 'In die Garage';
+			btn.setAttribute('aria-label', lbl);
+			btn.setAttribute('title', lbl);
+		}
 		btn.setAttribute('aria-pressed', inGarage ? 'true' : 'false');
 		var svg = btn.querySelector('.m24-btn-i');
 		if (svg) { svg.setAttribute('fill', inGarage ? 'currentColor' : 'none'); }
@@ -194,7 +212,7 @@
 			post(path, payload).then(function (res) {
 				btn.dataset.m24gcBusy = '';
 				if (res.ok && res.data && res.data.ok) {
-					updateCount(res.data.count);
+					updateCount(res.data.count, res.data.total);
 					if (isToggle) {
 						var nowIn = ( '/add' === path );
 						setGarageBtn(btn, nowIn);
@@ -343,9 +361,14 @@
 					return;
 				}
 				var d = res.data;
-				updateCount(d.count);
+				updateCount(d.count, d.total);
 				if (d.removed) {
 					row.parentNode.removeChild(row);
+					// Kachel-Chip derselben ID zurücksetzen. Ohne das bliebe er auf „drin", wenn im Panel
+					// entfernt wird, während die Kachel dahinter sichtbar ist — der Zustand wäre dann
+					// falsch, bis jemand neu lädt.
+					document.querySelectorAll('.m24-card__garage[data-garage-id="' + pid + '"]')
+						.forEach(function (chip) { setGarageBtn(chip, false); });
 					if (d.count <= 0) { location.reload(); return; } // Leerzustand serverseitig rendern
 				} else {
 					if (qtyEl) { qtyEl.textContent = String(d.qty); }

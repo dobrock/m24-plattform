@@ -463,6 +463,8 @@ class M24_Catalog_Hub {
 				echo M24_Catalog_Archive::card_html( get_the_ID(), false, $from ); // phpcs:ignore WordPress.Security.EscapeOutput
 			}
 			wp_reset_postdata();
+			// s. Archiv-Ansicht: synchron, direkt hinter den Kacheln.
+			echo M24_Catalog_Archive::garage_chip_hydration_script(); // phpcs:ignore WordPress.Security.EscapeOutput
 			return ob_get_clean();
 		}
 		$hub_url = self::url( $list['hub'] );

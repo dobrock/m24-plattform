@@ -314,6 +314,34 @@ class M24_Garage_Cart {
 	 * Aktueller Account = eingeloggter WP-User (B2B-Login setzt die WP-Auth-Cookie, Admin zählt mit).
 	 * 0 = nicht eingeloggt (Gast).
 	 */
+	/**
+	 * Post-IDs, die im Garage-Cart des aktuellen Kontos liegen — als Set (id => true).
+	 *
+	 * Für den Quick-Add-Chip auf den Katalog-Kacheln: der Zustand muss beim Rendern feststehen, sonst
+	 * springt er nach dem Laden sichtbar um. Ein Archiv rendert bis zu 60 Karten — deshalb EINE Abfrage
+	 * je Request und danach aus dem statischen Cache, nicht eine pro Karte.
+	 *
+	 * Gäste bekommen ein leeres Set: ihre Garage liegt ausschließlich im localStorage, serverseitig
+	 * ist dort nichts abzufragen. Den Zustand hydriert das Frontend synchron vor dem ersten Paint.
+	 */
+	public static function current_ids(): array {
+		static $cache = null;
+		if ( null !== $cache ) { return $cache; }
+		$acc = self::current_account_id();
+		if ( $acc <= 0 ) { $cache = array(); return $cache; }
+		global $wpdb;
+		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT post_id FROM ' . self::table() . ' WHERE account_id = %d', $acc ) ); // phpcs:ignore WordPress.DB
+		$cache = array();
+		foreach ( (array) $rows as $id ) { $cache[ (int) $id ] = true; }
+		return $cache;
+	}
+
+	/** Liegt dieser Beitrag in der Garage des aktuellen Kontos? */
+	public static function has_id( int $post_id ): bool {
+		$ids = self::current_ids();
+		return isset( $ids[ $post_id ] );
+	}
+
 	public static function current_account_id(): int {
 		return is_user_logged_in() ? (int) get_current_user_id() : 0;
 	}
