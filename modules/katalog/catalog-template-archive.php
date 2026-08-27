@@ -240,6 +240,13 @@ class M24_Catalog_Archive {
 		$ab  = ( ! empty( $vp['hat_varianten'] ) && empty( $vp['alle_gleich'] ) );
 		$val = $ab ? $vp['min_fmt'] : $p['brutto_fmt'];
 
+		// GRUNDZUSTAND festhalten, BEVOR eine gewaehlte Ausfuehrung ihn ueberschreibt: genau er wandert
+		// in data-price-base/data-price-ab und ist das, wohin die Kachel beim Entfernen zurueckfaellt.
+		// Vorher entstanden die Attribute aus dem bereits ueberschriebenen $val — nach einem Reload stand
+		// dort der Varianten-Preis, und „Entfernen" stellte 5.600 wieder her statt „ab 5.200".
+		$base_val = $val;
+		$base_ab  = $ab;
+
 		// Liegt der Artikel bereits MIT einer gewaehlten Ausfuehrung in der Garage, gilt deren Preis —
 		// nicht „ab …". Serverseitig gerendert, damit die Angabe einen Reload uebersteht; das Frontend
 		// aktualisiert sie danach nur noch beim Ein- und Auslegen.
@@ -251,21 +258,31 @@ class M24_Catalog_Archive {
 				if ( ! empty( $pick['brutto_fmt'] ) ) { $val = (string) $pick['brutto_fmt']; $ab = false; }
 			}
 		}
-		$pre = $ab ? '<span class="m24-card__ab">ab&nbsp;</span>' : '';
 
 		// data-Anker fuer den Quick-Add: nach der Auswahl einer Ausfuehrung ersetzt das Frontend den
 		// „ab"-Preis durch den konkreten und haengt das Label unter die Steuerzeile. Der Ausgangswert
-		// muss dabei erhalten bleiben, damit beim Entfernen „ab …" zurueckkehrt — deshalb steht er hier
-		// als data-base im Markup und wird nicht aus dem sichtbaren Text zurueckgerechnet.
+		// muss dabei erhalten bleiben, damit beim Entfernen „ab …" zurueckkehrt — deshalb steht hier der
+		// GRUNDZUSTAND als data-base/data-ab im Markup und wird nicht aus dem sichtbaren Text zurueckgerechnet.
+		//
+		// Das „ab"-Praefix wird IMMER gerendert, nur nicht immer gezeigt: das Frontend muss es in beide
+		// Richtungen schalten koennen. Solange es beim Grundpreis-Fall gar nicht im DOM stand, konnte
+		// nach dem Entfernen kein „ab" zurueckkehren — es gab kein Element dafuer.
+		//
+		// Versteckt wird doppelt (hidden + display:none inline). Das hidden-Attribut allein ist hier schon
+		// einmal untergegangen; inline schlaegt jede Stylesheet-Regel und ueberlebt auch das Entfernen
+		// „ungenutzter" CSS-Regeln durch den Cache-Layer. Dieselbe Mechanik nutzt das JS (m24-garage.js),
+		// damit Server- und JS-Pfad denselben Zustand herstellen und nicht je eine Haelfte.
 		return sprintf(
-			'<span class="m24-card__price" data-price-base="%s" data-price-ab="%s">%s<span data-price-val>%s</span></span>'
-			. '<span class="m24-card__pricenote">%s</span><span class="m24-card__variant" data-card-variant%s>%s</span>',
-			esc_attr( $val ),
-			$ab ? '1' : '0',
-			$pre,
+			'<span class="m24-card__price" data-price-base="%1$s" data-price-ab="%2$s">'
+			. '<span class="m24-card__ab"%3$s>ab&nbsp;</span><span data-price-val>%4$s</span></span>'
+			. '<span class="m24-card__pricenote">%5$s</span>'
+			. '<span class="m24-card__variant" data-card-variant%6$s>%7$s</span>',
+			esc_attr( $base_val ),
+			$base_ab ? '1' : '0',
+			$ab ? '' : ' hidden style="display:none"',
 			esc_html( $val ),
 			$note,
-			'' !== $chosen ? '' : ' hidden',
+			'' !== $chosen ? '' : ' hidden style="display:none"',
 			'' !== $chosen ? esc_html( '✓ ' . $chosen ) : ''
 		);
 	}
@@ -377,6 +394,21 @@ class M24_Catalog_Archive {
 		if ( ! class_exists( 'M24_Garage_Cart' ) || ! M24_Garage_Cart::quick_controls_visible() ) { return ''; }
 		$in = M24_Garage_Cart::has_id( $post_id );
 
+		// Gewaehlte Ausfuehrung MIT ins Chip-Markup. Ohne sie weiss der Chip nach einem Reload nichts von
+		// der Auswahl — und die Hydrierung in m24-garage.js, die jeden Chip aus dem Serverstand nachzieht,
+		// setzte Preis und Label an der Kachel auf „keine Auswahl" zurueck. Genau so verschwand die Zeile
+		// „✓ 4 Stueck 5x120 …" nach jedem harten Reload, obwohl der Server sie gerendert hatte.
+		$vattr = '';
+		if ( $in ) {
+			$pick = M24_Garage_Cart::chosen_variant( $post_id );
+			if ( ! empty( $pick['label'] ) ) {
+				$vattr = ' data-variant-label="' . esc_attr( (string) $pick['label'] ) . '"';
+				if ( '' !== (string) $pick['brutto_fmt'] ) {
+					$vattr .= ' data-variant-price-fmt="' . esc_attr( (string) $pick['brutto_fmt'] ) . '"';
+				}
+			}
+		}
+
 		// Ausführungen (Preisoptionen). Bei GENAU EINER wird direkt eingelegt — jeder Artikel hat
 		// mindestens eine, ein Dialog dafür wäre ein sinnloser Zwischenschritt. Erst ab zwei entscheidet
 		// die Auswahl über Lieferumfang UND Preis, und dann darf nicht stillschweigend options[0] gelten.
@@ -405,10 +437,11 @@ class M24_Catalog_Archive {
 			// m24-garage-open  → der Delegated-Handler in m24-garage.js greift (inkl. preventDefault +
 			//                     stopImmediatePropagation, sonst navigiert der umschließende Kartenlink)
 			// m24-garage-toggle → nur damit wählt er beim zweiten Klick /remove statt erneut /add
-			'<button type="button" class="m24-card__garage m24-garage-open m24-garage-toggle%s" data-garage-id="%d"%s data-garage-title="%s" aria-pressed="%s" aria-label="%s" title="%s">%s</button>',
+			'<button type="button" class="m24-card__garage m24-garage-open m24-garage-toggle%s" data-garage-id="%d"%s%s data-garage-title="%s" aria-pressed="%s" aria-label="%s" title="%s">%s</button>',
 			$in ? ' is-in is-ingarage' : '',
 			$post_id,
 			'' !== $opts_json ? ' data-garage-options="' . esc_attr( $opts_json ) . '"' : '',
+			$vattr,
 			esc_attr( get_the_title( $post_id ) ),
 			$in ? 'true' : 'false',
 			esc_attr( $in ? 'Aus der Garage entfernen' : 'In die Garage' ),

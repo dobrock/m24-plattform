@@ -117,11 +117,7 @@
 				if (!d || !d.ok) { return; }
 				applyTotals(d);
 				// Alle Kachel-Chips zurücksetzen — sonst behaupten sie weiter „liegt drin".
-				document.querySelectorAll('.m24-card__garage.is-in').forEach(function (chip) {
-					chip.classList.remove('is-in', 'is-ingarage');
-					chip.setAttribute('aria-pressed', 'false');
-					chip.setAttribute('aria-label', 'In die Garage');
-				});
+				document.querySelectorAll('.m24-card__garage.is-in').forEach(resetChip);
 				render({ items: [], grand_fmt: d.grand_fmt || '0,00 €' });
                 if (d.cleared > 0) { showClearUndo(d.cleared); }
 			});
@@ -154,6 +150,22 @@
 		openUndos = [];
 	}
 
+	/**
+	 * Kachel-Chip auf „nicht in der Garage" zuruecksetzen.
+	 *
+	 * Ueber m24-garage.js, weil dort der vollstaendige Zustand liegt: Klassen UND Preis UND gewaehlte
+	 * Ausfuehrung. Das Panel hat frueher nur die Klassen umgeschaltet — der Preis der entfernten
+	 * Ausfuehrung blieb an der Kachel stehen, bis jemand neu geladen hat.
+	 * Der Fallback greift nur, wenn m24-garage.js nicht laeuft (dann gibt es auch keine Preislogik).
+	 */
+	function resetChip(chip) {
+		if (window.M24GarageCard && window.M24GarageCard.set) { window.M24GarageCard.set(chip, false); return; }
+		chip.classList.remove('is-in', 'is-ingarage');
+		chip.setAttribute('aria-pressed', 'false');
+		chip.setAttribute('aria-label', 'In die Garage');
+		chip.setAttribute('title', 'In die Garage');
+	}
+
 	/** POST an einen Garage-Endpunkt (dieselbe Basis wie der Rest des Panels). */
 	function post(path, body) {
 		return fetch(cfg.rest + path, {
@@ -181,12 +193,7 @@
 				// Kopfzähler, Fußsumme und Reiter-Badge nachziehen …
 				applyTotals(d);
 				// … und die Kachel-Chips derselben ID, falls im Hintergrund sichtbar.
-				document.querySelectorAll('.m24-card__garage[data-garage-id="' + pid + '"]').forEach(function (chip) {
-					chip.classList.remove('is-in', 'is-ingarage');
-					chip.setAttribute('aria-pressed', 'false');
-					chip.setAttribute('aria-label', 'In die Garage');
-					chip.setAttribute('title', 'In die Garage');
-				});
+				document.querySelectorAll('.m24-card__garage[data-garage-id="' + pid + '"]').forEach(resetChip);
 				if (typeof d.count === 'number' && d.count <= 0) { load(); return; } // Leer-Zustand serverseitig
 				showUndo(row, it);
 			});

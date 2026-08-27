@@ -218,27 +218,49 @@
 		if (!card) { return; }
 		var priceEl = card.querySelector('.m24-card__price');
 		var varEl   = card.querySelector('[data-card-variant]');
+		var valEl   = priceEl ? priceEl.querySelector('[data-price-val]') : null;
 
-		var valEl = priceEl ? priceEl.querySelector('[data-price-val]') : null;
+		// Eine gewaehlte Ausfuehrung zaehlt nur MIT Preis: ein Label ohne Betrag darf den „ab"-Preis
+		// nicht in einen konkreten verwandeln, sonst behauptet die Kachel eine Genauigkeit, die sie nicht hat.
+		var pick = !!(label && bruttoFmt);
+
 		if (priceEl && valEl) {
+			// „ab" gehoert zum GRUNDZUSTAND (data-price-ab), nicht zum gerade sichtbaren Text. Beide
+			// Richtungen aus derselben Quelle — vorher wurde es beim Einlegen versteckt, aber nie wieder
+			// gezeigt, weil das Element im ausgewaehlten Server-Render gar nicht erst existierte.
 			var ab = priceEl.querySelector('.m24-card__ab');
-			if (label && bruttoFmt) {
-				if (ab) { ab.hidden = true; }              // „ab" weg — der Preis ist jetzt konkret
-				valEl.textContent = bruttoFmt;
-			} else {
-				// Nur zurueckstellen, wenn es ueberhaupt ein „ab"-Preis war (data-price-ab).
-				if (ab && '1' === priceEl.getAttribute('data-price-ab')) { ab.hidden = false; }
-				valEl.textContent = priceEl.getAttribute('data-price-base') || valEl.textContent;
-			}
+			if (ab) { show(ab, !pick && '1' === priceEl.getAttribute('data-price-ab')); }
+			// Grundpreis kommt aus data-price-base und wird nie aus dem sichtbaren Text zurueckgerechnet.
+			valEl.textContent = pick ? bruttoFmt : (priceEl.getAttribute('data-price-base') || valEl.textContent);
 		}
 		if (varEl) {
-			if (label) { varEl.textContent = '✓ ' + label; varEl.hidden = false; }
-			else { varEl.textContent = ''; varEl.hidden = true; }
+			varEl.textContent = label ? ('✓ ' + label) : '';
+			show(varEl, !!label);
 		}
 	}
 
-	function setGarageBtn(btn, inGarage) {
+	/**
+	 * Ein-/Ausblenden fuer die Kachel-Teile: hidden UND inline display.
+	 *
+	 * Das hidden-Attribut allein reicht hier nicht — eine Stylesheet-Regel mit display schlaegt es, und
+	 * der Cache-Layer entfernt „ungenutzte" Regeln. Inline gewinnt gegen beides. Der Server rendert
+	 * denselben Zustand identisch (catalog-template-archive.php::price_html), damit Erst-Render und
+	 * JS-Update nicht auseinanderlaufen.
+	 */
+	function show(el, on) {
+		el.hidden = !on;
+		el.style.display = on ? '' : 'none';
+	}
+
+	function setGarageBtn(btn, inGarage, pick) {
 		if (!btn) { return; }
+		// Serverstand (pick) hat Vorrang und wird an den Chip geschrieben: nach einem Reload kennt nur der
+		// Server die gewaehlte Ausfuehrung, der Chip lernt sie hier. Ohne das setzte die Hydrierung die
+		// Kachel auf „keine Auswahl" zurueck und loeschte das serverseitig gerenderte Label wieder weg.
+		if (inGarage && pick && pick.label) {
+			btn.setAttribute('data-variant-label', pick.label);
+			if (pick.fmt) { btn.setAttribute('data-variant-price-fmt', pick.fmt); }
+		}
 		btn.classList.toggle('is-ingarage', !!inGarage);
 		// Der Kachel-Chip schaltet sein Icon über .is-in um (Plus ↔ Haken) und braucht ein sprechendes
 		// Label: aria-pressed allein sagt einem Screenreader nicht, was der Klick tun WIRD.
@@ -265,6 +287,17 @@
 		var txt = btn.querySelector('.m24-garage-txt');
 		if (txt) { txt.textContent = inGarage ? 'In meiner Garage' : 'In meine Garage'; }
 	}
+
+	/**
+	 * Gemeinsamer Einstieg fuer das Panel (m24-garage-panel.js), das beim Entfernen und beim Leeren
+	 * dieselben Kachel-Chips zuruecksetzt.
+	 *
+	 * Der Chip-Zustand haengt an mehr als zwei Klassen — „ab"-Praefix, Preiswert und Ausfuehrungszeile
+	 * gehoeren dazu. Das Panel hat die Klassen bisher selbst umgeschaltet und den Preis stehen lassen:
+	 * die Kachel zeigte danach den Betrag einer Ausfuehrung, die gar nicht mehr in der Garage lag.
+	 * Eine zweite Fassung dieser Logik driftet garantiert, also gibt es nur diese eine.
+	 */
+	window.M24GarageCard = { set: setGarageBtn };
 
 	if (cfg.loggedIn) {
 		// Phase 2b: Gast-Garage (localStorage) nach Login/Registrierung in den Account übernehmen + leeren.
@@ -297,10 +330,21 @@
 		if (toggleBtns.length && cfg.rest) {
 			fetch(cfg.rest, { credentials: 'same-origin', headers: headers() })
 				.then(function (r) { return r.json(); }).then(function (d) {
-					var ids = {};
-					if (d && d.items) { d.items.forEach(function (it) { ids[parseInt(it.post_id, 10)] = 1; }); }
+					// Nicht nur WELCHE Artikel drin liegen, sondern auch MIT WELCHER Ausfuehrung: unit_fmt
+					// ist der Preis dieser Position (Varianten-Preis, wenn gesetzt). Sonst wuesste die
+					// Kachel den Betrag, aber nicht, wozu er gehoert.
+					var ids = {}, picks = {};
+					if (d && d.items) {
+						d.items.forEach(function (it) {
+							var p = parseInt(it.post_id, 10);
+							if (!p) { return; }
+							ids[p] = 1;
+							if (it.variant) { picks[p] = { label: it.variant, fmt: it.unit_fmt || '' }; }
+						});
+					}
 					toggleBtns.forEach(function (b) {
-						setGarageBtn(b, !!ids[parseInt(b.getAttribute('data-garage-id') || '0', 10)]);
+						var p = parseInt(b.getAttribute('data-garage-id') || '0', 10);
+						setGarageBtn(b, !!ids[p], picks[p]);
 					});
 				}).catch(function () {});
 		}
@@ -371,12 +415,17 @@
 			} catch (e) { return []; }
 		}
 		function gWrite(a) { try { window.localStorage.setItem(GKEY, JSON.stringify(a)); } catch (e) {} }
-		function gHasId(arr, id) { for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) { return true; } } return false; }
+		function gHasId(arr, id) { return !!gFindId(arr, id); }
+		function gFindId(arr, id) { for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) { return arr[i]; } } return null; }
 		updateCount(gRead().length);
 		var gpre = gRead();
 		Array.prototype.slice.call(document.querySelectorAll('.m24-garage-toggle')).forEach(function (b) {
 			var id = parseInt(b.getAttribute('data-garage-id') || '0', 10);
-			if (id && gHasId(gpre, id)) { setGarageBtn(b, true); }
+			if (!id) { return; }
+			// Gaeste haben serverseitig keinen Zustand — die Ausfuehrung steht im localStorage-Eintrag
+			// (vl/vb). Auch hier gilt: Betrag ohne Label waere nur ein Preis ohne Bezug.
+			var g = gFindId(gpre, id);
+			if (g) { setGarageBtn(b, true, g.vl ? { label: g.vl, fmt: g.vb ? fmtMoney(parseFloat(g.vb)) : '' } : null); }
 		});
 		document.addEventListener('click', function (e) {
 			var btn = e.target.closest ? e.target.closest('.m24-garage-open') : null;

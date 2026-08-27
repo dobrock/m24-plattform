@@ -135,3 +135,6 @@ body.m24vd-lock{overflow:hidden}
    entscheidet und dort gelesen wird. */
 .m24-card__variant{display:block;color:#0E447E;font-size:12px;font-weight:600;line-height:1.35;margin-top:2px;overflow-wrap:anywhere}
 .m24-card__variant[hidden]{display:none!important}
+/* Das „ab"-Praefix steht IMMER im Markup (sonst kann es nach dem Entfernen nicht zurueckkehren) und wird
+   nur aus- und eingeblendet — dieselbe Regel wie fuer die Ausfuehrungszeile darueber. */
+.m24-card__ab[hidden]{display:none!important}
