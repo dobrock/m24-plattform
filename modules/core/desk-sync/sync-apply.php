@@ -453,8 +453,19 @@ class M24_Sync_Apply {
 				self::log( 'uid_bootstrap', 'desk_customer_id ' . $dcid . ' → user ' . $uid . ' = ' . $cuid );
 			}
 		}
+		// Noch kein Konto, aber eine valide E-Mail: anlegen. Das Kundenmodell des Plugins IST wp_users —
+		// ohne Konto taucht ein im Desk angelegter Kunde in der Angebots-Suche nicht auf, und der Operator
+		// legt ihn ein zweites Mal an. Dieselbe Methode wie im alten D-Kanal: subscriber, Zufallspasswort,
+		// keine Willkommens-Mail.
+		if ( $uid <= 0 && ! empty( $rec['email'] ) && is_email( (string) $rec['email'] ) && class_exists( 'M24_Desk_Inbound' ) ) {
+			$uid = M24_Desk_Inbound::create_customer( (int) $dcid, $rec );
+			if ( $uid > 0 ) {
+				$cuid = M24_Sync_LWW::customer_uid( $uid );
+				self::log( 'customer_created', 'Desk-Kunde ' . ( '' !== $dcid ? '#' . $dcid : '' ) . ' als WP-Konto ' . $uid . ' angelegt (' . $cuid . ').' );
+			}
+		}
 		if ( $uid <= 0 && '' === $cuid ) {
-			// Weder uid noch Konto — für den Snapshot-Weg fehlt der Schlüssel. Nicht raten.
+			// Weder uid noch Konto noch brauchbare E-Mail — für den Snapshot-Weg fehlt der Schlüssel.
 			return self::res( $dcid, false, 0, 'kein_customer_uid_match' );
 		}
 		if ( $uid <= 0 ) {

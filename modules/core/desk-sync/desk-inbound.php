@@ -448,7 +448,7 @@ class M24_Desk_Inbound {
      * subscriber, KEINE Willkommens-/Passwort-Mail (wp_insert_user verschickt von sich aus nichts). Bestehende
      * E-Mail → verknüpfen statt doppeln. Ohne valide E-Mail nicht anlegbar → 0.
      */
-    private static function create_customer( int $desk_id, array $data ): int {
+    public static function create_customer( int $desk_id, array $data ): int {
         $email = sanitize_email( (string) ( $data['email'] ?? '' ) );
         if ( ! is_email( $email ) ) { return 0; }
         $existing = get_user_by( 'email', $email );

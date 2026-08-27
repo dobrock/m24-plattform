@@ -60,6 +60,9 @@ class M24_Offers {
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 20 );
 		// NUR auf der Angebote-Seite: plugin-fremde Admin-Notices abräumen (WPBakery-„Security release", Core-Nags …).
 		add_action( 'in_admin_header', array( __CLASS__, 'suppress_foreign_admin_notices' ) );
+		// Emoji-Ersetzung auf unseren Screens abhängen. Muss VOR admin_print_scripts greifen, deshalb
+		// hier und nicht im Seiten-Callback — dort wären die Skripte längst ausgegeben.
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'maybe_suppress_emoji_swap' ) );
 	}
 
 	/* ── Admin-Angebotsliste ────────────────────────────────────────────── */
@@ -95,6 +98,32 @@ class M24_Offers {
 			'url' => (string) ( $src['src_url'] ?? '' ),
 		), static function ( $v ) { return '' !== $v && null !== $v && 0 !== $v; } );
 		return add_query_arg( $args, home_url( '/' ) ); // add_query_arg kodiert die Werte selbst
+	}
+
+	/**
+	 * Flaggen-Flackern unterbinden (kein FOUC).
+	 *
+	 * Die Länderflaggen sind Emoji und werden vom Browser sofort gerendert. WordPress lädt danach
+	 * wp-emoji-release.min.js, das jedes Emoji im DOM durch ein Twemoji-<img> ERSETZT — sichtbar als
+	 * kurzes Umspringen der Flaggen nach dem Laden. Auf unseren Angebots-Screens ist das reine Unruhe:
+	 * die native Darstellung ist die endgültige, das Skript bringt hier keinen Nutzen.
+	 *
+	 * Bewusst nur auf dieser Seite abgehängt, nicht site-weit — im Rest des Backends soll WP sich
+	 * verhalten wie gewohnt.
+	 */
+	/** Nur auf den M24-Angebots-/Desk-Screens abhängen — der Rest des Backends bleibt wie gewohnt. */
+	public static function maybe_suppress_emoji_swap(): void {
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! in_array( $page, array( 'm24-offers', 'm24-desk-sync' ), true ) ) { return; }
+		self::suppress_emoji_swap();
+	}
+
+	private static function suppress_emoji_swap(): void {
+		remove_action( 'admin_print_scripts', 'print_emoji_detection_script' );
+		remove_action( 'admin_print_styles', 'print_emoji_styles' );
+		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
+		remove_action( 'wp_print_styles', 'print_emoji_styles' );
+		add_filter( 'emoji_svg_url', '__return_false' );
 	}
 
 	public static function render_admin_list() {
@@ -939,9 +968,51 @@ class M24_Offers {
 			),
 		) );
 		foreach ( (array) $mq->get_results() as $id ) { $ids[] = (int) $id; }
-		$ids = array_slice( array_values( array_unique( $ids ) ), 0, 12 );
+		// Dritte Quelle: die Kunden-Snapshots an bestehenden Angeboten. Ein aus dem Desk gespiegelter
+		// Kunde hat nicht zwingend ein WP-Konto — ohne diesen Zweig bliebe er in der Suche unsichtbar
+		// und der Operator legt ihn ein zweites Mal an. Konto-Treffer haben Vorrang (vollständigere
+		// Stammdaten), Snapshots füllen nur auf, was noch fehlt.
+		$ids   = array_slice( array_values( array_unique( $ids ) ), 0, 12 );
 		$items = array();
-		foreach ( $ids as $uid ) { $c = self::user_to_customer( $uid ); if ( $c ) { $items[] = $c; } }
+		$seen  = array();
+		foreach ( $ids as $uid ) {
+			$c = self::user_to_customer( $uid );
+			if ( $c ) { $items[] = $c; if ( ! empty( $c['email'] ) ) { $seen[ strtolower( $c['email'] ) ] = true; } }
+		}
+		if ( count( $items ) < 12 ) {
+			global $wpdb;
+			$like = '%' . $wpdb->esc_like( $q ) . '%';
+			$rows = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				'SELECT customer_json, account_id, MAX(id) AS oid FROM ' . self::table()
+				. ' WHERE customer_json LIKE %s AND deleted_at IS NULL GROUP BY customer_json, account_id ORDER BY oid DESC LIMIT 24',
+				$like
+			) );
+			foreach ( (array) $rows as $r ) {
+				$c = json_decode( (string) $r->customer_json, true );
+				if ( ! is_array( $c ) || empty( $c['email'] ) ) { continue; }
+				$mail = strtolower( (string) $c['email'] );
+				if ( isset( $seen[ $mail ] ) ) { continue; }
+				$seen[ $mail ] = true;
+				$items[] = array(
+					'id'        => (int) $r->account_id,
+					'email'     => (string) $c['email'],
+					'name'      => (string) ( $c['name'] ?? '' ),
+					'vorname'   => (string) ( $c['vorname'] ?? '' ),
+					'nachname'  => (string) ( $c['nachname'] ?? '' ),
+					'anrede'    => (string) ( $c['anrede'] ?? '' ),
+					'firma'     => (string) ( $c['firma'] ?? $c['firmenname'] ?? '' ),
+					'kundentyp' => (string) ( $c['kundentyp'] ?? 'b2c' ),
+					'land'      => (string) ( $c['land'] ?? '' ),
+					'strasse'   => (string) ( $c['strasse'] ?? '' ),
+					'plz'       => (string) ( $c['plz'] ?? '' ),
+					'ort'       => (string) ( $c['ort'] ?? '' ),
+					'telefon'   => (string) ( $c['telefon'] ?? '' ),
+					'ustid'     => (string) ( $c['ustid'] ?? '' ),
+					'src'       => 'angebot', // aus einem Angebots-Snapshot, nicht aus einem Konto
+				);
+				if ( count( $items ) >= 12 ) { break; }
+			}
+		}
 		return rest_ensure_response( array( 'ok' => true, 'items' => $items ) );
 	}
 

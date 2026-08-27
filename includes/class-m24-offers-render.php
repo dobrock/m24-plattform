@@ -543,7 +543,7 @@ class M24_Offers_Render {
 					</div>
 					<div class="m24off-cxgrid" data-cx-grid>
 						<label class="m24off-f m24off-cx-wide m24off-cx-b2b"><span>Firmenname</span><input type="text" data-cx="firmenname"></label>
-						<label class="m24off-f"><span>Anrede (für „Sie")</span><select data-cx="anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option></select></label>
+						<label class="m24off-f m24off-cx-anrede"><span>Anrede (für „Sie")</span><select data-cx="anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option></select></label>
 						<label class="m24off-f"><span>Vorname</span><input type="text" data-cx="vorname"></label>
 						<label class="m24off-f"><span>Nachname</span><input type="text" data-cx="nachname"></label>
 						<label class="m24off-f m24off-cx-wide"><span>Straße &amp; Hausnummer</span><input type="text" data-cx="strasse"></label>
@@ -1108,6 +1108,15 @@ class M24_Offers_Render {
 	 * Angebots-Mail rendern und senden. $return_html=true liefert nur das HTML (Vorschau, kein Versand).
 	 * @return bool|string|null true/false = Versanderfolg; String = HTML bei $return_html; null = Angebot fehlt.
 	 */
+	/**
+	 * Absender der Angebots-Mail — EINE Quelle für beide Versandwege.
+	 *
+	 * Muss mit dem übereinstimmen, was der Desk sendet: der Kunde soll Angebot und Desk-Antwort als
+	 * denselben Absender sehen, und der Desk scannt Antworten auf orders@.
+	 */
+	const SENDER_EMAIL = 'orders@motorsport24.de';
+	const SENDER_NAME  = 'Orders | MOTORSPORT24';
+
 	public static function mail( $offer_id, bool $return_html = false, string $mail_type = 'offer' ) {
 		$o = is_object( $offer_id ) ? $offer_id : M24_Offers::get_by_id( (int) $offer_id ); // #11: Objekt (Vorschau) oder ID
 		if ( ! $o ) { return $return_html ? '' : null; }
@@ -1254,8 +1263,8 @@ class M24_Offers_Render {
 				'to_name'      => trim( (string) ( $cust['name'] ?? '' ) ),
 				'subject'      => $subj,
 				'html'         => $html,
-				'sender_email' => 'orders@motorsport24.de',
-				'sender_name'  => 'MOTORSPORT24',
+				'sender_email' => self::SENDER_EMAIL,
+				'sender_name'  => self::SENDER_NAME,
 				'attachment'   => $attach,
 			) );
 			$sent = ! empty( $res['ok'] );
@@ -1263,15 +1272,23 @@ class M24_Offers_Render {
 		// Fallback NUR wenn die Brevo-API nicht konfiguriert ist oder scheitert: wp_mail (From-Header +
 		// wp_mail_from-Filter, best effort). Geht dann ggf. über den Plugin-Default — besser zugestellt als gar nicht.
 		if ( ! $sent ) {
-			$force_from = static function () { return 'orders@motorsport24.de'; };
-			$force_name = static function () { return 'MOTORSPORT24'; };
+			$force_from = static function () { return self::SENDER_EMAIL; };
+			$force_name = static function () { return self::SENDER_NAME; };
 			add_filter( 'wp_mail_from', $force_from, 99 );
 			add_filter( 'wp_mail_from_name', $force_name, 99 );
+			// SMTP-Plugins (FluentSMTP, Brevo-WP u. a.) setzen ihren Default-Absender in phpmailer_init und
+			// überstimmen damit wp_mail_from. Deshalb hier zuletzt nochmal direkt am PHPMailer setzen —
+			// sonst geht die Angebots-Mail unter der globalen Absenderadresse raus statt unter orders@.
+			$force_mailer = static function ( $phpmailer ) {
+				$phpmailer->setFrom( self::SENDER_EMAIL, self::SENDER_NAME, false );
+			};
+			add_action( 'phpmailer_init', $force_mailer, 9999 );
 			// wp_mail kennt nur Dateipfade → das bereits geladene PDF kurz in den Upload-Ordner schreiben und
 			// direkt nach dem Versand wieder löschen. Klappt das Schreiben nicht, geht die Mail ohne Anhang.
 			$tmp_pdf = self::tmp_attachment_file( $attach );
-			$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: MOTORSPORT24 <orders@motorsport24.de>' ), '' !== $tmp_pdf ? array( $tmp_pdf ) : array() );
+			$sent = wp_mail( $email, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8', 'From: ' . self::SENDER_NAME . ' <' . self::SENDER_EMAIL . '>' ), '' !== $tmp_pdf ? array( $tmp_pdf ) : array() );
 			if ( '' !== $tmp_pdf ) { wp_delete_file( $tmp_pdf ); }
+			remove_action( 'phpmailer_init', $force_mailer, 9999 );
 			remove_filter( 'wp_mail_from', $force_from, 99 );
 			remove_filter( 'wp_mail_from_name', $force_name, 99 );
 		}

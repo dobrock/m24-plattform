@@ -308,7 +308,11 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-cxgrid .m24off-cx-b2b{margin:0;transition:opacity .2s ease,max-height .2s ease}
 .m24off-cxgrid .m24off-f{margin:0}
 .m24off-cxgrid .m24off-f>span{display:block;font-size:12px;font-weight:600;color:#5a6474;margin:0 0 4px}
-.m24off-cxgrid .m24off-f input{width:100%;box-sizing:border-box;height:42px;border:1.5px solid #d3d8de;border-radius:8px;padding:0 10px;font-size:16px;font-family:'Saira',Arial,sans-serif}
+.m24off-cxgrid .m24off-f input,.m24off-cxgrid .m24off-f select{width:100%;box-sizing:border-box;height:42px;border:1.5px solid #d3d8de;border-radius:8px;padding:0 10px;font-size:16px;font-family:'Saira',Arial,sans-serif;background:#fff;line-height:normal}
+/* Anrede in eine eigene Zeile — sonst teilt sie sich die Zeile mit dem Vornamen und der Nachname
+   rutscht allein darunter. Das Feld selbst bleibt schmal, eine volle Grid-Breite braucht es nicht. */
+.m24off-cxgrid .m24off-cx-anrede{grid-column:1 / -1}
+.m24off-cxgrid .m24off-cx-anrede select{max-width:180px}
 .m24off-cx-vatbtn{display:inline-block;margin-top:8px;height:38px;border:1.5px solid #1f74c4;background:#f2f7fc;color:#0e447e;border-radius:8px;padding:0 14px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Saira',Arial,sans-serif}
 .m24off-cxstatus{font-size:13px;min-height:1em;margin:8px 0}
 .m24off-cxstatus.is-ok{color:#1a7f37}.m24off-cxstatus.is-error{color:#c8102e}
