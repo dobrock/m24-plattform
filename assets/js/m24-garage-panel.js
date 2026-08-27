@@ -10,6 +10,7 @@
 	if (!root || !cfg.rest) { return; }
 	var $ = function (s) { return root.querySelector(s); };
 	var tab = $('[data-m24gt-open]'), panel = $('[data-m24gt-panel]'), ov = $('[data-m24gt-overlay]');
+	var selfReload = true; // false, während das Panel selbst ein m24garage:changed auslöst
 	var cntEl = $('[data-m24gt-cnt]'), subEl = $('[data-m24gt-sub]'), itemsEl = $('[data-m24gt-items]'), sumEl = $('[data-m24gt-sum]');
 	var prev = -1;
 
@@ -51,7 +52,10 @@
 	   der Browser zum Artikel, statt zu entfernen. Kein confirm(): ein Bestätigungsdialog für eine
 	   Aktion, die einen Klick kostet und rückgängig zu machen ist, hält nur auf. Stattdessen ersetzt ein
 	   Rückgängig-Streifen die Zeile — sichtbar an derselben Stelle, 6 s lang. */
-	var UNDO_MS = 6000;
+	// Kein Timer: eine löschende Aktion darf ihre Rückversicherung nicht von selbst wegnehmen. Der
+	// Streifen bleibt stehen, bis der Nutzer etwas anderes tut — Panel schließen, andere Zeile anfassen
+	// oder neu laden. (6 s waren zu kurz: beim Testen ist dabei ein echtes Teil verlorengegangen.)
+	var openUndos = [];
 
 	function rmBtn(it) {
 		var label = 'aus der Garage entfernen';
@@ -67,15 +71,23 @@
 		strip.className = 'm24gt-undo';
 		strip.innerHTML = '<span>Entfernt</span><button type="button" class="m24gt-undo-btn">Rückgängig</button>';
 		row.parentNode.replaceChild(strip, row);
-		var t = setTimeout(function () { if (strip.parentNode) { strip.parentNode.removeChild(strip); } }, UNDO_MS);
+		openUndos.push(strip);
 		strip.querySelector('.m24gt-undo-btn').addEventListener('click', function () {
-			clearTimeout(t);
+			dropUndos(strip); // nur die anderen aufräumen, dieser hier wird ohnehin gleich neu gezeichnet
 			// Wieder anlegen und neu zeichnen — die Position landet dadurch an ihrer alten Stelle,
 			// weil der Server die Reihenfolge führt.
 			post('/add', { post_id: it.post_id || it.id, post_type: it.post_type || '' }).then(function () {
 				load();
 			});
 		});
+	}
+
+	/** Offene Rückgängig-Streifen entfernen (die Entfernung ist damit endgültig). $keep bleibt stehen. */
+	function dropUndos(keep) {
+		openUndos.forEach(function (el) {
+			if (el !== keep && el.parentNode) { el.parentNode.removeChild(el); }
+		});
+		openUndos = [];
 	}
 
 	/** POST an einen Garage-Endpunkt (dieselbe Basis wie der Rest des Panels). */
@@ -95,6 +107,7 @@
 			e.stopPropagation();
 			var row = btn.closest('.m24gt-it');
 			if (!row || row.dataset.busy === '1') { return; }
+			dropUndos(); // andere Zeile angefasst → vorherige Entfernungen sind endgültig
 			row.dataset.busy = '1';
 			var pid = parseInt(row.getAttribute('data-post-id') || '0', 10);
 			var it = { post_id: pid, post_type: row.getAttribute('data-post-type') || '' };
@@ -125,11 +138,17 @@
 			if (subEl) { subEl.textContent = count + ' Position' + (1 === count ? '' : 'en') + gno; }
 		}
 		if (sumEl && d.grand_fmt) { sumEl.innerHTML = esc(d.grand_fmt); }
+		if (null !== count) { root.hidden = count <= 0; } // Reiter verschwindet bei leerer Garage
 		try {
-			document.dispatchEvent(new CustomEvent('m24:garage:changed', {
-				detail: { count: count, total: (typeof d.total === 'number' ? d.total : count) }
-			}));
-		} catch (e) {}
+			var detail = { count: count, total: (typeof d.total === 'number' ? d.total : count) };
+			document.dispatchEvent(new CustomEvent('m24:garage:changed', { detail: detail }));
+			// Zusätzlich das ALTE Event: daran hängen die Bestandshörer (Garage-Seite, Operator-Relabel)
+			// — ohne das aktualisiert außerhalb des Panels nichts. selfReload verhindert dabei, dass
+			// unser eigener Listener load() auslöst und den Rückgängig-Streifen wegrendert.
+			selfReload = false;
+			document.dispatchEvent(new CustomEvent('m24garage:changed', { detail: detail }));
+			selfReload = true;
+		} catch (e) { selfReload = true; }
 	}
 
 	function render(d) {
@@ -160,8 +179,8 @@
 	}
 	function pulse() { if (!tab) { return; } tab.classList.remove('is-pulse'); void tab.offsetWidth; tab.classList.add('is-pulse'); }
 
-	function open() { if (!panel) { return; } panel.hidden = false; if (ov) { ov.hidden = false; } requestAnimationFrame(function () { root.classList.add('is-open'); }); document.body.classList.add('m24gt-lock'); document.addEventListener('keydown', onKey); }
-	function close() { root.classList.remove('is-open'); document.body.classList.remove('m24gt-lock'); document.removeEventListener('keydown', onKey); setTimeout(function () { if (!root.classList.contains('is-open')) { panel.hidden = true; if (ov) { ov.hidden = true; } } }, 320); }
+	function open() { if (!panel) { return; } dropUndos(); load(); panel.hidden = false; if (ov) { ov.hidden = false; } requestAnimationFrame(function () { root.classList.add('is-open'); }); document.body.classList.add('m24gt-lock'); document.addEventListener('keydown', onKey); }
+	function close() { dropUndos(); root.classList.remove('is-open'); document.body.classList.remove('m24gt-lock'); document.removeEventListener('keydown', onKey); setTimeout(function () { if (!root.classList.contains('is-open')) { panel.hidden = true; if (ov) { ov.hidden = true; } } }, 320); }
 	function onKey(e) { if ('Escape' === e.key) { close(); } }
 
 	// Gast-Modus: Nudge einblenden + Login/Registrieren-Links setzen; CTAs auf Login umbiegen (Angebot/Garage
@@ -204,7 +223,7 @@
 
 	if (tab) { tab.addEventListener('click', function () { load(); open(); }); }
 	root.addEventListener('click', function (e) { if (e.target.closest('[data-m24gt-close]') || e.target === ov) { close(); } });
-	document.addEventListener('m24garage:changed', function () { load(); });
+	document.addEventListener('m24garage:changed', function () { if (selfReload) { load(); } });
 
 	// Operator-Einstieg: „Angebot anfragen" → „Angebot erstellen" (nur bei serverseitigem isOperator). Klick legt
 	// serverseitig einen Angebots-Entwurf an (Preise §25a-korrekt) und öffnet den Builder. Kunden sehen unverändert.

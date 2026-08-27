@@ -1488,7 +1488,22 @@ class M24_Garage_Cart {
 		foreach ( (array) $rows as $r ) {
 			$pid = (int) $r['post_id'];
 			$pt  = (string) $r['post_type'];
-			if ( 'publish' !== get_post_status( $pid ) ) { continue; }
+			// Nicht mehr veröffentlichte Beiträge fallen raus — sonst zeigte die Garage Artikel, die es
+			// nicht mehr gibt. Das geschieht aber STILL: die Position verschwindet ohne Hinweis, und wer
+			// sie vermisst, sucht den Fehler in der Garage statt beim Artikel. Deshalb einmal täglich je
+			// Position eine Notiz, damit ein depublizierter Artikel auffällt statt zu verwirren.
+			if ( 'publish' !== get_post_status( $pid ) ) {
+				$k = 'm24gc_unpub_' . $acc . '_' . $pid;
+				if ( ! get_transient( $k ) ) {
+					set_transient( $k, 1, DAY_IN_SECONDS );
+					if ( class_exists( 'M24_Logger' ) ) {
+						M24_Logger::info( 'garage', 'Position aus der Garage ausgeblendet — Beitrag nicht veröffentlicht', array(
+							'account_id' => $acc, 'post_id' => $pid, 'status' => (string) get_post_status( $pid ),
+						) );
+					}
+				}
+				continue;
+			}
 			$qty    = max( 1, (int) $r['qty'] );
 			$vlabel = (string) ( $r['variant_label'] ?? '' );
 			$vartnr = (string) ( $r['variant_artnr'] ?? '' );
