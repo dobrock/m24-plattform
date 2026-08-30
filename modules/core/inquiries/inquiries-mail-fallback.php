@@ -177,6 +177,7 @@ class M24_Inquiries_Mail_Fallback {
             'source_meta'=> ( isset( $in['inquiry_source_meta'] ) && is_array( $in['inquiry_source_meta'] ) ) ? $in['inquiry_source_meta'] : [],
             'notes'      => (string) ( $in['notes'] ?? '' ),
             'push_attempts' => 0, 'push_last_status' => 0, 'push_last_error' => '', 'idempotency_key' => '',
+            'items_missing' => 0, 'items_missing_host' => '',
         ];
     }
 
@@ -365,6 +366,9 @@ class M24_Inquiries_Mail_Fallback {
             'push_last_status' => (int) get_post_meta( $post_id, '_m24_push_last_status', true ),
             'push_last_error'  => (string) get_post_meta( $post_id, '_m24_push_last_error', true ),
             'idempotency_key'  => (string) get_post_meta( $post_id, '_m24_idempotency_key', true ),
+            // Positions-Marker (M24_Inquiry_Recorder): war beim Anlegen KEINE Position im Postmeta?
+            'items_missing'      => (int) get_post_meta( $post_id, '_m24_items_missing', true ),
+            'items_missing_host' => (string) get_post_meta( $post_id, '_m24_items_missing_host', true ),
         ];
     }
 
@@ -492,6 +496,16 @@ foreach ( $contact_rows as $label => $value ) :
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Positionen (<?php echo count( $data['items'] ); ?>)</div>
 <?php if ( empty( $data['items'] ) ) : ?>
 <div style="color:#c0392b;font-size:13px;font-style:italic;">Keine Positionen im Postmeta gefunden.</div>
+<?php
+// Marker aus dem Rohdaten-Recorder: macht ohne Backend-Zugriff einordenbar, ob die Anfrage
+// schon ohne Positionen angelegt wurde und von welchem Host der Request kam.
+$im_flag = ! empty( $data['items_missing'] ) ? 1 : 0;
+$im_host = (string) ( $data['items_missing_host'] ?? '' );
+?>
+<div style="font-size:12px;color:#5a4a1a;background:#fdf6e3;border-radius:6px;padding:10px 12px;margin-top:8px;">
+Positions-Marker: <code style="background:#fff;padding:1px 5px;border:1px solid #e6dcc0;border-radius:2px;">_m24_items_missing = <?php echo (int) $im_flag; ?></code><br>
+Request-Host: <code style="background:#fff;padding:1px 5px;border:1px solid #e6dcc0;border-radius:2px;"><?php echo esc_html( '' !== $im_host ? $im_host : '(nicht erfasst)' ); ?></code>
+</div>
 <?php else : ?>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;border-collapse:collapse;">
 <thead>

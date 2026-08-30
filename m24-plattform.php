@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.480
+ * Version:           0.11.481
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -190,6 +190,7 @@ require_once M24_PLATTFORM_DIR . 'admin/class-m24-settings.php';
 require_once M24_PLATTFORM_DIR . 'admin/class-m24-mail-preview.php'; // Admin-Tool: Mail-/PDF-Vorschau + Test-Versand
 require_once M24_PLATTFORM_DIR . 'includes/admin/class-m24-editor-notices.php'; // Fremd-Admin-Notices auf den M24-Editoren unterdrücken
 require_once M24_PLATTFORM_DIR . 'modules/core/inquiries/inquiries-bootstrap.php';
+require_once M24_PLATTFORM_DIR . 'includes/inquiries/class-m24-inquiry-recorder.php'; // Rohdaten-Recorder POST /inquiry (Diagnose, beobachtend)
 
 // Katalog (CPT m24_teil + Taxonomie/Meta, Felder, Admin-Liste; Pricing = reiner Helfer).
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-cpt.php';
@@ -288,6 +289,8 @@ if ( is_admin() ) {
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-mock-log-viewer.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-import-status.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-reviews-settings.php';
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-inquiry-diagnose-meta.php'; // Anfrage-Diagnose: Postmeta-Listen + Vergleich
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-inquiry-diagnose.php';      // Anfrage-Diagnose: Seite unter System
     require_once M24_PLATTFORM_DIR . 'modules/importer/import-admin.php'; // Admin-Import-Steuerung (AJAX-Chunk-Loop)
 }
 
@@ -346,6 +349,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_OG::init();
     M24_Post_OG::init();
     M24_Inquiry_Submit::init();
+    M24_Inquiry_Recorder::init(); // beobachtet POST /inquiry, aendert die Verarbeitung nicht
     M24_Inquiry_Frontend::init();
     // Gruppierte Suche: REST-Route, Vollergebnis-Routing, Frontend-Assets.
     M24_Search_REST::init();
@@ -402,6 +406,7 @@ add_action( 'plugins_loaded', function() {
         M24_Mock_Log_Viewer::init();
         M24_Import_Status_Page::init();
         M24_Reviews_Settings::init();
+        M24_Inquiry_Diagnose::init(); // MOTORSPORT24 → System → „Anfrage-Diagnose"
         M24_Import_Admin::init();
         M24_Gallery_Audit::init();
         M24FZ_Meta_Render::init();
