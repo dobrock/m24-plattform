@@ -63,14 +63,21 @@ class M24_Sync_Supersede {
 	 * @return int|null Neue Angebots-ID, oder null wenn kein Supersede nötig/möglich war.
 	 */
 	/**
-	 * Notschalter. Solange an, entsteht kein Ersatz-Angebot mehr — die Sync-Änderung wird trotzdem
-	 * normal angewandt, nur eben am bestehenden Angebot. Gedacht für den Fall, dass der Auslöser wieder
-	 * zu oft feuert: lieber ein Angebot, das nachgezogen wurde, als eines, das grundlos ersetzt wird.
+	 * Nachfolger-Automatik: AUS (Default seit 0.11.484).
 	 *
-	 *     add_filter( 'm24_sync_supersede_enabled', '__return_false' );
+	 * Am 30.08. um 22:12 hat sie beim Kunden „Brand the Build" aus einem Vorgang drei Einträge gemacht:
+	 * 2026-1055 (versendet, dann abgelöst), 2026-1056 (Nachfolger mit dem ALTEN Stand, nie beim Kunden)
+	 * und einen nummernlosen Entwurf, in dem die tatsächliche Änderung — die 6. Position — hängenblieb.
+	 * Das gewünschte Modell ist eine Nummer mit mehreren Fassungen; einen Nachfolger legt ab jetzt
+	 * ausschließlich Daniel per Knopf an.
+	 *
+	 * Die eingehende Sync-Änderung wird weiterhin ganz normal am bestehenden Angebot angewandt — es
+	 * entfällt nur das Anlegen eines Ersatz-Angebots. Der Filter bleibt als Wiedereinschalter:
+	 *
+	 *     add_filter( 'm24_sync_supersede_enabled', '__return_true' );
 	 */
 	public static function enabled(): bool {
-		return (bool) apply_filters( 'm24_sync_supersede_enabled', true );
+		return (bool) apply_filters( 'm24_sync_supersede_enabled', false );
 	}
 
 	public static function maybe_supersede( int $offer_id, string $reason = '' ): ?int {
