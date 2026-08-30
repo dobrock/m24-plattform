@@ -285,7 +285,13 @@ class M24_Inquiries_Mail_Fallback {
         }
 
         // Builder + Versand (gemeinsamer Pfad mit notify()/send_data()).
-        $sent = self::compose_and_send( self::collect_inquiry_data( $post ), $reason, $to );
+        // $data einmal aufbauen und den Betreff hier ableiten: compose_and_send() ruft dasselbe
+        // pure build_subject() mit denselben Werten -> der geloggte Betreff ist exakt der
+        // versendete. Vorher stand im Log-Array ein nie definiertes $subject (PHP-8-Warning
+        // bei jeder Fallback-Mail, Wert im Log immer leer).
+        $data    = self::collect_inquiry_data( $post );
+        $subject = self::build_subject( $data, $reason );
+        $sent    = self::compose_and_send( $data, $reason, $to );
 
         if ( ! $sent ) {
             self::log_error( $post_id, 'Mail-Fallback: wp_mail() returned false', [
