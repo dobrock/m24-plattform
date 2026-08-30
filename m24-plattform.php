@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.484
+ * Version:           0.11.485
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '030' );
+define( 'M24_PLATTFORM_DB_VERSION',  '031' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -163,6 +163,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-offer-bridge.php'; /
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        // Angebots-Annahme: Login-Gate + Magic-Link-Rückkehr (keine Gastannahme)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-address.php';       // Angebots-Annahme Teil 3/4: Adressformular + Validierung/VIES + Persistenz (Spalten + User-Meta)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-drift.php';   // Abweichung zur versendeten Fassung (Marker + Kartenhinweis)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-push.php';  // Desk-Sync W1: Angebot → POST /api/orders (Vertrag v1.1)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // Desk-Sync D1–D3: Webhook Desk → WP (LWW-Applier)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-apply.php'; // Bidirektionale Sync: Apply-Seite (orders/offer_lines/customers, record-level LWW)

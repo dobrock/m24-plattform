@@ -347,6 +347,9 @@ class M24_Offers {
 				if ( (int) ( $o->rev ?? 0 ) > (int) ( $o->last_synced_rev ?? 0 ) && '' !== (string) ( $o->wp_offer_uid ?? '' ) ) {
 					$bits[] = '<span style="color:#b45309;" title="Lokale Änderung, die der Desk noch nicht kennt — der Sync holt das nach.">⇧ Push offen</span>';
 				}
+				if ( class_exists( 'M24_Offer_Drift' ) && M24_Offer_Drift::has( $o ) ) {
+					$bits[] = M24_Offer_Drift::badge( $o );
+				}
 				if ( '' !== (string) ( $o->superseded_by ?? '' ) ) {
 					$bits[] = '<span style="color:#6b7280;">ersetzt durch ' . esc_html( self::offer_no_for_uid( (string) $o->superseded_by ) ) . '</span>';
 				}
@@ -539,6 +542,8 @@ class M24_Offers {
 
 		// „Gesendet am" nachziehen (valid_until bleibt bewusst stehen).
 		$wpdb->update( self::table(), array( 'sent_at' => current_time( 'mysql', true ) ), array( 'id' => $offer_id ) );
+		// Der Kunde hat jetzt den aktuellen Stand — eine vermerkte Abweichung ist damit erledigt.
+		if ( class_exists( 'M24_Offer_Drift' ) ) { M24_Offer_Drift::clear( (int) $offer_id ); }
 		M24_Sync_LWW::touch( $offer_id, 'wp' );
 		self::log( 'resent', $offer_id, $no . ' → ' . $target );
 		return array(

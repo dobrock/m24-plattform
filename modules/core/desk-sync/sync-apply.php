@@ -179,6 +179,12 @@ class M24_Sync_Apply {
 				// Fehler beim Ersetzen darf den Lauf nicht mitreißen und schon gar nicht die Antwort an den
 				// Desk verschlucken — sonst gilt eine angewandte Änderung drüben als nicht angekommen.
 				try {
+					// Zuerst die Abweichung am Angebot vermerken — das ist ab 0.11.485 der
+					// eigentliche Vorgang. maybe_supersede() bleibt als Wiedereinschalter stehen
+					// und liefert null, solange m24_sync_supersede_enabled aus ist.
+					if ( class_exists( 'M24_Offer_Drift' ) ) {
+						M24_Offer_Drift::mark( (int) $offer_id, (string) $reason );
+					}
 					M24_Sync_Supersede::maybe_supersede( (int) $offer_id, (string) $reason );
 				} catch ( \Throwable $e ) {
 					self::log( 'supersede_error', 'Angebot ' . (int) $offer_id . ': ' . $e->getMessage() );
