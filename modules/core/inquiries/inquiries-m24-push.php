@@ -40,7 +40,7 @@
  *   _m24_push_last_attempt    (string)  ISO-Timestamp letzter Versuch
  *   _m24_push_last_status     (int)     letzter HTTP-Status (0 = Netzwerk-Fehler)
  *   _m24_push_last_error      (string)  letzte Fehlermeldung (bei nicht-201/409)
- *   _m24_push_next_retry      (int)     Unix-Timestamp naechster Retry (nur bei 5xx)
+ *   _m24_push_next_retry      (int)     Unix-Timestamp naechster Retry (5xx/Netz + unvollstaendige Anfrage)
  *
  * @package M24_Plattform
  */
@@ -57,8 +57,14 @@ class M24_Inquiries_Push {
     /** Ab wann eine Anfrage ohne Desk-Nummer als haengend gilt (Minuten). Grosszuegig: Retries duerfen laufen. */
     const STUCK_AFTER_MIN = 30;
 
-    /** Initialer Retry-Delay in Sekunden bei 5xx — D.3 macht draus echten Backoff. */
+    /** Basis-Delay in Sekunden fuer den exponentiellen Backoff (60, 120, 240, …). */
     const INITIAL_RETRY_DELAY = 60;
+
+    /** Obergrenze der Push-Versuche. Danach mark_failed statt weiterem Retry — kein Dauerfeuer. */
+    const MAX_ATTEMPTS = 8;
+
+    /** Deckel fuer den Backoff in Sekunden. 8 Versuche ergeben rund 2 Stunden Nachlauf. */
+    const MAX_RETRY_DELAY = 3600;
 
     /** @var bool Schutz gegen doppelte Init */
     private static $initialized = false;
@@ -69,8 +75,15 @@ class M24_Inquiries_Push {
         }
         self::$initialized = true;
 
-        // Trigger: jeder Wechsel auf pending_api_push schedult einen Push.
-        add_action( 'transition_post_status', [ __CLASS__, 'on_status_transition' ], 10, 3 );
+        // Trigger: die FERTIG angelegte Anfrage — nicht transition_post_status. Der feuert aus
+        // wp_insert_post() heraus, also bevor insert_inquiry() eine einzige Meta geschrieben hat.
+        // Faellt schedule_push() dann auf den synchronen Zweig zurueck (DISABLE_WP_CRON), sah
+        // build_payload() eine Anfrage ohne E-Mail und ohne Positionen -> "mapping_failed: email
+        // fehlt", ohne dass je ein Request rausging (belegt an #35128). m24_inquiry_created feuert
+        // nach allen Meta-Writes (inquiries-storage.php:251). Prioritaet 20: erst die
+        // Benachrichtigungs-Mail (notify, Prio 10), dann der Push — ein haengender Desk-Call
+        // darf die Mail nicht aufhalten.
+        add_action( 'm24_inquiry_created', [ __CLASS__, 'on_inquiry_created' ], 20, 1 );
 
         // Cron-Callback fuer den eigentlichen Push.
         add_action( self::CRON_HOOK_PUSH,  [ __CLASS__, 'run_push' ], 10, 1 );
@@ -112,25 +125,34 @@ class M24_Inquiries_Push {
     // ────────────────────────────────────────────────────────────────────
 
     /**
-     * Hook auf transition_post_status.
-     * Schedult einen Push, wenn ein Inquiry-CPT auf pending_api_push geht.
-     *
-     * Wir lassen den Hook auch greifen, wenn $old === pending_api_push (Re-Trigger
-     * via "Erneut pushen"-Admin-Aktion in D.4). Die einzige Bedingung ist:
-     * neuer Status ist pending_api_push und Posttyp passt.
+     * Hook auf m24_inquiry_created — feuert in insert_inquiry() NACH allen Meta-Writes.
+     * Ab hier sind E-Mail, Positionen und Kontaktdaten garantiert lesbar, auch wenn
+     * schedule_push() synchron durchzieht.
      */
-    public static function on_status_transition( $new_status, $old_status, $post ) {
-        if ( ! is_object( $post ) || ! isset( $post->post_type ) ) {
+    public static function on_inquiry_created( $post_id ) {
+        $post_id = (int) $post_id;
+        if ( $post_id <= 0 ) {
             return;
         }
-        if ( $post->post_type !== M24_Inquiries_Storage::CPT_SLUG ) {
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== M24_Inquiries_Storage::CPT_SLUG ) {
             return;
         }
-        if ( $new_status !== M24_Inquiries::STATUS_PENDING ) {
+        // Nur frisch angelegte, noch nicht uebergebene Anfragen.
+        if ( $post->post_status !== M24_Inquiries::STATUS_PENDING ) {
             return;
         }
 
-        self::schedule_push( (int) $post->ID );
+        self::schedule_push( $post_id );
+    }
+
+    /**
+     * Mapping-Fehler, die KEIN fachliches Problem sind, sondern ein Zeitproblem: die Anfrage
+     * ist (noch) unvollstaendig. Die duerfen nicht in mark_failed enden — nichts im Code setzt
+     * einen Eintrag je wieder auf pending, er waere sonst endgueltig tot.
+     */
+    private static function deferrable_errors(): array {
+        return [ 'm24_push_missing_contact', 'm24_push_no_items' ];
     }
 
     /**
@@ -258,6 +280,11 @@ class M24_Inquiries_Push {
         // Mapping-Daten zusammenbauen.
         $payload = self::build_payload( $post );
         if ( is_wp_error( $payload ) ) {
+            // Fehlende E-Mail/Positionen: erneut versuchen statt den Eintrag zu beerdigen.
+            if ( in_array( $payload->get_error_code(), self::deferrable_errors(), true ) ) {
+                self::handle_incomplete_retry( $post_id, $payload, $attempts );
+                return;
+            }
             self::log_error( $post_id, 'Mapping fehlgeschlagen', [
                 'error' => $payload->get_error_message(),
             ] );
@@ -371,29 +398,85 @@ class M24_Inquiries_Push {
     }
 
     /**
-     * 5xx oder Netzwerk-Fehler: Retry. Status bleibt pending_api_push.
-     * D.1b setzt nur einen einfachen Retry in 60 Sekunden;
-     * D.3 ersetzt diese Methode durch Exponential-Backoff mit Max-Versuchen.
+     * 5xx oder Netzwerk-Fehler: Retry mit exponentiellem Backoff, begrenzt auf MAX_ATTEMPTS.
+     * Status bleibt bis dahin pending_api_push. Vorher lief das als 60-Sekunden-Dauerfeuer
+     * ohne jeden Abbruch (#34814 stand bei 75 Versuchen, #34818 bei 62).
      */
     private static function handle_server_error_retry( $post_id, $result, $status, $attempts ) {
         $error = (string) ( $result['error'] ?? '' );
 
         update_post_meta( $post_id, '_m24_push_last_error', $error );
 
-        $next_run = time() + self::INITIAL_RETRY_DELAY;
-        update_post_meta( $post_id, '_m24_push_next_retry', $next_run );
-
-        wp_schedule_single_event( $next_run, self::CRON_HOOK_RETRY, [ $post_id ] );
+        $next_run = self::schedule_retry( $post_id, $attempts );
+        if ( 0 === $next_run ) {
+            self::mark_failed( $post_id, $status, sprintf(
+                'Aufgegeben nach %d Versuchen (letzter Status %d): %s', $attempts, $status, $error
+            ) );
+            self::log_error( $post_id, 'Push endgueltig aufgegeben — Versuchs-Obergrenze erreicht', [
+                'status'       => $status,
+                'error'        => $error,
+                'attempts'     => $attempts,
+                'max_attempts' => self::MAX_ATTEMPTS,
+            ] );
+            do_action( 'm24_inquiry_mail_fallback', $post_id, sprintf( 'push_aufgegeben_http_%d', $status ) );
+            return;
+        }
 
         self::log_warning( $post_id, 'Push 5xx/network — Retry geplant', [
             'status'    => $status,
             'error'     => $error,
             'attempts'  => $attempts,
             'next_run'  => gmdate( 'Y-m-d\TH:i:s\Z', $next_run ),
-            'delay_sec' => self::INITIAL_RETRY_DELAY,
+            'delay_sec' => $next_run - time(),
         ] );
+    }
 
+    /**
+     * Anfrage war zum Push-Zeitpunkt noch unvollstaendig (keine E-Mail / keine Positionen).
+     * KEIN mark_failed — Status bleibt pending, der naechste Versuch findet die Metas vor.
+     * Erst wenn die Obergrenze reisst, ist es ein echter Fehler.
+     */
+    private static function handle_incomplete_retry( $post_id, $error, $attempts ) {
+        update_post_meta( $post_id, '_m24_push_last_error', 'unvollstaendig: ' . $error->get_error_message() );
+
+        $next_run = self::schedule_retry( $post_id, $attempts );
+        if ( 0 === $next_run ) {
+            self::mark_failed( $post_id, 0, sprintf(
+                'mapping_failed nach %d Versuchen: %s', $attempts, $error->get_error_message()
+            ) );
+            self::log_error( $post_id, 'Anfrage blieb unvollstaendig — Versuchs-Obergrenze erreicht', [
+                'error'        => $error->get_error_message(),
+                'attempts'     => $attempts,
+                'max_attempts' => self::MAX_ATTEMPTS,
+            ] );
+            do_action( 'm24_inquiry_mail_fallback', $post_id, 'mapping_failed' );
+            return;
+        }
+
+        self::log_warning( $post_id, 'Push verschoben — Anfrage noch unvollstaendig', [
+            'error'     => $error->get_error_message(),
+            'attempts'  => $attempts,
+            'next_run'  => gmdate( 'Y-m-d\TH:i:s\Z', $next_run ),
+            'delay_sec' => $next_run - time(),
+        ] );
+    }
+
+    /**
+     * Plant den naechsten Versuch: 60 s, 120 s, 240 s … gedeckelt auf MAX_RETRY_DELAY.
+     *
+     * @return int Unix-Timestamp des naechsten Versuchs, 0 wenn die Obergrenze erreicht ist.
+     */
+    private static function schedule_retry( $post_id, $attempts ): int {
+        if ( $attempts >= self::MAX_ATTEMPTS ) {
+            delete_post_meta( $post_id, '_m24_push_next_retry' );
+            return 0;
+        }
+        $delay    = (int) min( self::MAX_RETRY_DELAY, self::INITIAL_RETRY_DELAY * ( 2 ** max( 0, $attempts - 1 ) ) );
+        $next_run = time() + $delay;
+        update_post_meta( $post_id, '_m24_push_next_retry', $next_run );
+        wp_schedule_single_event( $next_run, self::CRON_HOOK_RETRY, [ $post_id ] );
         do_action( 'm24_inquiry_push_retry_scheduled', $post_id, $next_run );
+        return $next_run;
     }
 
     /**
