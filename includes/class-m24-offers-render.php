@@ -132,6 +132,8 @@ class M24_Offers_Render {
 		$sie = ( 'du' !== $form ); // DE-Anredeform pro Angebot; EN kennt kein du/sie (bleibt unverändert)
 		$de = array(
 			'hello' => 'Hallo', 'intro' => $sie ? 'vielen Dank für die Anfrage. Gerne übersenden wir Ihnen das nachfolgende, verbindliche Angebot:' : 'vielen Dank für die Anfrage. Gerne übersenden wir dir das nachfolgende, verbindliche Angebot:', 'valid' => 'gültig bis',
+			// valid_line: derzeit ungenutzt. NICHT in Mail/PDF verwenden — enthält einen relativen Wert,
+			// der in einem eingefrorenen Dokument falsch wird. Dort M24_Offer_Validity::line() nehmen.
 			'valid_line' => 'Gültig bis %1$s — noch %2$d Tag%3$s', 'cta_sub' => 'Online: Angebot prüfen → annehmen → Bankverbindung wird angezeigt',
 			'subtotal' => 'Zwischensumme (netto)', 'vat' => 'USt', 'margin' => 'Differenzbesteuert (§ 25a)',
 			'std_net' => 'Regelbesteuerte Artikel (netto)', 'total' => 'Gesamt', 'delivery' => 'Lieferzeit',
@@ -631,8 +633,7 @@ class M24_Offers_Render {
 		$bank   = self::bank();
 		$L      = self::ol( self::offer_lang( $o ), self::anrede_form( $o ) ); // #1: Chrome-Labels DE/EN + DE-Anredeform (Rechtstexte bleiben DE)
 
-		$days = 0; $vu = (string) $o->valid_until;
-		if ( $vu ) { $days = (int) floor( ( strtotime( $vu . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ); if ( $days < 0 ) { $days = 0; } }
+		$vu = (string) $o->valid_until;
 		$status = (string) $o->status;
 
 		echo self::head( $L['offer'] . ' ' . $o->offer_no ); // <title> lokalisiert (EN „Offer {nr}", DE „Angebot {nr}") — analog zum Hero
@@ -654,7 +655,7 @@ class M24_Offers_Render {
 				<div class="m24off-hero-titlerow">
 					<h1 class="m24off-hero-title"><?php echo esc_html( $L['offer'] ); ?> <?php echo esc_html( $o->offer_no ); ?></h1>
 					<?php if ( 'offen' === $status || 'angenommen' === $status ) : ?>
-						<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> <?php echo 'en' === self::offer_lang( $o ) ? esc_html( (int) $days . ' day' . ( 1 === $days ? '' : 's' ) . ' left · until ' ) : esc_html( 'noch ' . (int) $days . ' Tag' . ( 1 === $days ? '' : 'e' ) . ' · bis ' ); ?><?php echo esc_html( self::date_de( $vu ) ); ?></span>
+						<span class="m24off-chip"><svg class="m24off-chip-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> <?php echo esc_html( M24_Offer_Validity::label_with_date( $vu, self::offer_lang( $o ) ) ); ?></span>
 					<?php elseif ( 'bezahlt' === $status ) : ?>
 						<span class="m24off-chip"><?php echo esc_html( $L['paid'] ); ?> ✓</span>
 					<?php else : ?>
@@ -1140,8 +1141,8 @@ class M24_Offers_Render {
 		$sal  = trim( (string) ( $sj['salutation'] ?? '' ) );
 		$note = (string) ( $sj['note'] ?? '' );
 		$mlang  = self::offer_lang( $o );
-		$mdays  = $o->valid_until ? max( 0, (int) ceil( ( strtotime( (string) $o->valid_until . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ) ) : 0;
-		$mplural = ( 1 === $mdays ) ? '' : ( 'de' === $mlang ? 'e' : 's' );
+		// Kein Countdown in der Angebotsmail: der Text friert beim Versand ein, die Frist laeuft weiter.
+		// Die Mail nennt ausschliesslich das Datum ($vu). ($mdays/$mplural waren hier ohnehin unbenutzt.)
 
 		$rows = '';
 		foreach ( $items as $it ) {
@@ -1331,7 +1332,8 @@ class M24_Offers_Render {
 	/* ── Ablauf-Reminder-Mail (m24_mail_shell) ──────────────────────────── */
 
 	/**
-	 * Kurze Erinnerungs-Mail „läuft in {N} Tagen ab" — Anredeform + Sprache gemäß Angebot, im M24-Mail-Design.
+	 * Kurze Erinnerungs-Mail „gültig bis {Datum}" — Anredeform + Sprache gemäß Angebot, im M24-Mail-Design.
+	 * Bewusst OHNE Countdown: die Mail friert beim Versand ein, die Frist läuft weiter (§ 148 BGB).
 	 * Tage werden dynamisch berechnet (Text stimmt, egal ob 1 oder 2 Tage Rest). Nur Aufruf durch den Cron
 	 * (der das Einmalig-Flag setzt); hier kein Statuswechsel, kein Flag — reine Ausgabe.
 	 */
@@ -1345,12 +1347,12 @@ class M24_Offers_Render {
 		$form  = self::anrede_form( $o );
 		$L     = self::ol( $lang, $form );
 		$vu    = self::date_de( (string) $o->valid_until );
-		$mdays = $o->valid_until ? max( 0, (int) ceil( ( strtotime( (string) $o->valid_until . ' 23:59:59' ) - time() ) / DAY_IN_SECONDS ) ) : 0;
-		$en    = ( 'en' === $lang );
-		$dayw  = $en ? ( 'day' . ( 1 === $mdays ? '' : 's' ) ) : ( 'Tag' . ( 1 === $mdays ? '' : 'e' ) );
-		$head  = $en
-			? sprintf( 'Your offer %s expires in %d %s', (string) $o->offer_no, $mdays, $dayw )
-			: sprintf( 'Ihr Angebot %s läuft in %d %s ab', (string) $o->offer_no, $mdays, $dayw );
+		// Erinnerungsmail ist ein eingefrorenes Dokument: KEIN relativer Wert in der Ueberschrift.
+		// "laeuft in 2 Tagen ab" waere schon falsch, wenn der Kunde die Mail einen Tag spaeter oeffnet.
+		$en   = ( 'en' === $lang );
+		$head = $en
+			? sprintf( 'Your offer %s is valid until %s', (string) $o->offer_no, $vu )
+			: sprintf( 'Ihr Angebot %s ist gültig bis %s', (string) $o->offer_no, $vu );
 
 		if ( $en ) {
 			$body = sprintf( 'this is a friendly reminder that your binding offer is valid until %s. After that it expires automatically.', $vu );

@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.486
+ * Version:           0.11.487
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -163,6 +163,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-offer-bridge.php'; /
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        // Angebots-Annahme: Login-Gate + Magic-Link-Rückkehr (keine Gastannahme)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-address.php';       // Angebots-Annahme Teil 3/4: Adressformular + Validierung/VIES + Persistenz (Spalten + User-Meta)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-validity.php';    // Laufzeit: Kalendertage + Wortlaut (eine Rechnung fuer alle Stellen)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-drift.php';   // Abweichung zur versendeten Fassung (Marker + Kartenhinweis)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-versions.php';    // Fassungs-Historie (Beleg je Vorfassung)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update.php';      // „Angebot aktualisieren": naechste Fassung + Artefakt-Gate

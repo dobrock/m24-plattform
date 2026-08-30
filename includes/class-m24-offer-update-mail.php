@@ -94,8 +94,13 @@ Du findest ihn als <strong>Fassung <?php echo (int) $ver; ?></strong> im Anhang 
 <!-- Frist -->
 <?php if ( '' !== $vu ) : ?>
 <div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;font-size:14px;color:#222;">
-Die neue Fassung gilt bis <strong><?php echo esc_html( $vu ); ?></strong>
-(<?php echo (int) M24_Offers::VALID_DAYS; ?> Tage ab heute).
+<?php
+// Eingefrorenes Dokument: ausschliesslich das Datum. "10 Tage ab heute" waere schon falsch,
+// wenn der Kunde die Mail einen Tag spaeter oeffnet (§ 148 BGB: die Frist muss bestimmbar sein).
+echo esc_html( class_exists( 'M24_Offer_Validity' )
+    ? M24_Offer_Validity::line( (string) $o->valid_until, 'de' )
+    : 'Dieses Angebot ist gültig bis einschließlich ' . $vu . '.' );
+?>
 </div>
 <?php endif; ?>
 

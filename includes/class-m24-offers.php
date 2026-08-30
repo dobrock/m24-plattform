@@ -294,10 +294,13 @@ class M24_Offers {
 			$flagc = ( '' !== $land_raw && class_exists( 'M24_Country_Flags' ) ) ? M24_Country_Flags::getFlagAndCountry( $land_raw ) : ''; // leer → nichts (getFlagAndCountry('') gäbe „—")
 			$stb   = isset( $badges[ $o->status ] ) ? $badges[ $o->status ] : array( ucfirst( (string) $o->status ), '#8a929c' );
 			$items = json_decode( (string) $o->items_json, true ); $items = is_array( $items ) ? $items : array();
-			$vu_ts = $o->valid_until ? strtotime( (string) $o->valid_until . ' 23:59:59' ) : 0;
-			$days  = $vu_ts ? (int) ceil( ( $vu_ts - time() ) / DAY_IN_SECONDS ) : 0;
+			// Kalendertage in Europe/Berlin (M24_Offer_Validity) statt ceil auf die Spanne bis Tagesende —
+			// letzteres zaehlte den Rest des Anlagetags als vollen Tag mit ("noch 11 Tage" bei 10 Tagen Frist).
 			$badge = $stb[0];
-			if ( 'offen' === $o->status && $days > 0 ) { $badge .= ' · noch ' . $days . ' Tag' . ( 1 === $days ? '' : 'e' ); }
+			if ( 'offen' === $o->status && class_exists( 'M24_Offer_Validity' ) ) {
+				$vlabel = M24_Offer_Validity::label( (string) $o->valid_until );
+				if ( '' !== $vlabel ) { $badge .= ' · ' . $vlabel; }
+			}
 			$txl   = $tax_lbl[ (string) $o->tax_mode ] ?? '';
 			$u_storno = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'storno', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_react  = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'reactivate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
