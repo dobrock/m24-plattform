@@ -78,6 +78,9 @@ class M24_Offer_Update_REST {
 			'version'      => $st['version'],
 			'artifact'     => $gate['artifact'],
 			'diff'         => $diff,
+			'valid_until'  => class_exists( 'M24_Offer_Validity' )
+				? M24_Offer_Validity::date_str( (string) $new->valid_until )
+				: (string) $new->valid_until,
 			'subject'      => M24_Offer_Update_Mail::subject( $new ),
 			'mail_html'    => M24_Offer_Update_Mail::render( $new, $diff ),
 			'send_allowed' => $allowed['ok'],
@@ -85,36 +88,20 @@ class M24_Offer_Update_REST {
 		) );
 	}
 
-	/** Bestätigung aus der Vorschau: DAS ist der Versand. */
+	/**
+	 * Bestätigung aus der Vorschau: DAS ist der Versand. Die Arbeit macht
+	 * M24_Offer_Update::send_version() — dieselbe Stelle, die auch „erneut auslösen" an der Karte
+	 * ruft. Es darf nie zwei Versandpfade geben.
+	 *
+	 * Antwortet IMMER mit Text: ok, blockiert (pending) oder Fehler. Ein Klick ohne sichtbare
+	 * Wirkung war der Auslöser des Vorfalls vom 30.08.
+	 */
 	public static function send( WP_REST_Request $r ) {
-		$id = (int) $r->get_param( 'id' );
-		$o  = M24_Offers::get_by_id( $id );
-		if ( ! $o ) { return new WP_Error( 'm24upd_404', 'Angebot nicht gefunden.', array( 'status' => 404 ) ); }
-
-		$allowed = M24_Offer_Update_Mail::send_allowed();
-		if ( ! $allowed['ok'] ) {
-			return new WP_Error( 'm24upd_draft', $allowed['msg'], array( 'status' => 409 ) );
-		}
-		$gate = M24_Offer_Update::gate( $id );
-		if ( ! $gate['ok'] ) {
-			return new WP_Error( 'm24upd_artifact', $gate['msg'] . ' — kein Versand ohne Anhang.', array( 'status' => 409 ) );
-		}
-
-		$cust = json_decode( (string) $o->customer_json, true );
-		$to   = is_array( $cust ) ? trim( (string) ( $cust['email'] ?? '' ) ) : '';
-		if ( ! is_email( $to ) ) { return new WP_Error( 'm24upd_mail', 'Keine gültige Kundenadresse am Angebot.', array( 'status' => 400 ) ); }
-
-		$prev = M24_Offer_Versions::history( $id );
-		$diff = M24_Offer_Versions::diff( $prev ? $prev[0] : $o, $o );
-		$att  = (array) M24_Desk_Push::offer_pdf_attachment( $o );
-		$sent = wp_mail( $to, M24_Offer_Update_Mail::subject( $o ), M24_Offer_Update_Mail::render( $o, $diff ),
-			array( 'Content-Type: text/html; charset=UTF-8' ), isset( $att['path'] ) ? array( $att['path'] ) : array() );
-
-		if ( ! $sent ) {
-			M24_Offer_Update::hold( $id, 'Mailversand fehlgeschlagen' );
-			return new WP_Error( 'm24upd_send', 'Versand fehlgeschlagen — die Fassung bleibt bereit.', array( 'status' => 500 ) );
-		}
-		M24_Offer_Update::release( $id );
-		return rest_ensure_response( array( 'ok' => true, 'message' => 'Fassung ' . (int) $o->offer_version . ' an ' . $to . ' versendet.' ) );
+		$res = M24_Offer_Update::send_version( (int) $r->get_param( 'id' ) );
+		return rest_ensure_response( array(
+			'ok'      => $res['ok'],
+			'pending' => $res['pending'],
+			'message' => $res['msg'],
+		) );
 	}
 }

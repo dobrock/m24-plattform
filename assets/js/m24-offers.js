@@ -482,7 +482,10 @@
 	// geflusht. armed erst nach der ersten echten Nutzer-Interaktion (kein Save beim Prefill/Reload).
 	var autosaveTimer = null, autosaveArmed = false, saveDirty = false, saveStatusT = null;
 	function armAutosave() { autosaveArmed = true; }
-	function canAutosave() { return autosaveArmed && (items.length || currentDraftId); }
+	// Im Aktualisierungs-Modus KEIN Autosave: /save-draft wuerde eine nummernlose Entwurfszeile
+	// anlegen — genau den Zustand, in dem am 30.08. die 6. Position haengenblieb. Die Fassung
+	// entsteht ausschliesslich ueber update-stage.
+	function canAutosave() { return autosaveArmed && !isUpdateMode() && (items.length || currentDraftId); }
 	function setSaveStatus(txt, cls) {
 		var st = $('[data-status]'); if (!st) { return; }
 		st.textContent = txt; st.className = 'm24off-status' + (cls ? ' ' + cls : '');
@@ -517,10 +520,45 @@
 	window.addEventListener('pagehide', flushAutosave);
 	document.addEventListener('visibilitychange', function () { if ('hidden' === document.visibilityState) { flushAutosave(); } });
 
-	function busy(b) { $$('[data-action="send"],[data-action="draft"]').forEach(function (x) { x.disabled = b; }); }
+	/* ── Aktualisierungs-Modus ──────────────────────────────────────────────────────────────────
+	   cfg.update kommt vom Server (Editor per „Angebot aktualisieren" geoeffnet). Ist es null,
+	   laeuft ALLES wie bisher: Erstversand ueber /offers/send, kein Pfad hier greift. */
+	var upd = (cfg && cfg.update) || null;
+	function isUpdateMode() { return !!(upd && upd.offer_id); }
+	function updRest() { return (upd && upd.rest) || (cfg.rest); }
+
+	function busy(b) { $$('[data-action="send"],[data-action="draft"],[data-pvsend]').forEach(function (x) { x.disabled = b; }); }
 	function backLinkHtml() { return cfg.listUrl ? ' <a class="m24off-backlink" href="' + esc(cfg.listUrl) + '">← Zurück zur Übersicht</a>' : ''; } // #4
-	function openPreview(title, html) { var m = $('[data-pvmodal]'), fr = $('[data-pvframe]'), tt = $('[data-pvtitle]'); if (!m || !fr) { return; } if (tt) { tt.textContent = title; } fr.srcdoc = html || ''; m.hidden = false; } // C2
-	function closePreview() { var m = $('[data-pvmodal]'); if (m) { m.hidden = true; } var fr = $('[data-pvframe]'); if (fr) { fr.srcdoc = ''; } }
+	function openPreview(title, html) { var m = $('[data-pvmodal]'), fr = $('[data-pvframe]'), tt = $('[data-pvtitle]'); if (!m || !fr) { return; } if (tt) { tt.textContent = title; } fr.srcdoc = html || ''; var ft = $('[data-pvfoot]'); if (ft) { ft.hidden = true; } m.hidden = false; } // C2
+	function closePreview() { var m = $('[data-pvmodal]'); if (m) { m.hidden = true; } var fr = $('[data-pvframe]'); if (fr) { fr.srcdoc = ''; } var ft = $('[data-pvfoot]'); if (ft) { ft.hidden = true; } }
+
+	/* Fassungs-Vorschau: Diff oben, fertige Mail darunter, Bestaetigung IST der Versand. */
+	function openVersionPreview(d) {
+		var m = $('[data-pvmodal]'), fr = $('[data-pvframe]'), tt = $('[data-pvtitle]');
+		var ft = $('[data-pvfoot]'), df = $('[data-pvdiff]'), sb = $('[data-pvsend]'), hint = $('[data-pvhint]');
+		if (!m || !fr || !ft) { return false; }
+		var v = d.version || (upd && upd.next) || 2, dd = d.diff || {};
+		if (tt) { tt.textContent = 'Fassung ' + v + ' von ' + ((upd && upd.offer_no) || 'diesem Angebot'); }
+
+        var rows = '';
+        rows += '<div><b>Positionen</b> ' + esc(dd.positionen_vorher) + ' → ' + esc(dd.positionen_nachher) + '</div>';
+        rows += '<div><b>Summe</b> ' + esc(eur(dd.summe_vorher)) + ' → ' + esc(eur(dd.summe_nachher)) + '</div>';
+        if (dd.neu && dd.neu.length) { rows += '<div><b>Neu</b> ' + esc(dd.neu.join(', ')) + '</div>'; }
+        if (dd.entfallen && dd.entfallen.length) { rows += '<div><b>Entfallen</b> ' + esc(dd.entfallen.join(', ')) + '</div>'; }
+        if (d.valid_until) { rows += '<div><b>Neue Frist</b> ' + esc(d.valid_until) + '</div>'; }
+        if (df) { df.innerHTML = '<div class="m24off-pvdiff-t">Was sich gegenüber der versendeten Fassung ändert</div>' + rows; }
+
+		if (sb) {
+			sb.textContent = 'Fassung ' + v + ' an den Kunden senden';
+			// Freigabe entscheidet der SERVER. Das JS verdrahtet nichts hart, es zeigt nur an.
+			sb.disabled = !d.send_allowed;
+			sb.setAttribute('data-offer-id', String((upd && upd.offer_id) || 0));
+		}
+		if (hint) { hint.textContent = d.send_allowed ? '' : (d.send_hint || 'Mailtext noch nicht anwaltlich freigegeben.'); }
+		fr.srcdoc = d.mail_html || '';
+		ft.hidden = false; m.hidden = false;
+		return true;
+	}
 	function offerPayload() {
 		return {
 			customer: collectCustomer(), items: items,
@@ -589,6 +627,42 @@
 		if (sendInFlight) { return; } // Doppelklick-Guard: der Sende-Button ist delegiert (disabled stoppt kein bereits gequeuetes Klick-Event)
 		sendInFlight = true;
 		busy(true);
+
+		// Aktualisierungs-Modus: NICHT /offers/send (das zoege eine neue Nummer), sondern update-stage.
+		// Schreibt die naechste Fassung derselben Nummer, stoesst den Desk-Push an und liefert
+		// Diff + fertige Mail zurueck. Es geht dabei KEINE Mail raus.
+		if (isUpdateMode()) {
+			st.textContent = 'Fassung wird vorbereitet …'; st.className = 'm24off-status';
+			fetch(updRest() + '/update-stage', {
+				method: 'POST', credentials: 'same-origin',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
+				body: JSON.stringify({ id: upd.offer_id, absorb_id: upd.absorb_id || 0, offer: offerPayload() })
+			}).then(function (r) { return r.json(); }).then(function (d) {
+				busy(false); sendInFlight = false;
+				if (d && d.ok) {
+					st.textContent = ''; st.className = 'm24off-status';
+					if (!openVersionPreview(d)) {
+						// Dialog nicht vorhanden -> lieber eine ehrliche Meldung als ein stiller Klick.
+						st.textContent = 'Fassung ' + (d.version || '') + ' liegt bereit, die Vorschau lässt sich nicht öffnen. Über „erneut auslösen" an der Karte senden.';
+						st.className = 'm24off-status is-error';
+					}
+					return;
+				}
+				// Gate: Artefakt fehlt -> KEINE Erfolgsmeldung, sondern der begruendete Zustand.
+				if (d && d.pending) {
+					st.innerHTML = esc(d.message || 'Desk nicht erreichbar — die Fassung ist gespeichert und wartet.') + backLinkHtml();
+					st.className = 'm24off-status is-error';
+					return;
+				}
+				st.textContent = (d && (d.message || d.error)) || 'Fassung konnte nicht vorbereitet werden.';
+				st.className = 'm24off-status is-error';
+			}).catch(function () {
+				busy(false); sendInFlight = false;
+				st.textContent = 'Fassung konnte nicht vorbereitet werden (Netzwerk).'; st.className = 'm24off-status is-error';
+			});
+			return;
+		}
+
 		st.textContent = 'Wird gesendet …'; st.className = 'm24off-status';
 		fetch(cfg.rest + '/send', {
 			method: 'POST', credentials: 'same-origin',
@@ -610,6 +684,34 @@
 				st.className = 'm24off-status is-error';
 			}
 		}).catch(function () { busy(false); sendInFlight = false; st.textContent = 'Senden fehlgeschlagen.'; st.className = 'm24off-status is-error'; });
+	}
+
+	/* Bestaetigung im Vorschau-Dialog IST der Versand. Kein dritter Schritt. */
+	function sendVersion() {
+		var st = $('[data-status]'), sb = $('[data-pvsend]');
+		if (!isUpdateMode()) { return; }
+		if (sb) { sb.disabled = true; sb.textContent = 'Wird gesendet …'; }
+		fetch(updRest() + '/update-send', {
+			method: 'POST', credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
+			body: JSON.stringify({ id: upd.offer_id })
+		}).then(function (r) { return r.json(); }).then(function (d) {
+			closePreview();
+			if (d && d.ok) {
+				$$('[data-action="send"]').forEach(function (b) { b.disabled = true; b.classList.add('is-done'); b.textContent = 'Fassung gesendet ✓'; });
+				st.innerHTML = esc(d.message || 'Fassung versendet.') + backLinkHtml();
+				st.className = 'm24off-status is-ok';
+			} else {
+				// Blockiert (Freigabe/Artefakt) oder Fehler — beides sichtbar, nie stillschweigend.
+				if (sb) { sb.disabled = false; sb.textContent = 'Erneut senden'; }
+				st.innerHTML = esc((d && d.message) || 'Versand fehlgeschlagen.') + backLinkHtml();
+				st.className = 'm24off-status is-error';
+			}
+		}).catch(function () {
+			closePreview();
+			if (sb) { sb.disabled = false; sb.textContent = 'Erneut senden'; }
+			st.textContent = 'Versand fehlgeschlagen (Netzwerk).'; st.className = 'm24off-status is-error';
+		});
 	}
 
 	/* ── Delegierte Events ── */
@@ -656,7 +758,8 @@
 		if ((el = t.closest('[data-dock-collapse]'))) { var pc = $('[data-poscard]'); dockCollapse(!(pc && pc.classList.contains('dock-collapsed'))); return; }
 		if ((el = t.closest('[data-dock-open]'))) { dockOpen(true); return; }
 		if ((el = t.closest('[data-dock-close]'))) { dockOpen(false); return; }
-		if ((el = t.closest('[data-pvclose]')) || t.matches('[data-pvmodal]')) { closePreview(); return; } // C2: Vorschau schließen
+		if (t.closest('[data-pvsend]')) { sendVersion(); return; } // Bestaetigung im Dialog = Versand
+		if ((el = t.closest('[data-pvclose]')) || t.matches('[data-pvmodal]')) { closePreview(); return; } // C2: „Zurück zum Editor" — verwirft nichts
 		if ((el = t.closest('[data-pm]'))) { setPriceMode(el.getAttribute('data-pm')); return; } // B2: Netto/Brutto-Modus
 		if ((el = t.closest('[data-af]'))) { setAnredeForm(el.getAttribute('data-af')); return; } // Du/Sie-Anredeform
 		if ((el = t.closest('[data-salutation-reset]'))) { e.preventDefault(); salApply(true); return; }

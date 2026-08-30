@@ -425,6 +425,14 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-pvhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);font-family:'Saira',Arial,sans-serif}
 .m24off-pvclose{border:0;background:none;font-size:20px;line-height:1;color:#9aa3b0;cursor:pointer}
 .m24off-pvframe{flex:1;border:0;width:100%;background:#fafafa}
+/* Fuss der Fassungs-Vorschau: Diff oben, Bestaetigung unten (die IST der Versand). */
+.m24off-pvfoot{border-top:1px solid #e6e8ec;background:#fff;padding:12px 16px;flex:0 0 auto}
+.m24off-pvdiff{font-size:13px;color:#14161a;display:grid;gap:2px;margin-bottom:10px}
+.m24off-pvdiff-t{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:4px}
+.m24off-pvdiff b{font-weight:600;color:#6b7280;font-size:12px;margin-right:6px}
+.m24off-pvacts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.m24off-pvacts button[disabled]{opacity:.5;cursor:not-allowed}
+.m24off-pvhint{font-size:12px;color:#8a6d00}
 /* E1: Thumbnails in der Online-Ansicht */
 .m24off-cust .m24off-pos-img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#eef0f2;flex:0 0 auto}
 

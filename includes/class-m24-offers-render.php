@@ -301,10 +301,21 @@ class M24_Offers_Render {
 		// ?update_offer=<id> → naechste Fassung DERSELBEN Nummer. Laedt den aktuellen Stand des
 		// Angebots und, falls vorhanden, den Inhalt eines nummernlosen Entwurfs desselben Kunden —
 		// genau der Zustand, in dem am 30.08. die 6. Position haengenblieb.
-		$upd_id = (int) $g( 'update_offer' );
+		$upd_id  = (int) $g( 'update_offer' );
+		$upd_ctx = null; // != null => Editor laeuft im Aktualisierungs-Modus
 		if ( null === $prefill && $upd_id > 0 && class_exists( 'M24_Offer_Update' ) ) {
 			$upd = M24_Offer_Update::prefill( $upd_id );
-			if ( is_array( $upd ) ) { $prefill = $upd; }
+			if ( is_array( $upd ) ) {
+				$prefill = $upd;
+				$upd_ctx = array(
+					'offer_id'  => (int) $upd['offer_id'],
+					'offer_no'  => (string) $upd['offer_no'],
+					'version'   => (int) $upd['version'],
+					'next'      => (int) $upd['next'],
+					'absorb_id' => (int) $upd['absorb_id'],
+					'rest'      => esc_url_raw( rest_url( M24_Offers::NS . '/offers' ) ),
+				);
+			}
 		}
 
 		// ?from_inquiry=<id> → Positionen + Kunde aus einer Sammelanfrage (m24_inquiry) vorbefüllen.
@@ -406,6 +417,9 @@ class M24_Offers_Render {
 			'validDays'=> M24_Offers::VALID_DAYS,
 			'prefill'  => $prefill,
 			'draftId'  => $draftId, // >0 → Operator im „Entwurf weiterbearbeiten"-Modus
+			// null = Erstversand (unveraenderter Pfad), Array = Aktualisierung einer versendeten Fassung.
+			// Der Modus kommt vom Server; das JS leitet ihn nicht aus dem Zustand ab.
+			'update'   => $upd_ctx,
 			'garageNo' => $garageNo,
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
 			'landsEn'  => self::lands_en(), // englische Landesnamen für die EN-Versandzeile ({country})
@@ -509,7 +523,11 @@ class M24_Offers_Render {
 					<h2>Angebot <?php echo esc_html( $cfg['nextNo'] ); ?> <span class="m24off-hint2">gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage</span></h2>
 					<div data-sum-rows></div>
 					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
+					<?php if ( is_array( $upd_ctx ) ) : ?>
+					<button type="button" class="m24off-send" data-action="send">Angebot aktualisieren<small>Fassung <?php echo (int) $upd_ctx['next']; ?> von <?php echo esc_html( $upd_ctx['offer_no'] ); ?> · Vorschau, dann Versand</small></button>
+					<?php else : ?>
 					<button type="button" class="m24off-send" data-action="send">Verbindliches Angebot senden<small>Mail an den Kunden · <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage gültig</small></button>
+					<?php endif; ?>
 					<button type="button" class="m24off-btn m24off-btn-ghost m24off-draftbtn" data-action="draft">Als Entwurf speichern<small>Ohne Mail · Nummer erst beim Senden</small></button>
 					<div class="m24off-previews">
 						<button type="button" class="m24off-btn m24off-btn-ghost" data-action="preview-mail">E-Mail-Vorschau</button>
@@ -585,6 +603,16 @@ class M24_Offers_Render {
 			<div class="m24off-pvbox">
 				<div class="m24off-pvhead"><b data-pvtitle>Vorschau</b><button type="button" class="m24off-pvclose" data-pvclose aria-label="Schließen">✕</button></div>
 				<iframe class="m24off-pvframe" data-pvframe title="Vorschau"></iframe>
+				<!-- Fuss nur im Aktualisierungs-Modus: Fassungsdiff + Versand-Bestaetigung.
+				     Die Bestaetigung HIER ist der Versand — kein dritter Schritt, kein confirm(). -->
+				<div class="m24off-pvfoot" data-pvfoot hidden>
+					<div class="m24off-pvdiff" data-pvdiff></div>
+					<div class="m24off-pvacts">
+						<button type="button" class="m24off-btn m24off-btn-blue" data-action="version-send" data-pvsend>Fassung senden</button>
+						<button type="button" class="m24off-btn" data-pvclose>Zurück zum Editor</button>
+						<span class="m24off-pvhint" data-pvhint></span>
+					</div>
+				</div>
 			</div>
 		</div>
 

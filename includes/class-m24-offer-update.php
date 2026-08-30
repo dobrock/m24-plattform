@@ -185,6 +185,68 @@ class M24_Offer_Update {
 		return ! empty( $o->version_pending );
 	}
 
+	/**
+	 * Die aktuelle Fassung an den Kunden senden. EINE Stelle für beide Auslöser: die Bestätigung im
+	 * Vorschau-Dialog und „erneut auslösen" an der Karte. Prüft die Mail-Freigabe und das Artefakt
+	 * selbst — kein Aufrufer darf am Gate vorbei.
+	 *
+	 * @return array{ok:bool,pending:bool,msg:string}
+	 */
+	public static function send_version( int $offer_id ): array {
+		$o = M24_Offers::get_by_id( $offer_id );
+		if ( ! $o ) { return array( 'ok' => false, 'pending' => false, 'msg' => 'Angebot nicht gefunden.' ); }
+
+		$allowed = M24_Offer_Update_Mail::send_allowed();
+		if ( ! $allowed['ok'] ) {
+			return array( 'ok' => false, 'pending' => true, 'msg' => $allowed['msg'] );
+		}
+
+		$gate = self::gate( $offer_id ); // setzt bei fehlendem Artefakt selbst den Zwischenzustand
+		if ( ! $gate['ok'] ) {
+			return array( 'ok' => false, 'pending' => true, 'msg' => $gate['msg'] . ' — kein Versand ohne Anhang.' );
+		}
+
+		$cust = json_decode( (string) $o->customer_json, true );
+		$to   = is_array( $cust ) ? trim( (string) ( $cust['email'] ?? '' ) ) : '';
+		if ( ! is_email( $to ) ) {
+			return array( 'ok' => false, 'pending' => true, 'msg' => 'Keine gültige Kundenadresse am Angebot.' );
+		}
+
+		$hist = M24_Offer_Versions::history( $offer_id );
+		$diff = M24_Offer_Versions::diff( $hist ? $hist[0] : $o, $o );
+		$att  = class_exists( 'M24_Desk_Push' ) ? (array) M24_Desk_Push::offer_pdf_attachment( $o ) : array();
+		$sent = wp_mail(
+			$to,
+			M24_Offer_Update_Mail::subject( $o ),
+			M24_Offer_Update_Mail::render( $o, $diff ),
+			array( 'Content-Type: text/html; charset=UTF-8' ),
+			isset( $att['path'] ) ? array( $att['path'] ) : array()
+		);
+		if ( ! $sent ) {
+			self::hold( $offer_id, 'Mailversand fehlgeschlagen' );
+			return array( 'ok' => false, 'pending' => true, 'msg' => 'Versand fehlgeschlagen — die Fassung bleibt bereit.' );
+		}
+
+		self::release( $offer_id );
+		$ver = max( 1, (int) $o->offer_version );
+		self::log( $offer_id, 'sent', 'Fassung ' . $ver . ' an ' . $to . ' versendet.' );
+		return array( 'ok' => true, 'pending' => false, 'msg' => 'Fassung ' . $ver . ' an ' . $to . ' versendet.' );
+	}
+
+	/**
+	 * „Erneut auslösen" an der Karte: nur für eine bereitliegende Fassung. Legt nichts an und zählt
+	 * nichts hoch — es ist derselbe Versand, nur ein zweiter Anlauf.
+	 */
+	public static function retry( int $offer_id ): array {
+		$o = M24_Offers::get_by_id( $offer_id );
+		if ( ! $o ) { return array( 'ok' => false, 'msg' => 'Angebot nicht gefunden.' ); }
+		if ( ! self::is_pending( $o ) ) {
+			return array( 'ok' => false, 'msg' => 'Für dieses Angebot liegt keine unversendete Fassung bereit.' );
+		}
+		$r = self::send_version( $offer_id );
+		return array( 'ok' => $r['ok'], 'msg' => $r['msg'] );
+	}
+
 	/** Kartenhinweis für den Zwischenzustand — begründet, damit er kein stiller Liegenbleiber wird. */
 	public static function pending_badge( $o ): string {
 		if ( ! self::is_pending( $o ) ) { return ''; }

@@ -148,10 +148,16 @@ class M24_Offers {
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend', 'retry_version' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
-				if ( 'delete' === $do ) {
+				if ( 'retry_version' === $do ) {
+					// Einziger erlaubter Zwischenzustand: Fassung liegt bereit, das Desk-Artefakt fehlte.
+					// Hier erneut ausloesen — nichts anlegen, nichts hochzaehlen, nur Gate + Versand.
+					$res         = M24_Offer_Update::retry( $id );
+					$notice      = $res['msg'];
+					$notice_type = $res['ok'] ? 'success' : 'error';
+				} elseif ( 'delete' === $do ) {
 					// Soft-Delete → Papierkorb (10 Tage wiederherstellbar). Bleibt als Tombstone: Re-Sync legt
 					// die gesyncte Zeile über die vorhandene desk_order_id NICHT wieder als aktiv an.
 					$wpdb->update( $t, array( 'deleted_at' => current_time( 'mysql', true ) ), array( 'id' => $id ) );
@@ -354,7 +360,9 @@ class M24_Offers {
 					$bits[] = '<span style="color:#b45309;" title="Lokale Änderung, die der Desk noch nicht kennt — der Sync holt das nach.">⇧ Push offen</span>';
 				}
 				if ( class_exists( 'M24_Offer_Update' ) && M24_Offer_Update::is_pending( $o ) ) {
-					$bits[] = M24_Offer_Update::pending_badge( $o );
+					$u_retry = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'retry_version', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+					$bits[]  = M24_Offer_Update::pending_badge( $o )
+						. ' <a href="' . esc_url( $u_retry ) . '" style="color:#0e447e;font-weight:700;">erneut auslösen</a>';
 				}
 				if ( class_exists( 'M24_Offer_Drift' ) && M24_Offer_Drift::has( $o ) ) {
 					$bits[] = M24_Offer_Drift::badge( $o );
