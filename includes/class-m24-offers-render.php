@@ -296,6 +296,15 @@ class M24_Offers_Render {
 			}
 		}
 
+		// ?update_offer=<id> → naechste Fassung DERSELBEN Nummer. Laedt den aktuellen Stand des
+		// Angebots und, falls vorhanden, den Inhalt eines nummernlosen Entwurfs desselben Kunden —
+		// genau der Zustand, in dem am 30.08. die 6. Position haengenblieb.
+		$upd_id = (int) $g( 'update_offer' );
+		if ( null === $prefill && $upd_id > 0 && class_exists( 'M24_Offer_Update' ) ) {
+			$upd = M24_Offer_Update::prefill( $upd_id );
+			if ( is_array( $upd ) ) { $prefill = $upd; }
+		}
+
 		// ?from_inquiry=<id> → Positionen + Kunde aus einer Sammelanfrage (m24_inquiry) vorbefüllen.
 		$from_inquiry = (int) $g( 'from_inquiry' );
 		if ( null === $prefill && $from_inquiry > 0 && class_exists( 'M24_Inquiries_Storage' ) && M24_Inquiries_Storage::CPT_SLUG === get_post_type( $from_inquiry ) ) {

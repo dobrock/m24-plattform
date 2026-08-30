@@ -309,6 +309,9 @@ class M24_Offers {
 			$cnt      = count( $items );
 			$is_draft = ( 'entwurf' === (string) $o->status );
 			$no_disp  = $is_draft ? '—' : (string) $o->offer_no;
+			// Eine Nummer, mehrere Fassungen: ab Fassung 2 steht sie an der Nummer.
+			$o_ver = max( 1, (int) ( $o->offer_version ?? 1 ) );
+			if ( ! $is_draft && $o_ver > 1 ) { $no_disp .= ' · Fassung ' . $o_ver; }
 			// #9: Betrag — immer Netto; Brutto zusätzlich, wenn USt>0 bzw. brutto≠netto.
 			$net_v   = (float) $o->subtotal_net;
 			$gross_v = (float) $o->total_gross;
@@ -347,6 +350,9 @@ class M24_Offers {
 				if ( (int) ( $o->rev ?? 0 ) > (int) ( $o->last_synced_rev ?? 0 ) && '' !== (string) ( $o->wp_offer_uid ?? '' ) ) {
 					$bits[] = '<span style="color:#b45309;" title="Lokale Änderung, die der Desk noch nicht kennt — der Sync holt das nach.">⇧ Push offen</span>';
 				}
+				if ( class_exists( 'M24_Offer_Update' ) && M24_Offer_Update::is_pending( $o ) ) {
+					$bits[] = M24_Offer_Update::pending_badge( $o );
+				}
 				if ( class_exists( 'M24_Offer_Drift' ) && M24_Offer_Drift::has( $o ) ) {
 					$bits[] = M24_Offer_Drift::badge( $o );
 				}
@@ -371,6 +377,24 @@ class M24_Offers {
 			echo '<div class="card">';
 			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . $sync_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
+			// Vorfassungen als Beleg — aufklappbar an der Karte, NICHT als eigene Listeneintraege.
+			if ( ! $is_draft && class_exists( 'M24_Offer_Versions' ) ) {
+				$hist = M24_Offer_Versions::history( (int) $o->id );
+				if ( ! empty( $hist ) ) {
+					$h = '<details style="margin:6px 0 0;"><summary style="cursor:pointer;color:#6b7280;font-size:12px;">'
+						. 'Verlauf: ' . count( $hist ) . ' Vorfassung' . ( 1 === count( $hist ) ? '' : 'en' ) . '</summary>'
+						. '<div style="font-size:12px;color:#5a6474;padding:6px 0 0;">';
+					foreach ( $hist as $hv ) {
+						$hts = ! empty( $hv->sent_at ) ? strtotime( (string) $hv->sent_at . ' UTC' ) : 0;
+						$h  .= '<div style="padding:2px 0;">Fassung ' . (int) $hv->version . ' · '
+							. (int) $hv->item_count . ' Pos. · ' . esc_html( number_format( (float) $hv->total_gross, 2, ',', '.' ) ) . ' €'
+							. ( $hts ? ' · versendet ' . esc_html( gmdate( 'd.m.Y H:i', $hts ) ) . ' UTC' : '' )
+							. ( ! empty( $hv->desk_artifact ) ? ' · PDF ' . esc_html( (string) $hv->desk_artifact ) : '' )
+							. '</div>';
+					}
+					echo $h . '</div></details>'; // phpcs:ignore WordPress.Security.EscapeOutput
+				}
+			}
 			echo '<div class="foot">';
 			if ( $f_trash ) {
 				// Papierkorb-Zeile: nur Wiederherstellen + endgültig löschen (keine Storno-/Ansicht-Aktionen).
@@ -391,6 +415,13 @@ class M24_Offers {
 						echo '<span style="color:#9a3412;font-weight:700;" title="Positionen oder Adresse haben sich nach dem Versand geändert — dieses Angebot ersetzt das alte und muss noch raus.">⚠ Neuversand nötig</span>';
 					}
 					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
+					// Ein Knopf fuer den geaenderten Stand: oeffnet den Editor auf dem AKTUELLEN Angebot
+					// (inkl. eines herumliegenden nummernlosen Entwurfs). Erzeugt KEINE neue Nummer.
+					if ( class_exists( 'M24_Offer_Update' ) && M24_Offer_Update::can_update( $o ) ) {
+						// Der Editor laeuft im Frontend ueber QV_NEW (wie reopen_url), nicht als Admin-Seite.
+						$u_upd = add_query_arg( array( self::QV_NEW => 1, 'update_offer' => (int) $o->id ), home_url( '/' ) );
+						echo '<a href="' . esc_url( $u_upd ) . '" style="color:#0e447e;font-weight:700;" title="Naechste Fassung derselben Nummer — Vorschau, dann Versand. Keine neue Angebotsnummer.">Angebot aktualisieren</a>';
+					}
 					// „Erneut senden": nur für bereits versendete, noch offene Angebote. Der Dialog zeigt die
 					// hinterlegte Adresse im Modal vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
 					// TODO (sobald der Desk-Token orders:read hat): den Empfänger zusätzlich frisch aus
@@ -604,6 +635,59 @@ class M24_Offers {
 	}
 
 	/* ── Steuer (MANUELL) — Modi als Vorlage, nicht auto-detektiert ─────── */
+
+	/**
+	 * Editor-Payload → Inhaltsspalten einer Angebotszeile.
+	 *
+	 * Additiv fuer „Angebot aktualisieren" (M24_Offer_Update): baut denselben Zeilen-Inhalt wie der
+	 * Sende-Endpunkt, aber ohne Nummernkreis, Token, Status und Versand. Nutzt bewusst dieselben
+	 * privaten Reiniger — die Sanitisierung darf es nicht zweimal in zwei Fassungen geben.
+	 * Der bestehende Sendepfad bleibt unberuehrt.
+	 *
+	 * @return array|WP_Error
+	 */
+	public static function row_from_payload( array $p ) {
+		$customer = self::clean_customer( (array) ( $p['customer'] ?? array() ) );
+		$items    = self::clean_items( (array) ( $p['items'] ?? array() ) );
+		$extras   = self::clean_extras( (array) ( $p['extras'] ?? array() ) );
+		if ( empty( $items ) || ! is_email( $customer['email'] ) ) {
+			return new WP_Error( 'm24off_bad', 'Mindestens eine Position und eine gueltige Kunden-E-Mail noetig.', array( 'status' => 400 ) );
+		}
+		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
+		$modes    = self::tax_modes();
+		if ( ! isset( $modes[ $tax_mode ] ) ) {
+			return new WP_Error( 'm24off_tax', 'Bitte einen gueltigen Steuerfall waehlen.', array( 'status' => 400 ) );
+		}
+		$tax_rate = (float) ( $p['tax_rate'] ?? 0 );
+		if ( 'b2c_eu_oss' === $tax_mode && ( $tax_rate < 0 || $tax_rate > 27 ) ) {
+			return new WP_Error( 'm24off_oss', 'Bitte einen gueltigen OSS-USt-Satz (0-27 %) angeben.', array( 'status' => 400 ) );
+		}
+
+		$lang               = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de';
+		$src                = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		$src['lang']        = $lang;
+		$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie';
+		$src['salutation']  = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
+		$src['note']        = isset( $p['note'] ) ? sanitize_textarea_field( (string) $p['note'] ) : '';
+		$src['delivery']    = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
+
+		$totals = self::compute_totals( $items, $extras, $tax_mode, $tax_rate, (string) ( $customer['land'] ?? '' ) );
+
+		return array(
+			'customer_json' => wp_json_encode( $customer ),
+			'items_json'    => wp_json_encode( $items ),
+			'extras_json'   => wp_json_encode( $extras ),
+			'delivery_time' => sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) ),
+			'tax_mode'      => $tax_mode,
+			'tax_rate'      => self::rate_for( $tax_mode, $tax_rate ),
+			'tax_note'      => (string) $modes[ $tax_mode ]['note'],
+			'subtotal_net'  => $totals['net'] + $totals['st25a'],
+			'tax_amount'    => $totals['tax'],
+			'total_gross'   => $totals['total'],
+			'currency'      => 'EUR',
+			'src_json'      => wp_json_encode( $src ),
+		);
+	}
 
 	public static function tax_modes(): array {
 		return array(

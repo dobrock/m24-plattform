@@ -270,6 +270,10 @@ class M24_Desk_Push {
             // über Edits/Resends nie geändert (Updates keyen auf id), eindeutig pro Angebot. NICHT ref/order_num
             // (die Anzeigenummer 2026-xxxx wird erst beim Senden gezogen und ist im Entwurf ein Platzhalter).
             'wp_offer_uid'        => 'wpoffer_' . (int) $o->id,
+            // Fassung derselben Nummer. Die uid bleibt gleich (sonst legt der Desk pro Fassung
+            // einen zweiten Auftrag an statt den bestehenden zu aktualisieren) — die Fassung
+            // sagt drueben nur, unter welchem Schluessel das Artefakt abzulegen ist.
+            'offer_version'       => max( 1, (int) ( $o->offer_version ?? 1 ) ),
             'inquiry_source'      => self::inquiry_source(),
             'inquiry_source_meta' => array(
                 'wp_offer_no' => (string) $o->offer_no,

@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.485
+ * Version:           0.11.486
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -34,7 +34,7 @@ if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
 }
 define( 'M24_PLATTFORM_DIR',         plugin_dir_path( __FILE__ ) );
 define( 'M24_PLATTFORM_URL',         plugin_dir_url( __FILE__ ) );
-define( 'M24_PLATTFORM_DB_VERSION',  '031' );
+define( 'M24_PLATTFORM_DB_VERSION',  '032' );
 // NUR erhöhen, wenn sich Rewrite-Rules ändern (triggert Self-Healing-Flush, nicht bei jedem Bump).
 define( 'M24_REWRITE_VERSION',       '5' );
 
@@ -164,6 +164,10 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-accept.php';        /
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-address.php';       // Angebots-Annahme Teil 3/4: Adressformular + Validierung/VIES + Persistenz (Spalten + User-Meta)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offers-render.php'; // Angebote: Operator-Modal + Kunden-Ansicht + Mail
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-drift.php';   // Abweichung zur versendeten Fassung (Marker + Kartenhinweis)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-versions.php';    // Fassungs-Historie (Beleg je Vorfassung)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update.php';      // „Angebot aktualisieren": naechste Fassung + Artefakt-Gate
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update-mail.php'; // Kundenmail „Angebot aktualisiert" (ENTWURF, ungeprueft)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update-rest.php'; // Knopf-Strecke: open/stage/send
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-push.php';  // Desk-Sync W1: Angebot → POST /api/orders (Vertrag v1.1)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // Desk-Sync D1–D3: Webhook Desk → WP (LWW-Applier)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/sync-apply.php'; // Bidirektionale Sync: Apply-Seite (orders/offer_lines/customers, record-level LWW)
@@ -281,6 +285,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-cli.php';
     require_once M24_PLATTFORM_DIR . 'modules/importer/resync-media-cli.php';
     require_once M24_PLATTFORM_DIR . 'modules/core/inquiries/inquiries-recover-cli.php'; // wp m24 inquiry-recover
+    require_once M24_PLATTFORM_DIR . 'includes/cli-offer-consolidate.php';                // wp m24 offer-consolidate
 }
 
 if ( is_admin() ) {
@@ -384,6 +389,7 @@ add_action( 'plugins_loaded', function() {
     M24_User_Activity::init(); // Last-Login (wp_login) + Herkunft (user_register → „manuell")
     M24_Account::init(); // Konto-/Einstellungsseite (Entwurf 1); Löschung/Export/Brevo-DOI via m24_account_danger_enabled
     M24_Offers::init(); // Angebots-Workflow v1 (flag-gated m24_offers_enabled, Default aus)
+    M24_Offer_Update_REST::init(); // „Angebot aktualisieren": Editor oeffnen, Fassung schreiben, Vorschau bestaetigen
     M24_Desk_Push::init(); // Desk-Sync W1: Push beim Angebotsversand + Retry-Cron (echter Versand flag-gated, Default aus)
     M24_Desk_Inbound::init(); // Desk-Sync D1–D3: REST m24/v1/desk-sync (Token-gated, LWW, Echo-Schutz)
     M24_Sync_Reconcile::init(); // Reconcile-Pull (10-Min-Cron) — registriert auch den m24_10min-Takt
