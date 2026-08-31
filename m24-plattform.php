@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.489
+ * Version:           0.11.490
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -282,11 +282,15 @@ require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-dedup-cleanup.php';
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-impact-report.php';  // Cleanup-Impact-Report (READ-ONLY · Backup↔Live-Diff)
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-attachment-restore.php'; // Attachment-Rückholung aus Backup-DB (ADD-ONLY)
 require_once M24_PLATTFORM_DIR . 'modules/importer/class-m24-gallery-audit.php';   // Bilder-/Galerie-Audit (READ-ONLY · Admin-Seite + WP-CLI)
+// Wartungs-Kerne: IMMER laden, nicht nur unter WP-CLI. Ohne SSH auf dem Live-Hosting laeuft die
+// Wartung ueber MOTORSPORT24 -> System -> Wartung, und die ruft genau diese Klassen. Die
+// WP_CLI::add_command-Aufrufe stehen in den Dateien hinter einem eigenen WP_CLI-Guard.
+require_once M24_PLATTFORM_DIR . 'modules/core/inquiries/inquiries-recover-cli.php'; // Kern + wp m24 inquiry-recover
+require_once M24_PLATTFORM_DIR . 'includes/cli-offer-consolidate.php';                // Kern + wp m24 offer-consolidate
+
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
     require_once M24_PLATTFORM_DIR . 'modules/importer/import-shopware-cli.php';
     require_once M24_PLATTFORM_DIR . 'modules/importer/resync-media-cli.php';
-    require_once M24_PLATTFORM_DIR . 'modules/core/inquiries/inquiries-recover-cli.php'; // wp m24 inquiry-recover
-    require_once M24_PLATTFORM_DIR . 'includes/cli-offer-consolidate.php';                // wp m24 offer-consolidate
 }
 
 if ( is_admin() ) {
@@ -299,6 +303,7 @@ if ( is_admin() ) {
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-reviews-settings.php';
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-inquiry-diagnose-meta.php'; // Anfrage-Diagnose: Postmeta-Listen + Vergleich
     require_once M24_PLATTFORM_DIR . 'admin/class-m24-inquiry-diagnose.php';      // Anfrage-Diagnose: Seite unter System
+    require_once M24_PLATTFORM_DIR . 'admin/class-m24-maintenance.php';           // Wartung: CLI-Kommandos als Oberflaeche
     require_once M24_PLATTFORM_DIR . 'modules/importer/import-admin.php'; // Admin-Import-Steuerung (AJAX-Chunk-Loop)
 }
 
@@ -416,6 +421,7 @@ add_action( 'plugins_loaded', function() {
         M24_Import_Status_Page::init();
         M24_Reviews_Settings::init();
         M24_Inquiry_Diagnose::init(); // MOTORSPORT24 → System → „Anfrage-Diagnose"
+        M24_Maintenance::init();      // MOTORSPORT24 → System → „Wartung"
         M24_Import_Admin::init();
         M24_Gallery_Audit::init();
         M24FZ_Meta_Render::init();

@@ -24,7 +24,7 @@ class M24_Admin_Menu {
 			// ── Kunden ──
 			'm24-haendler', 'm24-plattform-reviews',
 			// ── System ──  (Einstellungen liegt auf dem Dach-Slug m24-plattform)
-			'm24-plattform', 'm24-sitemap', 'm24-anfrage-diagnose',
+			'm24-plattform', 'm24-sitemap', 'm24-anfrage-diagnose', 'm24-wartung',
 			// ── Diagnose ──
 			'm24-error-log', 'm24-mail-preview',
 		);
