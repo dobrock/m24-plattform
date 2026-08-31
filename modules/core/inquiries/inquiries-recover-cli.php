@@ -3,9 +3,14 @@
  * M24 Plattform — Anfragen: Nachlauf fuer haengengebliebene Desk-Pushs (WP-CLI).
  * Modul: modules/core/inquiries/inquiries-recover-cli.php
  *
- * Zielgruppe sind Anfragen, die am Trigger-Bug aus 0.11.482 haengengeblieben sind:
- * Status synced_via_mail oder sync_failed, aber KEINE _m24_desk_order_num. Ihre Metas
- * sind vollstaendig — es ging nie ein Request raus, die Daten sind nicht verloren.
+ * Auswahlkriterium ist EINE Tatsache: keine _m24_desk_order_num. Drueben existiert dann kein
+ * Auftrag, egal was der Status hier behauptet. Der Status ist nur noch Zusatzinformation und
+ * steht je Zeile in der Ausgabe, damit erkennbar bleibt, welcher Fall vorliegt.
+ *
+ * Der Status als Filter griff zu kurz: #34967 (Douglas Wong, 21.08.) steht auf pending_api_push,
+ * ohne Push-Versuch, ohne Fehler, ohne Desk-Nummer — das Event ist schlicht verloren gegangen,
+ * dasselbe Muster wie der seit 05.07. faellige Retry von #34814. Ein Filter auf
+ * synced_via_mail/sync_failed liess genau diese Faelle durchfallen.
  *
  *     wp m24 inquiry-recover                  Trockenlauf ueber alle haengenden
  *     wp m24 inquiry-recover --ids=34814,34818
@@ -18,12 +23,23 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Inquiries_Recover {
 
-	/** Endzustaende, aus denen ein Eintrag ohne Desk-Nummer zurueckgeholt werden darf. */
+	/**
+	 * Alle vier M24-Status — pending_api_push ausdruecklich eingeschlossen.
+	 *
+	 * Bewusst eine explizite Liste statt 'any': 'any' haengt an exclude_from_search der jeweiligen
+	 * Status-Registrierung und wuerde Faelle still verschlucken. Der Papierkorb bleibt so ebenfalls
+	 * aussen vor, ohne dass man sich darauf verlassen muss.
+	 */
 	public static function stati(): array {
-		return array( M24_Inquiries::STATUS_SYNCED_MAIL, M24_Inquiries::STATUS_FAILED );
+		return array(
+			M24_Inquiries::STATUS_PENDING,
+			M24_Inquiries::STATUS_SYNCED,
+			M24_Inquiries::STATUS_SYNCED_MAIL,
+			M24_Inquiries::STATUS_FAILED,
+		);
 	}
 
-	/** Haengende Anfragen: Endstatus erreicht, aber nie im Desk angelegt. */
+	/** Haengende Anfragen: keine Desk-Nummer. Der Status entscheidet nicht mehr mit. */
 	public static function find( int $limit = 200 ): array {
 		$q = new WP_Query( array(
 			'post_type'      => M24_Inquiries_Storage::CPT_SLUG,

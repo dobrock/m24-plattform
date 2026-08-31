@@ -37,10 +37,12 @@ class M24_Maintenance {
 		return array(
 			'inquiry-recover' => array(
 				'titel' => 'Hängende Anfragen erneut an den Desk pushen',
-				'text'  => 'Anfragen mit Status synced_via_mail oder sync_failed, die keine Desk-Auftragsnummer tragen. Setzt Versuchszähler und Status zurück und pusht erneut. Versendet keine Mail.',
+				'text'  => 'Anfragen ohne Desk-Auftragsnummer — unabhängig vom Status, pending_api_push eingeschlossen. Setzt Versuchszähler und Status zurück und pusht erneut. Versendet keine Mail. IDs optional: leer = alle hängenden.',
 				'cli'   => 'wp m24 inquiry-recover',
 				'core'  => array( 'M24_Inquiries_Recover', 'run' ),
-				'ids'   => false,
+				'ids'   => true,
+				'pflicht' => false, // leer = alle haengenden
+				'ph'    => 'optional: 34967,34814',
 			),
 			'offer-consolidate' => array(
 				'titel' => 'Altbestand der Nachfolger-Automatik einsammeln',
@@ -48,6 +50,8 @@ class M24_Maintenance {
 				'cli'   => 'wp m24 offer-consolidate',
 				'core'  => array( 'M24_Offer_Consolidate', 'run' ),
 				'ids'   => false,
+				'pflicht' => false,
+				'ph'    => '',
 			),
 			'supersede-undo' => array(
 				'titel' => 'Supersede rückgängig machen',
@@ -55,6 +59,8 @@ class M24_Maintenance {
 				'cli'   => 'wp m24 supersede-undo --ids=…',
 				'core'  => array( 'M24_Sync_Supersede', 'undo' ),
 				'ids'   => true,
+				'pflicht' => true, // ohne IDs waere unklar, welche Kette gemeint ist
+				'ph'    => '2026-1052,2026-1053',
 			),
 		);
 	}
@@ -127,7 +133,7 @@ class M24_Maintenance {
 			set_transient( self::key_out(), array( 'job' => $job, 'go' => false, 'text' => 'Erst den Trockenlauf ansehen — „Ausführen" ist gesperrt.' ), self::TTL );
 			wp_safe_redirect( self::url() ); exit;
 		}
-		if ( $jobs[ $job ]['ids'] && empty( $ids ) ) {
+		if ( ! empty( $jobs[ $job ]['pflicht'] ) && empty( $ids ) ) {
 			set_transient( self::key_out(), array( 'job' => $job, 'go' => false, 'text' => 'Bitte mindestens eine ID angeben.' ), self::TTL );
 			wp_safe_redirect( self::url() ); exit;
 		}
@@ -210,7 +216,7 @@ class M24_Maintenance {
 		echo '<input type="hidden" name="job" value="' . esc_attr( $key ) . '">';
 		echo '<input type="hidden" name="do" value="' . esc_attr( $do ) . '">';
 		if ( ! empty( $job['ids'] ) ) {
-			echo '<input type="text" name="ids" value="" placeholder="2026-1052,2026-1053" style="width:230px;">';
+			echo '<input type="text" name="ids" value="" placeholder="' . esc_attr( (string) ( $job['ph'] ?? '' ) ) . '" style="width:230px;">';
 		}
 		echo '<button class="' . esc_attr( $class ) . '">' . esc_html( $label ) . '</button></form>';
 	}
