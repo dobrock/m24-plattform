@@ -525,7 +525,7 @@ class M24_Inquiries_Push {
         }
 
         $internal_source = $get( 'inquiry_source' );
-        $api_source      = self::map_source_to_api( $internal_source );
+        $api_source      = self::map_source_to_api( $internal_source, $post_id );
 
         $source_meta_json = (string) get_post_meta( $post_id, '_m24_inquiry_source_meta', true );
         $source_meta      = [];
@@ -584,14 +584,44 @@ class M24_Inquiries_Push {
     /**
      * Plugin-internes Source-Token → Backend-Wert (Spec v4 §4.3).
      */
-    public static function map_source_to_api( $internal ) {
-        $map = [
-            M24_Inquiries::SOURCE_CART    => 'wordpress_plugin_cart',
-            M24_Inquiries::SOURCE_PRODUCT => 'wordpress_plugin_product',
-            M24_Inquiries::SOURCE_CONTACT => 'wordpress_plugin_contact',
-            M24_Inquiries::SOURCE_BLOG    => 'wordpress_plugin_blog',
-        ];
-        return $map[ $internal ] ?? 'wordpress_plugin_cart';
+    /**
+     * Vom Desk akzeptierte inquiry_source-Werte. Das IST der Vertrag der Gegenseite — und er deckt
+     * sich mit den internen Konstanten aus M24_Inquiries. 'offer' erzeugt die Anfragen-Strecke nicht,
+     * es gehoert zum Angebots-Push; der Satz steht hier trotzdem vollstaendig, weil er die
+     * Whitelist der Gegenseite abbildet und nicht unsere Teilmenge davon.
+     */
+    public static function allowed_sources(): array {
+        return array( 'cart', 'contact_form', 'product_inquiry', 'blog_inquiry', 'offer' );
+    }
+
+    /**
+     * Internes Source-Token -> Desk-Wert.
+     *
+     * Es gibt nichts zu uebersetzen: die erlaubten Werte sind die internen. Die frueher hier
+     * gebildeten 'wordpress_plugin_*'-Werte standen in keiner Whitelist und haben JEDEN
+     * Anfragen-Push mit HTTP 400 abgewiesen (belegt an #35129, 31.08. 21:42:52: received
+     * "wordpress_plugin_product", allowed cart, contact_form, product_inquiry, blog_inquiry, offer).
+     * Betroffen war nicht nur die Produktanfrage, sondern jede Quelle — auch der cart-Pfad.
+     *
+     * Unbekannte Quelle laeuft NICHT in einen 400: erlaubter Fallback plus Log. Ein neuer
+     * Einstiegspfad darf nie wieder die gesamte Anfragen-Strecke stilllegen.
+     */
+    public static function map_source_to_api( $internal, $post_id = 0 ) {
+        $src = sanitize_key( (string) $internal );
+        if ( in_array( $src, self::allowed_sources(), true ) ) {
+            return $src;
+        }
+        self::log_warning( (int) $post_id, 'Unbekannte inquiry_source — Fallback auf cart', array(
+            'empfangen' => $src,
+            'erlaubt'   => implode( ', ', self::allowed_sources() ),
+        ) );
+        if ( class_exists( 'M24_Error_Log' ) ) {
+            M24_Error_Log::capture( 'inquiries_push', 'warning', 'Unbekannte inquiry_source beim Desk-Push', array(
+                'empfangen' => $src,
+                'post_id'   => (int) $post_id,
+            ) );
+        }
+        return M24_Inquiries::SOURCE_CART;
     }
 
     /**
