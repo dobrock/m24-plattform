@@ -156,6 +156,12 @@ class M24FZ_Editor_Screen {
 		$is_pub  = ( $id && $post && 'publish' === $post->post_status );
 		$save_label = $is_pub ? 'Aktualisieren' : 'Veröffentlichen'; // bereits veröffentlicht → „Aktualisieren"
 		$pdate   = $post ? mysql2date( 'Y-m-d\TH:i', $post->post_date ) : current_time( 'Y-m-d\TH:i' );
+		// s14-Bruecke: Knopf nur bei veroeffentlichten Fahrzeugen (Vertrag Abschnitt 1).
+		$s14_id    = $id ? (int) get_post_meta( $id, M24FZ_S14::META_ID, true ) : 0;
+		$s14_vor   = $s14_id ? (string) get_post_meta( $id, M24FZ_S14::META_URL, true ) : '';
+		$s14_bearb = $s14_id ? (string) get_post_meta( $id, M24FZ_S14::META_EDIT, true ) : '';
+		$s14_stand = $s14_id ? (string) get_post_meta( $id, M24FZ_S14::META_STAND, true ) : '';
+		$s14_an    = ( $is_pub && M24FZ_S14::eingerichtet() );
 		$classicU = $id ? admin_url( 'post.php?post=' . $id . '&action=edit&classic=1' ) : admin_url( 'post-new.php?post_type=' . M24FZ_CPT::PT . '&classic=1' );
 		$yearNow = (int) gmdate( 'Y' );
 		?>
@@ -176,6 +182,14 @@ class M24FZ_Editor_Screen {
 					<div class="fz-tb-right">
 						<span class="fz-seg"><span class="on">Komfort-Maske</span><a href="<?php echo esc_url( $classicU ); ?>">Klassisch</a></span>
 						<?php if ( $id ) : ?><a class="fz-out ghost" href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank">Vorschau ↗</a><?php endif; ?>
+						<?php if ( $s14_an ) : ?>
+							<button type="button" class="fz-out fz-s14"
+								data-post="<?php echo (int) $id; ?>"
+								data-rest="<?php echo esc_url( rest_url( 'm24/v1/s14-senden' ) ); ?>"
+								data-nonce="<?php echo esc_attr( wp_create_nonce( 'wp_rest' ) ); ?>"><?php
+								echo $s14_id ? 'Auf s14.de aktualisieren' : 'Auf s14.de inserieren';
+							?></button>
+						<?php endif; ?>
 						<button type="submit" class="fz-save"><?php echo esc_html( $save_label ); ?></button>
 					</div>
 				</header>
@@ -192,6 +206,20 @@ class M24FZ_Editor_Screen {
 								<a href="<?php echo esc_url( get_permalink( $id ) ); ?>" target="_blank" rel="noopener">Inserat ansehen ↗</a>
 							<?php endif; ?>
 						</div>
+					<?php endif; ?>
+					<?php if ( $s14_an ) : ?>
+						<div class="fz-s14-zeile<?php echo $s14_id ? '' : ' leer'; ?>">
+							<?php if ( $s14_id ) : ?>
+								<span class="lbl">s14.de:</span>
+								<span class="txt">Entwurf angelegt<?php echo $s14_stand ? ' · zuletzt ' . esc_html( mysql2date( 'd.m.Y H:i', $s14_stand ) ) : ''; ?></span>
+								<?php if ( $s14_vor ) : ?><a href="<?php echo esc_url( $s14_vor ); ?>" target="_blank" rel="noopener">Vorschau ↗</a><?php endif; ?>
+								<?php if ( $s14_bearb ) : ?><a href="<?php echo esc_url( $s14_bearb ); ?>" target="_blank" rel="noopener">Bearbeiten ↗</a><?php endif; ?>
+							<?php else : ?>
+								<span class="lbl">s14.de:</span><span class="txt">noch nicht übertragen</span>
+							<?php endif; ?>
+						</div>
+					<?php elseif ( $id && $is_pub && ! M24FZ_S14::eingerichtet() ) : ?>
+						<div class="fz-s14-zeile leer"><span class="lbl">s14.de:</span><span class="txt">M24_S14_TOKEN fehlt in der wp-config.php</span></div>
 					<?php endif; ?>
 					<div class="fz-titlebar">
 						<label for="fz_title">Fahrzeug-Titel <span class="req">*</span></label>
@@ -574,6 +602,14 @@ class M24FZ_Editor_Screen {
 		update_post_meta( $id, '_m24fz_reclaim_post', $reclaim );
 		if ( $reclaim > 0 && 'publish' === $pstat ) { M24FZ_CPT::reclaim_old_post( $id, $reclaim ); }
 
+		/**
+		 * Nach dem Speichern — fuer Anbauten, die den fertigen Stand brauchen.
+		 * Erster Nutzer: M24FZ_S14::status_melden() (verkauft/reserviert/gelistet
+		 * an s14). Alles, was hier haengt, MUSS eigene Fehler schlucken; der
+		 * Redirect darunter darf nicht ausfallen.
+		 */
+		do_action( 'm24fz_after_save', $id, $pstat );
+
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . M24FZ_CPT::PT . '&page=' . self::PAGE . '&post=' . $id . '&updated=1' ) );
 		exit;
 	}
@@ -685,6 +721,14 @@ class M24FZ_Editor_Screen {
 .fz-thumb-prev img{width:100%;height:100%;object-fit:cover}
 .fz-titel-tag{position:absolute;top:8px;left:8px;background:#9a6b25;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:4px;z-index:2}
 .fz-thumb-btns{display:flex;flex-direction:column;gap:8px}
+.fz-s14-zeile{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:9px 14px;border:1px solid #d9d9d6;border-radius:8px;background:#fbfbfa;font-size:13px}
+.fz-s14-zeile.leer{color:#6b6b66}
+.fz-s14-zeile .lbl{font-weight:700}
+.fz-s14-zeile a{color:#1a5fb4;text-decoration:none}
+.fz-s14-zeile a:hover{text-decoration:underline}
+.fz-s14-zeile.ok{border-color:#a9d3b6;background:#f2faf5}
+.fz-s14-zeile.fehler{border-color:#e3b4ac;background:#fdf4f2;color:#8c2f1e}
+.fz-s14[disabled]{opacity:.6;cursor:default}
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
 .fz-galbox strong{display:block;font-size:13px;margin-bottom:2px}
 .fz-galhint{display:block;color:#8a9099;font-size:11px;margin-bottom:8px}
@@ -752,6 +796,36 @@ jQuery(function($){
 	$('#_m24fz_laufleistung').on('input',function(){ var c=this.value.replace(/\\D/g,'').slice(0,7); if(c!==this.value){ this.value=c; } });
 	// Repeater.
 	$('#fz-kf-add').on('click',function(){ $('#fz-keyfacts').append('<p><input type="text" name="_m24fz_keyfacts[]" placeholder="Highlight"></p>'); });
+	/* ── s14-Bruecke ──────────────────────────────────────────────────────────
+	   type="button", damit der Klick das Formular NICHT abschickt: der Vertrag
+	   sagt ausdruecklich „kein automatischer Versand beim Speichern".
+	   Der Request dauert 5-30 s (s14 kopiert die Bilder serverseitig). */
+	$('.fz-s14').on('click',function(){
+		var b=$(this), zeile=$('.fz-s14-zeile'), alt=b.text();
+		if(b.prop('disabled')) return;
+		b.prop('disabled',true).text('Wird übertragen …');
+		zeile.removeClass('ok fehler');
+		$.ajax({
+			url:b.data('rest'), method:'POST', dataType:'json',
+			contentType:'application/json',
+			headers:{'X-WP-Nonce':b.data('nonce')},
+			data:JSON.stringify({post_id:b.data('post')})
+		}).done(function(r){
+			if(!r||!r.ok){ zeile.addClass('fehler').html('<span class="lbl">s14.de:</span><span class="txt">'+((r&&r.meldung)||'Unbekannter Fehler.')+'</span>'); b.prop('disabled',false).text(alt); return; }
+			var h='<span class="lbl">s14.de:</span><span class="txt">'+(r.aktion==='aktualisiert'?'aktualisiert':'Entwurf angelegt')+' · '+r.stand+'</span>';
+			if(r.vorschau)   h+=' <a href="'+r.vorschau+'" target="_blank" rel="noopener">Vorschau ↗</a>';
+			if(r.bearbeiten) h+=' <a href="'+r.bearbeiten+'" target="_blank" rel="noopener">Bearbeiten ↗</a>';
+			if(r.bilder&&r.bilder.fehlgeschlagen>0) h+=' <span class="txt">('+r.bilder.fehlgeschlagen+' Bilder fehlgeschlagen)</span>';
+			if(r.hinweise&&r.hinweise.length) h+=' <span class="txt">· '+r.hinweise.join(' · ')+'</span>';
+			zeile.removeClass('leer').addClass('ok').html(h);
+			b.prop('disabled',false).text('Auf s14.de aktualisieren');
+		}).fail(function(x){
+			var m=(x.responseJSON&&(x.responseJSON.meldung||x.responseJSON.message))||('HTTP '+x.status);
+			zeile.addClass('fehler').html('<span class="lbl">s14.de:</span><span class="txt">'+m+'</span>');
+			b.prop('disabled',false).text(alt);
+		});
+	});
+
 	$('#fz-ausst-add').on('click',function(){ $('#fz-ausstattung').append('<p><input type="text" name="_m24fz_ausstattung[]" placeholder="z. B. Sportsitze"></p>'); });
 	$('#fz-vid-add').on('click',function(){ $('#fz-videos').append('<p><input type="url" name="_m24fz_videos[]" placeholder="https://youtu.be/…"></p>'); });
 	// Beitragsbild.

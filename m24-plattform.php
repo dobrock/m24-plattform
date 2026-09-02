@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.491
+ * Version:           0.11.492
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -247,6 +247,7 @@ require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-template.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-seo.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-admin-list.php';
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-editor-screen.php';
+require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-s14.php';        // Bruecke „Auf s14.de inserieren"
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-menu.php';            // §1 Menü-Dach „MOTORSPORT24"
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-oneclick-update.php';        // Ein-Klick-Update & Cache-Purge
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-fonts.php';                   // Externe Schrift-Requests (googleapis/gstatic) unterbinden
@@ -411,6 +412,9 @@ add_action( 'plugins_loaded', function() {
     // /haendler-login/ bleibt erreichbar, wird nur nicht mehr aus dem Header verlinkt.
     // M24_B2B_Header_Login::init(); // deaktiviert (0.11.365)
     M24_OneClick_Update::init(); // auch im Frontend (Admin-Bar-Node von jeder Seite; übrige Hooks self-gaten)
+    // AUSSERHALB von is_admin(): REST-Anfragen sind nicht is_admin(). Stuende
+    // ::init() im Admin-Block, wuerde /m24/v1/s14-senden nie registriert.
+    M24FZ_S14::init();           // Bruecke „Auf s14.de inserieren" (REST + Statusabgleich)
     M24_Fonts::init();           // Saira self-hosted; googleapis/gstatic-Links (inkl. Revslider Material Icons) kappen
     if ( is_admin() ) {
         M24_Log_Viewer::init();
