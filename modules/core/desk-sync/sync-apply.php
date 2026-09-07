@@ -408,6 +408,17 @@ class M24_Sync_Apply {
 		$idx   = M24_Sync_LWW::find_line( $items, $luid );
 		$tombs = M24_Sync_LWW::tombstones( $o );
 
+		// Sperrliste (Wartung „Positions-Dubletten", 0.11.494): UIDs, die lokal ausgeblendet wurden,
+		// weil sie Kopien aus dem Sync-Erstlauf vom 26.08. sind. Sie werden NIE wieder angehängt — der
+		// Desk führt die Zeile weiter, WP zeigt sie nicht. Bewusst über die Option statt über die
+		// Wartungsklasse: der Applier läuft auch im REST-/Cron-Kontext, wo diese nicht geladen ist.
+		if ( null === $idx ) {
+			$sup = get_option( 'm24_line_suppress', array() );
+			if ( is_array( $sup ) && ! empty( $sup[ (int) $o->id ] ) && in_array( $luid, (array) $sup[ (int) $o->id ], true ) ) {
+				return self::res( $key, false, 0, 'suppressed_local' );
+			}
+		}
+
 		// Vorläufige Desk-UID (Bestandszeile, die noch nie eine WP-uid gesehen hat): NICHT als neue Zeile
 		// anlegen. Der Desk adoptiert unsere line_uid erst beim Push WP→Desk — pullen wir vorher, hätten wir
 		// dieselbe Position zweimal: einmal unter unserer uid, einmal unter seiner geliehenen. Kennen wir die
