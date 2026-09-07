@@ -13,6 +13,12 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+// Kern der Positions-Reparatur. Wird nur hier gebraucht (kein CLI-Kommando), deshalb hier geladen —
+// die Hauptdatei bleibt unberuehrt. Fehlt die Datei im Deploy, meldet der Block "Nicht verfuegbar".
+$m24_repair = M24_PLATTFORM_DIR . 'includes/class-m24-offer-lines-repair.php';
+if ( is_readable( $m24_repair ) ) { require_once $m24_repair; }
+unset( $m24_repair );
+
 class M24_Maintenance {
 
 	const SLUG   = 'm24-wartung';
@@ -30,7 +36,7 @@ class M24_Maintenance {
 	}
 
 	/**
-	 * Die drei Kommandos. 'core' zeigt auf denselben Einstiegspunkt, den auch WP-CLI ruft —
+	 * Die Kommandos. 'core' zeigt auf denselben Einstiegspunkt, den auch WP-CLI ruft —
 	 * fehlt er, meldet der Block das, statt einen Fatal zu riskieren.
 	 */
 	private static function jobs(): array {
@@ -62,6 +68,15 @@ class M24_Maintenance {
 				'pflicht' => true, // ohne IDs waere unklar, welche Kette gemeint ist
 				'ph'    => '2026-1052,2026-1053',
 			),
+			'offer-lines-repair' => array(
+				'titel' => 'Positions-Dubletten aus dem Sync-Erstlauf bereinigen',
+				'text'  => 'Entfernt vom Desk angehängte Doppelpositionen (0-€-Kopien, Service-Zeilen als Position, exakte Dubletten) — nur Zeilen mit Herkunft Desk. Schreibt über save_lines(): Tombstones, Summen neu, Push an den Desk. IDs optional: Angebotsnummern oder Zeilen-IDs, leer = alle aktiven.',
+				'cli'   => '(kein CLI — nur Wartung)',
+				'core'  => array( 'M24_Offer_Lines_Repair', 'run' ),
+				'ids'   => true,
+				'pflicht' => false,
+				'ph'    => 'optional: 2026-1041,2026-1038',
+			),
 		);
 	}
 
@@ -88,6 +103,10 @@ class M24_Maintenance {
 		if ( 'supersede-undo' === $key ) {
 			$r = M24_Sync_Supersede::undo( $ids, $go );
 			return array( 'zeilen' => (array) ( $r['zeilen'] ?? array() ), 'anzahl' => count( (array) ( $r['zeilen'] ?? array() ) ), 'summe' => array() );
+		}
+		if ( 'offer-lines-repair' === $key ) {
+			$r = M24_Offer_Lines_Repair::run( $ids, $go );
+			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Angebote mit Dubletten'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
 		}
 		return $out;
 	}
