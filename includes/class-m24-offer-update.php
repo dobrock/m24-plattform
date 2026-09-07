@@ -24,8 +24,13 @@ class M24_Offer_Update {
 	const PENDING_ARTIFACT = 'Desk nicht erreichbar — Angebots-PDF steht aus';
 	const PENDING_STAGED   = 'Fassung geschrieben — Artefakt wird geholt';
 
-	/** Nur diese Stati dürfen aktualisiert werden: raus beim Kunden, Vorgang noch offen. */
-	const UPDATABLE = array( 'offen', 'versandt' );
+	/**
+	 * Nur diese Stati dürfen aktualisiert werden: raus beim Kunden, Vorgang nicht abgeschlossen.
+	 * `abgelaufen` gehört dazu (07.09.): ein abgelaufenes Angebot zu erneuern IST der Kernfall der
+	 * Fassung — gleiche Nummer, neue Frist ab Versand. release() setzt den Status dann zurück auf
+	 * „offen", sonst stünde neben einer frischen 10-Tage-Frist weiter „Abgelaufen".
+	 */
+	const UPDATABLE = array( 'offen', 'versandt', 'abgelaufen' );
 
 	public static function can_update( $o ): bool {
 		return $o
@@ -178,6 +183,12 @@ class M24_Offer_Update {
 			'version_pending_at'     => null,
 			'sent_at'                => current_time( 'mysql', true ),
 		), array( 'id' => $offer_id ) );
+		// Ein erneuertes, vorher abgelaufenes Angebot ist mit dem Versand wieder offen: stage() hat
+		// valid_until neu gesetzt, die Karte würde sonst „Abgelaufen" neben einer laufenden Frist zeigen.
+		$wpdb->query( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			'UPDATE ' . M24_Offers::table() . " SET status = 'offen' WHERE id = %d AND status = 'abgelaufen'",
+			$offer_id
+		) );
 		if ( class_exists( 'M24_Offer_Drift' ) ) { M24_Offer_Drift::clear( $offer_id ); }
 	}
 
