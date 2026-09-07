@@ -221,7 +221,21 @@ class M24_Sync_Apply {
 		if ( '' === $uid && ! $o ) { return self::res( '', false, 0, 'missing_wp_offer_uid' ); }
 		if ( ! $o ) { return self::res( $uid, false, 0, 'not_found' ); }
 
-		if ( ! self::wins_over( $rec, $o ) ) {
+		// P4 (Vertrags-Nachtrag §2a, 07.09.2026): Löschungen müssen konvergieren. Der Desk wendet
+		// dieselben zwei Regeln an — sonst flackert der Datensatz je nach Reihenfolge.
+		$incoming_tomb = '' !== trim( (string) ( $rec['deleted_at'] ?? '' ) );
+		// 1) Beide Seiten haben gelöscht → das Signal gilt als angewandt. Vorher lief hier bei
+		//    2026-1052 alle zehn Minuten dieselbe Warnung auf, obwohl sich beide Seiten längst einig
+		//    waren: der lokale Stand war neuer, also wurde der Tombstone verworfen und nie quittiert.
+		if ( $incoming_tomb && ! empty( $o->deleted_at ) ) {
+			if ( self::wins_over( $rec, $o ) ) { self::adopt( (int) $o->id, $rec ); } else { M24_Sync_LWW::mark_synced( (int) $o->id ); }
+			unset( self::$material[ (int) $o->id ] );
+			return self::res( $uid, true, self::rev_of( (int) $o->id ), 'already_deleted' );
+		}
+		// 2) Gleichstand in updated_at → die Löschung gewinnt, unabhängig von rev und origin.
+		$tie = M24_Sync_LWW::to_ms( (string) $o->updated_at ) === M24_Sync_LWW::to_ms( (string) ( $rec['updated_at'] ?? '' ) );
+
+		if ( ! self::wins_over( $rec, $o ) && ! ( $incoming_tomb && $tie ) ) {
 			// Ein verworfener Tombstone ist der Fall, den man garantiert sucht: das Angebot bleibt in WP
 			// sichtbar, obwohl es im Desk gelöscht wurde. Deshalb hier eigens benennen statt unter
 			// 'discarded_lww' zu verschwinden — mit beiden Ständen, damit man sofort sieht, wer führt.
