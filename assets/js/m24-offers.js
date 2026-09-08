@@ -485,7 +485,9 @@
 	// Im Aktualisierungs-Modus KEIN Autosave: /save-draft wuerde eine nummernlose Entwurfszeile
 	// anlegen — genau den Zustand, in dem am 30.08. die 6. Position haengenblieb. Die Fassung
 	// entsteht ausschliesslich ueber update-stage.
-	function canAutosave() { return autosaveArmed && !isUpdateMode() && (items.length || currentDraftId); }
+	// Kein Autosave im Aktualisierungs- UND im Lesemodus (Variante A): sonst entstuende aus dem blossen
+	// Ansehen eines versendeten Angebots ein Entwurf, den niemand angelegt hat.
+	function canAutosave() { return autosaveArmed && !isUpdateMode() && !isReadonly() && (items.length || currentDraftId); }
 	function setSaveStatus(txt, cls) {
 		var st = $('[data-status]'); if (!st) { return; }
 		st.textContent = txt; st.className = 'm24off-status' + (cls ? ' ' + cls : '');
@@ -525,6 +527,25 @@
 	   laeuft ALLES wie bisher: Erstversand ueber /offers/send, kein Pfad hier greift. */
 	var upd = (cfg && cfg.update) || null;
 	function isUpdateMode() { return !!(upd && upd.offer_id); }
+	/**
+	 * Lesemodus: der Editor wurde aus einem bereits versendeten Angebot geoeffnet. Angezeigt wird alles,
+	 * geaendert nichts — Aenderungen laufen ueber „Angebot aktualisieren". Der Server lehnt ein Senden
+	 * aus dieser Quelle ohnehin mit 409 ab; die Oberflaeche soll gar nicht erst dorthin fuehren.
+	 */
+	function isReadonly() { return !!(cfg.readonly && cfg.readonly.offer_no); }
+
+	if (isReadonly()) {
+		// Senden und Speichern entfernen statt nur sperren: ein ausgegrauter Knopf laedt zum Probieren ein.
+		$$('[data-action="send"],[data-action="draft"],[data-pvsend]').forEach(function (b) {
+			if (b.parentNode) { b.parentNode.removeChild(b); }
+		});
+		var hint = document.createElement('div');
+		hint.className = 'm24off-ro';
+		hint.textContent = 'Angebot ' + cfg.readonly.offer_no + ' · ' + cfg.readonly.grund;
+		var host = document.querySelector('.m24off-wrap') || document.body;
+		host.insertBefore(hint, host.firstChild);
+		document.body.classList.add('m24off-is-ro');
+	}
 	function updRest() { return (upd && upd.rest) || (cfg.rest); }
 
 	function busy(b) { $$('[data-action="send"],[data-action="draft"],[data-pvsend]').forEach(function (x) { x.disabled = b; }); }

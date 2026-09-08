@@ -148,7 +148,7 @@ class M24_Offers {
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend', 'retry_version' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend', 'retry_version', 'duplicate' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
 				if ( 'retry_version' === $do ) {
@@ -178,6 +178,10 @@ class M24_Offers {
 					M24_Sync_LWW::touch( $id, 'wp' );
 					self::log( 'cancelled', $id, $no );
 					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
+				} elseif ( 'duplicate' === $do ) {
+					$r = self::duplicate_offer( $id );
+					$notice = $r['msg'];
+					if ( ! $r['ok'] ) { $notice_type = 'error'; }
 				} elseif ( 'resend' === $do ) {
 					$r = self::resend_offer_mail( $id, isset( $_GET['to'] ) ? sanitize_email( wp_unslash( $_GET['to'] ) ) : '' );
 					$notice = $r['msg'];
@@ -313,6 +317,7 @@ class M24_Offers {
 			$u_del    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'delete', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_resend = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'resend', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_dup    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'duplicate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_restore = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'restore', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_purge   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'purge', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$cnt      = count( $items );
@@ -417,9 +422,14 @@ class M24_Offers {
 				if ( $is_draft ) {
 					// Entwurf: kein Kunden-Ansicht-Link (inaktiv), stattdessen „Weiter bearbeiten" (?draft={id}).
 					$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
-					echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Weiter bearbeiten</a>'; // D3: gleiches Fenster
+					echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Bearbeiten</a>'; // D3: gleiches Fenster
 				} else {
-					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a><a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener">Operator öffnen</a>';
+					// Reihenfolge: Kunden-Ansicht · Angebot aktualisieren · Erneut senden · Duplizieren ·
+					// Stornieren · Löschen. „Operator öffnen" heißt hier „Ansehen" und öffnet NUR lesend —
+					// ein zweiter Weg, der Inhalt ändert und dabei eine neue Nummer zieht, ist genau der
+					// Fehler vom 08.09. Bearbeitet wird über „Angebot aktualisieren".
+					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a>'
+						. '<a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener" title="Nur ansehen — Änderungen laufen über „Angebot aktualisieren".">Ansehen</a>';
 					// Supersede-Ergebnis (Spec §3/§7): das neue Angebot wartet auf den manuellen Versand.
 					// Bewusst kein Auto-Mail — wer ersetzt, will vorher draufschauen.
 					if ( ! empty( $o->needs_resend ) ) {
@@ -441,6 +451,8 @@ class M24_Offers {
 					if ( in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
 						echo '<a href="' . esc_url( $u_resend ) . '" style="color:#0e447e;" data-m24-resend="' . esc_attr( (string) $o->offer_no ) . '" data-m24-mail="' . esc_attr( (string) ( $cust['email'] ?? '' ) ) . '">Erneut senden</a>';
 					}
+					// Duplizieren: eigenständiger neuer Vorgang, Nummer erst beim Versand.
+					echo '<a href="' . esc_url( $u_dup ) . '" title="Positionen, Extras, Kunde und Sprache in einen neuen Entwurf kopieren. Die Angebotsnummer wird erst beim Versand gezogen.">Duplizieren</a>';
 					if ( 'storniert' === (string) $o->status ) { echo '<a href="' . esc_url( $u_react ) . '">Reaktivieren</a>'; } else { echo '<a href="' . esc_url( $u_storno ) . '" style="color:#b45309;">Stornieren</a>'; }
 				}
 				echo '<a href="' . esc_url( $u_del ) . '" style="color:#a00;margin-left:auto;" onclick="return confirm(\'' . ( $is_draft ? 'Entwurf' : 'Angebot ' . esc_js( (string) $o->offer_no ) ) . ' in den Papierkorb verschieben?\');">Löschen</a></div></div>';
@@ -523,6 +535,62 @@ class M24_Offers {
 		echo '<script>(function(){document.addEventListener("click",function(e){var h=e.target.closest?e.target.closest("[data-offer-toggle]"):null;if(!h)return;var pl=h.parentNode&&h.parentNode.querySelector(".m24offl-pos");if(!pl)return;var wasHidden=pl.hasAttribute("hidden");if(wasHidden){pl.removeAttribute("hidden");}else{pl.setAttribute("hidden","");}h.setAttribute("aria-expanded",wasHidden?"true":"false");});})();</script>';
 		if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 		echo '</div>';
+	}
+
+	/**
+	 * Angebot duplizieren: Positionen, Extras, Kunde und Sprache in einen FRISCHEN Entwurf.
+	 *
+	 * Bewusst OHNE Nummer: die zieht erst der Versand. Eine Nummer beim Duplizieren zu vergeben hiesse,
+	 * sie zu verbrauchen, bevor klar ist, ob das Angebot je herausgeht — und genau solche Luecken im
+	 * Nummernkreis lassen sich hinterher nicht mehr erklaeren. Der Platzhalter erfuellt nur die
+	 * UNIQUE-Bedingung der Spalte.
+	 *
+	 * Nicht kopiert werden: Nummer, Token, Fassung, Sync-Felder, Supersede-Kette, Sende-/Ansichtsdaten.
+	 * Das Duplikat ist ein eigener Vorgang, kein Nachfolger — es soll die Historie des Originals nicht erben.
+	 *
+	 * @return array{ok:bool,msg:string,id:int}
+	 */
+	public static function duplicate_offer( int $offer_id ): array {
+		global $wpdb;
+		$o = self::get_by_id( $offer_id );
+		if ( ! $o ) { return array( 'ok' => false, 'msg' => 'Angebot nicht gefunden.', 'id' => 0 ); }
+
+		$row = array(
+			'offer_no'      => 'E-' . bin2hex( random_bytes( 8 ) ), // Platzhalter, KEIN Sequenz-Verbrauch
+			'token'         => bin2hex( random_bytes( 16 ) ),
+			'account_id'    => (int) $o->account_id,
+			'status'        => 'entwurf',
+			'customer_json' => (string) $o->customer_json,
+			'items_json'    => (string) $o->items_json,
+			'extras_json'   => (string) $o->extras_json,
+			'delivery_time' => (string) $o->delivery_time,
+			'tax_mode'      => (string) $o->tax_mode,
+			'tax_rate'      => (float) $o->tax_rate,
+			'tax_note'      => (string) $o->tax_note,
+			'subtotal_net'  => (float) $o->subtotal_net,
+			'tax_amount'    => (float) $o->tax_amount,
+			'total_gross'   => (float) $o->total_gross,
+			'currency'      => (string) $o->currency,
+			'valid_until'   => null,   // Frist laeuft ab Versand
+			'src_json'      => (string) $o->src_json, // enthaelt Sprache und Anredeform
+			'created_at'    => current_time( 'mysql', true ),
+			'sent_at'       => null,
+		);
+		if ( false === $wpdb->insert( self::table(), $row ) ) {
+			return array( 'ok' => false, 'msg' => 'Duplikat konnte nicht angelegt werden.', 'id' => 0 );
+		}
+		$new_id = (int) $wpdb->insert_id;
+		if ( $new_id <= 0 ) { return array( 'ok' => false, 'msg' => 'Duplikat konnte nicht angelegt werden.', 'id' => 0 ); }
+
+		if ( class_exists( 'M24_Sync_LWW' ) ) { M24_Sync_LWW::init_row( $new_id, 'wp', (int) $o->account_id ); }
+		self::log( 'duplicated', $new_id, (string) $o->offer_no );
+
+		$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => $new_id ), home_url( '/' ) );
+		return array(
+			'ok'  => true,
+			'id'  => $new_id,
+			'msg' => sprintf( 'Angebot %s dupliziert — Entwurf angelegt (noch ohne Nummer, die kommt beim Versand). Direkt öffnen: %s', (string) $o->offer_no, $edit ),
+		);
 	}
 
 	/* ── „Erneut senden" (Zeilen-Aktion) ────────────────────────────────── */
@@ -1346,6 +1414,28 @@ class M24_Offers {
 		if ( empty( $items ) || ! is_email( $customer['email'] ) ) {
 			return new WP_Error( 'm24off_bad', 'Mindestens eine Position und eine gültige Kunden-E-Mail nötig.', array( 'status' => 400 ) );
 		}
+		// GARANTIE gegen die zweite Nummer: Kam der Editor aus einem bestehenden Angebot (?from=<id>) und
+		// ist dieses NICHT mehr Entwurf, darf hier nie ein neues Angebot entstehen. Genau so wurde am
+		// 08.09. aus Fassung 2 von 2026-1038 die zusaetzliche Nummer 2026-1058: „Operator oeffnen" laedt
+		// nur die Positionen, der Sendepfad kannte die Herkunft nicht und zog next_number().
+		//
+		// Serverseitig, nicht per UI: ein direkter POST kaeme sonst an jeder Oberflaeche vorbei. Der
+		// richtige Weg steht in der Meldung, damit niemand raten muss.
+		$from_id = (int) ( $p['from_offer'] ?? 0 );
+		if ( $from_id > 0 ) {
+			$src_offer = self::get_by_id( $from_id );
+			if ( $src_offer && 'entwurf' !== (string) $src_offer->status ) {
+				return new WP_Error(
+					'm24off_sent_source',
+					sprintf(
+						'Angebot %s ist bereits versendet — daraus entsteht keine neue Nummer. Inhalt ändern über „Angebot aktualisieren" (nächste Fassung derselben Nummer), ein eigenständiges neues Angebot über „Duplizieren".',
+						(string) $src_offer->offer_no
+					),
+					array( 'status' => 409, 'offer_no' => (string) $src_offer->offer_no, 'offer_id' => $from_id )
+				);
+			}
+		}
+
 		$tax_mode = (string) ( $p['tax_mode'] ?? '' );
 		$modes    = self::tax_modes();
 		if ( ! isset( $modes[ $tax_mode ] ) ) {

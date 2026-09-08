@@ -498,3 +498,10 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-dlist{flex:0 0 auto;min-height:150px;max-height:min(62vh,540px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
 /* „Gesamt"/Zwischensumme/USt: Betrag inkl. €-Zeichen nie umbrechen (Fix „14.102,73" ⏎ „€" auf Mobil) */
 .m24off-cust .m24off-sumline>strong,.m24off-cust .m24off-sumline>span:last-child{white-space:nowrap}
+
+
+/* Lesemodus: der Editor zeigt ein bereits versendetes Angebot. Kein Speichern, kein Senden — der
+   Hinweis steht oben, damit niemand vergeblich nach dem Knopf sucht. */
+.m24off-ro{background:#fdf5e6;border:1px solid #e6cf9a;color:#8a6d3b;border-radius:10px;
+  padding:12px 16px;margin:0 0 16px;font-weight:600;font-size:14px}
+body.m24off-is-ro .m24off-stickybar{display:none}

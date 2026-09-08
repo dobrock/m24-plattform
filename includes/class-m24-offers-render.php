@@ -91,6 +91,24 @@ class M24_Offers_Render {
 	}
 
 	/**
+	 * Laeuft der Editor nur lesend? Liefert den Grund fuer den Hinweis, sonst null.
+	 *
+	 * Massgeblich ist der Status des QUELL-Angebots, nicht die Absicht des Aufrufers: Wer ein
+	 * versendetes Angebot oeffnet, sieht es an — geaendert wird ueber „Angebot aktualisieren".
+	 *
+	 * @return array{grund:string,offer_no:string}|null
+	 */
+	public static function readonly_context( int $from_id ): ?array {
+		if ( $from_id <= 0 || ! class_exists( 'M24_Offers' ) ) { return null; }
+		$o = M24_Offers::get_by_id( $from_id );
+		if ( ! $o || 'entwurf' === (string) $o->status ) { return null; } // Entwuerfe bleiben editierbar
+		return array(
+			'grund'    => 'Versendet — ändern über „Angebot aktualisieren".',
+			'offer_no' => (string) $o->offer_no,
+		);
+	}
+
+	/**
 	 * Positionstitel in der Angebotssprache — EN nur wenn gepflegt, sonst DE (v3.1).
 	 *
 	 * public, weil der Desk-Push dieselbe Ableitung braucht: bis 0.11.493 schickte er immer den
@@ -428,6 +446,15 @@ class M24_Offers_Render {
 			'validDays'=> M24_Offers::VALID_DAYS,
 			'prefill'  => $prefill,
 			'draftId'  => $draftId, // >0 → Operator im „Entwurf weiterbearbeiten"-Modus
+			// Quelle, wenn der Editor aus einem BESTEHENDEN Angebot geoeffnet wurde (?from=<id>). Wandert
+			// in den Sende-Payload, damit der Server erkennt, dass hier kein Neuangebot entsteht. Ohne das
+			// lief „Operator oeffnen" auf einem versendeten Angebot in next_number() — so entstand am
+			// 08.09. aus Fassung 2 von 2026-1038 die zweite Nummer 2026-1058.
+			'fromOffer' => (int) $g( 'from' ),
+			// Lesemodus: versendete/abgelaufene/angenommene Angebote werden nur angezeigt. Geaendert wird
+			// ausschliesslich ueber „Angebot aktualisieren" — ein zweiter Weg mit anderem Ergebnis ist
+			// genau das Problem, das hier abgestellt wird.
+			'readonly'  => self::readonly_context( (int) $g( 'from' ) ),
 			// null = Erstversand (unveraenderter Pfad), Array = Aktualisierung einer versendeten Fassung.
 			// Der Modus kommt vom Server; das JS leitet ihn nicht aus dem Zustand ab.
 			'update'   => $upd_ctx,
