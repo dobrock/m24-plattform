@@ -1,17 +1,19 @@
 <?php
 /**
- * M24 — Transaktionsmail „Angebot aktualisiert" (ENTWURF, anwaltlich ungeprüft).
+ * M24 — Transaktionsmail „Angebot aktualisiert".
  * Modul: includes/class-m24-offer-update-mail.php
  *
- * ⚠️ RECHTLICHER VORBEHALT — NICHT UNGEPRÜFT SCHARF SCHALTEN.
- * Ein versendetes bindendes Angebot bindet nach § 145 BGB für die Laufzeit; ein einseitiger Widerruf
- * ist unwirksam. Der Text darf deshalb NICHT behaupten, die vorherige Fassung sei ungültig oder
- * zurückgezogen. Er stellt die neue Fassung daneben und BITTET um Bestätigung — mehr nicht.
+ * RECHTLICHER RAHMEN (unverändert): Ein versendetes bindendes Angebot bindet nach § 145 BGB für die
+ * Laufzeit; ein einseitiger Widerruf ist unwirksam. Der Text behauptet deshalb NICHT, die vorherige
+ * Fassung sei ungültig oder zurückgezogen. Er stellt die neue Fassung daneben und BITTET um
+ * Bestätigung — mehr nicht.
  *
- * Solange approved() false liefert (Vorgabe), trägt der Betreff eine sichtbare Entwurfsmarke und
- * send_allowed() verweigert den Versand. Freigabe nach anwaltlicher Prüfung ausschließlich über:
+ * FREIGABE: Text am 08.09.2026 von Daniel geprüft und freigegeben („Text passt"). Seither ist die
+ * Vorgabe von approved() true. Der Filter m24_offer_update_mail_approved bleibt als Notaus:
  *
- *     add_filter( 'm24_offer_update_mail_approved', '__return_true' );
+ *     add_filter( 'm24_offer_update_mail_approved', '__return_false' );
+ *
+ * sperrt den Versand sofort wieder (Betreff trägt dann die Entwurfsmarke, send_allowed() verweigert).
  *
  * Design unverändert: bestehende m24_mail_shell (weißes Logo rechts auf blauem Verlauf 135°
  * #1f74c4 → #0e447e, Standardfuß), Du-Form.
@@ -22,9 +24,9 @@ class M24_Offer_Update_Mail {
 
 	const DRAFT_MARK = '[ENTWURF — anwaltlich ungeprüft] ';
 
-	/** Vorgabe false. Erst nach anwaltlicher Prüfung per Filter freigeben. */
+	/** Vorgabe true seit der Freigabe vom 08.09.2026. Per Filter jederzeit wieder sperrbar. */
 	public static function approved(): bool {
-		return (bool) apply_filters( 'm24_offer_update_mail_approved', false );
+		return (bool) apply_filters( 'm24_offer_update_mail_approved', true );
 	}
 
 	/**
@@ -34,9 +36,9 @@ class M24_Offer_Update_Mail {
 		if ( self::approved() ) { return array( 'ok' => true, 'msg' => '' ); }
 		return array(
 			'ok'  => false,
-			'msg' => 'Die Mail „Angebot aktualisiert" ist ein Entwurf und anwaltlich noch nicht geprüft. '
-				. 'Bis zur Freigabe (Filter m24_offer_update_mail_approved) geht sie nicht an Kunden raus. '
-				. 'Vorschau und Testversand an die eigene Adresse sind möglich.',
+			'msg' => 'Die Mail „Angebot aktualisiert" ist gesperrt (Filter m24_offer_update_mail_approved). '
+				. 'Bis zur Freigabe geht sie nicht an Kunden raus. Mail-Vorschau und Testversand an die eigene Adresse '
+				. 'stehen an der Karte zur Verfügung.',
 		);
 	}
 
@@ -63,8 +65,7 @@ class M24_Offer_Update_Mail {
 		?>
 <?php if ( ! self::approved() ) : ?>
 <div style="background:#fdf6e3;border:1px solid #e6dcc0;border-radius:6px;padding:12px 14px;margin:0 0 16px;font-size:13px;color:#5a4a1a;">
-<strong>Interner Hinweis, nicht für den Kunden:</strong> Dieser Text ist ein Entwurf und anwaltlich nicht geprüft.
-Er wird erst nach Freigabe versendet.
+<strong>Interner Hinweis, nicht für den Kunden:</strong> Dieser Text ist gesperrt und wird erst nach Freigabe versendet.
 </div>
 <?php endif; ?>
 <p style="font-size:15px;color:#222;margin:0 0 14px;">Hallo<?php echo '' !== $name ? ' ' . esc_html( $name ) : ''; ?>,</p>
