@@ -334,7 +334,12 @@ class M24_Desk_Push {
             'amt'        => round( $unit, 2 ), // VK je Einheit (numerisch)
             'einkauf'    => 0.0,               // kein EK in Angeboten bekannt
             // Anzeigefelder für Desk-UI/PDF (DE-Format als String):
-            'art'        => (string) ( $it['title'] ?? '' ),
+            // Titel in der ANGEBOTSSPRACHE. Dieselbe Ableitung wie die Mail und die Kunden-Ansicht —
+            // sonst steht im Desk deutsch, was der Kunde englisch bekommen hat. Gilt automatisch fuer
+            // W1 und den Sync-Push, weil beide diese Methode rufen.
+            'art'        => class_exists( 'M24_Offers_Render' )
+                ? M24_Offers_Render::item_title( $it, $lang )
+                : (string) ( $it['title'] ?? '' ),
             'qty'        => (string) $qty,
             'price'      => number_format( $unit, 2, ',', '.' ),
             'gesamt'     => '€ ' . number_format( $line, 2, ',', '.' ),

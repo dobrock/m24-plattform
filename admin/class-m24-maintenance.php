@@ -15,6 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 // Kern der Positions-Reparatur. Wird nur hier gebraucht (kein CLI-Kommando), deshalb hier geladen —
 // die Hauptdatei bleibt unberuehrt. Fehlt die Datei im Deploy, meldet der Block "Nicht verfuegbar".
+$m24_entitles = M24_PLATTFORM_DIR . 'includes/class-m24-offer-en-titles.php';
+if ( is_readable( $m24_entitles ) ) { require_once $m24_entitles; }
 $m24_repair = M24_PLATTFORM_DIR . 'includes/class-m24-offer-lines-repair.php';
 if ( is_readable( $m24_repair ) ) { require_once $m24_repair; }
 unset( $m24_repair );
@@ -68,6 +70,15 @@ class M24_Maintenance {
 				'pflicht' => true, // ohne IDs waere unklar, welche Kette gemeint ist
 				'ph'    => '2026-1052,2026-1053',
 			),
+			'offer-en-titles' => array(
+				'titel' => 'EN-Titel nachziehen',
+				'text'  => 'Englische Angebote, deren letzter Push deutsche Positionstitel trug (Fehler bis 0.11.493). Stößt einen erneuten Push an — keine Mail, kein neuer Auftrag, keine neue Nummer. Angebote ohne übersetzte Titel werden übersprungen, dort änderte ein Push nichts. IDs optional: leer = alle betroffenen.',
+				'cli'   => '(kein CLI — nur Wartung)',
+				'core'  => array( 'M24_Offer_EN_Titles', 'run' ),
+				'ids'   => true,
+				'pflicht' => false,
+				'ph'    => 'optional: 2026-1043,2026-1050',
+			),
 			'offer-lines-repair' => array(
 				'titel' => 'Positions-Dubletten aus dem Sync-Erstlauf bereinigen',
 				'text'  => 'Entfernt vom Desk angehängte Doppelpositionen (0-€-Kopien, Service-Zeilen als Position, exakte Dubletten) — nur Zeilen mit Herkunft Desk. Schreibt über save_lines(): Tombstones, Summen neu, Push an den Desk. IDs optional: Angebotsnummern oder Zeilen-IDs, leer = alle aktiven.',
@@ -103,6 +114,10 @@ class M24_Maintenance {
 		if ( 'supersede-undo' === $key ) {
 			$r = M24_Sync_Supersede::undo( $ids, $go );
 			return array( 'zeilen' => (array) ( $r['zeilen'] ?? array() ), 'anzahl' => count( (array) ( $r['zeilen'] ?? array() ) ), 'summe' => array() );
+		}
+		if ( 'offer-en-titles' === $key ) {
+			$r = M24_Offer_EN_Titles::run( $ids, $go );
+			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Mit EN-Titeln'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
 		}
 		if ( 'offer-lines-repair' === $key ) {
 			$r = M24_Offer_Lines_Repair::run( $ids, $go );

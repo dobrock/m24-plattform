@@ -90,8 +90,19 @@ class M24_Offers_Render {
 		);
 	}
 
-	/** v3.1: Positions-Titel je Sprache — EN nur wenn gepflegt, sonst DE (keine Maschinenübersetzung). */
-	private static function item_title( array $it, string $lang ): string {
+	/**
+	 * Positionstitel in der Angebotssprache — EN nur wenn gepflegt, sonst DE (v3.1).
+	 *
+	 * public, weil der Desk-Push dieselbe Ableitung braucht: bis 0.11.493 schickte er immer den
+	 * deutschen Titel, auch bei englischen Angeboten (2026-1043, 2026-1050 standen im Desk deutsch,
+	 * obwohl sie englisch beim Kunden waren). Zwei Ableitungen waeren genau die Sorte Abweichung, die
+	 * erst auffaellt, wenn Mail und Desk verschiedene Texte zeigen.
+	 *
+	 * Kein DeepL-Aufruf hier: title_en steht bereits im gespeicherten Item (M24_DeepL fuellt es beim
+	 * Anlegen). Ein Uebersetzungs-Call im Push-Pfad waere langsam, quotapflichtig und wuerde bei einem
+	 * Ausfall den Auftrags-Push blockieren. Fehlt title_en, gilt der deutsche Titel — nie leer.
+	 */
+	public static function item_title( array $it, string $lang ): string {
 		if ( 'en' === $lang && ! empty( $it['title_en'] ) ) { return (string) $it['title_en']; }
 		return (string) ( $it['title'] ?? '' );
 	}
