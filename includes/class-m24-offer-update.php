@@ -134,12 +134,14 @@ class M24_Offer_Update {
 		}
 
 		// 4) LWW: lokale Änderung stempeln (rev+1), sonst lehnt der Desk die Fassung als veraltet ab.
+		//    Das IST der Weg, auf dem die Fassung drüben ankommt (Sync-Push: Kopf + Positionen).
 		if ( class_exists( 'M24_Sync_LWW' ) ) { M24_Sync_LWW::touch( $offer_id, 'wp' ); }
 
-		// 5) Desk-Push für DIESE Fassung — erzeugt drüben das Artefakt.
+		// 5) W1-Hook. Bei bestehendem Desk-Auftrag greift dort der Create-only-Guard und setzt nur
+		//    needs_update — kein zweiter POST, keine Dublette. Der Monitor zeigt das als Altlast an.
 		do_action( 'm24_offer_sent', $offer_id );
 
-		self::log( $offer_id, 'staged', 'Fassung ' . $next . ' geschrieben, Desk-Push angestoßen.' );
+		self::log( $offer_id, 'staged', 'Fassung ' . $next . ' geschrieben, Sync-Push angestoßen.' );
 		return array( 'ok' => true, 'version' => $next, 'msg' => 'Fassung ' . $next . ' vorbereitet.' );
 	}
 
@@ -258,6 +260,54 @@ class M24_Offer_Update {
 		return array( 'ok' => $r['ok'], 'msg' => $r['msg'] );
 	}
 
+	/* ── Mail-Vorschau / Testversand (Operator, ohne Kundenkontakt) ─────────────────────── */
+
+	/**
+	 * Vorschau der Fassungs-Mail im Browser bzw. Testversand an die EIGENE Adresse des angemeldeten
+	 * Operators. Beides berührt den Kunden nicht und ist unabhängig von approved() — genau der Weg,
+	 * den send_allowed() in Aussicht stellt („Vorschau und Testversand … sind möglich"). Vorher gab es
+	 * ihn nur im Editor-Dialog nach dem Speichern; um ihn erneut zu sehen, hätte man Fassung 3 anlegen
+	 * müssen.
+	 */
+	public static function preview_url( int $offer_id, bool $test = false ): string {
+		$args = array( 'action' => 'm24_offer_update_preview', 'offer' => $offer_id );
+		if ( $test ) { $args['test'] = 1; }
+		return wp_nonce_url( add_query_arg( $args, admin_url( 'admin-post.php' ) ), 'm24_offer_update_preview_' . $offer_id );
+	}
+
+	public static function handle_preview(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Kein Zugriff.' ); }
+		$id = (int) ( $_GET['offer'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification
+		check_admin_referer( 'm24_offer_update_preview_' . $id );
+		$o = M24_Offers::get_by_id( $id );
+		if ( ! $o ) { wp_die( 'Angebot nicht gefunden.' ); }
+
+		$hist = M24_Offer_Versions::history( $id );
+		$diff = M24_Offer_Versions::diff( $hist ? $hist[0] : $o, $o );
+		$subj = M24_Offer_Update_Mail::subject( $o );
+		$html = M24_Offer_Update_Mail::render( $o, $diff );
+		$me   = wp_get_current_user();
+		$mine = $me ? (string) $me->user_email : '';
+
+		if ( ! empty( $_GET['test'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			// Testversand: ausschließlich an den angemeldeten Operator, nie an den Kunden. Ohne Anhang —
+			// es geht um den Text, nicht um das Artefakt.
+			$sent = is_email( $mine ) && wp_mail( $mine, $subj, $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+			self::log( $id, 'preview_test', 'Testversand an ' . $mine . ( $sent ? ' ok' : ' FEHLGESCHLAGEN' ) );
+			wp_safe_redirect( add_query_arg( 'm24_mailtest', $sent ? 'ok' : 'fail', admin_url( 'admin.php?page=m24-offers' ) ) );
+			exit;
+		}
+
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=UTF-8' );
+		echo '<div style="position:sticky;top:0;background:#111417;color:#fff;padding:10px 16px;font:13px/1.5 system-ui,sans-serif;">'
+			. '<strong>Vorschau</strong> · Betreff: ' . esc_html( $subj )
+			. ( is_email( $mine ) ? ' · <a href="' . esc_url( self::preview_url( $id, true ) ) . '" style="color:#9cc4ff;">Testversand an ' . esc_html( $mine ) . '</a>' : '' )
+			. ' · <a href="' . esc_url( admin_url( 'admin.php?page=m24-offers' ) ) . '" style="color:#9cc4ff;">zurück</a></div>';
+		echo $html; // phpcs:ignore WordPress.Security.EscapeOutput — eigene, bereits escapte Mail-Ausgabe
+		exit;
+	}
+
 	/** Kartenhinweis für den Zwischenzustand — begründet, damit er kein stiller Liegenbleiber wird. */
 	public static function pending_badge( $o ): string {
 		if ( ! self::is_pending( $o ) ) { return ''; }
@@ -268,7 +318,8 @@ class M24_Offer_Update {
 		}
 		return '<span style="color:#b45309;" title="' . esc_attr( $reason ) . '">▲ Fassung '
 			. (int) ( $o->offer_version ?? 1 ) . ' bereit, nicht versendet' . esc_html( $when )
-			. ( '' !== $reason ? ' — ' . esc_html( $reason ) : '' ) . '</span>';
+			. ( '' !== $reason ? ' — ' . esc_html( $reason ) : '' ) . '</span>'
+			. ' <a href="' . esc_url( self::preview_url( (int) $o->id ) ) . '" target="_blank" rel="noopener" style="font-weight:600;">Mail-Vorschau</a>';
 	}
 
 	private static function log( int $offer_id, string $step, string $msg ): void {
@@ -277,3 +328,7 @@ class M24_Offer_Update {
 		}
 	}
 }
+
+// Vorschau/Testversand als admin-post-Aktion. Auf Dateiebene registriert, weil diese Klasse keinen
+// eigenen init() hat und die Hauptdatei dafür nicht angefasst werden soll.
+add_action( 'admin_post_m24_offer_update_preview', array( 'M24_Offer_Update', 'handle_preview' ) );
