@@ -903,9 +903,34 @@
 		cxSetKt(c.kundentyp);
 		cxTitle(cxEditId ? 'Kunde bearbeiten' : 'Kunde suchen oder anlegen', cxEditId ? 'Aktualisieren & übernehmen' : 'Kunde anlegen & übernehmen');
 	}
+	/**
+	 * Neuanlage mit dem vorbelegen, was ueber den Kunden schon bekannt ist (aus Anfrage, Garage oder
+	 * Karte). Bewusst KEIN cxLoadForEdit: das setzt cxEditId und macht daraus ein „Kunde bearbeiten" —
+	 * hier entsteht ein neuer Datensatz, die Felder sind nur ein Startpunkt.
+	 *
+	 * Anrede bleibt leer: aus einem Namen laesst sie sich nicht ableiten, und ein geratenes „Herr" steht
+	 * am Ende in der Anrede der Angebotsmail.
+	 */
+	function cxPrefillKnown() {
+		cxReset();
+		var c = customer || {};
+		if (!c.name && !c.email && !c.firma && !c.firmenname) { return; } // nichts bekannt → leer lassen
+		var set = function (k, v) { var el = $('[data-cx="' + k + '"]'); if (el) { el.value = v || ''; } };
+		var vn = c.vorname || '', nn = c.nachname || '';
+		if ('' === vn && '' === nn && c.name) {
+			// Letztes Wort ist der Nachname, alles davor der Vorname — dieselbe Aufteilung wie beim
+			// Bearbeiten, damit derselbe Name nicht je nach Einstieg anders zerlegt wird.
+			var pp = String(c.name).trim().split(/\s+/); vn = pp.shift() || ''; nn = pp.join(' ');
+		}
+		set('vorname', vn); set('nachname', nn);
+		set('firmenname', c.firmenname || c.firma);
+		set('email', c.email); set('land', c.land); set('telefon', c.telefon);
+		cxSetKt(c.kundentyp);
+	}
+
 	function cxOpen(editC) {
 		var m = $('[data-cxmodal]'); if (!m) { return; }
-		if (editC) { cxLoadForEdit(editC); } else { cxReset(); cxTitle('Kunde suchen oder anlegen', 'Kunde anlegen & übernehmen'); }
+		if (editC) { cxLoadForEdit(editC); } else { cxPrefillKnown(); cxTitle('Kunde suchen oder anlegen', 'Kunde anlegen & übernehmen'); }
 		m.hidden = false;
 		var q = $('[data-cx-q]'); if (q) { q.value = ''; if (!editC) { q.focus(); } }
 		var r = $('[data-cx-results]'); if (r) { r.innerHTML = ''; }

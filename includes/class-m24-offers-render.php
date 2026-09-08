@@ -91,6 +91,33 @@ class M24_Offers_Render {
 	}
 
 	/**
+	 * Positionsbilder nachziehen — fuer ALLE Prefill-Quellen an einer Stelle.
+	 *
+	 * Positionen aus der Gast-Garage und aus Anfragen tragen kein thumb: dort entsteht die Position aus
+	 * teil_id und Titel, das Bild wurde nie mitgespeichert. Der Editor zeigte deshalb den grauen
+	 * Platzhalter, obwohl der Artikel ein Beitragsbild hat — und weil das Feld leer blieb, fehlte es
+	 * danach auch im Angebot, in der Mail und in der Kunden-Ansicht.
+	 *
+	 * Bewusst beim LADEN, nicht erst beim Speichern: sonst sieht der Operator etwas anderes als der
+	 * Kunde spaeter bekommt. Und bewusst hier, nach allen Prefill-Zweigen — die einzelnen Zweige zu
+	 * patchen hiesse, den naechsten wieder zu vergessen.
+	 *
+	 * item_thumb() laesst ein vorhandenes thumb unangetastet und faellt sonst auf das Beitragsbild des
+	 * m24_teil zurueck; ohne beides bleibt es leer und das Template zeigt den Platzhalter.
+	 */
+	private static function hydrate_thumbs( ?array $prefill ): ?array {
+		if ( null === $prefill || empty( $prefill['items'] ) || ! is_array( $prefill['items'] ) ) { return $prefill; }
+		foreach ( $prefill['items'] as $k => $it ) {
+			if ( ! is_array( $it ) ) { continue; }
+			$prefill['items'][ $k ]['thumb'] = M24_Offers::item_thumb(
+				(string) ( $it['thumb'] ?? '' ),
+				(int) ( $it['teil_id'] ?? 0 )
+			);
+		}
+		return $prefill;
+	}
+
+	/**
 	 * Laeuft der Editor nur lesend? Liefert den Grund fuer den Hinweis, sonst null.
 	 *
 	 * Massgeblich ist der Status des QUELL-Angebots, nicht die Absicht des Aufrufers: Wer ein
@@ -444,7 +471,7 @@ class M24_Offers_Render {
 			'customer' => $customer,
 			'src'      => $src,
 			'validDays'=> M24_Offers::VALID_DAYS,
-			'prefill'  => $prefill,
+			'prefill'  => self::hydrate_thumbs( $prefill ),
 			'draftId'  => $draftId, // >0 → Operator im „Entwurf weiterbearbeiten"-Modus
 			// Quelle, wenn der Editor aus einem BESTEHENDEN Angebot geoeffnet wurde (?from=<id>). Wandert
 			// in den Sende-Payload, damit der Server erkennt, dass hier kein Neuangebot entsteht. Ohne das
