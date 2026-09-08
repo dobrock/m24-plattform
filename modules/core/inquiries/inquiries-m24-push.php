@@ -553,7 +553,12 @@ class M24_Inquiries_Push {
             'ort'      => $get( 'ort' ),
             'land'     => $get( 'land' ),
             'uid'      => $get( 'uid' ),
-            'biz'      => ( $get( 'biz' ) === '1' ) ? 'b2b' : 'b2c',
+            // BOOLEAN, nicht 'b2b'/'b2c': customers.biz ist im Desk BOOLEAN. Der Text-Wert lief in
+            // HTTP 500 "invalid input syntax for type boolean: b2c" (belegt an #35237, 08.09.) — und
+            // weil 5xx als Netzfehler gilt, blieb der Eintrag stumm in der Retry-Schleife statt als
+            // Validierungsfehler aufzufallen. Der Angebots-Push (desk-push.php) sendet seit jeher
+            // Boolean; hier war es die letzte Stelle mit dem alten Format.
+            'biz'      => ( $get( 'biz' ) === '1' ),
         ];
         // Leere Strings rauswerfen, damit Backend nicht "" als gesetzt interpretiert.
         $customer = array_filter( $customer, function( $v ) {
