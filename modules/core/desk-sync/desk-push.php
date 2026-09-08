@@ -305,6 +305,24 @@ class M24_Desk_Push {
             ),
             'items' => $mapped,
         );
+
+        // Stammt das Angebot aus einer Anfrage, gehoert es AN DEREN Auftrag — nicht daneben. Ohne das
+        // legt der Desk einen zweiten Auftrag an, und derselbe Vorgang steht dort zweimal: einmal als
+        // Anfrage, einmal als Angebot. Die Desk-Order-ID der Anfrage haengt als Meta am Anfrage-CPT,
+        // gesetzt vom Anfragen-Push (inquiries-m24-push.php).
+        //
+        // Nur mitschicken, wenn die Anfrage wirklich existiert UND drueben angelegt wurde: ein
+        // attach_to_order_id auf eine unbekannte Order waere schlimmer als keines.
+        $inq_id = (int) ( $src['inquiry_id'] ?? 0 );
+        if ( $inq_id > 0 && class_exists( 'M24_Inquiries_Storage' )
+            && M24_Inquiries_Storage::CPT_SLUG === get_post_type( $inq_id ) ) {
+            $inq_order = (int) get_post_meta( $inq_id, '_m24_desk_order_id', true );
+            if ( $inq_order > 0 ) {
+                $body['attach_to_order_id'] = $inq_order;
+                $body['inquiry_source_meta']['desk_order_id'] = $inq_order; // Diagnose im Desk-Log
+            }
+        }
+
         if ( $dry_run ) { $body['dry_run'] = true; }
         return $body;
     }

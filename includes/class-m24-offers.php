@@ -1448,6 +1448,11 @@ class M24_Offers {
 		}
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		// Anfrage-Herkunft am Angebot festhalten: der Editor sendet inquiry_id als eigenes Feld, nicht
+		// innerhalb von src. Ohne diese Zeile wuesste das Angebot nach dem Speichern nicht mehr, aus
+		// welcher Anfrage es stammt — und der W1-Push koennte den Auftrag nicht zuordnen.
+		$inq_id = (int) ( $p['inquiry_id'] ?? 0 );
+		if ( $inq_id > 0 ) { $src['inquiry_id'] = $inq_id; }
 		$src['lang'] = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de'; // Angebotssprache (Mail/Kunden-Ansicht/PDF)
 		$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie'; // DE-Anredeform je Angebot (Default Sie)
 		// EN-Angebot: fehlende EN-Titel der Katalog-Positionen per DeepL füllen (EINE Batch-Anfrage, gecacht).
@@ -1867,6 +1872,10 @@ class M24_Offers {
 			'src_modell' => sanitize_text_field( (string) ( $s['src_modell'] ?? '' ) ),
 			'src_pid'    => sanitize_text_field( (string) ( $s['src_pid'] ?? '' ) ),
 			'src_lang'   => sanitize_text_field( (string) ( $s['src_lang'] ?? '' ) ),
+			// Herkunfts-Anfrage. clean_src() ist eine Whitelist — ohne diesen Eintrag fiel die ID hier
+			// heraus und war am Angebot nicht mehr vorhanden. Der W1-Push braucht sie, um den Auftrag
+			// AN DEN bestehenden Anfrage-Auftrag zu haengen, statt einen zweiten daneben anzulegen.
+			'inquiry_id' => max( 0, (int) ( $s['inquiry_id'] ?? 0 ) ),
 		);
 	}
 	private static function account_for_email( string $email ): int {
