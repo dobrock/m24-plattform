@@ -96,8 +96,21 @@ class M24_B2B {
         return null !== self::current_haendler();
     }
 
-    /** DAS Preis-Gate: nur freigegebene Händler dürfen Preise sehen. */
+    /**
+     * DAS Preis-Gate.
+     *
+     * Seit 08.09.2026 OFFEN (Entscheidung Daniel): jeder Besucher sieht Preise, ohne Login.
+     * MOTORSPORT24 arbeitet nicht mehr mit einem Händler-Gate; "Preis nach Login" hatte Anfragen
+     * ohne Preis erzeugt (Positionen "nach Login" in Anfragen und Angeboten).
+     *
+     * Rückweg, falls das Gate je wieder gebraucht wird — eine Zeile, kein Umbau:
+     *     add_filter( 'm24_prices_public', '__return_false' );
+     * Dann gilt wieder: nur freigegebene Händler dürfen Preise sehen.
+     */
     public static function can_see_prices(): bool {
+        if ( apply_filters( 'm24_prices_public', true ) ) {
+            return true;
+        }
         $h = self::current_haendler();
         return $h && 'approved' === $h->status;
     }
