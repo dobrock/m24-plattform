@@ -23,6 +23,30 @@ class M24_Offers {
 	const CRON        = 'm24_offers_expire';
 	const VALID_DAYS  = 10; // Angebots-Gültigkeit 10 Tage ab Sendedatum (Liste/Mail/Kunden-Ansicht + § 145-Bindungsfrist ziehen daraus)
 
+	/**
+	 * ENTWURF ODER ANGEBOT — die Nummer allein sagt es NICHT.
+	 *
+	 * Ein Entwurf traegt einen Platzhalter „E-…" (die Spalte ist UNIQUE, '' ginge nur einmal), im
+	 * Altbestand steht dort ''. Wer „offer_no <> ''" als „ist versendet" liest, erklaert damit jeden
+	 * heutigen Entwurf zum Angebot — der gefaehrlichere der beiden Fehler (15.09.2026).
+	 *
+	 * Verlaesslich ist der STATUS; diese Bedingungen sind der zusaetzliche Riegel gegen den
+	 * Platzhalter. HIER steht die Regel, nicht in den einzelnen Modulen: sie stand am 15.09. an drei
+	 * Stellen und lief an zweien auseinander.
+	 *
+	 * Nur innerhalb von $wpdb->prepare() bzw. fest im SQL einsetzen — kein Nutzereingabe-Anteil.
+	 */
+	const OHNE_NUMMER = "( offer_no = '' OR offer_no IS NULL OR offer_no LIKE 'E-%' )";
+
+	/** Gegenstueck: eine echte, vergebene Angebotsnummer. */
+	const MIT_NUMMER  = "( offer_no <> '' AND offer_no IS NOT NULL AND offer_no NOT LIKE 'E-%' )";
+
+	/** Dieselbe Frage in PHP: traegt die Zeile eine echte Nummer? Platzhalter zaehlt nicht. */
+	public static function hat_nummer( $o ): bool {
+		$no = trim( (string) ( is_object( $o ) ? ( $o->offer_no ?? '' ) : $o ) );
+		return '' !== $no && 0 !== strpos( $no, 'E-' );
+	}
+
 	public static function enabled(): bool {
 		return (bool) (int) get_option( self::FLAG, 0 );
 	}
@@ -1675,10 +1699,9 @@ class M24_Offers {
 		if ( $inquiry_id <= 0 ) { return array(); }
 		$rows = (array) $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
 			'SELECT * FROM ' . self::table() . " WHERE status = 'entwurf' AND deleted_at IS NULL"
-			. " AND ( offer_no = '' OR offer_no IS NULL OR offer_no LIKE %s )"
+			. ' AND ' . self::OHNE_NUMMER
 			. " AND ( desk_order_id = '' OR desk_order_id IS NULL )"
 			. ' AND id <> %d AND src_json LIKE %s ORDER BY id DESC',
-			$wpdb->esc_like( 'E-' ) . '%',
 			$exclude_id,
 			'%' . $wpdb->esc_like( '"inquiry_id":' . $inquiry_id ) . '%'
 		) );

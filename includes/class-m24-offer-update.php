@@ -33,9 +33,12 @@ class M24_Offer_Update {
 	const UPDATABLE = array( 'offen', 'versandt', 'abgelaufen' );
 
 	public static function can_update( $o ): bool {
+		// Echte Nummer, nicht bloss „nicht leer": ein Entwurf traegt den Platzhalter E-… und wuerde
+		// sonst hier durchrutschen (15.09.2026). Der Status-Riegel unten hielte ihn zwar auf, aber die
+		// Frage „hat das eine Nummer?" wird ab jetzt an einer Stelle beantwortet.
 		return $o
 			&& empty( $o->deleted_at )
-			&& '' !== trim( (string) ( $o->offer_no ?? '' ) )
+			&& M24_Offers::hat_nummer( $o )
 			&& in_array( (string) ( $o->status ?? '' ), self::UPDATABLE, true );
 	}
 
@@ -46,7 +49,11 @@ class M24_Offer_Update {
 	public static function orphan_draft( $o ) {
 		global $wpdb;
 		$cuid  = trim( (string) ( $o->customer_uid ?? '' ) );
-		$where = "status = 'entwurf' AND ( offer_no = '' OR offer_no IS NULL ) AND deleted_at IS NULL AND id <> %d";
+		// Nummernlos = leer, NULL ODER Platzhalter E-…. Ohne den Platzhalter fand diese Abfrage seit
+		// Einfuehrung der UNIQUE-Spalte keinen aktuellen Entwurf mehr: „Angebot aktualisieren" uebernahm
+		// den nummernlosen Entwurf mit der ergaenzten Position nicht — genau der Fall „Brand the Build"
+		// vom 30.08., wo die 6. Position liegenblieb (Befund 15.09.2026).
+		$where = "status = 'entwurf' AND " . M24_Offers::OHNE_NUMMER . ' AND deleted_at IS NULL AND id <> %d';
 		if ( '' !== $cuid ) {
 			return $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
 				'SELECT * FROM ' . M24_Offers::table() . " WHERE {$where} AND customer_uid = %s ORDER BY id DESC LIMIT 1",

@@ -41,11 +41,15 @@ class M24_Offer_Draft_Cleanup {
 	/** Wie weit vor dem Versand ein Entwurf entstanden sein darf, um als Rückstand zu gelten. */
 	const FENSTER_TAGE = 30;
 
-	/** SQL-Bedingung „trägt keine echte Angebotsnummer" — leer, NULL oder Platzhalter E-…. */
-	const OHNE_NUMMER = "( offer_no = '' OR offer_no IS NULL OR offer_no LIKE 'E-%' )";
+	/**
+	 * SQL-Bedingung „trägt keine echte Angebotsnummer" — leer, NULL oder Platzhalter E-….
+	 * Die Regel steht seit 0.11.502 im Kern (M24_Offers), damit sie nicht an drei Stellen
+	 * auseinanderläuft; hier bleibt nur der vertraute Name stehen.
+	 */
+	const OHNE_NUMMER = M24_Offers::OHNE_NUMMER;
 
 	/** Gegenstück: eine echte, vergebene Angebotsnummer. */
-	const MIT_NUMMER  = "( offer_no <> '' AND offer_no IS NOT NULL AND offer_no NOT LIKE 'E-%' )";
+	const MIT_NUMMER  = M24_Offers::MIT_NUMMER;
 
 	/**
 	 * @param array $ids Optional: Angebotsnummern (2026-1063) oder Zeilen-IDs der VERSENDETEN

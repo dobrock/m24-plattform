@@ -38,8 +38,8 @@ class M24_Offer_Consolidate {
 		$t   = M24_Offers::table();
 		$out = array();
 		$dr  = (array) $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
-			"SELECT * FROM {$t} WHERE status = 'entwurf' AND ( offer_no = '' OR offer_no IS NULL )
-			  AND deleted_at IS NULL ORDER BY id ASC LIMIT %d", $limit ) );
+			"SELECT * FROM {$t} WHERE status = 'entwurf' AND " . M24_Offers::OHNE_NUMMER . '
+			  AND deleted_at IS NULL ORDER BY id ASC LIMIT %d', $limit ) );
 		foreach ( $dr as $d ) {
 			$target = self::target_for( $d );
 			if ( $target ) { $out[] = array( 'draft' => $d, 'target' => $target ); }
@@ -47,21 +47,27 @@ class M24_Offer_Consolidate {
 		return $out;
 	}
 
-	/** Versendetes Angebot desselben Kunden, das eine neue Fassung aufnehmen kann. */
+	/**
+	 * Versendetes Angebot desselben Kunden, das eine neue Fassung aufnehmen kann.
+	 *
+	 * „offer_no <> ''" hiess hier bis zum 15.09.2026 „ist versendet". Mit dem Platzhalter E-… waere
+	 * ein ENTWURF als Ziel in Frage gekommen — der Statusfilter hielt das auf, aber die Bedingung
+	 * sagte etwas anderes, als sie meinte. Jetzt beides ausdruecklich: Status UND echte Nummer.
+	 */
 	private static function target_for( $draft ) {
 		global $wpdb;
 		$t    = M24_Offers::table();
 		$cuid = trim( (string) ( $draft->customer_uid ?? '' ) );
 		if ( '' !== $cuid ) {
 			return $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
-				"SELECT * FROM {$t} WHERE customer_uid = %s AND offer_no <> '' AND deleted_at IS NULL
+				"SELECT * FROM {$t} WHERE customer_uid = %s AND " . M24_Offers::MIT_NUMMER . " AND deleted_at IS NULL
 				   AND status IN ('offen','versandt') ORDER BY id DESC LIMIT 1", $cuid ) );
 		}
 		$cust  = json_decode( (string) $draft->customer_json, true );
 		$email = is_array( $cust ) ? trim( (string) ( $cust['email'] ?? '' ) ) : '';
 		if ( '' === $email ) { return null; }
 		return $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
-			"SELECT * FROM {$t} WHERE customer_json LIKE %s AND offer_no <> '' AND deleted_at IS NULL
+			"SELECT * FROM {$t} WHERE customer_json LIKE %s AND " . M24_Offers::MIT_NUMMER . " AND deleted_at IS NULL
 			   AND status IN ('offen','versandt') ORDER BY id DESC LIMIT 1",
 			'%' . $wpdb->esc_like( $email ) . '%' ) );
 	}
