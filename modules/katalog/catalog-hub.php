@@ -15,9 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 /**
  * Frontend-Anzeige-Label für Modell-Terme: „M3 Exx" → „3er (Exx)" (nur Anzeige).
  * Term-Namen/Slugs + SEO-Titel bleiben unverändert. Filterbar via `m24_model_label_map`.
+ *
+ * SPRACHE seit 15.09.2026: Das Ergebnis läuft durch M24_I18n::modell_label(), dort steht die
+ * EINZIGE DE→EN-Regel („<Ziffer>er" → „<Ziffer> Series"). Hier kein zweites Mapping anlegen —
+ * dieses hier ist die Anzeige-Normalisierung (M3 Exx, „BMW " entfernen), jenes die Übersetzung.
+ * Dadurch werden alle bestehenden Aufrufer ohne Änderung sprachrichtig.
  */
 if ( ! function_exists( 'm24_model_label' ) ) {
-	function m24_model_label( $name ) {
+	function m24_model_label( $name, $lang = null ) {
 		$name = trim( (string) $name );
 		$map  = apply_filters( 'm24_model_label_map', array(
 			'M3 E30'                 => '3er (E30)',
@@ -27,11 +32,24 @@ if ( ! function_exists( 'm24_model_label' ) ) {
 			'Sonstige BMW M Modelle' => 'Sonstige Modelle',
 		) );
 		if ( isset( $map[ $name ] ) ) {
-			return $map[ $name ];
+			$out = $map[ $name ];
+		} else {
+			// „BMW " aus reinen Anzeige-Labels entfernen (KLAKA), egal an welcher Position. Terms/Slugs/Titel unberührt.
+			$out = trim( preg_replace( '/\s{2,}/', ' ', str_ireplace( 'BMW ', '', $name ) ) );
+			if ( '' === $out ) { $out = $name; }
 		}
-		// „BMW " aus reinen Anzeige-Labels entfernen (KLAKA), egal an welcher Position. Terms/Slugs/Titel unberührt.
-		$out = trim( preg_replace( '/\s{2,}/', ' ', str_ireplace( 'BMW ', '', $name ) ) );
-		return '' !== $out ? $out : $name;
+		return class_exists( 'M24_I18n' ) ? M24_I18n::modell_label( $out, $lang ) : $out;
+	}
+}
+
+/**
+ * Dasselbe Label, gekapselt gegen GTranslate. Für sichtbaren Text; NICHT in Attribute oder <option>.
+ */
+if ( ! function_exists( 'm24_model_label_html' ) ) {
+	function m24_model_label_html( $name, $lang = null ) {
+		$label = m24_model_label( $name, $lang );
+		if ( '' === $label ) { return ''; }
+		return '<span class="notranslate" translate="no">' . esc_html( $label ) . '</span>';
 	}
 }
 

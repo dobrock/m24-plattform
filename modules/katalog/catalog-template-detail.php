@@ -435,7 +435,12 @@ class M24_Catalog_Template_Detail {
 				<a href="<?php echo esc_url( $home ); ?>" aria-label="Start" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></a>
 				<span>›</span><a href="<?php echo esc_url( $typ_url ); ?>"><?php echo esc_html( $typ_label ); ?></a>
 				<?php if ( $crumb_term ) : // Modell des Navigations-Kontexts (?from=Hub) → Fallback Primaer-Term. ?>
-					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $crumb_term->slug, $typ_url ) ); ?>"><?php echo esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $crumb_term->name ) : $crumb_term->name ); ?></a>
+					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $crumb_term->slug, $typ_url ) ); ?>"><?php
+						// notranslate: sonst wird „2er" zu „2st" und „2 Series" beim naechsten Durchlauf weiterverdreht.
+						echo function_exists( 'm24_model_label_html' )
+							? m24_model_label_html( $crumb_term->name ) // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt
+							: esc_html( $crumb_term->name );
+					?></a>
 				<?php endif; ?>
 				<span>›</span><span><?php echo esc_html( get_the_title( $id ) ); ?></span>
 			</div>
@@ -622,7 +627,11 @@ class M24_Catalog_Template_Detail {
 						<p style="margin:0 0 1em">Dieses Teil passt für folgende Modelle:</p>
 						<div class="m24-fit-links">
 							<?php foreach ( $terms as $t ) : ?>
-								<a class="m24-fit-chip" href="<?php echo esc_url( add_query_arg( 'm24_modell', $t->slug, $typ_url ) ); ?>"><?php echo esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $t->name ) : $t->name ); ?></a>
+								<a class="m24-fit-chip" href="<?php echo esc_url( add_query_arg( 'm24_modell', $t->slug, $typ_url ) ); ?>"><?php
+									echo function_exists( 'm24_model_label_html' )
+										? m24_model_label_html( $t->name ) // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt
+										: esc_html( $t->name );
+								?></a>
 							<?php endforeach; ?>
 						</div>
 					</div>
@@ -641,7 +650,16 @@ class M24_Catalog_Template_Detail {
 
 			<?php if ( $related ) : ?>
 				<div class="related">
-					<div class="dl"><?php echo $primary_term ? esc_html( 'WEITERE ' . mb_strtoupper( $primary_term->name ) . '-TEILE' ) : esc_html__( 'WEITERE TEILE', 'm24-plattform' ); ?></div>
+					<div class="dl"><?php
+						// Der Modellname lief hier bisher ROH und ungekapselt durch — „WEITERE 2ER-TEILE"
+						// wurde auf /en/ zu „2ST". Nur der Name wird gesperrt, der Rest bleibt uebersetzbar.
+						if ( $primary_term ) {
+							$m_lbl = function_exists( 'm24_model_label' ) ? m24_model_label( $primary_term->name ) : $primary_term->name;
+							echo 'WEITERE <span class="notranslate" translate="no">' . esc_html( mb_strtoupper( $m_lbl ) ) . '</span>-TEILE';
+						} else {
+							echo esc_html__( 'WEITERE TEILE', 'm24-plattform' );
+						}
+					?></div>
 					<div class="related-grid">
 						<?php
 						foreach ( $related as $rp ) :

@@ -535,7 +535,13 @@ class M24_Account {
 		$out = array();
 		if ( taxonomy_exists( 'm24_fahrzeugkat' ) ) {
 			$terms = get_terms( array( 'taxonomy' => 'm24_fahrzeugkat', 'hide_empty' => false, 'number' => 40 ) );
-			if ( ! is_wp_error( $terms ) ) { foreach ( $terms as $t ) { $out[] = $t->name; } }
+			// Anzeige-Label (Baureihe englisch auf /en/); Klartext, weil die Werte in Auswahlfelder
+			// und Formularwerte gehen — dort gehoert kein Markup hinein.
+			if ( ! is_wp_error( $terms ) ) {
+				foreach ( $terms as $t ) {
+					$out[] = function_exists( 'm24_model_label' ) ? m24_model_label( $t->name ) : $t->name;
+				}
+			}
 		}
 		return $out;
 	}

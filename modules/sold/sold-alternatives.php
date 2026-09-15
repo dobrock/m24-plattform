@@ -157,12 +157,20 @@ class M24_Sold_Alternatives {
 							<?php foreach ( $parts['items'] as $it ) { echo self::card( $it ); /* phpcs:ignore */ } ?>
 						</div>
 						<?php if ( '' !== $parts['archive'] ) : ?>
-							<a class="m24-alt-all" href="<?php echo esc_url( $parts['archive'] ); ?>"><?php echo esc_html( sprintf( __( 'Alle %s Teile ansehen →', 'm24-plattform' ), $parts['model'] ) ); ?></a>
+							<a class="m24-alt-all" href="<?php echo esc_url( $parts['archive'] ); ?>"><?php
+									// Baureihe gekapselt, der Satz drumherum bleibt uebersetzbar.
+									$m_html = function_exists( 'm24_model_label_html' ) ? m24_model_label_html( $parts['model'] ) : esc_html( $parts['model'] );
+									echo wp_kses_post( sprintf( __( 'Alle %s Teile ansehen →', 'm24-plattform' ), $m_html ) );
+								?></a>
 						<?php endif; ?>
 					<?php else : ?>
 						<p class="m24-alt-empty"><?php esc_html_e( 'Aktuell keine verfügbaren Teile dieses Modells.', 'm24-plattform' ); ?></p>
 						<?php if ( '' !== $parts['archive'] ) : ?>
-							<a class="m24-alt-all" href="<?php echo esc_url( $parts['archive'] ); ?>"><?php echo esc_html( sprintf( __( 'Alle %s Teile ansehen →', 'm24-plattform' ), $parts['model'] ) ); ?></a>
+							<a class="m24-alt-all" href="<?php echo esc_url( $parts['archive'] ); ?>"><?php
+									// Baureihe gekapselt, der Satz drumherum bleibt uebersetzbar.
+									$m_html = function_exists( 'm24_model_label_html' ) ? m24_model_label_html( $parts['model'] ) : esc_html( $parts['model'] );
+									echo wp_kses_post( sprintf( __( 'Alle %s Teile ansehen →', 'm24-plattform' ), $m_html ) );
+								?></a>
 						<?php endif; ?>
 					<?php endif; ?>
 				</div>

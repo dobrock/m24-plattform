@@ -519,7 +519,7 @@ class M24_Catalog_Archive {
 		foreach ( $roots as $root ) {
 			$children = isset( $by_parent[ $root->term_id ] ) ? $by_parent[ $root->term_id ] : array();
 			if ( $children ) {
-				$out .= '<optgroup label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">' . self::option( $root, $current );
+				$out .= '<optgroup class="notranslate" translate="no" label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">' . self::option( $root, $current );
 				foreach ( $children as $child ) { $out .= self::option( $child, $current ); }
 				$out .= '</optgroup>';
 			} else {
@@ -576,7 +576,7 @@ class M24_Catalog_Archive {
 		foreach ( $roots as $root ) {
 			$children = isset( $by_parent[ $root->term_id ] ) ? $by_parent[ $root->term_id ] : array();
 			if ( $children ) {
-				$options .= '<optgroup label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">';
+				$options .= '<optgroup class="notranslate" translate="no" label="' . esc_attr( function_exists( 'm24_model_label' ) ? m24_model_label( $root->name ) : $root->name ) . '">';
 				$options .= self::option( $root, $current );
 				foreach ( $children as $child ) {
 					$options .= self::option( $child, $current );
@@ -613,9 +613,13 @@ class M24_Catalog_Archive {
 			. '</select></span>';
 	}
 
+	/**
+	 * translate="no" AM ELEMENT statt <span> darin: in <option> gehört kein Markup. Ohne die Sperre
+	 * machte GTranslate aus „2er" die Ordinalzahl „2st" (Befund 15.09.2026).
+	 */
 	private static function option( $term, $current ) {
 		return sprintf(
-			'<option value="%s"%s>%s</option>',
+			'<option class="notranslate" translate="no" value="%s"%s>%s</option>',
 			esc_attr( $term->slug ),
 			selected( $current, $term->slug, false ),
 			esc_html( function_exists( 'm24_model_label' ) ? m24_model_label( $term->name ) : $term->name )

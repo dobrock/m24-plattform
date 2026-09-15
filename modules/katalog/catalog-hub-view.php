@@ -34,6 +34,11 @@ $cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array()
 // Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
 $crumb_label = trim( preg_replace( '/^Gebraucht(?:e Teile|teile) passend für\s+/u', '', $h1 ) );
 if ( '' === $crumb_label ) { $crumb_label = $modell; }
+// Baureihe englisch, aber nur das Muster „<Ziffer>er" (Befund 15.09.2026: GTranslate machte
+// aus „2er" die Ordinalzahl „2st"). Modellcodes bleiben unberuehrt.
+$crumb_label  = function_exists( 'm24_model_label' ) ? m24_model_label( $crumb_label ) : $crumb_label;
+$modell_lbl   = function_exists( 'm24_model_label' ) ? m24_model_label( $modell ) : $modell;      // Klartext, fuer Attribute
+$modell_html  = function_exists( 'm24_model_label_html' ) ? m24_model_label_html( $modell ) : esc_html( $modell ); // gekapselt, fuer sichtbaren Text
 
 // Header puffern, damit die tagDiv-Logo-H1 zu <div> degradiert wird (genau 1 H1 = Seitentitel).
 ob_start();
@@ -176,7 +181,10 @@ $ld = array(
 				<?php endforeach; ?>
 			<?php else : ?>
 				<?php for ( $s = 0; $s < $slides; $s++ ) : ?>
-					<div class="m24hub-slide<?php echo 0 === $s ? ' on' : ''; ?>"><span class="tag"><?php echo esc_html( $modell . ' — Foto ' . ( $s + 1 ) ); ?></span></div>
+					<div class="m24hub-slide<?php echo 0 === $s ? ' on' : ''; ?>"><span class="tag"><?php
+						echo $modell_html; // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt
+						echo esc_html( ' — Foto ' . ( $s + 1 ) );
+					?></span></div>
 				<?php endfor; ?>
 			<?php endif; ?>
 			<button class="m24hub-arrow prev" id="m24hub-prev" aria-label="Vorheriges Bild">&#8249;</button>
@@ -186,7 +194,7 @@ $ld = array(
 	</section>
 
 	<div class="m24hub-telem"><div class="m24hub-wrap">
-		<?php if ( '' !== $modell ) : ?><div class="m24hub-tcell"><div class="k">Modell</div><div class="v"><?php echo esc_html( $modell ); ?></div></div><?php endif; ?>
+		<?php if ( '' !== $modell ) : ?><div class="m24hub-tcell"><div class="k">Modell</div><div class="v"><?php echo $modell_html; // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt ?></div></div><?php endif; ?>
 		<?php if ( ! empty( $cfg['motor'] ) ) : ?><div class="m24hub-tcell"><div class="k">Motor</div><div class="v"><?php echo esc_html( $cfg['motor'] ); ?></div></div><?php endif; ?>
 		<?php if ( ! empty( $cfg['baujahre'] ) ) : ?><div class="m24hub-tcell"><div class="k">Baujahre</div><div class="v"><?php echo esc_html( $cfg['baujahre'] ); ?></div></div><?php endif; ?>
 		<?php $live = isset( $kcounts[ $lkat ] ) ? (int) $kcounts[ $lkat ] : (int) $count; ?>
@@ -209,14 +217,15 @@ $ld = array(
 
 	<section class="m24hub-parts"><div class="m24hub-wrap">
 		<div class="head">
-			<h2>Teile passend für BMW <?php echo esc_html( $modell ); ?></h2>
+			<h2>Teile passend für BMW <?php echo $modell_html; // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt ?></h2>
 			<span class="count" id="m24hub-count"><?php echo esc_html( M24_Catalog_Hub::count_label( $ltotal, $lsort ) ); ?></span>
 		</div>
 
 		<form class="m24hub-controls" id="m24hub-controls" method="get" action="<?php echo esc_url( $hub_url ); ?>" role="search">
 			<div class="m24hub-search">
 				<svg class="si" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
-				<input id="m24hub-q" name="q" type="search" value="<?php echo esc_attr( $lq_q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen …' ); ?>" aria-label="<?php echo esc_attr( 'In ' . $modell . '-Teilen suchen' ); ?>">
+				<?php // Attribute: KLARTEXT-Label, kein Markup — ein <span> gehoert nicht in placeholder/aria-label. ?>
+				<input id="m24hub-q" name="q" type="search" value="<?php echo esc_attr( $lq_q ); ?>" placeholder="<?php echo esc_attr( 'In ' . $modell_lbl . '-Teilen suchen …' ); ?>" aria-label="<?php echo esc_attr( 'In ' . $modell_lbl . '-Teilen suchen' ); ?>">
 			</div>
 			<div class="m24hub-controls-right">
 				<div class="m24hub-katwrap">

@@ -565,4 +565,53 @@ class M24_I18n {
         );
         return 'en' === $lang ? $en : $de;
     }
+
+    /**
+     * Anzeige-Label eines Baureihen-Terms (m24_fahrzeugkat) je Sprache. EINE Quelle.
+     *
+     * BEFUND 15.09.2026: /en/rennsport-teile/?m24_modell=2er zeigte „2st". GTranslate liest „2er“
+     * als deutsche Ordinalzahl und macht daraus die englische — aus 1er/3er/4er/5er wurden
+     * 1st/3st/4st/5st. Betroffen war jede Ausgabestelle des Term-Namens, nicht nur die Breadcrumb.
+     *
+     * REGEL: Ersetzt wird AUSSCHLIESSLICH das Muster „<Ziffer>er“ → „<Ziffer> Series“ (BMW-Nomenklatur).
+     * Alles andere bleibt, wie es in der Taxonomie steht — Modellcodes sind Eigennamen:
+     *   E30, F87, G80 …  Chassis-Codes, nie übersetzen, nie umformen
+     *   X1–X7, XM, Z3/Z4/Z8, M2–M8, i3, i8, iX, iX3  bleiben unverändert
+     * Zusammensetzungen tragen sich selbst: „5er GT“ → „5 Series GT“, „3er (E30)“ → „3 Series (E30)“.
+     *
+     * Für DE kommt der Name unverändert zurück. Sprache ohne Angabe aus display_lang() — die kennt
+     * auch das GTranslate-Signal (/en/-Pfad), und genau dort tritt der Fehler auf.
+     */
+    public static function modell_label( $term_or_name, ?string $lang = null ): string {
+        $name = is_object( $term_or_name ) ? (string) ( $term_or_name->name ?? '' ) : (string) $term_or_name;
+        $name = trim( $name );
+        if ( '' === $name ) { return ''; }
+
+        $lang = $lang ?: self::display_lang();
+        if ( 'en' !== $lang ) { return $name; }
+
+        // Wortgrenzen selbst gesetzt: \b greift bei „2er“ nicht wie erwartet, und ein Code wie
+        // „E30er“ (gäbe es ihn) darf nicht angefasst werden.
+        return (string) preg_replace_callback(
+            '/(?<![\p{L}\p{N}])(\d)er(?![\p{L}\p{N}])/u',
+            static function ( $m ) { return $m[1] . ' Series'; },
+            $name
+        );
+    }
+
+    /**
+     * Dasselbe Label, fertig für die Ausgabe: in <span class="notranslate" translate="no"> gekapselt.
+     *
+     * OHNE diese Kapselung übersetzt GTranslate im nächsten Durchlauf auch „2 Series“ weiter. Gilt
+     * ausdrücklich AUCH für die deutsche Ausgabe — sonst wird dort weiter aus „2er“ ein „2st“.
+     *
+     * NICHT verwendbar in Attributen (title, placeholder, aria-label) und nicht in <option>: dort
+     * gehört kein Markup hinein. Für Attribute modell_label() nehmen, für Auswahlfelder das
+     * translate="no" direkt auf das <option>/<optgroup>-Element setzen.
+     */
+    public static function modell_label_html( $term_or_name, ?string $lang = null ): string {
+        $label = self::modell_label( $term_or_name, $lang );
+        if ( '' === $label ) { return ''; }
+        return '<span class="notranslate" translate="no">' . esc_html( $label ) . '</span>';
+    }
 }
