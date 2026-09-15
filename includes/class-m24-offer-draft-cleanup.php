@@ -9,13 +9,19 @@
  * Rückstände des Editor-Autosave: jede Editor-Sitzung legt über /offers/save-draft eine Zeile an;
  * beim Versand wird nur die Zeile der laufenden Sitzung zum Angebot, die früheren bleiben liegen.
  *
- * Dieses Modul räumt AUF. Es behebt die Ursache NICHT — die sitzt im Editor (eine Entwurfszeile
- * je Sitzung statt je Vorgang) und gehört dorthin. Ein Automatismus, der hinter dem Editor
- * herwischt, wäre genau die Sorte zweiter Weg, die wir bei den Angebotsknöpfen gerade beseitigt
- * haben.
+ * Dieses Modul räumt AUF. Es behebt die Ursache NICHT — die sitzt im Editor und ist mit 0.11.501
+ * dort behoben (Entwurf kennt seine Anfrage, Wiederverwendung beim Öffnen, Auflösung beim
+ * Versand). Ein Automatismus hinter dem Editor wäre genau die Sorte zweiter Weg, die wir bei den
+ * Angebotsknöpfen beseitigt haben.
+ *
+ * ENTWURF ODER VERSENDET — am STATUS entschieden, nicht an der Nummer.
+ * Erste Fassung prüfte `offer_no = '' OR IS NULL`. Entwürfe tragen aber einen Platzhalter (E-…):
+ * damit fand die Suche keinen einzigen aktuellen Entwurf, und schlimmer — ein Entwurf mit
+ * Platzhalter galt in load_sent() als VERSENDETES Angebot. `status` ist die verlässliche Angabe;
+ * die Nummernprüfung bleibt nur als zusätzlicher Riegel gegen Platzhalter stehen.
  *
  * SICHERHEIT — ein Entwurf wird nur dann angefasst, wenn ALLE Bedingungen zutreffen:
- *   - Status entwurf, keine Angebotsnummer, nicht im Papierkorb
+ *   - Status entwurf, keine echte Angebotsnummer, nicht im Papierkorb
  *   - keine desk_order_id (nie an den Desk gepusht — sonst erzeugt der Papierkorb drüben
  *     einen Tombstone auf einen echten Auftrag)
  *   - derselbe Kunde wie ein VERSENDETES Angebot (customer_uid, sonst E-Mail)
@@ -34,6 +40,12 @@ class M24_Offer_Draft_Cleanup {
 
 	/** Wie weit vor dem Versand ein Entwurf entstanden sein darf, um als Rückstand zu gelten. */
 	const FENSTER_TAGE = 30;
+
+	/** SQL-Bedingung „trägt keine echte Angebotsnummer" — leer, NULL oder Platzhalter E-…. */
+	const OHNE_NUMMER = "( offer_no = '' OR offer_no IS NULL OR offer_no LIKE 'E-%' )";
+
+	/** Gegenstück: eine echte, vergebene Angebotsnummer. */
+	const MIT_NUMMER  = "( offer_no <> '' AND offer_no IS NOT NULL AND offer_no NOT LIKE 'E-%' )";
 
 	/**
 	 * @param array $ids Optional: Angebotsnummern (2026-1063) oder Zeilen-IDs der VERSENDETEN
@@ -81,21 +93,26 @@ class M24_Offer_Draft_Cleanup {
 
 		if ( $go && $out['summe']['Entwürfe in den Papierkorb'] > 0 && class_exists( 'M24_Error_Log' ) ) {
 			M24_Error_Log::capture( 'maintenance', 'info', 'Verwaiste Autosave-Entwürfe aufgeräumt', array(
-				'angebote' => (int) $out['summe']['Angebote mit Rückständen'],
+				'angebote'  => (int) $out['summe']['Angebote mit Rückständen'],
 				'entwuerfe' => (int) $out['summe']['Entwürfe in den Papierkorb'],
 			) );
 		}
 		return $out;
 	}
 
-	/** Versendete Angebote, gegen die geprüft wird. */
+	/**
+	 * Versendete Angebote, gegen die geprüft wird.
+	 * Status UND Nummer: ein Entwurf mit Platzhalter darf hier nie hereinrutschen, sonst
+	 * suchte die Bereinigung Rückstände zu einem Angebot, das gar keines ist.
+	 */
 	private static function load_sent( array $ids ): array {
 		global $wpdb;
-		$t = M24_Offers::table();
+		$t    = M24_Offers::table();
+		$echt = "status <> 'entwurf' AND " . self::MIT_NUMMER;
 
 		if ( empty( $ids ) ) {
 			return (array) $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
-				"SELECT * FROM $t WHERE deleted_at IS NULL AND offer_no <> '' AND created_at >= %s ORDER BY id DESC",
+				"SELECT * FROM $t WHERE deleted_at IS NULL AND $echt AND created_at >= %s ORDER BY id DESC",
 				gmdate( 'Y-m-d H:i:s', time() - 180 * DAY_IN_SECONDS )
 			) );
 		}
@@ -109,11 +126,11 @@ class M24_Offer_Draft_Cleanup {
 		$rows = array();
 		if ( ! empty( $pks ) ) {
 			$ph = implode( ',', array_fill( 0, count( $pks ), '%d' ) );
-			$rows = array_merge( $rows, (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE id IN ($ph)", $pks ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+			$rows = array_merge( $rows, (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE id IN ($ph) AND $echt", $pks ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
 		}
 		if ( ! empty( $nos ) ) {
 			$ph = implode( ',', array_fill( 0, count( $nos ), '%s' ) );
-			$rows = array_merge( $rows, (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE offer_no IN ($ph)", $nos ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+			$rows = array_merge( $rows, (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE offer_no IN ($ph) AND $echt", $nos ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
 		}
 		return $rows;
 	}
@@ -133,10 +150,10 @@ class M24_Offer_Draft_Cleanup {
 		$email = is_array( $cust ) ? trim( (string) ( $cust['email'] ?? '' ) ) : '';
 		if ( '' === $cuid && '' === $email ) { return array(); }
 
-		$ab = gmdate( 'Y-m-d H:i:s', strtotime( (string) $o->created_at . ' UTC' ) - self::FENSTER_TAGE * DAY_IN_SECONDS );
+		$ab  = gmdate( 'Y-m-d H:i:s', strtotime( (string) $o->created_at . ' UTC' ) - self::FENSTER_TAGE * DAY_IN_SECONDS );
 		$bis = (string) $o->created_at;
 
-		$sql = "SELECT * FROM $t WHERE status = 'entwurf' AND ( offer_no = '' OR offer_no IS NULL )"
+		$sql = "SELECT * FROM $t WHERE status = 'entwurf' AND " . self::OHNE_NUMMER
 			. " AND deleted_at IS NULL AND ( desk_order_id = '' OR desk_order_id IS NULL )"
 			. ' AND id <> %d AND created_at BETWEEN %s AND %s';
 
