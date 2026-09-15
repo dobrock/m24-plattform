@@ -13,13 +13,15 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-// Kern der Positions-Reparatur. Wird nur hier gebraucht (kein CLI-Kommando), deshalb hier geladen —
-// die Hauptdatei bleibt unberuehrt. Fehlt die Datei im Deploy, meldet der Block "Nicht verfuegbar".
+// Kerne, die es nur hier gibt (kein CLI-Kommando) — deshalb hier geladen, die Hauptdatei bleibt
+// unberuehrt. Fehlt eine Datei im Deploy, meldet der zugehoerige Block "Nicht verfuegbar".
 $m24_entitles = M24_PLATTFORM_DIR . 'includes/class-m24-offer-en-titles.php';
 if ( is_readable( $m24_entitles ) ) { require_once $m24_entitles; }
 $m24_repair = M24_PLATTFORM_DIR . 'includes/class-m24-offer-lines-repair.php';
 if ( is_readable( $m24_repair ) ) { require_once $m24_repair; }
-unset( $m24_repair );
+$m24_drafts = M24_PLATTFORM_DIR . 'includes/class-m24-offer-draft-cleanup.php';
+if ( is_readable( $m24_drafts ) ) { require_once $m24_drafts; }
+unset( $m24_entitles, $m24_repair, $m24_drafts );
 
 class M24_Maintenance {
 
@@ -88,6 +90,15 @@ class M24_Maintenance {
 				'pflicht' => false,
 				'ph'    => 'optional: 2026-1041,2026-1038',
 			),
+			'offer-draft-cleanup' => array(
+				'titel' => 'Verwaiste Autosave-Entwürfe aufräumen',
+				'text'  => 'Nummernlose Entwürfe, die inhaltlich einem bereits VERSENDETEN Angebot desselben Kunden entsprechen — Rückstände des Editor-Autosave (Fall Nils Eirik Wenaas, 3 Einträge für einen Vorgang). Getroffen wird nur, was gleiche Positionsanzahl UND gleiche Nettosumme hat, nie an den Desk gepusht wurde und vor dem Versand entstand. Papierkorb, kein Löschen. IDs optional: Nummern der VERSENDETEN Angebote, leer = alle der letzten 180 Tage.',
+				'cli'   => '(kein CLI — nur Wartung)',
+				'core'  => array( 'M24_Offer_Draft_Cleanup', 'run' ),
+				'ids'   => true,
+				'pflicht' => false,
+				'ph'    => 'optional: 2026-1063',
+			),
 		);
 	}
 
@@ -122,6 +133,10 @@ class M24_Maintenance {
 		if ( 'offer-lines-repair' === $key ) {
 			$r = M24_Offer_Lines_Repair::run( $ids, $go );
 			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Angebote mit Dubletten'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
+		}
+		if ( 'offer-draft-cleanup' === $key ) {
+			$r = M24_Offer_Draft_Cleanup::run( $ids, $go );
+			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Angebote mit Rückständen'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
 		}
 		return $out;
 	}
