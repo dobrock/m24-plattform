@@ -1531,6 +1531,11 @@ class M24_Offers {
 			M24_Inquiries_Storage::mark_answered( $inquiry_id, $offer_no, $token );
 		}
 
+		// Eine Zeile je Vorgang (15.09.2026): Entwuerfe frueherer Editor-Sitzungen DERSELBEN Anfrage
+		// wandern in den Papierkorb, statt neben dem versendeten Angebot stehenzubleiben. Das ist der
+		// Nachlauf zum Uebernehmen beim Oeffnen — beides zusammen laesst je Vorgang genau eine Zeile.
+		if ( $inquiry_id > 0 ) { self::absorb_inquiry_drafts( $offer_id, $inquiry_id ); }
+
 		// ── Reihenfolge KRITISCH: ERST W1 (Auftrag anlegen), DANN Mails. KEIN Mailschritt vor W1. ──
 		// Der W1-Push (POST /api/orders, bounded 10 s) setzt desk_order_num/desk_order_id auf der Zeile.
 		// Resend erkennen (vor W1 lesen): lag schon eine Desk-Order-ID vor → erneuter Versand.
@@ -1586,6 +1591,12 @@ class M24_Offers {
 		$tax_rate = (float) ( $p['tax_rate'] ?? 0 );
 		$delivery = sanitize_text_field( (string) ( $p['delivery_time'] ?? '' ) );
 		$src      = self::clean_src( (array) ( $p['src'] ?? array() ) );
+		// Vorgang am ENTWURF festhalten (15.09.2026). Der Editor sendet inquiry_id als eigenes Feld,
+		// clean_src() ist eine Whitelist auf $p['src'] — handle_send() holt die ID deshalb separat herein,
+		// handle_save_draft() tat es bisher nicht. Ein Entwurf wusste damit nicht, zu welcher Anfrage er
+		// gehoert, und „eine Zeile je Vorgang" haette keinen Schluessel gehabt.
+		$inq_id_draft = (int) ( $p['inquiry_id'] ?? 0 );
+		if ( $inq_id_draft > 0 ) { $src['inquiry_id'] = $inq_id_draft; }
 		$src['lang']       = ( isset( $p['lang'] ) && 'en' === $p['lang'] ) ? 'en' : 'de';
 			$src['anrede_form'] = ( isset( $p['anrede_form'] ) && 'du' === $p['anrede_form'] ) ? 'du' : 'sie';
 		$src['salutation'] = isset( $p['salutation'] ) ? sanitize_text_field( (string) $p['salutation'] ) : '';
@@ -1639,6 +1650,75 @@ class M24_Offers {
 			'edit_url' => add_query_arg( array( self::QV_NEW => 1, 'draft' => $id ), home_url( '/' ) ),
 			'message'  => 'Entwurf gespeichert.',
 		) );
+	}
+
+	/**
+	 * Nummernlose Entwuerfe DESSELBEN VORGANGS (= derselben Anfrage).
+	 *
+	 * BEFUND 15.09.2026 (Nils Eirik Wenaas): drei Zeilen fuer einen Vorgang — zwei nummernlose
+	 * Entwuerfe ueber 2.705,57 EUR und das versendete 2026-1063 mit derselben Position und demselben
+	 * Betrag. Der Autosave legt je EDITOR-SITZUNG eine Zeile an; beim Versand wird nur die Zeile der
+	 * laufenden Sitzung zum Angebot, frueher entstandene bleiben als Entwurf liegen.
+	 *
+	 * Die Anfrage ist der einzige Vorgangs-Schluessel, der schon beim OEFFNEN des Editors eindeutig
+	 * feststeht. Ueber den Kunden allein wird hier NICHT zusammengefuehrt: derselbe Kunde darf zwei
+	 * verschiedene Angebote nebeneinander haben. Diesen Fall traegt weiter die Aufraeum-Seite unter
+	 * Wartung, die Anzahl UND Nettosumme vergleicht — ein Werkzeug fuer den Altbestand, keine Automatik.
+	 *
+	 * Nummernlos heisst: leere Nummer (Altbestand) oder Platzhalter „E-…" (seit die Spalte UNIQUE ist).
+	 * Nie angefasst werden Zeilen mit desk_order_id — die stehen drueben als echter Auftrag.
+	 *
+	 * @return array<int,object> Neueste zuerst.
+	 */
+	public static function drafts_for_inquiry( int $inquiry_id, int $exclude_id = 0 ): array {
+		global $wpdb;
+		if ( $inquiry_id <= 0 ) { return array(); }
+		$rows = (array) $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL
+			'SELECT * FROM ' . self::table() . " WHERE status = 'entwurf' AND deleted_at IS NULL"
+			. " AND ( offer_no = '' OR offer_no IS NULL OR offer_no LIKE %s )"
+			. " AND ( desk_order_id = '' OR desk_order_id IS NULL )"
+			. ' AND id <> %d AND src_json LIKE %s ORDER BY id DESC',
+			$wpdb->esc_like( 'E-' ) . '%',
+			$exclude_id,
+			'%' . $wpdb->esc_like( '"inquiry_id":' . $inquiry_id ) . '%'
+		) );
+		// Das LIKE ist nur der Vorfilter — „…:12" traefe sonst auch die 123. Entschieden wird am
+		// dekodierten Wert.
+		$treffer = array();
+		foreach ( $rows as $r ) {
+			$sj = json_decode( (string) ( $r->src_json ?? '' ), true );
+			if ( is_array( $sj ) && (int) ( $sj['inquiry_id'] ?? 0 ) === $inquiry_id ) { $treffer[] = $r; }
+		}
+		return $treffer;
+	}
+
+	/** Neuester nummernloser Entwurf dieses Vorgangs — oder null. Vorlage fuer „Entwurf uebernehmen". */
+	public static function draft_for_inquiry( int $inquiry_id, int $exclude_id = 0 ) {
+		$alle = self::drafts_for_inquiry( $inquiry_id, $exclude_id );
+		return $alle ? $alle[0] : null;
+	}
+
+	/**
+	 * Beim Versand aufloesen, was aus frueheren Sitzungen desselben Vorgangs nummernlos liegen
+	 * geblieben ist — wie M24_Offer_Update::stage() es ueber absorb_id fuer die Fassung macht.
+	 *
+	 * Papierkorb statt Loeschen: purge_trashed() raeumt nach zehn Tagen endgueltig, bis dahin ist
+	 * jeder Griff umkehrbar. Greift nur noch dort, wo das Uebernehmen beim Oeffnen nicht greifen
+	 * konnte (zweiter Tab, Entwurf aus der Zeit vor dieser Fassung).
+	 *
+	 * @return int Wie viele Entwuerfe in den Papierkorb gewandert sind.
+	 */
+	public static function absorb_inquiry_drafts( int $offer_id, int $inquiry_id ): int {
+		global $wpdb;
+		$n = 0;
+		foreach ( self::drafts_for_inquiry( $inquiry_id, $offer_id ) as $d ) {
+			$wpdb->update( self::table(), array( 'deleted_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $d->id ) );
+			$n++;
+		}
+		if ( $n > 0 && class_exists( 'M24_Logger' ) ) {
+			M24_Logger::info( 'offers', 'draft_absorbed', array( 'id' => $offer_id, 'inquiry_id' => $inquiry_id, 'entwuerfe' => $n ) );
+		}
+		return $n;
 	}
 
 	/**

@@ -291,6 +291,20 @@ class M24_Offers_Render {
 		$from     = (int) $g( 'from' );
 		$draft_qv = (int) $g( 'draft' );
 		if ( $draft_qv > 0 ) { $from = $draft_qv; }
+
+		// Eine Entwurfszeile je VORGANG statt je Editor-Sitzung (15.09.2026, Fall Wenaas): Wird der
+		// Editor erneut fuer dieselbe Anfrage geoeffnet, den vorhandenen nummernlosen Entwurf
+		// UEBERNEHMEN statt einen zweiten danebenzulegen. Ohne das legte der Autosave je Sitzung eine
+		// Zeile an, und beim Versand wurde nur die laufende zum Angebot.
+		// Ein ausdrueckliches ?draft=/?from= geht vor: wer eine bestimmte Zeile oeffnet, bekommt sie.
+		if ( $from <= 0 ) {
+			$inq_adopt = (int) $g( 'from_inquiry' );
+			if ( $inq_adopt > 0 ) {
+				$vorhanden = M24_Offers::draft_for_inquiry( $inq_adopt );
+				if ( $vorhanden ) { $from = (int) $vorhanden->id; }
+			}
+		}
+
 		if ( $from > 0 ) {
 			$o = M24_Offers::get_by_id( $from );
 			if ( $o ) {
@@ -350,6 +364,10 @@ class M24_Offers_Render {
 					'salutation' => (string) ( $sj['salutation'] ?? '' ), // v3: Anschreiben aus src_json
 					'note'       => (string) ( $sj['note'] ?? '' ),
 					'offer_id'   => $from,
+					// Herkunfts-Anfrage mitfuehren: der Editor schickt sie aus dem Prefill wieder mit,
+					// sonst verloere ein wieder geoeffneter Entwurf beim Versand seinen Vorgang — und
+					// der Nachlauf in handle_send haette nichts mehr zum Zusammenfuehren.
+					'inquiry_id' => (int) ( $sj['inquiry_id'] ?? 0 ),
 				);
 			}
 		}
