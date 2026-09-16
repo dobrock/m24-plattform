@@ -635,6 +635,13 @@ class M24_Offers_Render {
 		$c_name     = trim( (string) $customer['name'] );
 		$c_disp     = '' !== $c_firma ? $c_firma : ( '' !== $c_name ? $c_name : (string) $customer['email'] );
 		$c_land_nm  = '' !== $c_land_raw ? M24_Offers::ohne_flagge( $c_land_raw ) : '—';
+		// Flagge NUR in der Unterzeile der Kundenkarte (data-cust-chip-sub) — dort ist sie gewollt.
+		// Sie wird aus dem Rohwert NEU abgeleitet, nicht aus ihm uebernommen; der Landname daneben
+		// bleibt durch ohne_flagge() gereinigt. So steht auch bei einem noch unbereinigten Datensatz
+		// genau EINE Flagge da. Die Kundenzeile (data-cust-chip-name) bleibt ohne — siehe 0.11.512.
+		$c_sub_flag = ( '' !== $c_land_raw && class_exists( 'M24_Country_Flags' ) )
+			? M24_Country_Flags::getFlag( $c_land_raw )
+			: '';
 		$c_ini      = '';
 		foreach ( array_slice( array_values( array_filter( explode( ' ', $c_disp ) ) ), 0, 2 ) as $w ) { $c_ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
 		if ( '' === $c_ini ) { $c_ini = 'K'; }
@@ -652,7 +659,7 @@ class M24_Offers_Render {
 					<div class="m24off-kunde" data-kunde-view>
 						<div class="m24off-av" data-cust-chip-av><?php echo esc_html( $c_ini ); ?></div>
 						<div class="m24off-kunde-txt"><b data-cust-chip-name><?php echo esc_html( trim( $c_disp ) ); ?></b>
-							<div class="kd" data-cust-chip-sub><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( $c_land_nm ); ?></div></div>
+							<div class="kd" data-cust-chip-sub><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( trim( $c_sub_flag . ' ' . $c_land_nm ) ); ?></div></div>
 						<?php if ( '' !== $garageNo ) : ?><div class="m24off-kg"><?php echo esc_html( $garageNo ); ?></div><?php endif; ?>
 					</div>
 					<div class="m24off-kunde-edit" data-kunde-edit hidden>
