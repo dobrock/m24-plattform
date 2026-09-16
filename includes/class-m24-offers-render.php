@@ -318,6 +318,17 @@ class M24_Offers_Render {
 			exit;
 		}
 		nocache_headers();
+		// ─── DIESE SEITE DARF NIE IM SEITEN-CACHE LANDEN ───
+		//
+		// nocache_headers() spricht mit dem BROWSER. Den Cache-WRITE von WP Rocket verhindert erst
+		// DONOTCACHEPAGE — class-m24-b2b-auth.php haelt ausdruecklich fest, dass
+		// rocket_cache_reject_uri allein unzuverlaessig griff und erst diese Konstante half.
+		//
+		// Ohne sie kann eine frueher erzeugte Editor-Seite erneut ausgeliefert werden — mit dem
+		// Kunden und den Positionen eines FREMDEN Vorgangs. Genau dieses Bild zeigte der Befund vom
+		// 16.09.2026 (?update_offer=124 lieferte 2026-1058, update:null). Der Editor traegt in der
+		// Adresse Kunden- und Angebotsdaten; er ist pro Aufruf einmalig und nie wiederverwendbar.
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
 
 		$g = function ( $k ) { return isset( $_GET[ $k ] ) ? sanitize_text_field( wp_unslash( $_GET[ $k ] ) ) : ''; }; // phpcs:ignore WordPress.Security.NonceVerification
 		$customer = array(
@@ -821,6 +832,10 @@ class M24_Offers_Render {
 			$token = preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_GET[ M24_Offers::QV_VIEW ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 			$o = M24_Offers::get_by_token( $token );
 			nocache_headers();
+			// Kunden-Ansicht: ein Angebot je Token, personenbezogen. Eine gecachte Seite hier waere
+			// schlimmer als im Editor — sie ginge an den falschen Empfaenger. Siehe operator():
+			// nocache_headers() spricht mit dem Browser, DONOTCACHEPAGE mit dem Seiten-Cache.
+			if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
 			while ( ob_get_level() > 0 ) { ob_end_clean(); }
 			if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
 			// Entwürfe haben zwar einen Token, sind aber noch nicht versendet → Kunden-Ansicht inaktiv (wie „nicht gefunden").
