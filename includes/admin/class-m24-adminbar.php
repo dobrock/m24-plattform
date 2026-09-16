@@ -37,6 +37,11 @@ class M24_Adminbar {
 			'duplicate-post',            // Duplicate Post
 			'tdc_edit',                  // Edit with TagDiv Composer
 			'tdc_page_mobile_template',  // Mobile page
+			// Sitemap-Neubau (16.09.2026): raus aus der Leiste. Die Sitemap baut sich
+			// selbst, der Knopf wurde im Alltag nie gebraucht — der Platz gehört dem
+			// Angebotsbereich, der mehrmals taeglich gebraucht wird. Erreichbar bleibt
+			// er unter MOTORSPORT24 -> System -> Sitemap.
+			'm24-sitemap-rebuild',
 		) );
 		foreach ( (array) $remove as $node_id ) {
 			$wp_admin_bar->remove_node( $node_id );
@@ -52,6 +57,34 @@ class M24_Adminbar {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			return;
 		}
+		// Angebote zuerst: der Bereich, der im Tagesgeschaeft am haeufigsten gebraucht wird.
+		// Nur fuer Operatoren — die Angebotsverwaltung haengt an manage_options.
+		if ( current_user_can( 'manage_options' ) ) {
+			$bar->add_node( array(
+				'id'    => 'm24-angebote',
+				'title' => 'Angebote',
+				'href'  => admin_url( 'admin.php?page=m24-offers' ),
+			) );
+			$bar->add_node( array(
+				'parent' => 'm24-angebote',
+				'id'     => 'm24-angebote-liste',
+				'title'  => 'Angebotsuebersicht',
+				'href'   => admin_url( 'admin.php?page=m24-offers' ),
+			) );
+			$bar->add_node( array(
+				'parent' => 'm24-angebote',
+				'id'     => 'm24-angebote-anfragen',
+				'title'  => 'Anfragen',
+				'href'   => admin_url( 'admin.php?page=m24-anfragen' ),
+			) );
+			$bar->add_node( array(
+				'parent' => 'm24-angebote',
+				'id'     => 'm24-angebote-neu',
+				'title'  => 'Neues Angebot',
+				'href'   => home_url( '/?m24_offer_new=1' ),
+			) );
+		}
+
 		$bar->add_node( array(
 			'id'    => 'm24-inserate',
 			'title' => 'Auto-Verwaltung',
