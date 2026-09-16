@@ -8,17 +8,22 @@
  * Fassung sei ungültig oder zurückgezogen. Er stellt die neue Fassung daneben und BITTET um
  * Bestätigung — mehr nicht. Das gilt in beiden Sprachen wörtlich gleich.
  *
- * SPRACHE (16.09.2026): Die Mail folgt der ANGEBOTSSPRACHE, nicht dem Server. Vorher war sie fest
- * deutsch — ein englisches Angebot (Bryne Bil, Norwegen) bekam eine deutsche Aktualisierungsmail,
- * während Angebot und PDF englisch waren. Gelesen wird src_json.lang, dieselbe Quelle, aus der auch
- * der Editor und die Angebotsmail ihre Sprache nehmen.
+ * SPRACHE (16.09.2026): Die Mail folgt der ANGEBOTSSPRACHE, nicht dem Server. Gelesen wird
+ * src_json.lang, dieselbe Quelle, aus der auch der Editor und die Angebotsmail ihre Sprache nehmen.
  *
- * FREIGABE: Text am 08.09.2026 von Daniel geprüft und freigegeben („Text passt"). Seither ist die
- * Vorgabe von approved() true. Der Filter m24_offer_update_mail_approved bleibt als Notaus:
+ * KEINE FASSUNGSNUMMER NACH AUSSEN (16.09.2026): Der Kunde sah „version 4" — also wie oft intern
+ * nachgebessert wurde. Das ist eine Zahl, die ihm nichts sagt und nur Fragen aufwirft. Ab sofort
+ * nennt die Mail das DATUM des aktualisierten Stands. Die Fassung zählt intern weiter (Karte,
+ * Verlauf, Beleg), sie verlässt das Haus nur nicht mehr.
+ *
+ * Bewusst „Stand vom <Datum>", nicht „von heute": Der Text friert beim Versand ein. Öffnet der
+ * Kunde die Mail am nächsten Tag, wäre „heute" schlicht falsch — derselbe Fehler wie der Countdown,
+ * der in 0.11.487 aus Mail und PDF entfernt wurde (§ 148 BGB: bestimmbar, nicht relativ).
+ *
+ * FREIGABE: Text am 08.09.2026 von Daniel geprüft und freigegeben. Der Filter
+ * m24_offer_update_mail_approved bleibt als Notaus:
  *
  *     add_filter( 'm24_offer_update_mail_approved', '__return_false' );
- *
- * sperrt den Versand sofort wieder (Betreff trägt dann die Entwurfsmarke, send_allowed() verweigert).
  *
  * Design unverändert: bestehende m24_mail_shell (weißes Logo rechts auf blauem Verlauf 135°
  * #1f74c4 → #0e447e, Standardfuß), Du-Form.
@@ -45,6 +50,18 @@ class M24_Offer_Update_Mail {
 	}
 
 	/**
+	 * Datum des aktualisierten Stands — der Zeitpunkt, zu dem diese Fassung geschrieben wurde.
+	 * Fällt er aus, das heutige Datum: Die Mail geht im selben Vorgang raus, der die Fassung
+	 * erzeugt hat, insofern ist das keine Schätzung, sondern derselbe Tag.
+	 */
+	private static function stand_datum( $o, bool $en ): string {
+		$roh = trim( (string) ( $o->version_pending_at ?? '' ) );
+		$ts  = '' !== $roh ? strtotime( $roh . ' UTC' ) : 0;
+		if ( ! $ts ) { $ts = time(); }
+		return date_i18n( $en ? 'j M Y' : 'd.m.Y', $ts );
+	}
+
+	/**
 	 * @return array{ok:bool,msg:string} Darf diese Mail an den Kunden raus?
 	 */
 	public static function send_allowed(): array {
@@ -58,11 +75,12 @@ class M24_Offer_Update_Mail {
 	}
 
 	public static function subject( $o ): string {
-		$ver = max( 1, (int) ( $o->offer_version ?? 1 ) );
-		$no  = (string) $o->offer_no;
-		$s   = 'en' === self::lang( $o )
-			? sprintf( 'Your quote %s has been updated (version %d)', $no, $ver )
-			: sprintf( 'Dein Angebot %s wurde aktualisiert (Fassung %d)', $no, $ver );
+		$en = 'en' === self::lang( $o );
+		$no = (string) $o->offer_no;
+		// Ohne Fassungsnummer — sie sagt dem Kunden nichts und wirft Fragen auf.
+		$s  = $en
+			? sprintf( 'Your quote %s has been updated', $no )
+			: sprintf( 'Dein Angebot %s wurde aktualisiert', $no );
 		return self::approved() ? $s : self::DRAFT_MARK . $s;
 	}
 
@@ -78,7 +96,7 @@ class M24_Offer_Update_Mail {
 		$cust = is_array( $cust ) ? $cust : array();
 		$name = trim( (string) ( $cust['vorname'] ?? '' ) );
 		$no   = (string) $o->offer_no;
-		$ver  = max( 1, (int) ( $o->offer_version ?? 1 ) );
+		$stand = self::stand_datum( $o, $en );
 		// Datumsformat der Sprache folgen lassen: 26.09.2026 gegen 26 Sep 2026.
 		$vu   = ! empty( $o->valid_until )
 			? date_i18n( $en ? 'j M Y' : 'd.m.Y', strtotime( (string) $o->valid_until ) )
@@ -90,6 +108,13 @@ class M24_Offer_Update_Mail {
 				? '€ ' . number_format( (float) $v, 2, '.', ',' )
 				: number_format( (float) $v, 2, ',', '.' ) . ' €';
 		};
+
+		// Der Aenderungsblock erscheint nur, wenn sich tatsaechlich etwas geaendert hat.
+		// "3 -> 3" und "4.280,00 EUR -> 4.280,00 EUR" unter der Ueberschrift "Was sich
+		// geaendert hat" ist fuer den Kunden eine Zumutung — dann lieber gar nichts.
+		$hat_diff = (int) $diff['positionen_vorher'] !== (int) $diff['positionen_nachher']
+			|| round( (float) $diff['summe_vorher'], 2 ) !== round( (float) $diff['summe_nachher'], 2 )
+			|| ! empty( $diff['neu'] ) || ! empty( $diff['entfallen'] );
 
 		ob_start();
 		?>
@@ -105,14 +130,15 @@ echo esc_html( $en ? 'Hello' : 'Hallo' ) . ( '' !== $name ? ' ' . esc_html( $nam
 <p style="font-size:14px;color:#222;line-height:1.6;margin:0 0 14px;">
 <?php if ( $en ) : ?>
 there is an updated version of your quote <strong><?php echo esc_html( $no ); ?></strong>.
-You will find it as <strong>version <?php echo (int) $ver; ?></strong> attached to this e-mail.
+You will find the updated version of <strong><?php echo esc_html( $stand ); ?></strong> attached to this e-mail.
 <?php else : ?>
 zu deinem Angebot <strong><?php echo esc_html( $no ); ?></strong> gibt es einen aktualisierten Stand.
-Du findest ihn als <strong>Fassung <?php echo (int) $ver; ?></strong> im Anhang dieser Mail.
+Du findest die aktualisierte Fassung vom <strong><?php echo esc_html( $stand ); ?></strong> im Anhang dieser Mail.
 <?php endif; ?>
 </p>
 
-<!-- Was sich geändert hat -->
+<?php if ( $hat_diff ) : ?>
+<!-- Was sich geändert hat — nur bei echter Änderung. -->
 <div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;"><?php
 echo esc_html( $en ? 'What has changed' : 'Was sich geändert hat' ); ?></div>
@@ -131,6 +157,7 @@ echo esc_html( $en ? 'Added:' : 'Neu:' ); ?></span> <?php echo esc_html( implode
 echo esc_html( $en ? 'Removed:' : 'Entfallen:' ); ?></span> <?php echo esc_html( implode( ', ', $diff['entfallen'] ) ); ?></p>
 <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- Frist -->
 <?php if ( '' !== $vu ) : ?>
@@ -165,9 +192,10 @@ arbeiten wir mit dieser Fassung weiter.
 </p>
 		<?php
 		$inner    = ob_get_clean();
+		// Ueberschrift ohne Fassungsnummer, mit dem Stand als Datum.
 		$headline = $en
-			? 'Quote ' . $no . ' — version ' . $ver
-			: 'Angebot ' . $no . ' — Fassung ' . $ver;
+			? 'Quote ' . $no . ' — ' . $stand
+			: 'Angebot ' . $no . ' — Stand ' . $stand;
 		return function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => $lang ) ) : $inner;
 	}
 }
