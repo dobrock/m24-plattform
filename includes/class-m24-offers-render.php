@@ -628,11 +628,13 @@ class M24_Offers_Render {
 		$c_kt_label = ( 'b2b' === $customer['kundentyp'] ) ? 'Geschäftskunde (B2B)' : 'Privat (B2C)';
 		// #8/A2: Kundenkarte zeigt Firma (falls bekannt) + Flagge, sonst Name → E-Mail; Land verbatim.
 		$c_land_raw = (string) ( $customer['land'] ?? '' );
-		$c_flag     = ( '' !== $c_land_raw && class_exists( 'M24_Country_Flags' ) ) ? M24_Country_Flags::getFlag( $c_land_raw ) : '';
+		// Editor-Kundenzeile traegt NUR den Namen (0.11.512). Die Flagge wurde hier aus dem Landnamen
+		// neu abgeleitet — sie steht also auch dann wieder da, wenn der gespeicherte Wert sauber ist.
+		// Wo sie gewollt ist (Angebotsliste, Desk-Karte, Haendlerliste), bleibt sie unveraendert.
 		$c_firma    = trim( (string) ( $customer['firma'] ?? '' ) );
 		$c_name     = trim( (string) $customer['name'] );
 		$c_disp     = '' !== $c_firma ? $c_firma : ( '' !== $c_name ? $c_name : (string) $customer['email'] );
-		$c_land_nm  = '' !== $c_land_raw ? $c_land_raw : '—';
+		$c_land_nm  = '' !== $c_land_raw ? M24_Offers::ohne_flagge( $c_land_raw ) : '—';
 		$c_ini      = '';
 		foreach ( array_slice( array_values( array_filter( explode( ' ', $c_disp ) ) ), 0, 2 ) as $w ) { $c_ini .= function_exists( 'mb_strtoupper' ) ? mb_strtoupper( mb_substr( $w, 0, 1 ) ) : strtoupper( substr( $w, 0, 1 ) ); }
 		if ( '' === $c_ini ) { $c_ini = 'K'; }
@@ -649,7 +651,7 @@ class M24_Offers_Render {
 					<h2>Kunde <span class="m24off-hint2"><a href="#" data-cust-search>suchen/anlegen</a> · <a href="#" data-cust-edit>ändern</a></span></h2>
 					<div class="m24off-kunde" data-kunde-view>
 						<div class="m24off-av" data-cust-chip-av><?php echo esc_html( $c_ini ); ?></div>
-						<div class="m24off-kunde-txt"><b data-cust-chip-name><?php echo esc_html( trim( $c_disp . ( '' !== $c_flag ? ' ' . $c_flag : '' ) ) ); ?></b>
+						<div class="m24off-kunde-txt"><b data-cust-chip-name><?php echo esc_html( trim( $c_disp ) ); ?></b>
 							<div class="kd" data-cust-chip-sub><?php echo esc_html( $customer['email'] ); ?> · <?php echo esc_html( $c_kt_label ); ?> · <?php echo esc_html( $c_land_nm ); ?></div></div>
 						<?php if ( '' !== $garageNo ) : ?><div class="m24off-kg"><?php echo esc_html( $garageNo ); ?></div><?php endif; ?>
 					</div>
