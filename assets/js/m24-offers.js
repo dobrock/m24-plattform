@@ -22,6 +22,15 @@
 
 	/* ── State ── */
 	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
+	// Länder-Tabelle und ISO-Ableitung stehen bewusst GANZ OBEN: cxLandToIso() ist als Funktion gehoistet und
+	// damit ab Zeile 1 aufrufbar, CX_LAND als `var` jedoch nur dem Namen nach. Stand die Tabelle weiter unten,
+	// lief der Prefill (setTaxMode → renderSummary → calc → isDECustomer) gegen undefined[...] und riss den
+	// gesamten Editor ab: Daten im window-Objekt, aber keine einzige Position gezeichnet. Nicht nach unten schieben.
+	var CX_EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
+	var CX_LAND = { 'UK':'GB','GB':'GB','GROSSBRITANNIEN':'GB','GROẞBRITANNIEN':'GB','VEREINIGTES KÖNIGREICH':'GB','VEREINIGTES KOENIGREICH':'GB','UNITED KINGDOM':'GB','ENGLAND':'GB','GREAT BRITAIN':'GB','BRITAIN':'GB','DEUTSCHLAND':'DE','GERMANY':'DE','ÖSTERREICH':'AT','OESTERREICH':'AT','AUSTRIA':'AT','SCHWEIZ':'CH','SWITZERLAND':'CH','FRANKREICH':'FR','FRANCE':'FR','ITALIEN':'IT','ITALY':'IT','SPANIEN':'ES','SPAIN':'ES','NIEDERLANDE':'NL','NETHERLANDS':'NL','BELGIEN':'BE','BELGIUM':'BE','LUXEMBURG':'LU','POLEN':'PL','POLAND':'PL','TSCHECHIEN':'CZ','DÄNEMARK':'DK','DAENEMARK':'DK','SCHWEDEN':'SE','USA':'US','UNITED STATES':'US','VEREINIGTE STAATEN':'US' };
+	function cxLandToIso(v) { v = (v || '').trim().toUpperCase().replace(/\s+/g, ' '); if (!v) { return ''; } if (CX_LAND[v]) { return CX_LAND[v]; } return v.replace(/[^A-Z]/g, '').slice(0, 2); }
+	function cxIsDrittland(land) { var iso = cxLandToIso(land); return '' !== iso && CX_EU.indexOf(iso) < 0; } // GB/England seit Brexit = Drittland
+
 	// #2 Versand-Default: per Straße erreichbare Länder (Kontinental-EU + CH/LI/MC/AD) → Landweg; sonst Seefracht (UK/Übersee/Inseln).
 	var SHIP_ROAD = ['DE','AT','BE','NL','LU','FR','IT','ES','PT','PL','CZ','SK','SI','HR','HU','RO','BG','GR','DK','SE','FI','EE','LV','LT','CH','LI','MC','AD','NO'];
 	function defaultShipMethod(land) {
@@ -852,10 +861,8 @@
 	}
 
 	/* ── B: Kunden-Schnellanlage / -Bearbeitung (Modal) ── */
-	var CX_EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
-	var CX_LAND = { 'UK':'GB','GB':'GB','GROSSBRITANNIEN':'GB','GROẞBRITANNIEN':'GB','VEREINIGTES KÖNIGREICH':'GB','VEREINIGTES KOENIGREICH':'GB','UNITED KINGDOM':'GB','ENGLAND':'GB','GREAT BRITAIN':'GB','BRITAIN':'GB','DEUTSCHLAND':'DE','GERMANY':'DE','ÖSTERREICH':'AT','OESTERREICH':'AT','AUSTRIA':'AT','SCHWEIZ':'CH','SWITZERLAND':'CH','FRANKREICH':'FR','FRANCE':'FR','ITALIEN':'IT','ITALY':'IT','SPANIEN':'ES','SPAIN':'ES','NIEDERLANDE':'NL','NETHERLANDS':'NL','BELGIEN':'BE','BELGIUM':'BE','LUXEMBURG':'LU','POLEN':'PL','POLAND':'PL','TSCHECHIEN':'CZ','DÄNEMARK':'DK','DAENEMARK':'DK','SCHWEDEN':'SE','USA':'US','UNITED STATES':'US','VEREINIGTE STAATEN':'US' };
-	function cxLandToIso(v) { v = (v || '').trim().toUpperCase().replace(/\s+/g, ' '); if (!v) { return ''; } if (CX_LAND[v]) { return CX_LAND[v]; } return v.replace(/[^A-Z]/g, '').slice(0, 2); }
-	function cxIsDrittland(land) { var iso = cxLandToIso(land); return '' !== iso && CX_EU.indexOf(iso) < 0; } // GB/England seit Brexit = Drittland
+	// CX_EU / CX_LAND / cxLandToIso() / cxIsDrittland() stehen oben im State-Block — sie müssen vor
+	// ihren Aufrufern initialisiert sein (Begründung dort). Hier bewusst nur der Verweis.
 	var cxKt = 'b2c', cxT, cxEditId = 0;
 	function applyCustomer(c) {
 		// #8: VOLLER Kundendatensatz mitführen (round-trippt in Editor + Draft; Land verbatim).
