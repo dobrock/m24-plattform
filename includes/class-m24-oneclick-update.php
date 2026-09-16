@@ -167,17 +167,67 @@ class M24_OneClick_Update {
 
 	/* ── Kern-Routine (von AJAX- und Admin-Bar-Pfad geteilt) ─────────────────── */
 
+	/** Wann hat PUC zuletzt geprueft? Leer = nie — dann schlaeft der automatische Takt. */
+	private static function letzter_check(): string {
+		if ( ! class_exists( 'M24_Updater' ) || ! M24_Updater::checker() ) { return 'unbekannt'; }
+		$c = M24_Updater::checker();
+		if ( ! method_exists( $c, 'getUpdateState' ) ) { return 'unbekannt'; }
+		$ts = (int) $c->getUpdateState()->getLastCheck();
+		return $ts > 0 ? gmdate( 'Y-m-d H:i:s', $ts ) . ' UTC' : 'nie';
+	}
+
+	/** Token-Status nur lesen, nie ausgeben — der Wert selbst gehoert nirgendwo hin. */
+	private static function token_fehlt(): bool {
+		return class_exists( 'M24_Updater' ) && method_exists( 'M24_Updater', 'has_token' ) && ! M24_Updater::has_token();
+	}
+
 	public static function run() {
 		@set_time_limit( 180 ); // phpcs:ignore
 
 		$basename = plugin_basename( M24_PLATTFORM_FILE );
 		$alt      = M24_PLATTFORM_VERSION;
 
-		// 1) Update-Check erzwingen (PUC + WP-Transient).
+		// 1) Update-Check erzwingen — und den Checker DIREKT befragen.
+		//
+		// Vorher entschied allein der Transient update_plugins darueber, ob es etwas zu tun gibt.
+		// Der wird aber nur gefuellt, wenn PUC vorher gelaufen ist — und mit DISABLE_WP_CRON laeuft
+		// der periodische Check nie (dieselbe Falle wie bei den 16 Anfragen ab 14.08.2026, siehe
+		// M24_Inquiries_Push::schedule_push). Gemessen am 16.09.2026: Die Settings-Seite kannte
+		// 0.11.516, die Plugin-Liste kannte nichts, und run() meldete "Bereits aktuell (0.11.515)".
+		// Ein stiller Ausfall, der wie ein gesundes System aussah.
+		//
+		// Deshalb: erst pruefen, dann urteilen — und wenn die Pruefung scheitert, wird das GESAGT
+		// statt als "aktuell" ausgegeben.
+		$cron_off  = defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON;
+		$geprueft  = false;   // lief ein Check tatsaechlich durch?
+		$pruef_msg = '';      // warum nicht?
+		$puc_ver   = '';      // was PUC gefunden hat
+
 		delete_site_transient( 'update_plugins' );
-		if ( class_exists( 'M24_Updater' ) && M24_Updater::checker() ) {
-			$c = M24_Updater::checker();
-			if ( method_exists( $c, 'checkForUpdates' ) ) { $c->checkForUpdates(); }
+		$c = ( class_exists( 'M24_Updater' ) && method_exists( 'M24_Updater', 'checker' ) ) ? M24_Updater::checker() : null;
+		if ( ! $c ) {
+			$pruef_msg = 'Update-Checker nicht aktiv (Bibliothek fehlt oder Repo-URL nicht als GitHub erkannt).';
+		} elseif ( ! method_exists( $c, 'checkForUpdates' ) ) {
+			$pruef_msg = 'Update-Checker ohne checkForUpdates() — unerwarteter Typ.';
+		} else {
+			try {
+				$upd      = $c->checkForUpdates(); // Update|null
+				$geprueft = true;
+				if ( $upd && isset( $upd->version ) ) { $puc_ver = (string) $upd->version; }
+				// Harmlose 404 herausfiltern: im Branch-Modus probiert PUC erst releases/latest + tags.
+				$fehler = method_exists( $c, 'getLastRequestApiErrors' ) ? (array) $c->getLastRequestApiErrors() : array();
+				foreach ( $fehler as $e ) {
+					$err = isset( $e['error'] ) ? $e['error'] : null;
+					$msg = ( $err instanceof WP_Error ) ? $err->get_error_message() : '';
+					if ( '' !== $msg && ! preg_match( '#/releases/latest|/tags#', $msg ) ) {
+						$geprueft  = false;
+						$pruef_msg = $msg;
+						break;
+					}
+				}
+			} catch ( \Throwable $e ) {
+				$pruef_msg = $e->getMessage();
+			}
 		}
 		if ( function_exists( 'wp_update_plugins' ) ) { wp_update_plugins(); }
 
@@ -224,9 +274,37 @@ class M24_OneClick_Update {
 			if ( ! empty( $d['v'] ) ) { $neu = trim( (string) $d['v'] ); }
 		}
 
-		$headline = $installed
-			? sprintf( 'Aktualisiert: %s → %s', $alt, $neu )
-			: ( '' !== $inst_msg ? 'Update fehlgeschlagen: ' . $inst_msg : sprintf( 'Bereits aktuell (Version %s)', $neu ) );
+		// DREI Ausgaenge. "Konnte nicht nachsehen" darf nie als "aktuell" durchgehen — genau diese
+		// Verwechslung hat den Updater wochenlang gesund aussehen lassen.
+		if ( $installed ) {
+			$headline = sprintf( 'Aktualisiert: %s → %s', $alt, $neu );
+			$ausgang  = 'installiert';
+		} elseif ( '' !== $inst_msg ) {
+			$headline = 'Update fehlgeschlagen: ' . $inst_msg;
+			$ausgang  = 'fehlgeschlagen';
+		} elseif ( ! $geprueft ) {
+			$headline = 'Konnte nicht nachsehen: ' . ( '' !== $pruef_msg ? $pruef_msg : 'Update-Pruefung ohne Ergebnis.' )
+				. ( self::token_fehlt() ? ' (Kein GitHub-Token gesetzt — bei privatem Repo zwingend.)' : '' );
+			$ausgang  = 'ungeprueft';
+		} else {
+			$headline = sprintf( 'Bereits aktuell (Version %s)', $neu );
+			$ausgang  = 'aktuell';
+		}
+
+		// IMMER protokollieren — auch den ruhigen Fall. Nach dem Muster aus
+		// M24_Inquiries_Push::schedule_push(): ein Lauf ohne Spur ist ein Lauf, den niemand pruefen kann.
+		if ( class_exists( 'M24_Logger' ) ) {
+			$stufe = ( 'aktuell' === $ausgang || 'installiert' === $ausgang ) ? 'info' : 'error';
+			M24_Logger::$stufe( 'updater', 'Ein-Klick-Update: ' . $headline, array(
+				'ausgang'      => $ausgang,
+				'installiert'  => $alt,
+				'danach'       => $neu,
+				'puc_version'  => $puc_ver,
+				'geprueft'     => $geprueft,
+				'cron_off'     => $cron_off,
+				'letzter_lauf' => self::letzter_check(),
+			) );
+		}
 
 		$fpm = '';
 		if ( 'geleert' === $opc ) { $fpm = 'PHP-Cache geleert — kein FPM-Neustart nötig.'; }
