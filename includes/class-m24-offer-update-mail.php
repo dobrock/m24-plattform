@@ -1,12 +1,17 @@
 <?php
 /**
- * M24 — Transaktionsmail „Angebot aktualisiert".
+ * M24 — Transaktionsmail „Angebot aktualisiert" / "Quote updated".
  * Modul: includes/class-m24-offer-update-mail.php
  *
  * RECHTLICHER RAHMEN (unverändert): Ein versendetes bindendes Angebot bindet nach § 145 BGB für die
  * Laufzeit; ein einseitiger Widerruf ist unwirksam. Der Text behauptet deshalb NICHT, die vorherige
  * Fassung sei ungültig oder zurückgezogen. Er stellt die neue Fassung daneben und BITTET um
- * Bestätigung — mehr nicht.
+ * Bestätigung — mehr nicht. Das gilt in beiden Sprachen wörtlich gleich.
+ *
+ * SPRACHE (16.09.2026): Die Mail folgt der ANGEBOTSSPRACHE, nicht dem Server. Vorher war sie fest
+ * deutsch — ein englisches Angebot (Bryne Bil, Norwegen) bekam eine deutsche Aktualisierungsmail,
+ * während Angebot und PDF englisch waren. Gelesen wird src_json.lang, dieselbe Quelle, aus der auch
+ * der Editor und die Angebotsmail ihre Sprache nehmen.
  *
  * FREIGABE: Text am 08.09.2026 von Daniel geprüft und freigegeben („Text passt"). Seither ist die
  * Vorgabe von approved() true. Der Filter m24_offer_update_mail_approved bleibt als Notaus:
@@ -30,6 +35,16 @@ class M24_Offer_Update_Mail {
 	}
 
 	/**
+	 * Sprache des Angebots — 'de' oder 'en'. Eine Quelle: src_json.lang, gesetzt vom Editor
+	 * über den Schalter „Angebotssprache". Fehlt sie, bleibt es bei Deutsch.
+	 */
+	public static function lang( $o ): string {
+		$sj = json_decode( (string) ( $o->src_json ?? '' ), true );
+		$l  = is_array( $sj ) ? strtolower( trim( (string) ( $sj['lang'] ?? '' ) ) ) : '';
+		return 'en' === $l ? 'en' : 'de';
+	}
+
+	/**
 	 * @return array{ok:bool,msg:string} Darf diese Mail an den Kunden raus?
 	 */
 	public static function send_allowed(): array {
@@ -43,8 +58,11 @@ class M24_Offer_Update_Mail {
 	}
 
 	public static function subject( $o ): string {
-		$s = sprintf( 'Dein Angebot %s wurde aktualisiert (Fassung %d)',
-			(string) $o->offer_no, max( 1, (int) ( $o->offer_version ?? 1 ) ) );
+		$ver = max( 1, (int) ( $o->offer_version ?? 1 ) );
+		$no  = (string) $o->offer_no;
+		$s   = 'en' === self::lang( $o )
+			? sprintf( 'Your quote %s has been updated (version %d)', $no, $ver )
+			: sprintf( 'Dein Angebot %s wurde aktualisiert (Fassung %d)', $no, $ver );
 		return self::approved() ? $s : self::DRAFT_MARK . $s;
 	}
 
@@ -53,13 +71,25 @@ class M24_Offer_Update_Mail {
 	 * @param array  $diff Ergebnis aus M24_Offer_Versions::diff().
 	 */
 	public static function render( $o, array $diff ): string {
+		$lang = self::lang( $o );
+		$en   = 'en' === $lang;
+
 		$cust = json_decode( (string) $o->customer_json, true );
 		$cust = is_array( $cust ) ? $cust : array();
 		$name = trim( (string) ( $cust['vorname'] ?? '' ) );
 		$no   = (string) $o->offer_no;
 		$ver  = max( 1, (int) ( $o->offer_version ?? 1 ) );
-		$vu   = ! empty( $o->valid_until ) ? date_i18n( 'd.m.Y', strtotime( (string) $o->valid_until ) ) : '';
-		$eur  = static function ( $v ) { return number_format( (float) $v, 2, ',', '.' ) . ' €'; };
+		// Datumsformat der Sprache folgen lassen: 26.09.2026 gegen 26 Sep 2026.
+		$vu   = ! empty( $o->valid_until )
+			? date_i18n( $en ? 'j M Y' : 'd.m.Y', strtotime( (string) $o->valid_until ) )
+			: '';
+		// Betrag ebenso: 4.280,00 € gegen € 4,280.00 — eine deutsche Zahl in einem
+		// englischen Text liest ein Norweger als Tippfehler.
+		$eur  = static function ( $v ) use ( $en ) {
+			return $en
+				? '€ ' . number_format( (float) $v, 2, '.', ',' )
+				: number_format( (float) $v, 2, ',', '.' ) . ' €';
+		};
 
 		ob_start();
 		?>
@@ -68,27 +98,37 @@ class M24_Offer_Update_Mail {
 <strong>Interner Hinweis, nicht für den Kunden:</strong> Dieser Text ist gesperrt und wird erst nach Freigabe versendet.
 </div>
 <?php endif; ?>
-<p style="font-size:15px;color:#222;margin:0 0 14px;">Hallo<?php echo '' !== $name ? ' ' . esc_html( $name ) : ''; ?>,</p>
+<p style="font-size:15px;color:#222;margin:0 0 14px;"><?php
+echo esc_html( $en ? 'Hello' : 'Hallo' ) . ( '' !== $name ? ' ' . esc_html( $name ) : '' ) . ',';
+?></p>
 
 <p style="font-size:14px;color:#222;line-height:1.6;margin:0 0 14px;">
+<?php if ( $en ) : ?>
+there is an updated version of your quote <strong><?php echo esc_html( $no ); ?></strong>.
+You will find it as <strong>version <?php echo (int) $ver; ?></strong> attached to this e-mail.
+<?php else : ?>
 zu deinem Angebot <strong><?php echo esc_html( $no ); ?></strong> gibt es einen aktualisierten Stand.
 Du findest ihn als <strong>Fassung <?php echo (int) $ver; ?></strong> im Anhang dieser Mail.
+<?php endif; ?>
 </p>
 
 <!-- Was sich geändert hat -->
 <div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;">
-<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Was sich geändert hat</div>
+<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;"><?php
+echo esc_html( $en ? 'What has changed' : 'Was sich geändert hat' ); ?></div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
-<tr><td style="padding:4px 12px 4px 0;color:#888;">Positionen</td><td style="padding:4px 0;color:#222;">
+<tr><td style="padding:4px 12px 4px 0;color:#888;"><?php echo esc_html( $en ? 'Line items' : 'Positionen' ); ?></td><td style="padding:4px 0;color:#222;">
 <?php echo (int) $diff['positionen_vorher']; ?> &rarr; <strong><?php echo (int) $diff['positionen_nachher']; ?></strong></td></tr>
-<tr><td style="padding:4px 12px 4px 0;color:#888;">Gesamt</td><td style="padding:4px 0;color:#222;">
+<tr><td style="padding:4px 12px 4px 0;color:#888;"><?php echo esc_html( $en ? 'Total' : 'Gesamt' ); ?></td><td style="padding:4px 0;color:#222;">
 <?php echo esc_html( $eur( $diff['summe_vorher'] ) ); ?> &rarr; <strong><?php echo esc_html( $eur( $diff['summe_nachher'] ) ); ?></strong></td></tr>
 </table>
 <?php if ( ! empty( $diff['neu'] ) ) : ?>
-<p style="font-size:13px;color:#222;margin:10px 0 0;"><span style="color:#888;">Neu:</span> <?php echo esc_html( implode( ', ', $diff['neu'] ) ); ?></p>
+<p style="font-size:13px;color:#222;margin:10px 0 0;"><span style="color:#888;"><?php
+echo esc_html( $en ? 'Added:' : 'Neu:' ); ?></span> <?php echo esc_html( implode( ', ', $diff['neu'] ) ); ?></p>
 <?php endif; ?>
 <?php if ( ! empty( $diff['entfallen'] ) ) : ?>
-<p style="font-size:13px;color:#222;margin:4px 0 0;"><span style="color:#888;">Entfallen:</span> <?php echo esc_html( implode( ', ', $diff['entfallen'] ) ); ?></p>
+<p style="font-size:13px;color:#222;margin:4px 0 0;"><span style="color:#888;"><?php
+echo esc_html( $en ? 'Removed:' : 'Entfallen:' ); ?></span> <?php echo esc_html( implode( ', ', $diff['entfallen'] ) ); ?></p>
 <?php endif; ?>
 </div>
 
@@ -99,24 +139,35 @@ Du findest ihn als <strong>Fassung <?php echo (int) $ver; ?></strong> im Anhang 
 // Eingefrorenes Dokument: ausschliesslich das Datum. "10 Tage ab heute" waere schon falsch,
 // wenn der Kunde die Mail einen Tag spaeter oeffnet (§ 148 BGB: die Frist muss bestimmbar sein).
 echo esc_html( class_exists( 'M24_Offer_Validity' )
-    ? M24_Offer_Validity::line( (string) $o->valid_until, 'de' )
-    : 'Dieses Angebot ist gültig bis einschließlich ' . $vu . '.' );
+    ? M24_Offer_Validity::line( (string) $o->valid_until, $lang )
+    : ( $en
+        ? 'This quote is valid up to and including ' . $vu . '.'
+        : 'Dieses Angebot ist gültig bis einschließlich ' . $vu . '.' ) );
 ?>
 </div>
 <?php endif; ?>
 
-<!-- § 145 BGB: die alte Fassung wird NICHT für ungültig erklärt. -->
+<!-- § 145 BGB: die alte Fassung wird NICHT für ungültig erklärt. Gilt in beiden Sprachen. -->
 <div style="border-top:1px solid #eee;padding-top:14px;margin-top:14px;font-size:14px;color:#222;line-height:1.6;">
+<?php if ( $en ) : ?>
+Please let us know whether this updated version works for you. We will proceed with it
+once you have confirmed.
+<?php else : ?>
 Bitte gib uns kurz Bescheid, ob der neue Stand für dich passt. Erst mit deiner Bestätigung
 arbeiten wir mit dieser Fassung weiter.
+<?php endif; ?>
 </div>
 
 <p style="font-size:13px;color:#5a6474;margin:16px 0 0;line-height:1.6;">
-Fragen dazu? Antworte einfach auf diese Mail — sie landet direkt bei uns.
+<?php echo $en
+	? 'Any questions? Just reply to this e-mail — it comes straight to us.'
+	: 'Fragen dazu? Antworte einfach auf diese Mail — sie landet direkt bei uns.'; ?>
 </p>
 		<?php
 		$inner    = ob_get_clean();
-		$headline = 'Angebot ' . $no . ' — Fassung ' . $ver;
-		return function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => 'de' ) ) : $inner;
+		$headline = $en
+			? 'Quote ' . $no . ' — version ' . $ver
+			: 'Angebot ' . $no . ' — Fassung ' . $ver;
+		return function_exists( 'm24_mail_shell' ) ? m24_mail_shell( $headline, $inner, array( 'lang' => $lang ) ) : $inner;
 	}
 }
