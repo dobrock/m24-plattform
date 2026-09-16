@@ -512,6 +512,66 @@ class M24_Offers_Render {
 			}
 		}
 
+		// ─── RIEGEL: DAS ANGEFORDERTE ANGEBOT ODER GAR NICHTS ───
+		//
+		// BEFUND 16.09.2026, kritisch: Aufruf mit ?update_offer=124 (Zeile 124 = 2026-1064, Bryne Bil,
+		// sieben Positionen). Im Editor stand prefill.offer_no „2026-1058" (Sergio Gonzalez Falcon,
+		// drei Positionen), update war null. Ein Klick auf „Angebot aktualisieren" haette fremde
+		// Positionen und fremde Kundendaten als Fassung dieses Angebots an den Kunden geschickt.
+		//
+		// Ab jetzt oeffnet der Editor im Aktualisieren-Modus NUR, wenn der Modus fuer GENAU die
+		// angeforderte Zeile zustande kam — Kontext da, Kontext-ID gleich, Prefill-ID gleich. Kein
+		// stiller Rueckfall auf irgendeinen anderen Vorgang: ein Editor, der heimlich etwas anderes
+		// laedt, ist gefaehrlicher als einer, der nicht oeffnet.
+		//
+		// Die Sperre aus 0.11.505 (keine Fassung ohne Positionen) greift hier ausdruecklich NICHT —
+		// es waren ja Positionen da, nur die falschen.
+		if ( $upd_id > 0 ) {
+			$geladen_id = is_array( $prefill ) ? (int) ( $prefill['offer_id'] ?? 0 ) : 0;
+			$geladen_no = is_array( $prefill ) ? (string) ( $prefill['offer_no'] ?? '' ) : '';
+			$passt      = is_array( $upd_ctx )
+				&& (int) $upd_ctx['offer_id'] === $upd_id
+				&& $geladen_id === $upd_id;
+			if ( ! $passt ) {
+				if ( class_exists( 'M24_Error_Log' ) ) {
+					M24_Error_Log::capture( 'offers', 'error', 'Aktualisieren-Editor: angefordertes Angebot nicht geladen', array(
+						'angefordert' => $upd_id,
+						'geladen_id'  => $geladen_id,
+						'geladen_no'  => $geladen_no,
+						'modus'       => is_array( $upd_ctx ) ? 'update' : 'kein update-Kontext',
+					) );
+				}
+				while ( ob_get_level() > 0 ) { ob_end_clean(); }
+				if ( ! headers_sent() ) { header( 'Content-Type: text/html; charset=utf-8' ); }
+				echo self::head( 'Angebot aktualisieren' ); // phpcs:ignore WordPress.Security.EscapeOutput
+				?>
+				</head><body class="m24off-op m24off-v2">
+				<div class="m24off-top"><div class="m24off-top-in">
+					<a class="m24off-back" href="<?php echo esc_url( admin_url( 'admin.php?page=m24-offers' ) ); ?>">← Zurück zur Übersicht</a>
+					<h1>Angebot aktualisieren</h1>
+				</div></div>
+				<div class="m24off-grid"><div class="m24off-col-main"><div class="m24off-card">
+					<h2>Nicht geöffnet — der Editor hätte einen anderen Vorgang geladen</h2>
+					<p>Angefordert war Angebot mit der Zeilen-ID <b><?php echo (int) $upd_id; ?></b>.
+					<?php if ( $geladen_id > 0 || '' !== $geladen_no ) : ?>
+						Vorbereitet wurde stattdessen
+						<b><?php echo esc_html( '' !== $geladen_no ? $geladen_no : ( 'Zeile ' . $geladen_id ) ); ?></b>.
+					<?php else : ?>
+						Es kam kein Aktualisieren-Modus zustande.
+					<?php endif; ?>
+					</p>
+					<p>Deshalb wurde nichts geöffnet: Ein Versand aus diesem Zustand hätte fremde Positionen
+					und fremde Kundendaten als Fassung dieses Angebots verschickt.</p>
+					<p><b>Was jetzt hilft:</b> Seite einmal hart neu laden. Bleibt die Meldung, liegt es nicht
+					am Angebot, sondern an der Auslieferung — dann steht auf dem Server älterer Plugin-Code
+					oder eine Cache-Schicht liefert eine früher erzeugte Seite aus.</p>
+				</div></div></div>
+				</body></html>
+				<?php
+				exit;
+			}
+		}
+
 		$cfg = array(
 			'rest'     => esc_url_raw( rest_url( M24_Offers::NS . '/offers' ) ),
 			'nonce'    => wp_create_nonce( 'wp_rest' ),
@@ -534,6 +594,10 @@ class M24_Offers_Render {
 			// null = Erstversand (unveraenderter Pfad), Array = Aktualisierung einer versendeten Fassung.
 			// Der Modus kommt vom Server; das JS leitet ihn nicht aus dem Zustand ab.
 			'update'   => $upd_ctx,
+			// Was die ADRESSE verlangt hat. Der Riegel oben laesst den Editor gar nicht erst oeffnen,
+			// wenn das nicht zum geladenen Vorgang passt; diese Zahl ist die zweite, unabhaengige
+			// Bremse im Client — er verweigert den Versand, wenn der Server den Modus nicht bestaetigt.
+			'updRequested' => $upd_id,
 			'garageNo' => $garageNo,
 			'lands'    => function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array( 'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz' ),
 			'landsEn'  => self::lands_en(), // englische Landesnamen für die EN-Versandzeile ({country})

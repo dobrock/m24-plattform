@@ -645,6 +645,19 @@
 			var rEl = $('[data-tax-rate]'), rv = rEl && rEl.value.trim();
 			if (rv === '' || !(taxRate >= 0 && taxRate <= 27)) { st.textContent = 'Bitte einen USt-Satz (0–27 %) angeben.'; st.className = 'm24off-status is-error'; return; }
 		}
+		// ─── ZWEITE, UNABHAENGIGE BREMSE (16.09.2026) ───
+		//
+		// Die Adresse verlangte eine Aktualisierung (?update_offer=), der Server hat den Modus aber
+		// nicht bestaetigt: genau diese Lage lag bei 2026-1064 vor — update war null, waehrend im
+		// Editor der Inhalt eines FREMDEN Angebots stand. Ein Versand haette diesen fremden Inhalt
+		// hinausgeschickt. Serverseitig oeffnet der Editor in diesem Fall gar nicht mehr; diese
+		// Pruefung faengt eine Seite ab, die noch aus dem Cache oder aus einem alten Tab stammt.
+		if ((cfg.updRequested | 0) > 0 && !isUpdateMode()) {
+			st.textContent = 'Dieser Editor wurde zum Aktualisieren geöffnet, der Server hat den Modus aber nicht bestätigt. '
+				+ 'Nicht senden — Seite neu laden.';
+			st.className = 'm24off-status is-error';
+			return;
+		}
 		if (sendInFlight) { return; } // Doppelklick-Guard: der Sende-Button ist delegiert (disabled stoppt kein bereits gequeuetes Klick-Event)
 		sendInFlight = true;
 		busy(true);
