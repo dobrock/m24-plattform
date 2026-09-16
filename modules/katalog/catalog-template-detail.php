@@ -841,6 +841,20 @@ class M24_Catalog_Template_Detail {
 			// ueberholenden Wechseln nur der juengste die Buehne setzt; (b) onerror wie onload, ein kaputtes
 			// Bild darf die Buehne nicht leer lassen; (c) pre.complete fuer Bilder aus dem Cache, bei denen
 			// onload nicht mehr feuert; (d) eine Frist als letzte Sicherung. Keine stille Sperre.
+			// Klasse entfernen GENUEGT NICHT: wird sie waehrend der laufenden Ueberblendung entfernt — genau das
+			// tut die Frist unten —, kann die CSS-Transition (opacity .3s) bei currentTime 0 einfrieren und nie
+			// anlaufen. Der berechnete Wert bleibt dann 0, obwohl keine Regel das mehr fordert; das Bild ist
+			// unsichtbar und ein Nachbarbild scheint darueber zu liegen. Live gemessen am 16.09. auf der
+			// G82-Motorhaube: CSSTransition "opacity", playState running, currentTime 0, minutenlang stehend —
+			// finish() machte das Bild sofort sichtbar. Deshalb: Klasse weg UND haengende Transition beenden.
+			function sichtbar(el){
+				el.classList.remove('m24-fade');
+				if (el.getAnimations) {
+					el.getAnimations().forEach(function (a) { try { a.finish(); } catch (e) {} });
+				} else {
+					void el.offsetWidth; // Rueckfall: Stilneuaufbau erzwingen
+				}
+			}
 			var fadeLauf = 0;
 			function fadeSwap(el, src){
 				if (!el) return;
@@ -849,14 +863,14 @@ class M24_Catalog_Template_Detail {
 				var zeigen = function(){
 					if (lauf !== fadeLauf) return; // ein neuerer Wechsel hat uebernommen
 					el.src = src;
-					requestAnimationFrame(function(){ if (lauf === fadeLauf) el.classList.remove('m24-fade'); });
+					requestAnimationFrame(function(){ if (lauf === fadeLauf) sichtbar(el); });
 				};
 				var pre = new Image();
 				pre.onload = zeigen;
 				pre.onerror = zeigen;
 				pre.src = src;
 				if (pre.complete) zeigen();
-				setTimeout(function(){ if (lauf === fadeLauf) el.classList.remove('m24-fade'); }, 600);
+				setTimeout(function(){ if (lauf === fadeLauf) sichtbar(el); }, 600);
 			}
 			function thumbs(){return root.querySelectorAll('.thumbs .t');}
 			function markStrip(){thumbs().forEach(function(t){t.classList.toggle('active',parseInt(t.dataset.i,10)===idx&&!t.classList.contains('more-tile'));});}
