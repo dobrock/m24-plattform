@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.508
+ * Version:           0.11.509
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -168,6 +168,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-drift.php';   // Abwe
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-versions.php';    // Fassungs-Historie (Beleg je Vorfassung)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update.php';      // „Angebot aktualisieren": naechste Fassung + Artefakt-Gate
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update-mail.php'; // Kundenmail „Angebot aktualisiert" (ENTWURF, ungeprueft)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-land-flags.php'; // Wartung: Flaggen-Emoji aus Landwerten/Positionstiteln
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-offer-update-rest.php'; // Knopf-Strecke: open/stage/send
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-push.php';  // Desk-Sync W1: Angebot → POST /api/orders (Vertrag v1.1)
 require_once M24_PLATTFORM_DIR . 'modules/core/desk-sync/desk-inbound.php'; // Desk-Sync D1–D3: Webhook Desk → WP (LWW-Applier)

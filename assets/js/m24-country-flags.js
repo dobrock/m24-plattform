@@ -110,6 +110,14 @@ function stripLeadingFlag(s) {
 }
 
 /* ISO2 -> Emoji via Regional-Indicator-Codepoints (U+1F1E6 = 'A') */
+/* ALLE Flaggen-Emoji entfernen (auch mitten im Text) — Gegenstueck zu stripLeadingFlag */
+function stripFlags(s) {
+  s = String(s == null ? '' : s)
+    .replace(/(?:[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0000}-\u{E007F}]+|\u{1F3F4})/gu, '')
+    .replace(/\s{2,}/gu, ' ');
+  return s.trim();
+}
+
 function isoToFlag(iso2) {
   if (!iso2) return '';
   const cc = String(iso2).toUpperCase();
@@ -237,7 +245,8 @@ function getFlagLiteral(land) {
  * ------------------------------------------------------------------ */
 const _api = {
   getFlag, getFlagAndCountry, resolveCountry, countryToIso2, isoToFlag,
-  getFlagLiteral, ALIAS_TO_ISO2, ISO2_LIST, COUNTRY_FLAGS, FLAG_SCOTLAND
+  getFlagLiteral, stripLeadingFlag, stripFlags,
+  ALIAS_TO_ISO2, ISO2_LIST, COUNTRY_FLAGS, FLAG_SCOTLAND
 };
 /* Klassisches <script> (WordPress enqueue) -> global window.M24Country.
    Node/CommonJS -> module.exports.

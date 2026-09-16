@@ -99,6 +99,15 @@ class M24_Maintenance {
 				'pflicht' => false,
 				'ph'    => 'optional: 2026-1063',
 			),
+			'offer-land-flags' => array(
+				'titel' => 'Flaggen-Emoji aus Landwerten und Positionstiteln entfernen',
+				'text'  => 'Der Desk fuehrt die Flagge im Landwert ("[NO] Norwegen"); die Plattform hat sie verbatim uebernommen — damit steht sie im Positionstitel und im Kunden-PDF. Bereinigt customer_json.land, Positionstitel, ship_land/bill_land sowie die Kundenkonten. Fassungen bleiben als Beleg unberuehrt.',
+				'cli'   => '(kein CLI — nur Wartung)',
+				'core'  => array( 'M24_Offer_Land_Flags', 'run' ),
+				'ids'   => true,
+				'pflicht' => false,
+				'ph'    => 'optional: 2026-1064',
+			),
 		);
 	}
 
@@ -137,6 +146,10 @@ class M24_Maintenance {
 		if ( 'offer-draft-cleanup' === $key ) {
 			$r = M24_Offer_Draft_Cleanup::run( $ids, $go );
 			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Angebote mit Rückständen'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
+		}
+		if ( 'offer-land-flags' === $key ) {
+			$r = M24_Offer_Land_Flags::run( $ids, $go );
+			return array( 'zeilen' => (array) $r['zeilen'], 'anzahl' => (int) ( $r['summe']['Angebote mit Flagge'] ?? 0 ), 'summe' => (array) ( $r['summe'] ?? array() ) );
 		}
 		return $out;
 	}

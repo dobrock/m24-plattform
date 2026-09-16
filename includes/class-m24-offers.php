@@ -1264,7 +1264,7 @@ class M24_Offers {
 		$anrede_lc = strtolower( trim( (string) ( $p['anrede'] ?? '' ) ) );                     // Formular sendet Herr/Frau/'' oder herr/frau
 		$anrede    = ( 'herr' === $anrede_lc ) ? 'Herr' : ( ( 'frau' === $anrede_lc ) ? 'Frau' : '' ); // intern kanonisch 'Herr'/'Frau'/''
 		$kt       = ( 'b2b' === ( $p['kundentyp'] ?? '' ) ) ? 'b2b' : 'b2c';
-		$land     = sanitize_text_field( trim( (string) ( $p['land'] ?? '' ) ) ); if ( '' === $land ) { $land = 'Deutschland'; } // A1: Land VERBATIM speichern (ISO/Flagge nur intern abgeleitet)
+		$land     = self::ohne_flagge( sanitize_text_field( trim( (string) ( $p['land'] ?? '' ) ) ) ); if ( '' === $land ) { $land = 'Deutschland'; } // A1: Land VERBATIM speichern (ISO/Flagge nur intern abgeleitet)
 		$display  = trim( $vorname . ' ' . $nachname ); if ( '' === $display ) { $display = $email; }
 		$edit_id  = (int) ( $p['id'] ?? 0 );
 		$existed  = false;
@@ -1866,7 +1866,7 @@ class M24_Offers {
 			'kundentyp' => in_array( ( $c['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $c['kundentyp'] : 'b2c',
 			'anrede'    => in_array( ( $c['anrede'] ?? '' ), array( 'Herr', 'Frau' ), true ) ? (string) $c['anrede'] : '', // für die Sie-Begrüßung
 			'firma'     => sanitize_text_field( (string) ( $c['firma'] ?? '' ) ),
-			'land'      => sanitize_text_field( trim( (string) ( $c['land'] ?? '' ) ) ), // #6: Land VERBATIM (ISO/Flagge nur intern abgeleitet)
+			'land'      => self::ohne_flagge( sanitize_text_field( trim( (string) ( $c['land'] ?? '' ) ) ) ), // #6: Land VERBATIM (ISO/Flagge nur intern abgeleitet)
 			// #8: vollen Kontakt-Datensatz im Snapshot mitführen → Draft-Reload/Editor behält alle Felder.
 			'vorname'      => sanitize_text_field( (string) ( $c['vorname'] ?? '' ) ),
 			'nachname'     => sanitize_text_field( (string) ( $c['nachname'] ?? '' ) ),
@@ -1951,10 +1951,19 @@ class M24_Offers {
 		return '';
 	}
 
+	/**
+	 * Flaggen-Emoji gehoeren in die Anzeige (M24_Country_Flags::getFlag), nie in den Wert.
+	 * Im Landfeld stehen sie vorn, im Positionstitel hinten — deshalb stripFlags() und nicht
+	 * stripLeadingFlag(). Fehlt der Helfer, bleibt der Wert unveraendert.
+	 */
+	public static function ohne_flagge( string $s ): string {
+		return class_exists( 'M24_Country_Flags' ) ? M24_Country_Flags::stripFlags( $s ) : $s;
+	}
+
 	private static function clean_extras( array $extras ): array {
 		$out = array();
 		foreach ( $extras as $ex ) {
-			$label = sanitize_text_field( (string) ( $ex['label'] ?? '' ) );
+			$label = self::ohne_flagge( sanitize_text_field( (string) ( $ex['label'] ?? '' ) ) ); // Titel geht ins Kundendokument
 			if ( '' === $label ) { continue; }
 			$out[] = array(
 				'key'      => sanitize_key( (string) ( $ex['key'] ?? '' ) ),
@@ -1963,7 +1972,7 @@ class M24_Offers {
 				'on'       => ! empty( $ex['on'] ),
 				'incoterm' => in_array( (string) ( $ex['incoterm'] ?? '' ), array( 'DAP', 'CIF', 'CIP' ), true ) ? (string) $ex['incoterm'] : '', // #8: Snapshot
 				'method'   => in_array( (string) ( $ex['method'] ?? '' ), array( 'sea', 'air' ), true ) ? (string) $ex['method'] : '',
-				'ship_land' => sanitize_text_field( (string) ( $ex['land'] ?? '' ) ),
+				'ship_land' => self::ohne_flagge( sanitize_text_field( (string) ( $ex['land'] ?? '' ) ) ),
 			);
 		}
 		return $out;

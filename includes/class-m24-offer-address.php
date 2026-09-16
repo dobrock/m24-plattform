@@ -69,7 +69,7 @@ class M24_Offer_Address {
 			'strasse'  => sanitize_text_field( (string) ( $b['strasse'] ?? '' ) ),
 			'plz'      => sanitize_text_field( (string) ( $b['plz'] ?? '' ) ),
 			'ort'      => sanitize_text_field( (string) ( $b['ort'] ?? '' ) ),
-			'land'     => sanitize_text_field( trim( (string) ( $b['land'] ?? '' ) ) ),
+			'land'     => M24_Offers::ohne_flagge( sanitize_text_field( trim( (string) ( $b['land'] ?? '' ) ) ) ),
 			'telefon'  => sanitize_text_field( (string) ( $b['telefon'] ?? '' ) ),
 		);
 	}

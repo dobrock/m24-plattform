@@ -114,6 +114,22 @@ final class CountryFlags
         return ltrim($s);
     }
 
+    /**
+     * ALLE Flaggen-Emoji entfernen — auch mitten im Text. stripLeadingFlag() greift nur am
+     * Anfang; Positionstitel tragen die Flagge hinten ("... DAP - :NO: Norwegen"). Doppelte
+     * Leerzeichen und ein uebrig gebliebenes Trennzeichen am Ende werden mit aufgeraeumt.
+     */
+    public static function stripFlags(string $s): string
+    {
+        $s = (string) preg_replace(
+            '/(?:[\x{1F1E6}-\x{1F1FF}]{2}|\x{1F3F4}[\x{E0000}-\x{E007F}]+|\x{1F3F4})/u',
+            '',
+            $s
+        );
+        $s = (string) preg_replace('/\s{2,}/u', ' ', $s);
+        return trim($s);
+    }
+
     /** ISO2 -> Emoji via Regional-Indicator-Codepoints (U+1F1E6 = 'A') */
     public static function isoToFlag(?string $iso2): string
     {

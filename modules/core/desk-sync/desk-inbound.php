@@ -388,6 +388,9 @@ class M24_Desk_Inbound {
             if ( ! self::wins( $stamps[ $field ] ?? null, $local[ $field ] ?? null ) ) { $discard[] = $field; continue; }
             $v = sanitize_text_field( (string) ( is_scalar( $data[ $field ] ) ? $data[ $field ] : '' ) );
             if ( 'eori' === $field ) { $v = mb_substr( $v, 0, 17 ); }
+            // Der Desk fuehrt die Flagge IM Landwert. Hier ist sie Wert, nicht Schmuck — sie wandert
+            // sonst in Positionstitel und Kundendokumente. Die Anzeige baut M24_Country_Flags neu.
+            if ( 'land' === $field && class_exists( 'M24_Offers' ) ) { $v = M24_Offers::ohne_flagge( $v ); }
             if ( 'anrede' === $field ) { $lc = strtolower( $v ); $v = ( 'herr' === $lc ) ? 'Herr' : ( ( 'frau' === $lc ) ? 'Frau' : '' ); } // Wire lowercase → intern 'Herr'/'Frau'
             update_user_meta( $uid, $meta, $v );
             $applied[]       = $field;
@@ -425,6 +428,7 @@ class M24_Desk_Inbound {
             if ( ! array_key_exists( $field, $data ) ) { continue; }
             if ( ! self::wins( $stamps[ $field ] ?? null, $local[ $field ] ?? null ) ) { $discard[] = $field; continue; }
             $ship[ $k ]      = sanitize_text_field( (string) ( is_scalar( $data[ $field ] ) ? $data[ $field ] : '' ) );
+            if ( 'land' === $k && class_exists( 'M24_Offers' ) ) { $ship[ $k ] = M24_Offers::ohne_flagge( $ship[ $k ] ); }
             $ship_touched    = true;
             $applied[]       = $field;
             $local[ $field ] = self::stamp_of( $stamps[ $field ] ?? null );
