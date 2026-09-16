@@ -118,6 +118,53 @@ class M24_Offers_Render {
 	}
 
 	/**
+	 * Kundendatensatz aus einem Angebots-Snapshot in die Editor-Vorbelegung uebernehmen.
+	 *
+	 * EINE Stelle fuer zwei Wege: „Entwurf weiterbearbeiten" (?draft=/?from=) und „Angebot
+	 * aktualisieren" (?update_offer=). Der zweite hatte sie bis zum 16.09.2026 gar nicht — die
+	 * Kundenkarte blieb dort leer, obwohl prefill() den Kunden mitliefert (Fall 2026-1064).
+	 *
+	 * Land VERBATIM, nichts kuerzen. Der Snapshot ist die Quelle der Wahrheit; aus dem
+	 * Live-Datensatz kommt nur die id dazu, falls der Snapshot keine traegt — damit „aendern"
+	 * den richtigen Kundendatensatz trifft und nicht einen neuen anlegt.
+	 *
+	 * @param array $customer Bisherige Vorbelegung (GET-Parameter).
+	 * @param array $cj       customer_json des Angebots/Entwurfs.
+	 */
+	private static function kunde_aus_snapshot( array $customer, array $cj ): array {
+		if ( empty( $cj ) ) { return $customer; }
+
+		$customer = array_merge( $customer, array(
+			'name'         => (string) ( $cj['name'] ?? $customer['name'] ?? '' ),
+			'email'        => strtolower( (string) ( $cj['email'] ?? $customer['email'] ?? '' ) ),
+			'kundentyp'    => in_array( ( $cj['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true )
+				? $cj['kundentyp'] : ( $customer['kundentyp'] ?? 'b2c' ),
+			'land'         => (string) ( $cj['land'] ?? $customer['land'] ?? '' ), // verbatim, nicht kürzen
+			// Anrede traegt die Sie-Begruessung; ohne sie faengt die Fassung mit einer anderen
+			// Anrede an als das Original.
+			'anrede'       => in_array( ( $cj['anrede'] ?? '' ), array( 'Herr', 'Frau' ), true ) ? (string) $cj['anrede'] : '',
+			'firma'        => (string) ( $cj['firma'] ?? '' ),
+			'vorname'      => (string) ( $cj['vorname'] ?? '' ),
+			'nachname'     => (string) ( $cj['nachname'] ?? '' ),
+			'strasse'      => (string) ( $cj['strasse'] ?? '' ),
+			'adresszusatz' => (string) ( $cj['adresszusatz'] ?? '' ),
+			'plz'          => (string) ( $cj['plz'] ?? '' ),
+			'ort'          => (string) ( $cj['ort'] ?? '' ),
+			'telefon'      => (string) ( $cj['telefon'] ?? '' ),
+			'ustid'        => (string) ( $cj['ustid'] ?? '' ),
+			'eori'         => (string) ( $cj['eori'] ?? '' ),
+		) );
+
+		// #8 (0.11.342): KEIN automatisches Live-Overlay — der gespeicherte Snapshot bleibt massgeblich.
+		// Nur die id nachtragen, falls sie fehlt.
+		if ( empty( $customer['id'] ) && ! empty( $customer['email'] ) ) {
+			$live = M24_Offers::customer_by_email( (string) $customer['email'] );
+			if ( is_array( $live ) && ! empty( $live['id'] ) ) { $customer['id'] = (int) $live['id']; }
+		}
+		return $customer;
+	}
+
+	/**
 	 * Laeuft der Editor nur lesend? Liefert den Grund fuer den Hinweis, sonst null.
 	 *
 	 * Massgeblich ist der Status des QUELL-Angebots, nicht die Absicht des Aufrufers: Wer ein
@@ -315,30 +362,8 @@ class M24_Offers_Render {
 				$cj   = is_array( $cj ) ? $cj : array();
 				$sj   = is_array( $sj ) ? $sj : array();
 				// #8: VOLLEN Kundendatensatz aus dem Snapshot zurückladen (Firma/Ansprechpartner/Telefon/Adresse,
-				// Land verbatim) → Editor + Aktualisieren behalten alles.
-				$customer = array_merge( $customer, array(
-					'name'         => (string) ( $cj['name'] ?? $customer['name'] ),
-					'email'        => strtolower( (string) ( $cj['email'] ?? $customer['email'] ) ),
-					'kundentyp'    => in_array( ( $cj['kundentyp'] ?? '' ), array( 'b2b', 'b2c' ), true ) ? $cj['kundentyp'] : $customer['kundentyp'],
-					'land'         => (string) ( $cj['land'] ?? $customer['land'] ), // verbatim, nicht kürzen
-					'firma'        => (string) ( $cj['firma'] ?? '' ),
-					'vorname'      => (string) ( $cj['vorname'] ?? '' ),
-					'nachname'     => (string) ( $cj['nachname'] ?? '' ),
-					'strasse'      => (string) ( $cj['strasse'] ?? '' ),
-					'adresszusatz' => (string) ( $cj['adresszusatz'] ?? '' ),
-					'plz'          => (string) ( $cj['plz'] ?? '' ),
-					'ort'          => (string) ( $cj['ort'] ?? '' ),
-					'telefon'      => (string) ( $cj['telefon'] ?? '' ),
-					'ustid'        => (string) ( $cj['ustid'] ?? '' ),
-					'eori'         => (string) ( $cj['eori'] ?? '' ),
-				) );
-				// #8 (0.11.342): KEIN automatisches Live-Overlay mehr — der gespeicherte Snapshot ist Source of Truth.
-				// Nur die id aus dem Live-Record ergänzen (falls der Snapshot keine trägt), damit „ändern" den
-				// richtigen Kundendatensatz per id aktualisiert; Werte (Name/Firma/Land/Kontakt) bleiben Draft-Werte.
-				if ( empty( $customer['id'] ) ) {
-					$live = M24_Offers::customer_by_email( (string) ( $customer['email'] ?? '' ) );
-					if ( is_array( $live ) && ! empty( $live['id'] ) ) { $customer['id'] = (int) $live['id']; }
-				}
+				// Land verbatim) → Editor + Aktualisieren behalten alles. EINE Stelle, s. kunde_aus_snapshot().
+				$customer = self::kunde_aus_snapshot( $customer, $cj );
 				$garageNo = (string) ( $sj['garage_no'] ?? '' );
 				// #3: Thumb zurück-hydrieren — aus items_json, sonst serverseitig aus dem Teil nachziehen (Alt-Entwürfe).
 				// #2: Manuellen EN-Titel (_m24_titel_en_manual) vom Artikel bevorzugen → DeepL überschreibt ihn beim Reload nie.
@@ -381,6 +406,12 @@ class M24_Offers_Render {
 			$upd = M24_Offer_Update::prefill( $upd_id );
 			if ( is_array( $upd ) ) {
 				$prefill = $upd;
+				// BEFUND 16.09.2026 (2026-1064, Bryne Bil): Der Editor zeigte im Aktualisieren-Modus
+				// eine LEERE Kundenkarte. prefill() liefert 'customer' mit, aber $customer entstand hier
+				// ausschliesslich aus den GET-Parametern — die gibt es bei ?update_offer= nicht. Der
+				// Entwurfs-Pfad oben laedt den Snapshot laengst zurueck; der Aktualisieren-Pfad tat es nie.
+				// Derselbe Helfer, damit nicht zwei halbe Fassungen derselben Uebernahme entstehen.
+				$customer = self::kunde_aus_snapshot( $customer, (array) ( $upd['customer'] ?? array() ) );
 				$upd_ctx = array(
 					'offer_id'  => (int) $upd['offer_id'],
 					'offer_no'  => (string) $upd['offer_no'],
