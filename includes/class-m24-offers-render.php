@@ -634,7 +634,14 @@ class M24_Offers_Render {
 
 			<div class="m24off-col-side">
 				<div class="m24off-card m24off-sum2 m24off-side">
-					<h2>Angebot <?php echo esc_html( $cfg['nextNo'] ); ?> <span class="m24off-hint2">gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage</span></h2>
+					<?php
+					// Im Aktualisieren-Modus steht hier die NUMMER DES ANGEBOTS, nicht die naechste freie.
+					// Bis 0.11.504 zeigte der Kopf „Angebot 2026-1067", waehrend der Knopf darunter
+					// korrekt „Fassung 2 von 2026-1064" sagte — zwei Nummern auf einem Schirm, und die
+					// falsche stand oben (Befund 16.09.2026). Die Fassung behaelt die Nummer.
+					$kopf_no = is_array( $upd_ctx ) ? (string) $upd_ctx['offer_no'] : (string) $cfg['nextNo'];
+					?>
+					<h2>Angebot <?php echo esc_html( $kopf_no ); ?> <span class="m24off-hint2">gültig <?php echo (int) M24_Offers::VALID_DAYS; ?> Tage</span></h2>
 					<div data-sum-rows></div>
 					<div class="m24off-tot"><span>Gesamt</span><strong data-sum-total>0,00 €</strong></div>
 					<?php if ( is_array( $upd_ctx ) ) : ?>

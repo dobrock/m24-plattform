@@ -69,10 +69,16 @@ class M24_Offer_Update {
 		) );
 	}
 
+	/** Traegt eine Zeile ueberhaupt Positionen? Ein leerer Entwurf darf nichts ueberlagern. */
+	private static function hat_positionen( $row ): bool {
+		$items = json_decode( (string) ( $row->items_json ?? '' ), true );
+		return is_array( $items ) && count( $items ) > 0;
+	}
+
 	/**
 	 * Editor-Vorbelegung: aktueller Stand des Angebots, überlagert vom nummernlosen Entwurf,
-	 * falls es einen gibt. Der Entwurf wird hier NICHT aufgelöst — bricht Daniel ab, darf nichts
-	 * verloren gehen.
+	 * falls es einen gibt UND dieser Positionen traegt. Der Entwurf wird hier NICHT aufgelöst —
+	 * bricht Daniel ab, darf nichts verloren gehen.
 	 */
 	public static function prefill( int $offer_id ): ?array {
 		$o = M24_Offers::get_by_id( $offer_id );
@@ -81,7 +87,22 @@ class M24_Offer_Update {
 		$src    = $o;
 		$draft  = self::orphan_draft( $o );
 		$absorb = 0;
-		if ( $draft ) { $src = $draft; $absorb = (int) $draft->id; }
+		// BEFUND 16.09.2026 (2026-1064, Bryne Bil): Der Editor zeigte NULL Positionen und 0,00 EUR,
+		// obwohl das Angebot sieben Positionen ueber 4.476,00 EUR traegt. Der gefundene Entwurf
+		// ersetzte den Angebotsinhalt BEDINGUNGSLOS — auch ein leerer.
+		//
+		// Seit 0.11.502 findet orphan_draft() auch Entwuerfe mit dem Platzhalter „E-…", also die
+		// laufenden Autosave-Zeilen. Genau dadurch geriet ein leerer Entwurf desselben Kunden zur
+		// Inhaltsquelle. Ein Angebot ohne Positionen an einen Kunden ist der teuerste denkbare
+		// Fehler; der Entwurf darf nur uebernehmen, wenn er tatsaechlich etwas zu sagen hat.
+		if ( $draft && self::hat_positionen( $draft ) ) {
+			$src    = $draft;
+			$absorb = (int) $draft->id;
+		} elseif ( $draft ) {
+			// Leerer Entwurf: Inhalt bleibt beim Angebot. Er wird aber weiterhin beim Schreiben der
+			// Fassung aufgeloest — sonst bliebe er als eigener Eintrag in der Liste stehen.
+			$absorb = (int) $draft->id;
+		}
 
 		$sj = json_decode( (string) ( $src->src_json ?? '' ), true );
 		$sj = is_array( $sj ) ? $sj : array();
@@ -117,6 +138,22 @@ class M24_Offer_Update {
 		$o = M24_Offers::get_by_id( $offer_id );
 		if ( ! self::can_update( $o ) ) {
 			return array( 'ok' => false, 'version' => 0, 'msg' => 'Dieses Angebot kann nicht aktualisiert werden.' );
+		}
+
+		// ─── KEINE FASSUNG OHNE POSITIONEN ───
+		//
+		// Ein leeres Angebot an einen Kunden ist der teuerste denkbare Fehler: die Fassung ersetzt
+		// den bisherigen Stand, und die Mail geht als verbindliches Angebot hinaus. Am 16.09.2026
+		// stand der Editor bei 2026-1064 auf null Positionen (leerer Entwurf hatte den Inhalt
+		// ueberlagert) — ein Klick haette genau das ausgeloest.
+		//
+		// row_from_payload() faengt den Editor-Weg schon ab. Diese Sperre gilt dem ZWEITEN Aufrufer:
+		// cli-offer-consolidate.php baut $row von Hand aus einem Entwurf, der leer sein kann.
+		// Letzte Bremse vor dem Schreiben, nicht statt der ersten.
+		$pos = json_decode( (string) ( $row['items_json'] ?? '' ), true );
+		if ( ! is_array( $pos ) || 0 === count( $pos ) ) {
+			return array( 'ok' => false, 'version' => 0,
+				'msg' => 'Fassung ohne Positionen — abgebrochen. Der bisherige Stand bleibt unveraendert.' );
 		}
 
 		// 1) Die abgelöste Fassung als Beleg sichern, BEVOR sie überschrieben wird.
