@@ -23,7 +23,11 @@
 	// Flaggen-Emoji sind DARSTELLUNG, nie Wert: sie gehoeren nicht in Positionstitel (die ins
 	// Kundendokument wandern) und nicht in gespeicherte Landfelder. Faellt der Helfer aus, bleibt
 	// der Wert unveraendert — lieber eine Flagge zu viel als ein abgerissener Editor.
-	function landName(v) {
+	// NICHT landName() nennen: diesen Namen traegt weiter unten die kanonische Namensaufloesung
+	// (LANDS[iso], GB -> England). Zwei Funktionsdeklarationen gleichen Namens im selben Scope —
+	// die spaetere gewinnt, und die Aufrufe hier wuerden still den Wert kanonisieren statt ihn
+	// nur von der Flagge zu befreien (Fehler aus 0.11.509, behoben in 0.11.510).
+	function ohneFlagge(v) {
 		v = String(v == null ? '' : v);
 		return (window.M24Country && 'function' === typeof M24Country.stripFlags) ? M24Country.stripFlags(v) : v;
 	}
@@ -86,7 +90,7 @@
 		if ('versand' === ex.key) {
 			var en   = ('en' === offerLang);
 			var inco = ex.incoterm || 'DAP';
-			var land = landName(ex.land || customer.land || ''); // ohne Flagge — der Titel geht ins PDF
+			var land = ohneFlagge(ex.land || customer.land || ''); // ohne Flagge — der Titel geht ins PDF
 			var ort  = ''; // Seefracht → Zielhafen, Luftfracht → Zielflughafen, Landweg → kein Zusatz
 			if ('sea' === ex.method) { ort = en ? 'port of destination' : 'Zielhafen'; }
 			else if ('air' === ex.method) { ort = en ? 'airport of destination' : 'Zielflughafen'; }
@@ -479,7 +483,7 @@
 			if ((nv = $('[data-c="name"]'))) { customer.name = nv.value || customer.name; }
 			if ((nv = $('[data-c="email"]'))) { customer.email = nv.value || customer.email; }
 			if (kt) { customer.kundentyp = kt.getAttribute('data-kt'); }
-			if ((nv = $('[data-c="land"]'))) { customer.land = landName(nv.value); }  // verbatim, nur ohne Flagge
+			if ((nv = $('[data-c="land"]'))) { customer.land = ohneFlagge(nv.value); }  // verbatim, nur ohne Flagge
 			if ((nv = $('[data-c="firma"]'))) { customer.firma = nv.value; } // falls ein Firma-Feld existiert
 			if ((nv = $('[data-c="anrede"]'))) { customer.anrede = nv.value; } // Herr/Frau/— für die Sie-Begrüßung
 		}
@@ -778,7 +782,7 @@
 			else if (t.matches('[data-title-en]')) { items[+t.getAttribute('data-i')].title_en = t.value; }
 			else if (t.matches('[data-title-en-cat]')) { items[+t.getAttribute('data-i')].title_en = t.value; } // #7: Katalog-EN live
 			else if (t.matches('[data-extra-price]')) { var en = parseNum(t.value); if (!isNaN(en)) { extras[+t.getAttribute('data-extra-price')].amount = en; renderSummary(); } }
-		else if (t.matches('[data-c="land"]')) { customer.land = landName(t.value); cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } applyShipDefault(); renderExtras(); renderSummary(); } // #6 Land VERBATIM · #2 Versandweg-Default an Land anpassen
+		else if (t.matches('[data-c="land"]')) { customer.land = ohneFlagge(t.value); cfg.custIsDrittland = cxIsDrittland(customer.land); if (cfg.custIsDrittland) { autoSuggestZoll(); } applyShipDefault(); renderExtras(); renderSummary(); } // #6 Land VERBATIM · #2 Versandweg-Default an Land anpassen
 		else if (t.matches('[data-ship-land]')) { var si = +t.getAttribute('data-ship-land'); extras[si].land = cxLandToIso(t.value || ''); var lb = $('[data-ship-label="' + si + '"]'); if (lb) { lb.textContent = chipLabel(extras[si]); } renderSummary(); } // ohne Re-Render → Fokus bleibt
 		else if (t.matches('[data-tax-rate]')) { taxRate = parseFloat(t.value) || 0; renderSummary(); }
 		else if (t.matches('[data-salutation]')) { salTouched = true; }
@@ -876,7 +880,7 @@
 		// #8: VOLLER Kundendatensatz mitführen (round-trippt in Editor + Draft; Land verbatim).
 		customer = {
 			id: c.id || 0, name: c.name || '', email: c.email || '',
-			kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: landName(c.land || ''),
+			kundentyp: ('b2b' === c.kundentyp ? 'b2b' : 'b2c'), land: ohneFlagge(c.land || ''),
 			firma: (c.firma || c.firmenname || ''), vorname: (c.vorname || ''), nachname: (c.nachname || ''),
 			anrede: (('Herr' === c.anrede || 'Frau' === c.anrede) ? c.anrede : ''),
 			strasse: (c.strasse || ''), adresszusatz: (c.adresszusatz || ''), plz: (c.plz || ''), ort: (c.ort || ''),
