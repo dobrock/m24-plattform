@@ -835,7 +835,29 @@ class M24_Catalog_Template_Detail {
 			var idx=0,hovering=false;
 			var mainImg=root.querySelector('.m24-main-img');
 			var lb=root.querySelector('.m24-lb'),lbImg=lb.querySelector('.m24-lb-img'),rail=lb.querySelector('.m24-lb-rail');
-			function fadeSwap(el,src){if(!el)return;el.classList.add('m24-fade');var pre=new Image();pre.onload=function(){el.src=src;requestAnimationFrame(function(){el.classList.remove('m24-fade');});};pre.src=src;}
+			// Ueberblendung. Die Fade-Klasse MUSS in jedem Ausgang wieder fallen, sonst bleibt das Bild
+			// unsichtbar (opacity:0) stehen — genau das passierte beim schnellen Blaettern: m24-fade wurde
+			// nur in pre.onload entfernt. Vier Auswege sind abgedeckt: (a) Laufnummer, damit von zwei
+			// ueberholenden Wechseln nur der juengste die Buehne setzt; (b) onerror wie onload, ein kaputtes
+			// Bild darf die Buehne nicht leer lassen; (c) pre.complete fuer Bilder aus dem Cache, bei denen
+			// onload nicht mehr feuert; (d) eine Frist als letzte Sicherung. Keine stille Sperre.
+			var fadeLauf = 0;
+			function fadeSwap(el, src){
+				if (!el) return;
+				var lauf = ++fadeLauf;
+				el.classList.add('m24-fade');
+				var zeigen = function(){
+					if (lauf !== fadeLauf) return; // ein neuerer Wechsel hat uebernommen
+					el.src = src;
+					requestAnimationFrame(function(){ if (lauf === fadeLauf) el.classList.remove('m24-fade'); });
+				};
+				var pre = new Image();
+				pre.onload = zeigen;
+				pre.onerror = zeigen;
+				pre.src = src;
+				if (pre.complete) zeigen();
+				setTimeout(function(){ if (lauf === fadeLauf) el.classList.remove('m24-fade'); }, 600);
+			}
 			function thumbs(){return root.querySelectorAll('.thumbs .t');}
 			function markStrip(){thumbs().forEach(function(t){t.classList.toggle('active',parseInt(t.dataset.i,10)===idx&&!t.classList.contains('more-tile'));});}
 			function markRail(){rail.querySelectorAll('img').forEach(function(im){im.classList.toggle('active',parseInt(im.dataset.i,10)===idx);});}

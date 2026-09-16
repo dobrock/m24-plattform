@@ -77,7 +77,7 @@ class M24_Offer_Validity {
 		$d = self::date_str( $valid_until );
 		if ( '' === $d ) { return ''; }
 		return ( 'en' === $lang )
-			? 'This offer is valid up to and including ' . $d . '.'
+			? 'This quote is valid up to and including ' . $d . '.'
 			: 'Dieses Angebot ist gültig bis einschließlich ' . $d . '.';
 	}
 
