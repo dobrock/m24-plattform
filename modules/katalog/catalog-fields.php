@@ -56,7 +56,13 @@ class M24_Catalog_Fields {
 		};
 		$modus   = get_post_meta( $post->ID, '_m24_mwst_modus', true ) ?: 'regel';
 		$typ     = get_post_meta( $post->ID, '_m24_typ', true ) ?: 'gebraucht';
-		$status  = get_post_meta( $post->ID, '_m24_status', true ) ?: 'aktiv';
+		// Kombinierter Zustand aus post_status + Meta — DIESELBE Quelle wie die Teile-Liste.
+		// Vorher stand hier nur die Meta: ein Entwurf zeigte "Aktiv (sichtbar)", war aber fuer
+		// Besucher und Crawler ein 404. Stillschweigend falsch ist schlimmer als sichtbar unfertig.
+		$status  = class_exists( 'M24_Catalog_Admin_List' )
+			? M24_Catalog_Admin_List::current_status_value( $post->ID )
+			: ( get_post_meta( $post->ID, '_m24_status', true ) ?: 'aktiv' );
+		$ist_oeffentlich = ( 'publish' === get_post_status( $post->ID ) );
 		// Logo-Anzeigen-Default: TRUE wenn Meta nie gesetzt; explizite 0 wird respektiert.
 		$logo_raw     = get_post_meta( $post->ID, '_m24_logo_anzeigen', true );
 		$logo_anzeigen = ( '' === $logo_raw ) ? true : (bool) (int) $logo_raw;
@@ -154,10 +160,18 @@ class M24_Catalog_Fields {
 
 			<label>Status</label>
 			<select name="m24_status">
+				<option value="entwurf" <?php selected( $status, 'entwurf' ); ?>>Entwurf (nicht öffentlich)</option>
 				<option value="aktiv" <?php selected( $status, 'aktiv' ); ?>>Aktiv (sichtbar)</option>
 				<option value="ausgeblendet" <?php selected( $status, 'ausgeblendet' ); ?>>Ausgeblendet</option>
 				<option value="verkauft" <?php selected( $status, 'verkauft' ); ?>>Verkauft</option>
 			</select>
+			<?php if ( ! $ist_oeffentlich && 'auto-draft' !== get_post_status( $post->ID ) ) : ?>
+				<p class="hint" style="margin:4px 0 0;color:#8a6d00">
+					Dieser Beitrag ist <strong>nicht öffentlich</strong> — Besucher und Vorschau-Dienste
+					(WhatsApp, Suchmaschinen) erhalten 404. Auf „Aktiv (sichtbar)“ stellen und speichern
+					veröffentlicht ihn.
+				</p>
+			<?php endif; ?>
 
 			<label>Hauptrubrik (Breadcrumb &amp; SEO)</label>
 			<?php
@@ -410,11 +424,27 @@ class M24_Catalog_Fields {
 
 		$typ    = ( isset( $_POST['m24_typ'] ) && in_array( $_POST['m24_typ'], array( 'neu', 'gebraucht' ), true ) ) ? $_POST['m24_typ'] : 'gebraucht';
 		$modus  = ( isset( $_POST['m24_mwst_modus'] ) && in_array( $_POST['m24_mwst_modus'], array( 'regel', 'paragraf25a' ), true ) ) ? $_POST['m24_mwst_modus'] : 'regel';
-		$status = ( isset( $_POST['m24_status'] ) && in_array( $_POST['m24_status'], array( 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ) ? $_POST['m24_status'] : 'aktiv';
+		$status = ( isset( $_POST['m24_status'] ) && in_array( $_POST['m24_status'], array( 'entwurf', 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ) ? $_POST['m24_status'] : 'aktiv';
 
 		update_post_meta( $post_id, '_m24_typ', $typ );
 		update_post_meta( $post_id, '_m24_mwst_modus', $modus );
-		update_post_meta( $post_id, '_m24_status', $status );
+
+		// Status NUR ueber die eine Quelle (M24_Catalog_Admin_List::set_status): sie setzt
+		// post_status UND Meta gemeinsam. Vorher schrieb der Editor allein die Meta — "Aktiv"
+		// im Feld, Entwurf in der Datenbank, 404 fuer jeden Besucher.
+		// set_status() ruft wp_update_post() → loest save_post erneut aus. Riegel wie im
+		// Slug-Pfad weiter unten: eigenen Handler waehrenddessen abhaengen.
+		if ( class_exists( 'M24_Catalog_Admin_List' ) && method_exists( 'M24_Catalog_Admin_List', 'set_status' ) ) {
+			remove_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'save' ), 10 );
+			M24_Catalog_Admin_List::set_status( (int) $post_id, $status );
+			add_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'save' ), 10, 2 );
+		} else {
+			// Keine stille Sperre: Rueckfall schreibt wenigstens die Meta und meldet es.
+			update_post_meta( $post_id, '_m24_status', 'entwurf' === $status ? 'ausgeblendet' : $status );
+			if ( class_exists( 'M24_Error_Log' ) ) {
+				M24_Error_Log::capture( 'katalog', 'error', 'Statuswechsel ohne M24_Catalog_Admin_List — post_status NICHT gesetzt', array( 'post' => (int) $post_id, 'status' => $status ) );
+			}
+		}
 
 		// Hauptrubrik (Breadcrumb/SEO): nur speichern, wenn der Term dem Teil tatsächlich zugewiesen ist, sonst
 		// löschen → Auto-Fallback auf den ersten Term. Terms sind hier (save_post, Prio 10) bereits gesetzt

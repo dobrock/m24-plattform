@@ -851,8 +851,13 @@ class M24_Catalog_Admin_List {
 
 	// ─── AJAX INLINE-STATUS ─────────────────────────────────────
 
-	/** Aktueller kombinierter Status-Wert (post_status + _m24_status) für das Select. */
-	private static function current_status_value( $post_id ) {
+	/**
+	 * Aktueller kombinierter Status-Wert (post_status + _m24_status) für das Select.
+	 * PUBLIC seit 0.11.514: Der Editor (catalog-fields.php) zeigt denselben Wert — sonst behauptet
+	 * sein Feld "Aktiv", während der Beitrag ein Entwurf ist (Befund 16.09.2026, zwei duplizierte
+	 * Teile lieferten anonym 404). Eine Quelle, kein zweites Mapping.
+	 */
+	public static function current_status_value( $post_id ) {
 		if ( 'draft' === get_post_status( $post_id ) ) { return 'entwurf'; }
 		$s = get_post_meta( $post_id, '_m24_status', true ) ?: 'aktiv';
 		return in_array( $s, array( 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ? $s : 'aktiv';
