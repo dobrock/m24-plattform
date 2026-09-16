@@ -837,6 +837,13 @@
 	if (cfg.prefill) {
 		items = (cfg.prefill.items || []).map(function (it) {
 			return {
+				// line_uid ist der IDENTITAETSSCHLUESSEL im Sync-Vertrag und wird hier nur
+				// durchgereicht. Ging sie verloren, vergab clean_items() bei JEDER Fassung neue
+				// uids; der Desk fuehrte die alten weiter und spielte sie beim naechsten Pull als
+				// unbekannte Zeilen zurueck — 2026-1064 hatte nach drei Durchgaengen sieben
+				// Positionen statt drei, vier davon 0-EUR-Waisen (Befund 16.09.2026).
+				// NEUE Positionen (Katalog/Freitext) bekommen bewusst KEINE — die vergibt der Server.
+				line_uid: it.line_uid || '',
 				teil_id: parseInt(it.teil_id, 10) || 0,
 				title: it.title || '', title_de: (it.title_de != null ? it.title_de : (it.title || '')), title_en: it.title_en || '', art_nr: it.art_nr || '', thumb: it.thumb || '',
 				title_en_manual: !!it.title_en_manual, // #2: manuell gesetzter EN-Titel → nie von DeepL überschreiben

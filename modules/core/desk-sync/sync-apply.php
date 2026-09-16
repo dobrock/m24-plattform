@@ -469,7 +469,22 @@ class M24_Sync_Apply {
 			if ( null !== $idx ) {
 				$items[ $idx ] = $line;
 			} else {
-				$items[] = $line; // im Desk hinzugefügte Zeile
+				// Unbekannte line_uid — im Desk hinzugefuegte Zeile. NIE still anhaengen: genau das
+				// hat am 16.09.2026 vier 0-EUR-Waisen an 2026-1064 unsichtbar entstehen lassen.
+				// Die Ursache (Editor verlor die uid) ist mit 0.11.516 behoben; diese Wache bleibt,
+				// damit ein erneuter Zulauf im Protokoll steht statt in der Position.
+				self::log( 'line_unbekannt', $key . ' — uid dem Angebot unbekannt, als neue Zeile angehaengt: "'
+					. (string) ( $rec['title'] ?? '' ) . '", ' . number_format( (float) ( $rec['unit_price'] ?? 0 ), 2, ',', '.' ) . ' EUR' );
+				if ( class_exists( 'M24_Error_Log' ) ) {
+					M24_Error_Log::capture( 'sync', 'warn', 'Desk-Zeile mit unbekannter line_uid angehaengt', array(
+						'offer'      => (int) $o->id,
+						'offer_no'   => (string) ( $o->offer_no ?? '' ),
+						'line_uid'   => $luid,
+						'titel'      => (string) ( $rec['title'] ?? '' ),
+						'unit_price' => (float) ( $rec['unit_price'] ?? 0 ),
+					) );
+				}
+				$items[] = $line;
 			}
 		}
 
