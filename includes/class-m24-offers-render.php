@@ -481,6 +481,7 @@ class M24_Offers_Render {
 						'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 						'unit_price' => $unit,
 						'tax25a'     => $is25a,
+						'tax25a_unklar' => M24_Offers::tax25a_unklar( $tid ), // §25a am Teil nicht hinterlegt → Schalter im Editor markieren
 						'custom'     => false,
 					);
 				}
@@ -516,6 +517,7 @@ class M24_Offers_Render {
 						'qty'        => 1,
 						'unit_price' => is_array( $pn ) ? (float) $pn[0] : 0.0,
 						'tax25a'     => is_array( $pn ) ? (bool) $pn[1] : false,
+						'tax25a_unklar' => M24_Offers::tax25a_unklar( $pid ), // s. o.
 						'custom'     => false,
 					) ),
 					'delivery' => '', 'tax_mode' => '', 'tax_rate' => 0.0,

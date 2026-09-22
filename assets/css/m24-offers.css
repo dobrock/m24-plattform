@@ -400,6 +400,20 @@ body.m24off-op,body.m24off-cust{margin:0;background:#fafafa;font-family:'Saira',
 .m24off-v2 .m24off-pcalc em{font-style:normal;opacity:.75}
 /* §25a-Positionen: EIN Bruttopreis, kein Netto/Brutto — Messing-Marker statt Umrechnungswert */
 .m24off-v2 .m24off-pcalc-25a{font-weight:700;color:#9a6b25;letter-spacing:.02em}
+/* §25a-Schalter je Position (0.11.518). Drei Zustaende, drei Farben — aus zwei Metern Abstand
+   unterscheidbar, weil eine falsch besteuerte Position im PDF niemandem auffaellt:
+     aus       = grau, umrandet   → regelbesteuert, Status am Teil bekannt
+     ungeklaert= messing, gestrichelt → am Teil fehlt _m24_mwst_modus, laeuft als regelbesteuert
+     an        = messing, gefuellt → differenzbesteuert nach § 25a UStG */
+.m24off-v2 .m24off-p25a{display:inline-flex;align-items:center;align-self:flex-start;margin-top:4px;
+  padding:2px 8px;border-radius:999px;border:1px solid #d5d9e0;background:#fff;color:var(--mut);
+  font:inherit;font-size:11.5px;font-weight:600;line-height:1.5;cursor:pointer;white-space:nowrap;
+  letter-spacing:.02em;transition:background .12s,border-color .12s,color .12s}
+.m24off-v2 .m24off-p25a:hover{border-color:#9a6b25;color:#9a6b25}
+.m24off-v2 .m24off-p25a:focus-visible{outline:2px solid #0e447e;outline-offset:2px}
+.m24off-v2 .m24off-p25a.is-unklar{border-style:dashed;border-color:#9a6b25;color:#9a6b25;background:#fdf8ef}
+.m24off-v2 .m24off-p25a.is-on{border-color:#9a6b25;background:#9a6b25;color:#fff}
+.m24off-v2 .m24off-p25a.is-on:hover{background:#875d1f;color:#fff}
 .m24off-v2 .m24off-pprice input{width:120px}
 /* B1: Mengen-Feld ohne −/+ (nur natives number) */
 .m24off-v2 .m24off-qty2{display:block}

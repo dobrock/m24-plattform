@@ -1207,6 +1207,7 @@ class M24_Offers {
 				'bmw'    => (string) get_post_meta( $p->ID, '_m24_bmw_teilenummer', true ),
 				'price'  => ( null !== $price ) ? $price : null,
 				'tax25a' => self::is_tax25a( (int) $p->ID ),
+				'tax25a_unklar' => ( null === self::is_tax25a_state( (int) $p->ID ) ), // §25a am Teil nicht hinterlegt → im Editor sichtbar machen
 				'thumb'  => (string) get_the_post_thumbnail_url( $p->ID, 'thumbnail' ),
 				'match'  => $match, // 'partnum' → „Treffer nach BMW-Teilenummer", 'name' → Name/Art-Nr.
 			);
@@ -1526,12 +1527,38 @@ class M24_Offers {
 		return 0;
 	}
 
-	/** §25a differenzbesteuert? EINE Quelle: M24_Catalog_Pricing::is_25a (liest _m24_mwst_modus + veraltete
-	 * _m24_differenzbesteuert-Flag). Unbestimmt → false (Operator kann im Modal übersteuern). Filterbar. */
+	/**
+	 * §25a-Status eines Teils als DREI Zustaende: true (differenzbesteuert), false (regelbesteuert),
+	 * null (am Teil nicht hinterlegt).
+	 *
+	 * Der dritte Zustand ist der, an dem am 12.09.2026 eine Gebrauchtposition regelbesteuert in ein
+	 * OSS-Angebot lief: M24_Catalog_Pricing::is_25a() gibt fuer Teile ohne _m24_mwst_modus bewusst null
+	 * zurueck und warnt im eigenen Docblock vor genau dem stillen 19-%-Fallback — die Angebotsstrecke
+	 * hat ihn trotzdem gemacht und dabei nicht einmal geloggt. Ab hier ist „unbestimmt" ein eigener,
+	 * sichtbarer Zustand: teil_offer_meta() reicht ihn als tax25a_unklar bis in den Editor durch.
+	 *
+	 * @return bool|null
+	 */
+	private static function is_tax25a_state( int $pid ): ?bool {
+		$st = class_exists( 'M24_Catalog_Pricing' )
+			? M24_Catalog_Pricing::is_25a( $pid )
+			: ( 'paragraf25a' === (string) get_post_meta( $pid, '_m24_mwst_modus', true ) ? true : null );
+		return apply_filters( 'm24_offer_teil_tax25a_state', $st, $pid );
+	}
+
+	/**
+	 * Ist der §25a-Status dieses Teils UNBESTIMMT? Oeffentlich, weil die Prefill-Pfade in
+	 * M24_Offers_Render (Anfrage → Editor, Artikel-Link → Editor) ihre Positionen selbst bauen und den
+	 * Hinweis mitgeben muessen — sonst zeigt der Editor dort einen Schalter ohne den Grund dafuer.
+	 */
+	public static function tax25a_unklar( int $pid ): bool {
+		return $pid > 0 && null === self::is_tax25a_state( $pid );
+	}
+
+	/** §25a differenzbesteuert? Bool-Fassade ueber is_tax25a_state(): unbestimmt zaehlt hier als false —
+	 *  aber NUR als Vorbelegung. Die Entscheidung trifft der Operator am Positions-Schalter im Editor. */
 	private static function is_tax25a( int $pid ): bool {
-		$is = class_exists( 'M24_Catalog_Pricing' )
-			? ( true === M24_Catalog_Pricing::is_25a( $pid ) )
-			: ( 'paragraf25a' === (string) get_post_meta( $pid, '_m24_mwst_modus', true ) );
+		$is = ( true === self::is_tax25a_state( $pid ) );
 		return (bool) apply_filters( 'm24_offer_teil_tax25a', $is, $pid );
 	}
 
@@ -2039,6 +2066,10 @@ class M24_Offers {
 				'qty'        => max( 1, (int) ( $it['qty'] ?? 1 ) ),
 				'unit_price' => round( (float) ( $it['unit_price'] ?? 0 ), 2 ),
 				'tax25a'     => $tax25a,            // Differenzbesteuerung (unabhängig von used)
+				// Der §25a-Status ist am Teil nicht hinterlegt. Reiner Hinweis fuer den Editor — er geht
+				// weder in compute_totals noch an den Desk (map_item liest nur tax25a) und steht nicht in
+				// M24_Sync_LWW::LINE_MATERIAL, aendert also auch keine Zeilen-Signatur.
+				'tax25a_unklar' => ! empty( $meta['tax25a_unklar'] ),
 				'custom'     => ! empty( $it['custom'] ), // Sonderanfertigung (§ 312g Abs. 2 – kein Widerruf)
 				'url'        => $meta['url'],       // Artikel-Permalink (string) oder null (Freitext/gelöscht) → nicht klickbar
 				'race'       => $meta['race'],      // Rennsport-Flag geerbt
@@ -2052,10 +2083,10 @@ class M24_Offers {
 	/**
 	 * Item-Daten aus dem verknüpften Teil erben: Permalink, Rennsport-Hinweis (Flag + exakter Wortlaut wie
 	 * das Detail-Template), Gebraucht-Erkennung. Ohne gültige Teil-ID → url=null, race/used=false.
-	 * @return array{url:?string,race:bool,race_note:string,used:bool}
+	 * @return array{url:?string,race:bool,race_note:string,used:bool,tax25a:bool,tax25a_unklar:bool}
 	 */
 	private static function teil_offer_meta( int $pid ): array {
-		$out = array( 'url' => null, 'race' => false, 'race_note' => '', 'used' => false, 'tax25a' => false );
+		$out = array( 'url' => null, 'race' => false, 'race_note' => '', 'used' => false, 'tax25a' => false, 'tax25a_unklar' => false );
 		if ( $pid <= 0 || 'm24_teil' !== get_post_type( $pid ) ) { return $out; }
 
 		if ( 'publish' === get_post_status( $pid ) ) {
@@ -2064,7 +2095,23 @@ class M24_Offers {
 		}
 		$typ = get_post_meta( $pid, '_m24_typ', true ) ?: 'gebraucht';
 		$out['used']   = ( 'gebraucht' === $typ ); // Gebraucht-Quelle (unabhängig von §25a)
-		$out['tax25a'] = self::is_tax25a( $pid );  // Differenzbesteuerung (unabhängig von used)
+		$st            = self::is_tax25a_state( $pid );
+		$out['tax25a'] = ( true === $st );         // Differenzbesteuerung (unabhängig von used)
+		// „Melden, nicht raten" — dieselbe Haltung wie in der Garage-Bruecke (M24_Garage_Offer_Bridge).
+		// Ein Teil ohne _m24_mwst_modus geht als regelbesteuert in die Position; das ist eine Annahme,
+		// keine Tatsache, und sie muss sichtbar sein statt still im Summenblock zu verschwinden.
+		$out['tax25a_unklar'] = ( null === $st );
+		// Einmal je Teil und Tag: clean_items laeuft bei JEDEM Autosave des Editors — ein Eintrag je
+		// Tastendruck waere kein Signal mehr, sondern Rauschen, in dem das Signal untergeht.
+		if ( null === $st && class_exists( 'M24_Error_Log' ) ) {
+			$k = 'm24off_25a_unset_' . $pid;
+			if ( false === get_transient( $k ) ) {
+				set_transient( $k, 1, DAY_IN_SECONDS );
+				M24_Error_Log::capture( 'offer_25a_unset', 'warning', 'Teil ohne _m24_mwst_modus (paragraf25a|regel) in eine Angebotsposition uebernommen — als regelbesteuert vorbelegt. Bitte §25a-Status am Teil setzen.', array(
+					'teil_id' => $pid, 'titel' => (string) get_the_title( $pid ),
+				) );
+			}
+		}
 
 		// Rennsport-Hinweis 1:1 wie catalog-template-detail: Flag ODER typ='neu' → Standardtext, außer ein
 		// eigener _m24_hinweis ist gesetzt (dann exakt dieser Wortlaut).

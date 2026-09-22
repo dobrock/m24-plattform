@@ -33,7 +33,7 @@
 	}
 
 	/* ── State ── */
-	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,custom,free,variant,thumb}
+	var items  = [];  // {teil_id,title,art_nr,qty,unit_price,tax25a,tax25a_unklar,custom,free,variant,thumb}
 	// Länder-Tabelle und ISO-Ableitung stehen bewusst GANZ OBEN: cxLandToIso() ist als Funktion gehoistet und
 	// damit ab Zeile 1 aufrufbar, CX_LAND als `var` jedoch nur dem Namen nach. Stand die Tabelle weiter unten,
 	// lief der Prefill (setTaxMode → renderSummary → calc → isDECustomer) gegen undefined[...] und riss den
@@ -134,6 +134,22 @@
 			}
 			var metaHtml = it.art_nr ? '<div class="m24off-pa">Art.-Nr. ' + esc(it.art_nr) + '</div>' : '';
 			var varHtml = it.variant ? '<div class="m24off-pa m24off-pvar">Variante: ' + esc(it.variant) + '</div>' : '';
+			// §25a je Position — der Schalter, den es bis 0.11.518 nicht gab. Bis dahin entstand tax25a
+			// AUSSCHLIESSLICH aus dem Teil (data-25a); trug ein Gebrauchtteil keinen _m24_mwst_modus, ging
+			// die Position regelbesteuert raus und niemand konnte das im Angebot korrigieren.
+			//
+			// Der Schalter kippt NUR das Flag, er rechnet den Preis NICHT um: bei §25a ist der Wert im Feld
+			// der differenzbesteuerte Brutto, sonst der Netto. Automatisch ÷1,19 oder ×1,19 zu rechnen hiesse
+			// raten, welcher der beiden Werte gemeint war — bei einer Steuerfrage der falsche Reflex. Die
+			// Summe rechnet sofort neu, der Unterschied steht also unmittelbar auf dem Schirm.
+			var t25Cls = 'm24off-p25a' + (it.tax25a ? ' is-on' : '') + ((!it.tax25a && it.tax25a_unklar) ? ' is-unklar' : '');
+			var t25Lbl = it.tax25a ? '§25a differenzbesteuert' : (it.tax25a_unklar ? '§25a ungeklärt' : '§25a');
+			var t25Tit = it.tax25a
+				? 'Differenzbesteuert nach § 25a UStG — keine ausweisbare USt, der Preis ist der Brutto. Klicken: auf regelbesteuert zurückstellen.'
+				: (it.tax25a_unklar
+					? 'Am Teil ist kein §25a-Status hinterlegt (_m24_mwst_modus fehlt) — die Position läuft als regelbesteuert. Klicken: als differenzbesteuert markieren. Dauerhaft gehört der Status ans Teil im Katalog.'
+					: 'Regelbesteuert. Klicken: als differenzbesteuert nach § 25a UStG markieren (keine ausweisbare USt, Preis = Brutto).');
+			var t25Html = '<button type="button" class="' + t25Cls + '" data-i="' + i + '" data-t25a aria-pressed="' + (it.tax25a ? 'true' : 'false') + '" title="' + esc(t25Tit) + '">' + esc(t25Lbl) + '</button>';
 			// Preiszelle: §25a-Positionen sind differenzbesteuert → EIN Bruttopreis, KEINE Netto/Brutto-Aufteilung,
 			// vom globalen Netto/Brutto-Umschalter unberührt. Sonst B2-Modus (aktiver Wert im Feld, anderer inline davor).
 			var priceCell;
@@ -149,7 +165,7 @@
 			}
 			row.innerHTML = '<span class="m24off-drag" data-drag title="Ziehen zum Sortieren" aria-label="Sortieren">⠿</span>'
 				+ (it.thumb ? '<img src="' + esc(it.thumb) + '" alt="">' : '<span class="m24off-pos-ph"></span>')
-				+ '<div class="m24off-pos-main">' + titleHtml + metaHtml + varHtml + '</div>'
+				+ '<div class="m24off-pos-main">' + titleHtml + metaHtml + varHtml + t25Html + '</div>'
 				+ '<div class="m24off-qty2"><input type="number" min="1" value="' + it.qty + '" data-i="' + i + '" data-qty inputmode="numeric"></div>' // B1: native Spinner, keine −/+
 				+ priceCell
 				+ '<button type="button" class="m24off-posx" data-i="' + i + '" data-rm aria-label="Position entfernen">✕</button>';
@@ -405,8 +421,9 @@
 				card.setAttribute('data-thumb', it.thumb || '');
 				card.setAttribute('data-price', (it.price != null && '' !== it.price) ? it.price : '');
 				card.setAttribute('data-25a', it.tax25a ? '1' : '0');
+				card.setAttribute('data-25a-unklar', it.tax25a_unklar ? '1' : '0');
 				card.innerHTML = '<div class="tt">' + esc(it.title) + '</div>'
-					+ (sub ? '<div class="ss">' + sub + (it.tax25a ? ' · §25a' : '') + '</div>' : '')
+					+ (sub ? '<div class="ss">' + sub + (it.tax25a ? ' · §25a' : (it.tax25a_unklar ? ' · §25a ungeklärt' : '')) + '</div>' : '')
 					+ '<div class="row"><span class="pp">' + (it.price != null ? eur(it.price) : 'auf Anfrage') + '</span><span class="add">' + (done ? '✓' : '+') + '</span></div>';
 				list.appendChild(card);
 			});
@@ -435,6 +452,7 @@
 		if (id > 0 && isAdded(id)) { return; } // ✓ = bereits übernommen → kein Duplikat
 		var priceRaw = parseFloat(el.getAttribute('data-price')); if (isNaN(priceRaw)) { priceRaw = 0; }
 		var is25a = ('1' === el.getAttribute('data-25a'));
+		var unklar25a = ('1' === el.getAttribute('data-25a-unklar')); // §25a am Teil nicht hinterlegt → im Editor sichtbar
 		// §25a: Preis ist die differenzbesteuerte Brutto-Basis → NICHT durch 1,19 teilen (keine ausweisbare
 		// MwSt). Regelbesteuert: Artikelpreis ist Brutto inkl. 19 % → Netto-Basis (÷1,19).
 		var unit = is25a ? Math.round(priceRaw * 100) / 100 : Math.round((priceRaw / 1.19) * 100) / 100;
@@ -444,7 +462,7 @@
 			title_en: el.getAttribute('data-title-en') || '',
 			art_nr: el.getAttribute('data-art') || '',
 			thumb: el.getAttribute('data-thumb') || '',
-			qty: 1, unit_price: unit, tax25a: is25a, custom: false
+			qty: 1, unit_price: unit, tax25a: is25a, tax25a_unklar: unklar25a, custom: false
 		});
 		renderItems(); renderPalette(); flashRow(items.length - 1);
 		armAutosave(); saveDraftNow(false); // Struktur (Hinzufügen) → sofort persistieren
@@ -457,7 +475,9 @@
 		var ten = (($('[data-palette-freetitleen]') || {}).value || '').trim();
 		var p = parseNum((($('[data-palette-freeprice]') || {}).value || ''));
 		if (!t) { var fi = $('[data-palette-freetitle]'); if (fi) { fi.focus(); } return; }
-		items.push({ teil_id: 0, title: t, title_de: t, title_en: ten, art_nr: '', qty: 1, unit_price: isNaN(p) ? 0 : p, tax25a: false, custom: false, free: true });
+		// Freitext hat kein Teil, aus dem sich §25a erben liesse → regelbesteuert als Vorgabe, per Schalter
+		// an der Zeile umstellbar. Bis 0.11.518 war das hart false und blieb es.
+		items.push({ teil_id: 0, title: t, title_de: t, title_en: ten, art_nr: '', qty: 1, unit_price: isNaN(p) ? 0 : p, tax25a: false, tax25a_unklar: false, custom: false, free: true });
 		renderItems(); renderPalette(); flashRow(items.length - 1);
 		armAutosave(); saveDraftNow(false); // Struktur (Freitext-Position) → sofort persistieren
 	}
@@ -804,6 +824,9 @@
 		if ((el = t.closest('[data-qinc]'))) { var b = +el.getAttribute('data-i'); items[b].qty = (items[b].qty || 1) + 1; renderItems(); return; }
 		if ((el = t.closest('[data-rm]'))) { items.splice(+el.getAttribute('data-i'), 1); renderItems(); renderPalette(); saveDraftNow(false); return; } // Struktur → sofort
 		if ((el = t.closest('[data-ship-toggle]'))) { shipOpen = !shipOpen; renderExtras(); return; }
+		// §25a-Schalter je Position. Kippt NUR das Flag — der Preis bleibt exakt stehen (s. renderItems).
+		// Struktur-relevant fuer die Summe → sofort persistieren, nicht erst beim Autosave-Timer.
+		if ((el = t.closest('[data-t25a]'))) { var t25i = +el.getAttribute('data-i'); if (items[t25i]) { items[t25i].tax25a = !items[t25i].tax25a; renderItems(); saveDraftNow(false); } return; }
 		if ((el = t.closest('[data-en-edit]'))) { enEditIdx = +el.getAttribute('data-en-edit'); renderItems(); var enin = $('[data-title-en-cat][data-i="' + enEditIdx + '"]'); if (enin) { enin.focus(); enin.select(); } return; } // #7: Titel → Feld öffnen
 		if ((el = t.closest('[data-extra-toggle]'))) { var i3 = +el.getAttribute('data-extra-toggle'); extras[i3].on = !extras[i3].on; if (extras[i3].on && 'zoll' !== extras[i3].key) {} renderExtras(); renderSummary(); return; }
 		if ((el = t.closest('[data-ptab]'))) { setPTab(el.getAttribute('data-ptab')); return; }
@@ -850,7 +873,7 @@
 				variant: it.variant || '',
 				qty: parseInt(it.qty, 10) || 1,
 				unit_price: parseFloat(it.unit_price) || 0,
-				tax25a: !!it.tax25a, custom: !!it.custom
+				tax25a: !!it.tax25a, tax25a_unklar: !!it.tax25a_unklar, custom: !!it.custom
 			};
 		});
 		// Nebenkosten/Versand nach key auf die Presets mappen; Freitext-Kosten (ohne key) anhängen.
