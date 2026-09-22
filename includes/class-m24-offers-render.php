@@ -1424,6 +1424,23 @@ class M24_Offers_Render {
 		$greet  = '' !== $sal ? $sal : self::greeting( $cust, $mlang, self::anrede_form( $o ) ); // manuelles Anschreiben hat Vorrang; sonst Du/Sie-Logik
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $greet ) . '</p>';
 		$inner .= '<p style="margin:0 0 14px;">' . esc_html( $L['intro'] ) . '</p>';
+		// „Ersetzen": EIN Satz, wenn dieses Angebot einen Vorgaenger abloest. Bewusst keine Fassungsnummer
+		// und kein Aenderungsbericht — der Kunde braucht nur zu wissen, welches Dokument nicht mehr gilt.
+		//
+		// Quelle ist supersedes_no (die Angebotsnummer des Vorgaengers, am Nachfolger eingefroren) und
+		// nicht die uid: die Nummer ueberlebt auch dann, wenn die Vorgaengerzeile irgendwann verschwindet.
+		//
+		// Steht NACH dem Intro, nicht zwischen Anrede und Intro: $L['intro'] beginnt klein und setzt die
+		// Anrede grammatisch fort („Hallo Herr Meier," / „vielen Dank fuer die Anfrage…") — ein Satz
+		// dazwischen zerrisse den Briefkopf.
+		$ersetzt = trim( (string) ( $o->supersedes_no ?? '' ) );
+		if ( '' !== $ersetzt ) {
+			$inner .= '<p style="margin:0 0 14px;">' . esc_html(
+				'en' === $mlang
+					? 'This offer replaces our offer ' . $ersetzt . '.'
+					: 'Dieses Angebot ersetzt unser Angebot ' . $ersetzt . '.'
+			) . '</p>';
+		}
 		// Summen-Aufteilung identisch zur Ansicht: regelbesteuert (X netto) + USt (Y) vs. §25a-Brutto (Z).
 		$bd = M24_Offers::compute_totals( $items, $extras, (string) $o->tax_mode, (float) $o->tax_rate, (string) ( $cust['land'] ?? '' ) );
 		$rate_str = rtrim( rtrim( number_format( (float) ( $bd['rate'] ?? $o->tax_rate ), 2, ',', '.' ), '0' ), ',' ); // effektiver Satz (DE ⇒ 19 %)

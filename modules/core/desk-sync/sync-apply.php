@@ -288,7 +288,23 @@ class M24_Sync_Apply {
 		// Tombstone: gelöscht im Desk → Papierkorb in WP. Nie hart löschen (§4), das Archiv-PDF bleibt.
 		if ( array_key_exists( 'deleted_at', $rec ) ) {
 			$del = trim( (string) ( $rec['deleted_at'] ?? '' ) );
-			$cols['deleted_at'] = '' !== $del ? M24_Sync_LWW::from_iso( $del ) : null;
+			// Ausnahme: das eigene Echo. M24_Sync_Push::order_record() meldet ein STORNIERTES Angebot als
+			// Tombstone, damit der Auftrag im Desk in den Papierkorb wandert — lokal bleibt die Zeile
+			// bewusst sichtbar und ueber „Reaktivieren" umkehrbar. Der Desk stempelt daraufhin seinen
+			// eigenen updated_at und schickt den Tombstone beim naechsten Lauf zurueck; wuerde er hier
+			// nach deleted_at geschrieben, verschwaende das stornierte Angebot doch aus der Liste.
+			//
+			// Der lokale Zustand ist bereits der gemeinte: storniert. Eine im Desk von Hand geloeschte
+			// Order sieht identisch aus und bedeutet fachlich dasselbe — fuer beides ist „storniert in
+			// WP, Papierkorb im Desk" das richtige Ergebnis.
+			//
+			// Gegen den STATUS NACH diesem Apply pruefen, nicht gegen den davor: nimmt der Desk das Storno
+			// zurueck und schickt dabei seinen Tombstone mit, ist das keine Selbstaussage mehr.
+			$ziel_status  = isset( $cols['status'] ) ? (string) $cols['status'] : (string) $o->status;
+			$eigenes_echo = ( '' !== $del && 'storniert' === $ziel_status && empty( $o->deleted_at ) );
+			if ( ! $eigenes_echo ) {
+				$cols['deleted_at'] = '' !== $del ? M24_Sync_LWW::from_iso( $del ) : null;
+			}
 		}
 
 		// Empfänger/Name/Land aus dem Auftrags-Record in die Angebots-Momentaufnahme übernehmen.

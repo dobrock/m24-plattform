@@ -158,6 +158,17 @@ class M24_Sync_Push {
 		$land = trim( (string) ( $cust['land'] ?? '' ) );
 
 		$rec = M24_Sync_LWW::envelope( $o );
+		// Storniert = fuer den Desk erledigt. Ein reines status='storniert' laesst den Auftrag drueben
+		// stehen; neben einem Ersatz-Angebot steht derselbe Vorgang damit zweimal. Deshalb meldet WP
+		// ein storniertes Angebot als Tombstone — im Desk wandert es in den Papierkorb.
+		//
+		// Bewusst NUR im Wire-Record: das lokale deleted_at bleibt leer, damit das stornierte Angebot
+		// in der WP-Liste sichtbar und ueber „Reaktivieren" umkehrbar bleibt. Die Gegenprobe dazu steht
+		// in M24_Sync_Apply::apply_order — der zurueckkommende Tombstone darf die Zeile nicht doch in
+		// den WP-Papierkorb ziehen.
+		if ( 'storniert' === (string) $o->status && null === $rec['deleted_at'] ) {
+			$rec['deleted_at'] = M24_Sync_LWW::to_iso( (string) $o->updated_at );
+		}
 		$rec['desk_order_id']    = (string) $o->desk_order_id;
 		$rec['desk_customer_id'] = self::desk_customer_id( $o );
 		$rec['order_num']        = (string) $o->desk_order_num;

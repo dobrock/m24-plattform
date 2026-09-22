@@ -172,7 +172,7 @@ class M24_Offers {
 		if ( isset( $_GET['m24off_do'], $_GET['id'] ) ) {
 			$do = sanitize_key( wp_unslash( $_GET['m24off_do'] ) );
 			$id = (int) $_GET['id'];
-			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend', 'retry_version', 'duplicate' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
+			if ( $id > 0 && in_array( $do, array( 'storno', 'delete', 'restore', 'purge', 'reactivate', 'paid', 'resend', 'retry_version', 'duplicate', 'replace' ), true ) && check_admin_referer( 'm24off_do_' . $id ) ) {
 				$row = $wpdb->get_row( $wpdb->prepare( "SELECT offer_no FROM $t WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
 				$no  = $row ? (string) $row->offer_no : (string) $id;
 				if ( 'retry_version' === $do ) {
@@ -204,6 +204,10 @@ class M24_Offers {
 					$notice = 'Angebot ' . $no . ' storniert (reversibel).';
 				} elseif ( 'duplicate' === $do ) {
 					$r = self::duplicate_offer( $id );
+					$notice = $r['msg'];
+					if ( ! $r['ok'] ) { $notice_type = 'error'; }
+				} elseif ( 'replace' === $do ) {
+					$r = self::replace_offer( $id );
 					$notice = $r['msg'];
 					if ( ! $r['ok'] ) { $notice_type = 'error'; }
 				} elseif ( 'resend' === $do ) {
@@ -342,6 +346,7 @@ class M24_Offers {
 			$u_paid   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'paid', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_resend = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'resend', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_dup    = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'duplicate', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
+			$u_repl   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'replace', 'id' => (int) $o->id ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_restore = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'restore', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$u_purge   = wp_nonce_url( add_query_arg( array( 'm24off_do' => 'purge', 'id' => (int) $o->id, 'trash' => 1 ), $base ), 'm24off_do_' . (int) $o->id );
 			$cnt      = count( $items );
@@ -448,24 +453,24 @@ class M24_Offers {
 					$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => (int) $o->id ), home_url( '/' ) );
 					echo '<a href="' . esc_url( $edit ) . '" style="color:#0e447e;font-weight:700;">Bearbeiten</a>'; // D3: gleiches Fenster
 				} else {
-					// Reihenfolge: Kunden-Ansicht · Angebot aktualisieren · Erneut senden · Duplizieren ·
+					// Reihenfolge: Kunden-Ansicht · Ersetzen · Erneut senden · Duplizieren ·
 					// Stornieren · Löschen. „Operator öffnen" heißt hier „Ansehen" und öffnet NUR lesend —
 					// ein zweiter Weg, der Inhalt ändert und dabei eine neue Nummer zieht, ist genau der
-					// Fehler vom 08.09. Bearbeitet wird über „Angebot aktualisieren".
+					// Fehler vom 08.09. Überarbeitet wird über „Ersetzen".
 					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a>'
-						. '<a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener" title="Nur ansehen — Änderungen laufen über „Angebot aktualisieren".">Ansehen</a>';
+						. '<a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener" title="Nur ansehen — Änderungen laufen über „Ersetzen".">Ansehen</a>';
 					// Supersede-Ergebnis (Spec §3/§7): das neue Angebot wartet auf den manuellen Versand.
 					// Bewusst kein Auto-Mail — wer ersetzt, will vorher draufschauen.
 					if ( ! empty( $o->needs_resend ) ) {
 						echo '<span style="color:#9a3412;font-weight:700;" title="Positionen oder Adresse haben sich nach dem Versand geändert — dieses Angebot ersetzt das alte und muss noch raus.">⚠ Neuversand nötig</span>';
 					}
 					if ( 'angenommen' === (string) $o->status ) { echo '<a href="' . esc_url( $u_paid ) . '" style="color:#1a7f37;font-weight:700;">Zahlung erhalten ✓</a>'; }
-					// Ein Knopf fuer den geaenderten Stand: oeffnet den Editor auf dem AKTUELLEN Angebot
-					// (inkl. eines herumliegenden nummernlosen Entwurfs). Erzeugt KEINE neue Nummer.
-					if ( class_exists( 'M24_Offer_Update' ) && M24_Offer_Update::can_update( $o ) ) {
-						// Der Editor laeuft im Frontend ueber QV_NEW (wie reopen_url), nicht als Admin-Seite.
-						$u_upd = add_query_arg( array( self::QV_NEW => 1, 'update_offer' => (int) $o->id ), home_url( '/' ) );
-						echo '<a href="' . esc_url( $u_upd ) . '" style="color:#0e447e;font-weight:700;" title="Naechste Fassung derselben Nummer — Vorschau, dann Versand. Keine neue Angebotsnummer.">Angebot aktualisieren</a>';
+					// „Ersetzen" — EIN Knopf fuer den Weg, den Daniel tatsaechlich geht: Duplikat anlegen,
+					// ueberarbeiten, mit neuer Nummer senden, Original stornieren. Das Fassungsmodell
+					// („Angebot aktualisieren") wird hier NICHT mehr angeboten; die Klasse bleibt im Code,
+					// weil die Retry-Zeile am Sync-Status sie fuer haengende Faelle noch braucht.
+					if ( self::can_replace( $o ) ) {
+						echo '<a href="' . esc_url( $u_repl ) . '" style="color:#0e447e;font-weight:700;" title="Legt ein Duplikat als Entwurf an und merkt sich dieses Angebot als Vorgaenger. Beim Versand des Duplikats wird dieses Angebot storniert und im Desk in den Papierkorb gelegt.">Ersetzen</a>';
 					}
 					// „Erneut senden": nur für bereits versendete, noch offene Angebote. Der Dialog zeigt die
 					// hinterlegte Adresse im Modal vorbefüllt und LÄSST SIE KORRIGIEREN (Vertipper-Fall).
@@ -615,6 +620,129 @@ class M24_Offers {
 			'id'  => $new_id,
 			'msg' => sprintf( 'Angebot %s dupliziert — Entwurf angelegt (noch ohne Nummer, die kommt beim Versand). Direkt öffnen: %s', (string) $o->offer_no, $edit ),
 		);
+	}
+
+	/* ── „Ersetzen" (Stornieren + Duplizieren + neue Nummer, ein Knopf) ──
+	 *
+	 * Das Fassungsmodell („Angebot aktualisieren": mehrere Fassungen unter EINER Nummer) hat sich im
+	 * Alltag nicht bewaehrt — Dubletten, haengende Desk-Artefakte, Sonderwege in der Mail. Der Weg, den
+	 * Daniel tatsaechlich geht, ist ein anderer und braucht nur einen Knopf:
+	 *
+	 *   1. „Ersetzen" legt ein Duplikat als Entwurf an (wie „Duplizieren") und merkt sich das Original
+	 *      in supersedes / supersedes_no / supersedes_desk. Es passiert sonst NICHTS — das Original
+	 *      bleibt unveraendert gueltig, solange der Ersatz nur ein Entwurf ist.
+	 *   2. Erst beim VERSAND des Duplikats (finish_replacement, aus handle_send) wird das Original auf
+	 *      'storniert' gesetzt und per Sync als Tombstone gemeldet — im Desk wandert der alte Auftrag
+	 *      damit in den Papierkorb, statt neben dem neuen stehenzubleiben.
+	 *   3. Die Angebotsmail des Duplikats traegt EINEN Zusatzsatz („Dieses Angebot ersetzt unser Angebot
+	 *      2026-1064."). Keine Fassungsnummer, kein Aenderungsbericht.
+	 *
+	 * Bricht Daniel zwischen 1 und 2 ab, ist der Schaden ein herumliegender Entwurf — nicht ein
+	 * storniertes Angebot ohne Nachfolger. Deshalb diese Reihenfolge und keine andere.
+	 */
+
+	/** Stati, aus denen heraus ersetzt werden darf: das Angebot ist beim Kunden (offen/versandt) oder
+	 *  seine Frist ist abgelaufen. Entwuerfe bearbeitet man direkt, Storniertes/Erledigtes ist beendet. */
+	const REPLACE_STATUS = array( 'offen', 'versandt', 'abgelaufen' );
+
+	/** Darf dieses Angebot ersetzt werden? Einmal ersetzt → kein zweites Mal (sonst Ketten von Waisen). */
+	public static function can_replace( $o ): bool {
+		return $o
+			&& empty( $o->deleted_at )
+			&& self::hat_nummer( $o )
+			&& '' === trim( (string) ( $o->superseded_by ?? '' ) )
+			&& in_array( (string) ( $o->status ?? '' ), self::REPLACE_STATUS, true );
+	}
+
+	/**
+	 * „Ersetzen": Duplikat als Entwurf + Vorgaenger-Verweis. Aendert am Original noch nichts.
+	 *
+	 * supersedes haelt die interne uid, supersedes_no/-desk zusaetzlich die beiden Nummern: aus der uid
+	 * allein laesst sich nach einem Loeschen der Vorgaengerzeile keine Nummer mehr rekonstruieren, und
+	 * genau die braucht die Mail („ersetzt unser Angebot 2026-1064").
+	 *
+	 * @return array{ok:bool,msg:string,id:int}
+	 */
+	public static function replace_offer( int $offer_id ): array {
+		global $wpdb;
+		$o = self::get_by_id( $offer_id );
+		if ( ! $o ) { return array( 'ok' => false, 'msg' => 'Angebot nicht gefunden.', 'id' => 0 ); }
+		if ( ! self::can_replace( $o ) ) {
+			return array( 'ok' => false, 'id' => 0, 'msg' => '' !== trim( (string) ( $o->superseded_by ?? '' ) )
+				? sprintf( 'Angebot %s wurde bereits ersetzt — ein zweiter Ersatz wuerde nur eine Kette von Entwuerfen erzeugen.', (string) $o->offer_no )
+				: sprintf( 'Angebot %s kann nicht ersetzt werden (Status „%s").', (string) $o->offer_no, (string) $o->status ) );
+		}
+
+		$dup = self::duplicate_offer( $offer_id );
+		if ( empty( $dup['ok'] ) ) { return $dup; }
+		$new_id = (int) $dup['id'];
+
+		$uid = trim( (string) ( $o->wp_offer_uid ?? '' ) );
+		if ( '' === $uid && class_exists( 'M24_Sync_LWW' ) ) { $uid = M24_Sync_LWW::offer_uid( $offer_id ); }
+		$wpdb->update( self::table(), array(
+			'supersedes'      => $uid,
+			'supersedes_no'   => (string) $o->offer_no,
+			'supersedes_desk' => (string) ( $o->desk_order_num ?? '' ),
+		), array( 'id' => $new_id ) );
+
+		self::log( 'replace_started', $new_id, (string) $o->offer_no );
+
+		$edit = add_query_arg( array( self::QV_NEW => 1, 'draft' => $new_id ), home_url( '/' ) );
+		return array(
+			'ok'  => true,
+			'id'  => $new_id,
+			'msg' => sprintf(
+				'Ersatz fuer Angebot %s angelegt (Entwurf, Nummer kommt beim Versand). %s wird erst storniert, wenn der Ersatz raus ist. Direkt oeffnen: %s',
+				(string) $o->offer_no, (string) $o->offer_no, $edit
+			),
+		);
+	}
+
+	/**
+	 * Nach dem Versand eines Ersatz-Angebots: Vorgaenger stornieren + Tombstone an den Desk.
+	 *
+	 * Laeuft am Ende von handle_send und ist streng idempotent — ein Doppel-Send (derselbe idem_key)
+	 * kehrt vorher zurueck, ein bereits stornierter Vorgaenger wird hier nicht noch einmal angefasst.
+	 *
+	 * Der Tombstone selbst entsteht NICHT hier: M24_Sync_Push::order_record() meldet ein storniertes
+	 * Angebot als geloescht. Damit gilt dieselbe Regel auch fuer ein Storno ohne Ersetzen, und es gibt
+	 * nur EINE Stelle, an der „storniert heisst drueben Papierkorb" steht.
+	 *
+	 * Das WP-seitige deleted_at bleibt bewusst leer: das stornierte Original soll in der Liste sichtbar
+	 * und reaktivierbar bleiben, nicht im Papierkorb verschwinden.
+	 */
+	public static function finish_replacement( int $new_id ): void {
+		global $wpdb;
+		$new = self::get_by_id( $new_id );
+		if ( ! $new ) { return; }
+		$sup = trim( (string) ( $new->supersedes ?? '' ) );
+		if ( '' === $sup ) { return; }
+
+		$t   = self::table();
+		$old = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE wp_offer_uid = %s LIMIT 1", $sup ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $old && preg_match( '/^wpoffer_(\d+)$/', $sup, $m ) ) {
+			$old = self::get_by_id( (int) $m[1] ); // uid-Fallback fuer Altzeilen ohne gefuellte Spalte
+		}
+		if ( ! $old || (int) $old->id === $new_id ) { return; }
+		if ( 'storniert' === (string) $old->status ) { return; } // schon erledigt — nichts doppelt stempeln
+
+		$new_uid = class_exists( 'M24_Sync_LWW' ) ? M24_Sync_LWW::offer_uid( $new_id ) : '';
+		if ( '' !== trim( (string) ( $new->wp_offer_uid ?? '' ) ) ) { $new_uid = (string) $new->wp_offer_uid; }
+
+		// touch() schreibt Status + Rueckverweis in EINEM Update und bumpt rev — das feuert
+		// m24_sync_touched, und der entkoppelte Push traegt den Tombstone hinueber.
+		if ( class_exists( 'M24_Sync_LWW' ) ) {
+			M24_Sync_LWW::touch( (int) $old->id, 'wp', array( 'status' => 'storniert', 'superseded_by' => $new_uid ) );
+		} else {
+			$wpdb->update( $t, array( 'status' => 'storniert', 'superseded_by' => $new_uid ), array( 'id' => (int) $old->id ) );
+		}
+
+		self::log( 'replaced', (int) $old->id, (string) $old->offer_no );
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'offer_replace', 'info', 'Angebot ersetzt — Vorgaenger storniert', array(
+				'alt' => (string) $old->offer_no, 'neu' => (string) $new->offer_no,
+			) );
+		}
 	}
 
 	/* ── „Erneut senden" (Zeilen-Aktion) ────────────────────────────────── */
@@ -1565,6 +1693,11 @@ class M24_Offers {
 		// Resend erkennen (vor W1 lesen): lag schon eine Desk-Order-ID vor → erneuter Versand.
 		$prior_desk = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT desk_order_id FROM ' . self::table() . ' WHERE id = %d', $offer_id ) );
 		do_action( 'm24_offer_sent', $offer_id ); // W1 zuerst → Auftrag entsteht unabhängig vom Mailversand
+
+		// „Ersetzen": ERST wenn der Ersatz wirklich draussen ist, wird der Vorgaenger storniert und per
+		// Sync als Tombstone gemeldet. Nach dem W1-Push, damit der neue Auftrag drueben existiert, bevor
+		// der alte in den Papierkorb geht — sonst stuende der Vorgang kurz gar nicht im Desk.
+		self::finish_replacement( (int) $offer_id );
 		$mail_type     = ( '' !== trim( $prior_desk ) ) ? 'offer_resend' : 'offer';
 		$register_link = ( $account_id <= 0 );
 
