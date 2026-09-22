@@ -249,6 +249,11 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Gewährleistung & Steuer', 'delivery_paynote' => '(ab Zahlungseingang)',
 			'bank_holder' => 'Kontoinhaber', 'bank_bank' => 'Bank', 'bank_ref' => 'Verwendungszweck',
 			'race_global' => 'Verkauf nur für den Rennsport – keine Straßenzulassung und kein Gutachten',
+			// Stand bis 0.11.518 hart im Template — deutsch auch in EN-Angeboten und immer in der
+			// Du-Form, unabhaengig von der Anredeform des Angebots.
+			'accepted'    => $sie
+				? 'Angebot angenommen ✓ — bitte überweisen Sie den Betrag mit den folgenden Bankdaten.'
+				: 'Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.',
 			// Garage-Karte (Lösung A) — Online-Ansicht, beide Zustände; Du/Sie je Angebot.
 			'g_title'     => $sie ? 'Dieses Angebot in Ihre Garage übernehmen' : 'Dieses Angebot in meine Garage übernehmen',
 			'g_sub'       => 'Kostenloses Konto — in einer Minute angelegt.',
@@ -277,6 +282,7 @@ class M24_Offers_Render {
 			'warranty_tax' => 'Warranty & tax', 'delivery_paynote' => '(starting from the date payment is received)',
 			'bank_holder' => 'Account holder', 'bank_bank' => 'Bank', 'bank_ref' => 'Reference',
 			'race_global' => 'Sold for motorsport use only – not road-legal.',
+			'accepted'    => 'Offer accepted ✓ — please transfer the amount using the bank details below.',
 			'g_title'     => 'Save this offer to my garage',
 			'g_sub'       => 'Free account — set up in a minute.',
 			'g_btn'       => 'Add to my garage',
@@ -925,10 +931,13 @@ class M24_Offers_Render {
 						<?php if ( '' !== $pthumb ) : ?><img class="m24off-pos-img" src="<?php echo esc_url( $pthumb ); ?>" alt="" loading="lazy"><?php else : ?><span class="m24off-pos-img m24off-pos-imgph"></span><?php endif; ?>
 						<div class="m24off-pos-main">
 							<span class="m24off-pos-title"><?php echo esc_html( self::item_title( $it, self::offer_lang( $o ) ) ); ?></span>
-							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant">Variante: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
-							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?>Art.-Nr.: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip">gebraucht</span><?php endif; ?></span><?php endif; ?>
+<?php /* Variante/Art.-Nr./gebraucht: dieselben $L-Schluessel wie die Mail sie schon benutzt. Bis
+       0.11.518 standen sie hier als deutsche Literale und waren die auffaelligsten der deutschen
+       Textbausteine in einem englischen Angebot. */ ?>
+							<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24off-pos-variant"><?php echo esc_html( $L['variant'] ); ?>: <?php echo esc_html( $it['variant'] ); ?></span><?php endif; ?>
+							<?php if ( ! empty( $it['art_nr'] ) || ! empty( $it['used'] ) ) : ?><span class="m24off-cart"><?php if ( ! empty( $it['art_nr'] ) ) : ?><?php echo esc_html( $L['artnr'] ); ?>: <?php echo esc_html( $it['art_nr'] ); ?> <?php endif; ?><?php if ( ! empty( $it['used'] ) ) : ?><span class="m24off-usedchip"><?php echo esc_html( $L['used'] ); ?></span><?php endif; ?></span><?php endif; ?>
 <?php /* #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit. */ ?>
-							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line() ); ?></span><?php endif; ?>
+							<?php if ( self::is_tax25a_item( $it ) ) : ?><span class="m24off-pos-25a"><span class="m24off-ico" aria-hidden="true">ⓘ</span> <?php echo esc_html( self::tax25a_pos_line( self::offer_lang( $o ) ) ); ?></span><?php endif; ?>
 <?php /* §312g-Positions-Note entfernt (0.11.376) — das custom-Flag bleibt in den Daten, wird kundenseitig nicht mehr angezeigt. */ ?>
 						</div>
 						<div class="m24off-pos-qty">× <?php echo (int) $it['qty']; ?></div>
@@ -961,7 +970,7 @@ class M24_Offers_Render {
 				<?php endif; ?>
 				<?php // Bug A: „Gesamt" aus DERSELBEN frischen Berechnung wie die Zwischensumme ($bd), nicht aus der (evtl. 0/stale) Spalte total_gross. $bd['total'] = netto + USt + §25a-brutto = tatsächlicher Endbetrag. ?>
 				<div class="m24off-sumline m24off-total"><span><?php echo esc_html( $L['total'] ); ?></span><strong><?php echo esc_html( self::fmt( (float) $bd['total'] ) ); ?></strong></div>
-				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote() ); ?></p><?php endif; ?>
+				<?php if ( self::has_tax25a( $items ) ) : ?><p class="m24off-note"><?php echo esc_html( self::tax25a_footnote( self::offer_lang( $o ) ) ); ?></p><?php endif; ?>
 				<?php $tn = ( 'en' === self::offer_lang( $o ) && '' !== M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) ) ? M24_Offers::tax_note_for( (string) $o->tax_mode, 'en' ) : (string) $o->tax_note; if ( '' !== $tn && (float) $o->tax_amount <= 0 ) : ?><p class="m24off-note"><?php echo esc_html( $tn ); ?></p><?php endif; ?>
 			</section>
 
@@ -989,7 +998,7 @@ class M24_Offers_Render {
 					<button type="button" class="m24off-btn m24off-btn-blue" data-accept><?php echo esc_html( $L['accept'] ); ?></button>
 					<p class="m24off-acceptmsg" data-accept-msg role="status" hidden></p>
 				<?php else : ?>
-					<p class="m24off-accepted">Angebot angenommen ✓ — bitte überweise den Betrag mit den folgenden Bankdaten.</p>
+					<p class="m24off-accepted"><?php echo esc_html( $L['accepted'] ); ?></p>
 				<?php endif; ?>
 				<div class="m24off-paybox" data-paybox<?php echo 'angenommen' === $status ? '' : ' hidden'; ?>></div>
 			</section>
@@ -1170,6 +1179,24 @@ class M24_Offers_Render {
 			'Widerruf'    => 'https://www.motorsport24.de/widerruf/',
 		) );
 	}
+	/**
+	 * Anzeige-Beschriftung eines Pflicht-Links je Sprache.
+	 *
+	 * legal_links() bleibt DE-gekeyt: die Schluessel sind der Vertrag mit dem Filter
+	 * m24_offer_legal_links und mit widerruf_url(), und die Ziele sind ohnehin deutsche Seiten. Die
+	 * Uebersetzung sitzt deshalb hier und NICHT in den Schluesseln — sonst brauchte jede Fundstelle
+	 * eine eigene Zuordnung, und genau so faellt bei der naechsten Aenderung eine davon heraus.
+	 */
+	private static function legal_link_label( string $key, string $lang ): string {
+		if ( 'en' !== $lang ) { return $key; }
+		$en = array(
+			'Impressum'   => 'Legal notice',
+			'AGB'         => 'Terms & conditions',
+			'Datenschutz' => 'Privacy policy',
+			'Widerruf'    => 'Right of withdrawal',
+		);
+		return $en[ $key ] ?? $key;
+	}
 	private static function widerruf_url(): string {
 		$l = self::legal_links();
 		return isset( $l['Widerruf'] ) ? (string) $l['Widerruf'] : 'https://www.motorsport24.de/widerruf/';
@@ -1178,17 +1205,27 @@ class M24_Offers_Render {
 	private static function contract_clause( string $vu ): string {
 		return 'Dieses Angebot ist verbindlich (§ 145 BGB) und gültig bis ' . $vu . '. Ein Kaufvertrag kommt zustande, wenn der vollständige Rechnungsbetrag innerhalb dieser Frist auf unserem Geschäftskonto eingeht (Annahme durch Zahlung). Geht die Zahlung nicht fristgerecht ein, erlischt das Angebot (§ 146 BGB).';
 	}
-	private static function st25a_line(): string {
-		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird nicht gesondert ausgewiesen.';
+	/* Die drei §25a-Saetze standen bis 0.11.518 ohne $lang da und kamen deshalb auch in englischen
+	 * Angeboten deutsch heraus — in gewaehr_accordion() sogar als Mischsatz, weil dort ein englischer
+	 * Zusatz an den deutschen Satz gehaengt wurde. EN-Wortlaut unter Anwaltsvorbehalt, wie bei den
+	 * uebrigen englischen Rechtstexten in dieser Datei. */
+	private static function st25a_line( string $lang = 'de' ): string {
+		return ( 'en' === $lang )
+			? 'Margin scheme under § 25a German VAT Act – VAT is not stated separately.'
+			: 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird nicht gesondert ausgewiesen.';
 	}
 	/** Dezente Positions-Zeile bei §25a (C3: gilt in JEDEM Steuer-Modus — §25a-Positionen sind immer
 	 *  differenzbesteuert und werden nie Reverse-Charge/OSS/Export-besteuert; compute_totals nimmt sie aus). */
-	private static function tax25a_pos_line(): string {
-		return 'Differenzbesteuerung gem. § 25a UStG, MwSt. nicht ausweisbar.';
+	private static function tax25a_pos_line( string $lang = 'de' ): string {
+		return ( 'en' === $lang )
+			? 'Margin scheme under § 25a German VAT Act; VAT cannot be stated separately.'
+			: 'Differenzbesteuerung gem. § 25a UStG, MwSt. nicht ausweisbar.';
 	}
 	/** Einmalige Fußnote unter dem Summenblock, wenn ≥ 1 §25a-Position. */
-	private static function tax25a_footnote(): string {
-		return 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird auf diese Positionen nicht gesondert ausgewiesen (unabhängig vom Steuermodus der übrigen Positionen).';
+	private static function tax25a_footnote( string $lang = 'de' ): string {
+		return ( 'en' === $lang )
+			? 'Margin scheme under § 25a German VAT Act – VAT is not stated separately on these items (regardless of the tax treatment of the remaining items).'
+			: 'Differenzbesteuerung gem. § 25a UStG – Umsatzsteuer wird auf diese Positionen nicht gesondert ausgewiesen (unabhängig vom Steuermodus der übrigen Positionen).';
 	}
 	private static function has_tax25a( array $items ): bool {
 		foreach ( $items as $it ) { if ( ! empty( $it['tax25a'] ) || ! empty( $it['st25a'] ) ) { return true; } }
@@ -1297,13 +1334,13 @@ class M24_Offers_Render {
 		// §25a-Satz NUR, wenn tatsächlich ≥1 Position differenzbesteuert ist. Bei reinen regelbesteuerten
 		// Angeboten (z. B. DE 19 % ohne §25a) weglassen — sonst widersprüchlich neben „USt 19 %".
 		if ( $has_25a ) {
-			$h .= '<p>' . esc_html( self::st25a_line() ) . ( $en ? ' (for correspondingly marked items).' : ' (bei entsprechend gekennzeichneten Positionen).' ) . '</p>';
+			$h .= '<p>' . esc_html( self::st25a_line( $lang ) ) . ( $en ? ' (for correspondingly marked items).' : ' (bei entsprechend gekennzeichneten Positionen).' ) . '</p>';
 		}
 		$h .= '<p><strong>' . ( $en ? 'Provider:' : 'Anbieter:' ) . '</strong> ' . esc_html( self::company_line() ) . '</p>';
 		$links = array(); $ll = self::legal_links();
 		// Widerruf-Link bleibt in der Legalzeile (der Belehrungs-Absatz selbst wird nicht mehr gerendert) → Belehrung 1 Klick entfernt.
 		foreach ( array( 'Impressum', 'AGB', 'Datenschutz', 'Widerruf' ) as $k ) {
-			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( $k ) . '</a>'; }
+			if ( isset( $ll[ $k ] ) ) { $links[] = '<a href="' . esc_url( $ll[ $k ] ) . '" target="_blank" rel="noopener">' . esc_html( self::legal_link_label( $k, $lang ) ) . '</a>'; }
 		}
 		$h .= '<p style="text-align:center;">' . implode( ' · ', $links ) . '</p>';
 		return $h;
@@ -1403,7 +1440,7 @@ class M24_Offers_Render {
 					. ( ! empty( $it['art_nr'] ) ? esc_html( $L['artnr'] ) . ': ' . esc_html( $it['art_nr'] ) : '' )
 					. ( ! empty( $it['used'] ) ? ( ! empty( $it['art_nr'] ) ? ' · ' : '' ) . esc_html( $L['used'] ) : '' ) . '</span>' : '' )
 				// #2: Rennsport-Hinweis pro Position entfernt → einmal global unter der Lieferzeit.
-					. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line() ) . '</span>' : '' )
+					. ( self::is_tax25a_item( $it ) ? '<br><span style="color:#8a929c;font-size:11.5px;">ⓘ ' . esc_html( self::tax25a_pos_line( $mlang ) ) . '</span>' : '' )
 				// §312g-Positions-Note entfernt (0.11.376) — custom-Flag bleibt in den Daten, kundenseitig ausgeblendet.
 					. ''
 				. '</td><td style="text-align:center;padding:6px 14px;white-space:nowrap;color:#5a6474;">× ' . (int) $it['qty'] . '</td><td style="text-align:right;white-space:nowrap;">' . esc_html( self::fmt( $line ) ) . '</td></tr>';
@@ -1465,7 +1502,7 @@ class M24_Offers_Render {
 		}
 		$inner .= '<table style="width:100%;border-collapse:collapse;font-size:14px;">' . $rows . $sum // phpcs:ignore WordPress.Security.EscapeOutput — Teile bereits escaped
 			. '<tr><td colspan="3" style="font-weight:700;padding-top:6px;">' . esc_html( $L['total'] ) . '</td><td style="text-align:right;white-space:nowrap;font-weight:700;padding-top:6px;">' . esc_html( self::fmt( (float) $bd['total'] ) ) . '</td></tr></table>'; // Bug A: frischer Endbetrag (= Zwischensummen-Quelle)
-		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote() ) . '</p>'; }
+		if ( self::has_tax25a( $items ) ) { $inner .= '<p style="margin:6px 0 0;color:#8a929c;font-size:11.5px;">' . esc_html( self::tax25a_footnote( $mlang ) ) . '</p>'; }
 		if ( $o->delivery_time ) {
 			if ( 'Am Lager' === (string) $o->delivery_time ) { // Verfügbarkeitsvorbehalt statt schlichter Lieferzeit-Zeile
 				$inner .= '<p style="margin:14px 0 0;color:#5a6474;">' . esc_html( self::availability_note( self::offer_lang( $o ) ) ) . '</p>';
@@ -1494,7 +1531,7 @@ class M24_Offers_Render {
 		// (in der Pflicht-Links-Zeile unten verlinkt).
 		// Pflicht-Links.
 		$links = array();
-		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( $lbl ) . '</a>'; }
+		foreach ( self::legal_links() as $lbl => $lurl ) { $links[] = '<a href="' . esc_url( $lurl ) . '" style="color:#1f74c4;">' . esc_html( self::legal_link_label( $lbl, $mlang ) ) . '</a>'; }
 		$inner .= '<p style="margin:12px 0 0;font-size:12px;color:#8a929c;text-align:center;">' . implode( ' &middot; ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput — Links escaped
 		// Garage-Hinweis NICHT in die Mail — die Garage-Übernahme läuft ausschließlich über die Karte in der Online-Ansicht.
 
