@@ -497,11 +497,27 @@ class M24_Sync_Apply {
 			}
 		}
 
+		// Ein WP-eigenes Angebot kann seine Positionen nicht aus dem Desk erfahren — es hat sie selbst
+		// angelegt. Ein im Desk angelegter Auftrag kann es nur von dort. Genau daran haengt, ob eine
+		// vorlaeufige Desk-uid abgewartet oder uebernommen wird.
+		$desk_eigen = class_exists( 'M24_Offers' ) && M24_Offers::ist_desk_auftrag( $o );
+
 		// Vorläufige Desk-UID (Bestandszeile, die noch nie eine WP-uid gesehen hat): NICHT als neue Zeile
 		// anlegen. Der Desk adoptiert unsere line_uid erst beim Push WP→Desk — pullen wir vorher, hätten wir
 		// dieselbe Position zweimal: einmal unter unserer uid, einmal unter seiner geliehenen. Kennen wir die
 		// uid dagegen schon, ist die Adoption gelaufen und die Zeile wird normal verarbeitet.
-		if ( null === $idx && ! empty( $rec['line_uid_vorlaeufig'] ) ) {
+		//
+		// NUR fuer WP-eigene Angebote. Bei einem im Desk angelegten Auftrag war diese Wache eine
+		// Sackgasse (gemessen am Erstabgleich 25.09.: 486× 'line_uid_vorlaeufig'): WP haelt zu so einem
+		// Auftrag gar keine Positionen, $idx ist deshalb IMMER null, und die Wache griff jedes Mal. Die
+		// Bedingung fuers Weiterkommen — „erst pushen, dann pullen" — konnte nie eintreten, weil WP
+		// nichts zu pushen hat: line_records() laeuft ueber items_json, und das ist leer. Es entstand nie
+		// eine WP-line_uid, die der Desk haette adoptieren koennen.
+		//
+		// Bei desk_origin ist die Desk-uid die Quelle, nicht die geliehene Fassung einer WP-uid. Es gibt
+		// nichts zu adoptieren, also auch nichts abzuwarten: die Zeile wird mit IHRER uid angelegt. Der
+		// naechste Push traegt sie unveraendert zurueck — damit ist sie auf beiden Seiten dieselbe.
+		if ( null === $idx && ! empty( $rec['line_uid_vorlaeufig'] ) && ! $desk_eigen ) {
 			self::log( 'line_deferred', $key . ' — vorläufige Desk-uid, Adoption steht aus (erst pushen, dann pullen).' );
 			return self::res( $key, false, 0, 'line_uid_vorlaeufig' );
 		}
@@ -532,11 +548,23 @@ class M24_Sync_Apply {
 			$line = self::line_from_record( $rec, is_array( $local ) ? $local : array() );
 			if ( null !== $idx ) {
 				$items[ $idx ] = $line;
+			} elseif ( $desk_eigen ) {
+				// Im Desk angelegter Auftrag: eine uid, die WP nicht kennt, ist hier der NORMALFALL —
+				// die Positionen entstehen drueben, WP sieht sie zum ersten Mal. Nur eine Protokoll-
+				// zeile, KEIN Fehlerprotokoll: 910 Zeilen im Erstabgleich ergaeben ebenso viele
+				// Warnungen und wuerden genau das Signal zudecken, das die Wache unten schuetzt.
+				self::log( 'line_desk_neu', $key . ' — Position eines Desk-eigenen Auftrags uebernommen: "'
+					. (string) ( $rec['title'] ?? '' ) . '"' );
+				$items[] = $line;
 			} else {
 				// Unbekannte line_uid — im Desk hinzugefuegte Zeile. NIE still anhaengen: genau das
 				// hat am 16.09.2026 vier 0-EUR-Waisen an 2026-1064 unsichtbar entstehen lassen.
 				// Die Ursache (Editor verlor die uid) ist mit 0.11.516 behoben; diese Wache bleibt,
 				// damit ein erneuter Zulauf im Protokoll steht statt in der Position.
+				//
+				// Sie gilt fuer WP-EIGENE Angebote: dort hat jede Position eine WP-line_uid, und eine
+				// fremde uid heisst, dass unterwegs eine verlorenging. Bei einem Desk-eigenen Auftrag
+				// hiesse dasselbe Signal nur „der Desk fuehrt seine Zeilen" — s. Zweig darueber.
 				self::log( 'line_unbekannt', $key . ' — uid dem Angebot unbekannt, als neue Zeile angehaengt: "'
 					. (string) ( $rec['title'] ?? '' ) . '", ' . number_format( (float) ( $rec['unit_price'] ?? 0 ), 2, ',', '.' ) . ' EUR' );
 				if ( class_exists( 'M24_Error_Log' ) ) {
