@@ -19,6 +19,51 @@ class M24_Adminbar {
 		// hängen sich spät ein → admin_bar_menu/999 läuft davor und greift ins Leere).
 		add_action( 'wp_before_admin_bar_render', array( __CLASS__, 'remove_nodes' ), 99999 );
 		add_action( 'admin_post_m24_quickstatus', array( __CLASS__, 'quick_status' ) );
+		// WP-Rocket-Mobil-Cache einmalig einschalten (siehe rocket_mobile_cache()).
+		add_action( 'admin_init', array( __CLASS__, 'rocket_mobile_cache' ) );
+	}
+
+	/**
+	 * WP Rocket: getrennten Mobil-Cache einschalten — per Code, weil die Oberflaeche
+	 * die beiden Schalter in der installierten Rocket-Version nicht mehr zeigt.
+	 *
+	 * HINTERGRUND (24.09.2026): Das tagDiv Mobile Theme liefert per User-Agent ein
+	 * eigenes Mobil-Template. Standen beide Rocket-Optionen auf aus, wurde ein Aufruf,
+	 * den das Theme als mobil einstufte, Rocket aber als Desktop, als Desktop-Cache-
+	 * Datei gespeichert — und danach bekam jeder Desktop-Besucher die Mobilseite
+	 * (Daniels "Ansicht springt beim Klicken auf mobil"). Das Plugin abzuschalten war
+	 * keine Loesung: ohne Mobil-Template zeigt das Theme auf dem Handy nur noch den
+	 * nackten Fallback. Mit getrennten Cache-Dateien haelt Rocket beides auseinander.
+	 *
+	 * Laeuft genau einmal (Option m24_rocket_mobile_cache_set), aendert nur diese zwei
+	 * Schluessel, leert danach den Cache. Ohne Rocket: nichts.
+	 * Zwischenloesung in dieser Datei, weil sie zuverlaessig im Admin geladen wird;
+	 * gehoert langfristig in ein eigenes Modul (CC).
+	 */
+	public static function rocket_mobile_cache() {
+		if ( get_option( 'm24_rocket_mobile_cache_set' ) ) {
+			return;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$opts = get_option( 'wp_rocket_settings' );
+		if ( ! is_array( $opts ) ) {
+			return; // Rocket nicht installiert oder nie konfiguriert.
+		}
+		$opts['cache_mobile']            = 1;
+		$opts['do_caching_mobile_files'] = 1;
+		update_option( 'wp_rocket_settings', $opts );
+		update_option( 'm24_rocket_mobile_cache_set', gmdate( 'c' ), false );
+		if ( function_exists( 'rocket_generate_config_file' ) ) {
+			rocket_generate_config_file(); // Rocket liest die Schalter aus seiner Config-Datei, nicht nur aus der Option.
+		}
+		if ( function_exists( 'rocket_clean_domain' ) ) {
+			rocket_clean_domain();
+		}
+		if ( class_exists( 'M24_Error_Log' ) && method_exists( 'M24_Error_Log', 'log' ) ) {
+			M24_Error_Log::log( 'rocket', 'Mobil-Cache eingeschaltet (cache_mobile + do_caching_mobile_files), Cache geleert.' );
+		}
 	}
 
 	/** Fremd-Plugin-Nodes entfernen (filterbar). */
