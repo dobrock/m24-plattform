@@ -337,6 +337,12 @@ class M24_Offers {
 			if ( class_exists( 'M24_Stats_Panel' ) ) { M24_Stats_Panel::close_layout( 'offers' ); }
 			echo '</div>'; return;
 		}
+		// Verlauf (Desk-Spiegel) fuer ALLE Karten dieser Seite in EINER Abfrage — nicht je Karte.
+		$threads = class_exists( 'M24_Offer_Thread' )
+			? M24_Offer_Thread::for_offers( wp_list_pluck( (array) $rows, 'id' ) )
+			: array();
+		if ( ! empty( $threads ) ) { echo M24_Offer_Thread::styles(); } // phpcs:ignore WordPress.Security.EscapeOutput
+
 		foreach ( (array) $rows as $o ) {
 			$cust = json_decode( (string) $o->customer_json, true ) ?: array();
 			// #9: Firmenname bevorzugt (falls bekannt), sonst Personenname, sonst E-Mail.
@@ -445,12 +451,28 @@ class M24_Offers {
 			echo '<div class="card">';
 			echo '<div class="crow" data-offer-toggle aria-expanded="false" role="button" tabindex="0"><div class="av">' . esc_html( $ini ) . '</div><div class="who"><b>' . esc_html( $disp ) . '</b>' . ( '' !== $flagc ? ' <span class="flagc">' . esc_html( $flagc ) . '</span>' : '' ) . '<div>' . esc_html( (string) ( $cust['email'] ?? '' ) ) . ' · ' . (int) $cnt . ' Position' . ( 1 === $cnt ? '' : 'en' ) . '</div>' . $sent_html . $viewed_html . $sync_html . '</div><div class="meta"><span class="no">' . esc_html( $no_disp ) . '</span>' . ( '' !== $txl ? '<span class="tx">' . esc_html( $txl ) . '</span>' : '' ) . '<span class="badge" style="background:' . esc_attr( $stb[1] ) . ';">' . esc_html( $badge ) . '</span><span class="sumwrap">' . $sum_html . '</span></div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			if ( '' !== $pos_html ) { echo '<div class="m24offl-pos" hidden>' . $pos_html . '</div>'; } // phpcs:ignore WordPress.Security.EscapeOutput
+			// Verlauf: Kundenantworten und Ereignisse, gespiegelt aus dem Desk (Entitaet `thread`).
+			// Aufklappbar und rein lesend — geantwortet wird in Apple Mail, nicht hier. Ein Antwortfeld
+			// waere ein zweiter Absendeweg fuer denselben Vorgang, den der Desk nicht kennt.
+			$thr = $threads[ (int) $o->id ] ?? array();
+			if ( ! empty( $thr ) ) {
+				$n_msg = 0;
+				foreach ( $thr as $te ) { if ( M24_Offer_Thread::ist_nachricht( (string) $te->type ) ) { $n_msg++; } }
+				$lbl = $n_msg > 0
+					? $n_msg . ' Nachricht' . ( 1 === $n_msg ? '' : 'en' ) . ( count( $thr ) > $n_msg ? ' · ' . ( count( $thr ) - $n_msg ) . ' Ereignis' . ( 1 === count( $thr ) - $n_msg ? '' : 'se' ) : '' )
+					: count( $thr ) . ' Ereignis' . ( 1 === count( $thr ) ? '' : 'se' );
+				echo '<details style="margin:6px 0 0;"><summary style="cursor:pointer;color:#0e447e;font-size:12px;font-weight:600;">Verlauf: ' . esc_html( $lbl ) . '</summary>'
+					. M24_Offer_Thread::render( $thr ) . '</details>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			}
 			// Vorfassungen als Beleg — aufklappbar an der Karte, NICHT als eigene Listeneintraege.
 			if ( ! $is_draft && class_exists( 'M24_Offer_Versions' ) ) {
 				$hist = M24_Offer_Versions::history( (int) $o->id );
 				if ( ! empty( $hist ) ) {
 					$h = '<details style="margin:6px 0 0;"><summary style="cursor:pointer;color:#6b7280;font-size:12px;">'
-						. 'Verlauf: ' . count( $hist ) . ' Vorfassung' . ( 1 === count( $hist ) ? '' : 'en' ) . '</summary>'
+						// „Verlauf" heisst ab 0.11.521 der Nachrichten-Verlauf aus dem Desk. Die Vorfassungen
+						// heissen deshalb, was sie sind — zwei gleich beschriftete Klapper an derselben
+						// Karte waeren eine Einladung, den falschen zu oeffnen.
+						. 'Vorfassungen: ' . count( $hist ) . '</summary>'
 						. '<div style="font-size:12px;color:#5a6474;padding:6px 0 0;">';
 					foreach ( $hist as $hv ) {
 						$hts = ! empty( $hv->sent_at ) ? strtotime( (string) $hv->sent_at . ' UTC' ) : 0;

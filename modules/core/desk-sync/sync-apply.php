@@ -13,6 +13,7 @@
  *   orders      → wp_offer_uid
  *   offer_lines → wp_offer_uid + line_uid   (Line-Item-LWW, §3)
  *   customers   → customer_uid
+ *   thread      → desk_id                   (Verlauf, NUR Desk→WP, append-only, KEIN LWW)
  *
  * Abgrenzung zu M24_Desk_Inbound: der bleibt für die bestehenden D1–D5-Webhooks zuständig (feldweise
  * Stempel über field_updated_at). Dieser Applier bedient den neuen Sync-Vertrag mit
@@ -161,12 +162,13 @@ class M24_Sync_Apply {
 						case 'orders':      $results[] = self::apply_order( $rec ); break;
 						case 'offer_lines': $results[] = self::apply_line( $rec ); break;
 						case 'customers':   $results[] = self::apply_customer( $rec ); break;
+						case 'thread':      $results[] = self::apply_thread( $rec ); break;
 						default:
 							$results[] = array( 'key' => '', 'applied' => false, 'rev' => 0, 'reason' => 'unknown_entity' );
 					}
 				} catch ( \Throwable $e ) {
 					// Ein kaputter Record darf die Charge nicht kippen — der Rest muss durchlaufen.
-					$results[] = array( 'key' => (string) ( $rec['wp_offer_uid'] ?? $rec['customer_uid'] ?? '' ), 'applied' => false, 'rev' => 0, 'reason' => 'error: ' . $e->getMessage() );
+					$results[] = array( 'key' => (string) ( $rec['desk_id'] ?? $rec['wp_offer_uid'] ?? $rec['customer_uid'] ?? '' ), 'applied' => false, 'rev' => 0, 'reason' => 'error: ' . $e->getMessage() );
 					self::log( 'apply_error', $entity . ': ' . $e->getMessage() );
 				}
 			}
@@ -721,6 +723,49 @@ class M24_Sync_Apply {
 			$n++;
 		}
 		return $n;
+	}
+
+	/* ── thread (Verlauf am Angebot, NUR Desk → WP) ───────────────────────── */
+
+	/**
+	 * Einen Verlaufseintrag uebernehmen. Die vierte Entitaet — und die einzige, die NICHT nach LWW
+	 * laeuft.
+	 *
+	 * Warum hier keine Konfliktregel steht: der Desk ist die einzige Quelle. Nur er liest das
+	 * Postfach, WP schreibt nichts in den Verlauf zurueck, und ein Eintrag wird nie geaendert. Es
+	 * gibt also nichts, worueber zwei Seiten uneinig werden koennten — und deshalb auch kein
+	 * updated_at, kein rev, kein deleted_at und keine Tombstones.
+	 *
+	 * Schluessel ist desk_id (comm_thread.id). NICHT msg_id: die traegt nur, was aus einem Postfach
+	 * gelesen wurde — 12 von 349 Zeilen. Ereignisse (payment, shipped, followup, doc_sent, test)
+	 * entstehen beim Versenden und hatten nie eine Message-ID. Ein Unique-Index auf msg_id haette
+	 * 337 Eintraege ausgesperrt (Befund des App-Fensters, 24.09. 16:20).
+	 *
+	 * Drei Quittungen, alle drei bewusst KEIN Fehler:
+	 *   noop          — die desk_id liegt schon vor. Ein Retry darf keine Dublette erzeugen, und der
+	 *                   Desk soll an der Antwort erkennen, dass sie angekommen und nicht gescheitert
+	 *                   ist (Punkt 2 des Vertrags vom 27.08.).
+	 *   offer_unknown — das Angebot zur wp_offer_uid gibt es hier nicht. Laut Vertrag NICHT puffern:
+	 *                   der Desk schickt beim naechsten Lauf erneut, und bis dahin ist der Auftrag
+	 *                   vermutlich gespiegelt. Ein Puffer waere eine zweite Warteschlange mit
+	 *                   eigener Buchhaltung — genau das, was der Sync sonst vermeidet.
+	 *   bad_record    — ohne desk_id oder ohne wp_offer_uid fehlt der Schluessel.
+	 */
+	private static function apply_thread( array $rec ): array {
+		$key = (string) ( $rec['desk_id'] ?? '' );
+		if ( ! class_exists( 'M24_Offer_Thread' ) ) { return self::res( $key, false, 0, 'thread_unsupported' ); }
+
+		$r = M24_Offer_Thread::add( $rec );
+		if ( ! empty( $r['ok'] ) ) {
+			// rev 0: die Entitaet fuehrt keine Revisionen. Das Feld bleibt im Antwortformat, weil der
+			// Desk je Record dieselbe Huelle liest — es traegt hier nur keine Bedeutung.
+			self::log( 'applied_thread', $key . ' · ' . (string) ( $rec['type'] ?? 'email' ) . ' → Angebot ' . (string) ( $rec['wp_offer_uid'] ?? '' ) );
+			return self::res( $key, true, 0 );
+		}
+		if ( 'offer_unknown' === (string) $r['reason'] ) {
+			self::log( 'thread_offer_unknown', $key . ' — Angebot ' . (string) ( $rec['wp_offer_uid'] ?? '?' ) . ' ist hier nicht bekannt.' );
+		}
+		return self::res( $key, false, 0, (string) $r['reason'] );
 	}
 
 	/* ── Helfer ───────────────────────────────────────────────────────────── */

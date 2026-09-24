@@ -31,7 +31,11 @@ class M24_Sync_Reconcile {
 	const MAX_PAGES      = 25;   // Sicherheitsnetz gegen einen Cursor, der nie endet
 	const MAX_PAGES_FULL = 250;  // Erstabgleich zieht den kompletten Bestand — entsprechend mehr Luft
 	const OVERLAP    = 120;  // Sekunden Rückgriff gegen Uhren-Drift
-	const ENTITIES   = array( 'orders', 'offer_lines', 'customers' );
+	// Reihenfolge ist Absicht: `thread` ZULETZT. Ein Verlaufseintrag haengt an einem Angebot, und
+	// fehlt das, wird er laut Vertrag verworfen statt gepuffert ('offer_unknown'). Nach `orders`
+	// gezogen steht der Auftrag bereits — sonst faende ein im selben Lauf gespiegelter Desk-Auftrag
+	// seinen eigenen Verlauf nicht und muesste eine ganze Runde darauf warten.
+	const ENTITIES   = array( 'orders', 'offer_lines', 'customers', 'thread' );
 
 	public static function init() {
 		add_action( 'admin_post_m24_sync_full_pull', array( __CLASS__, 'handle_full_pull' ) );
@@ -161,6 +165,7 @@ class M24_Sync_Reconcile {
 		$cursor  = '';
 		$fetched = 0;
 		$applied = 0;
+		$gruende = array(); // Grund => Anzahl, fuer die Abschlusszeile
 		$pages   = $full ? self::MAX_PAGES_FULL : self::MAX_PAGES;
 
 		for ( $page = 0; $page < $pages; $page++ ) {
@@ -186,7 +191,13 @@ class M24_Sync_Reconcile {
 			if ( ! empty( $records ) ) {
 				$r = M24_Sync_Apply::records( $entity, $records );
 				foreach ( (array) ( $r['results'] ?? array() ) as $one ) {
-					if ( ! empty( $one['applied'] ) ) { $applied++; }
+					if ( ! empty( $one['applied'] ) ) { $applied++; continue; }
+					// Gruende der NICHT angewandten Records zaehlen. Bis 0.11.521 zaehlte der Lauf nur
+					// die Treffer und meldete „3 von 200" — ob die 197 stille No-Ops waren oder
+					// verworfene Datensaetze, stand nirgends. Bei `thread` ist der Unterschied
+					// erheblich: 'noop' ist der Normalfall, 'offer_unknown' ist Verlust.
+					$why = (string) ( $one['reason'] ?? 'unbekannt' );
+					$gruende[ $why ] = (int) ( $gruende[ $why ] ?? 0 ) + 1;
 				}
 			}
 
@@ -203,7 +214,23 @@ class M24_Sync_Reconcile {
 		}
 
 		self::set_last_reconcile_at( $entity, $started );
-		self::log( 'pull', $entity . ': ' . $fetched . ' geholt, ' . $applied . ' angewandt (seit ' . $since . ').' );
+		$detail = '';
+		if ( ! empty( $gruende ) ) {
+			arsort( $gruende );
+			$teile = array();
+			foreach ( $gruende as $g => $n ) { $teile[] = $n . '× ' . $g; }
+			$detail = ' · nicht angewandt: ' . implode( ', ', $teile );
+		}
+		self::log( 'pull', $entity . ': ' . $fetched . ' geholt, ' . $applied . ' angewandt (seit ' . $since . ')' . $detail . '.' );
+		// 'offer_unknown' bei `thread` ist echter Verlust: der Wasserstand wandert weiter, ein
+		// inkrementeller Lauf liefert denselben Eintrag nie wieder. Zurueckzuhalten waere schlimmer —
+		// ein dauerhaft unzuordenbarer Eintrag brachte den Lauf dann in eine Endlosschleife. Also
+		// laut melden; eingesammelt wird er vom naechsten Erstabgleich.
+		if ( ! empty( $gruende['offer_unknown'] ) && class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'sync_reconcile', 'warning', 'Verlaufs-Eintraege ohne passendes Angebot verworfen — holt der naechste Erstabgleich nach', array(
+				'entitaet' => $entity, 'anzahl' => (int) $gruende['offer_unknown'],
+			) );
+		}
 		return array( 'ok' => true, 'fetched' => $fetched, 'applied' => $applied, 'note' => 'ok' );
 	}
 
