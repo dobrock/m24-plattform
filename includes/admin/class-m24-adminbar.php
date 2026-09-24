@@ -54,15 +54,27 @@ class M24_Adminbar {
 		$opts['cache_mobile']            = 1;
 		$opts['do_caching_mobile_files'] = 1;
 		update_option( 'wp_rocket_settings', $opts );
-		update_option( 'm24_rocket_mobile_cache_set', gmdate( 'c' ), false );
-		if ( function_exists( 'rocket_generate_config_file' ) ) {
-			rocket_generate_config_file(); // Rocket liest die Schalter aus seiner Config-Datei, nicht nur aus der Option.
+
+		// Die Sperre wird ERST gesetzt, wenn Rockets Config-Datei neu geschrieben ist. Rocket liest
+		// die Schalter von dort, nicht aus der Option — faellt der Aufruf aus (Rocket noch nicht
+		// geladen, Funktion nicht vorhanden), waere die Option gesetzt und die Config-Datei alt: der
+		// Mobil-Cache bliebe aus, und weil die Sperre steht, versuchte es nie wieder jemand.
+		// update_option auf dieselben Werte ist folgenlos, ein zweiter Lauf also unschaedlich.
+		if ( ! function_exists( 'rocket_generate_config_file' ) ) {
+			return;
 		}
+		rocket_generate_config_file();
+		update_option( 'm24_rocket_mobile_cache_set', gmdate( 'c' ), false );
 		if ( function_exists( 'rocket_clean_domain' ) ) {
 			rocket_clean_domain();
 		}
-		if ( class_exists( 'M24_Error_Log' ) && method_exists( 'M24_Error_Log', 'log' ) ) {
-			M24_Error_Log::log( 'rocket', 'Mobil-Cache eingeschaltet (cache_mobile + do_caching_mobile_files), Cache geleert.' );
+		// M24_Error_Log kennt nur capture(); ein log() gibt es nicht. Mit method_exists davor lief der
+		// Eintrag ins Leere — und weil die Sperre oben genau einmal faellt, haette hinterher nirgends
+		// gestanden, ob und wann geschaltet wurde.
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'rocket', 'info', 'Mobil-Cache eingeschaltet (cache_mobile + do_caching_mobile_files), Config neu geschrieben, Cache geleert.', array(
+				'cache_mobile' => 1, 'do_caching_mobile_files' => 1,
+			) );
 		}
 	}
 
