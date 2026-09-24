@@ -218,6 +218,25 @@ class M24_Sync_Apply {
 				self::log( 'uid_bootstrap', 'desk_order_id ' . $desk_id . ' → ' . $uid );
 			}
 		}
+		// Desk-eigener Auftrag, den WP noch gar nicht kennt. Bis 0.11.518 endete der Weg hier mit
+		// 'not_found': Desk→WP funktionierte ausschliesslich fuer Angebote, die WP selbst erzeugt hatte,
+		// und im Desk angelegte Auftraege (202609120, Sarah Helleu) tauchten in der Angebotsliste nie auf.
+		//
+		// Angelegt wird ueber die Routinen des D-Kanals (M24_Desk_Inbound), nicht ueber eigene: derselbe
+		// Auftrag darf nicht je nach Zulaufweg unterschiedlich in WP landen. Erst die Adoption ueber die
+		// Desk-Nummer, dann die Neuanlage — sonst entsteht eine Dublette zu einer Zeile, die dieselbe
+		// Nummer schon traegt, aber noch keine desk_order_id (so entstand das Paar 2026-1044/1045).
+		if ( ! $o && '' !== $desk_id && class_exists( 'M24_Desk_Inbound' ) ) {
+			$o = self::create_from_desk( $desk_id, $rec );
+			if ( $o ) {
+				$uid = (string) $o->wp_offer_uid;
+				// Die Zeile IST dieser Record — es gibt nichts mehr anzuwenden. Stempel uebernehmen und
+				// fertig; die naechste echte Aenderung laeuft dann durch den normalen Pfad oben.
+				self::adopt( (int) $o->id, $rec );
+				return self::res( $uid, true, max( 1, (int) ( $rec['rev'] ?? 1 ) ), 'created' );
+			}
+		}
+
 		if ( '' === $uid && ! $o ) { return self::res( '', false, 0, 'missing_wp_offer_uid' ); }
 		if ( ! $o ) { return self::res( $uid, false, 0, 'not_found' ); }
 
@@ -691,6 +710,86 @@ class M24_Sync_Apply {
 		if ( '' === $desk_id ) { return null; }
 		$t = M24_Offers::table();
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE desk_order_id = %s LIMIT 1", $desk_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/**
+	 * Desk-eigenen Auftrag in WP spiegeln. Gibt die frische Zeile zurueck, oder null.
+	 *
+	 * Drei Dinge, die hier bewusst so und nicht anders sind:
+	 *
+	 * 1. Ein TOMBSTONE legt nichts an. Einen Auftrag, den WP nie kannte, erst anzulegen, um ihn im
+	 *    selben Atemzug als geloescht zu markieren, erzeugt eine Karteileiche und sonst nichts.
+	 * 2. Feldnamen: der Sync-Vertrag nennt die Desk-Kundennummer `desk_customer_id`, der D-Kanal
+	 *    `customer_id`. Die Uebersetzung steht HIER, wo der Dialektunterschied bekannt ist, und nicht
+	 *    in create_order() — die Methode soll beide Kanaele unveraendert bedienen.
+	 * 3. Die wp_offer_uid vergibt WP (init_row in create_order), nicht der Desk — das ist Abweichung 1
+	 *    des Desk-Vertrags. Der Desk erfaehrt sie ueber M24_Sync_Push::announce_uid(), entkoppelt
+	 *    eingeplant. Ohne diesen Rueckweg bliebe die Zeile fuer immer stumm: der naechste Push laeuft
+	 *    nicht, weil adopt() sie sofort als gesynct verbucht, und die Positionen kaemen nie an —
+	 *    apply_line() findet sein Angebot ausschliesslich ueber die wp_offer_uid.
+	 *
+	 * Die Positionen folgen deshalb erst im naechsten Reconcile-Lauf, nachdem der Desk die uid
+	 * uebernommen hat. Der Cron pusht vor jedem Pull (M24_Sync_Reconcile::run_cron) — genau dafuer.
+	 *
+	 * @return object|null
+	 */
+	private static function create_from_desk( string $desk_id, array $rec ) {
+		// M24_Desk_Inbound fuehrt die Desk-Auftrags-ID als int — der ganze D-Kanal ist darauf gebaut.
+		// Eine nicht-numerische ID wuerde dort zu 0, und alle so angelegten Zeilen trugen denselben
+		// Anker '0': jeder weitere Auftrag faende die erste und schriebe sie um. Lieber nicht anlegen
+		// und es sagen, als eine Zeile mit einem Anker, der auf alles passt.
+		if ( ! ctype_digit( $desk_id ) ) {
+			self::log( 'create_skipped_id', 'Desk-Auftrags-ID "' . $desk_id . '" ist nicht numerisch — Anlage uebersprungen.' );
+			return null;
+		}
+		if ( '' !== trim( (string) ( $rec['deleted_at'] ?? '' ) ) ) {
+			self::log( 'create_skipped_tombstone', 'Desk-Auftrag #' . $desk_id . ' kam bereits als Loeschung — nichts anzulegen.' );
+			return null;
+		}
+
+		$adopted = M24_Desk_Inbound::adopt_by_order_num( (int) $desk_id, $rec );
+		if ( $adopted ) {
+			if ( '' === (string) ( $adopted->wp_offer_uid ?? '' ) ) {
+				M24_Sync_LWW::init_row( (int) $adopted->id, 'desk', (int) $adopted->account_id );
+			}
+			$fresh = self::offer_by_uid( M24_Sync_LWW::offer_uid( (int) $adopted->id ) ) ?: $adopted;
+			self::announce_uid( (int) $adopted->id );
+			return $fresh;
+		}
+
+		$data = $rec;
+		if ( ! isset( $data['customer_id'] ) && isset( $rec['desk_customer_id'] ) ) {
+			$data['customer_id'] = $rec['desk_customer_id'];
+		}
+		$new_id = (int) M24_Desk_Inbound::create_order( (int) $desk_id, $data, array() );
+		if ( $new_id <= 0 ) {
+			self::log( 'create_failed', 'Desk-Auftrag #' . $desk_id . ' konnte nicht angelegt werden.' );
+			return null;
+		}
+
+		$o = self::offer_by_uid( M24_Sync_LWW::offer_uid( $new_id ) );
+		self::log( 'created', 'Desk-Auftrag #' . $desk_id . ' → neues Angebot id ' . $new_id
+			. ' (' . (string) ( $o->offer_no ?? '?' ) . ')' );
+		if ( class_exists( 'M24_Error_Log' ) ) {
+			M24_Error_Log::capture( 'sync_apply', 'info', 'Desk-eigener Auftrag in WP angelegt', array(
+				'desk_order_id' => $desk_id, 'offer_id' => $new_id, 'offer_no' => (string) ( $o->offer_no ?? '' ),
+			) );
+		}
+		self::announce_uid( $new_id );
+		return $o;
+	}
+
+	/**
+	 * Dem Desk die frisch vergebene wp_offer_uid mitteilen — entkoppelt, nie im laufenden Apply.
+	 *
+	 * Direkt zu pushen ginge zweifach schief: der Echo-Schutz (§6) unterdrueckt jeden Push waehrend
+	 * eines Apply, und ein wartender Desk-Call wuerde den Reconcile-Lauf in die Laenge ziehen.
+	 */
+	private static function announce_uid( int $offer_id ): void {
+		if ( $offer_id <= 0 || ! class_exists( 'M24_Sync_Push' ) ) { return; }
+		if ( ! wp_next_scheduled( M24_Sync_Push::ANNOUNCE, array( $offer_id ) ) ) {
+			wp_schedule_single_event( time() + 15, M24_Sync_Push::ANNOUNCE, array( $offer_id ) );
+		}
 	}
 
 	/** Gegenstück für Kunden: Konto über die Desk-Kunden-ID finden (User-Meta aus dem D-Kanal). */

@@ -496,7 +496,7 @@ class M24_Desk_Inbound {
      *
      * @return object|null Die adoptierte Zeile, oder null wenn es nichts zu adoptieren gibt.
      */
-    private static function adopt_by_order_num( int $desk_id, array $data ) {
+    public static function adopt_by_order_num( int $desk_id, array $data ) {
         global $wpdb;
         $t   = M24_Offers::table();
         $num = trim( sanitize_text_field( (string) ( $data['order_num'] ?? $data['ref'] ?? '' ) ) );
@@ -520,7 +520,15 @@ class M24_Desk_Inbound {
         return $o;
     }
 
-    private static function create_order( int $desk_id, array $data, array $stamps ): int {
+    /**
+     * Oeffentlich seit 0.11.519: der LWW-Sync-Applier (M24_Sync_Apply::apply_order) legt Desk-eigene
+     * Auftraege ueber GENAU DIESE Methode an. Ein zweiter, leicht abweichender Anleger waere die Sorte
+     * Fehler, die erst bei divergierenden Daten auffaellt — dieselbe Begruendung, aus der es auch nur
+     * einen Applier gibt.
+     *
+     * $stamps darf leer sein: der Sync-Vertrag kennt nur einen Stempel je Record, keine Feldstempel.
+     */
+    public static function create_order( int $desk_id, array $data, array $stamps ): int {
         global $wpdb;
         $t = M24_Offers::table();
 
@@ -629,7 +637,9 @@ class M24_Desk_Inbound {
             'customer_json' => wp_json_encode( $customer ),
             'items_json'    => wp_json_encode( $items ),
             'extras_json'   => wp_json_encode( array() ),
-            'delivery_time' => '',
+            // Lieferzeit aus dem Record. Stand bis 0.11.519 hart auf '' und wurde erst von einer
+            // spaeteren Aenderung nachgetragen — bei einem Auftrag, der sich nie wieder aendert, nie.
+            'delivery_time' => mb_substr( sanitize_text_field( (string) ( $data['delivery_days'] ?? $data['lieferzeit'] ?? '' ) ), 0, 190 ),
             'tax_mode'      => $vat_mode,
             'tax_rate'      => $rate,
             'tax_note'      => '',

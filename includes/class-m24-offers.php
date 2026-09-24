@@ -47,6 +47,24 @@ class M24_Offers {
 		return '' !== $no && 0 !== strpos( $no, 'E-' );
 	}
 
+	/**
+	 * DESK-AUFTRAG ODER WP-ANGEBOT?
+	 *
+	 * Ein Desk-Auftrag ist im Desk entstanden und wird dort auch versendet: Angebotsmail und PDF macht
+	 * der Desk, WP spiegelt ihn nur, damit Daniel alle Vorgaenge an einer Stelle sieht. Aus WP darf fuer
+	 * diese Zeilen NICHTS an den Kunden hinausgehen — sonst bekaeme er dasselbe Angebot zweimal, in zwei
+	 * Gestalten, mit zwei Nummernkreisen.
+	 *
+	 * Erkennungsmerkmal ist src_json.desk_origin, gesetzt von M24_Desk_Inbound::create_order(). Bewusst
+	 * NICHT die Spalte `origin`: die kippt bei jeder vom Desk angewandten Aenderung auf 'desk' und sagt
+	 * damit etwas ueber die letzte Aenderung, nicht ueber die Herkunft der Zeile.
+	 */
+	public static function ist_desk_auftrag( $o ): bool {
+		if ( ! is_object( $o ) ) { return false; }
+		$src = json_decode( (string) ( $o->src_json ?? '' ), true );
+		return is_array( $src ) && ! empty( $src['desk_origin'] );
+	}
+
 	public static function enabled(): bool {
 		return (bool) (int) get_option( self::FLAG, 0 );
 	}
@@ -355,6 +373,11 @@ class M24_Offers {
 			// Eine Nummer, mehrere Fassungen: ab Fassung 2 steht sie an der Nummer.
 			$o_ver = max( 1, (int) ( $o->offer_version ?? 1 ) );
 			if ( ! $is_draft && $o_ver > 1 ) { $no_disp .= ' · Fassung ' . $o_ver; }
+			// Desk-Auftrag: die Zahl im Badge ist die DESK-Auftragsnummer, keine WP-Angebotsnummer.
+			// Unbeschriftet sieht sie aus wie eine aus unserem Nummernkreis — und genau daran haengt,
+			// welche Aktionen die Karte anbietet und ob aus WP etwas an den Kunden geht.
+			$is_desk = self::ist_desk_auftrag( $o );
+			if ( $is_desk ) { $no_disp = 'Desk-Auftrag ' . ( '' !== trim( (string) $o->desk_order_num ) ? (string) $o->desk_order_num : (string) $o->offer_no ); }
 			// #9: Betrag — immer Netto; Brutto zusätzlich, wenn USt>0 bzw. brutto≠netto.
 			$net_v   = (float) $o->subtotal_net;
 			$gross_v = (float) $o->total_gross;
@@ -457,8 +480,16 @@ class M24_Offers {
 					// Stornieren · Löschen. „Operator öffnen" heißt hier „Ansehen" und öffnet NUR lesend —
 					// ein zweiter Weg, der Inhalt ändert und dabei eine neue Nummer zieht, ist genau der
 					// Fehler vom 08.09. Überarbeitet wird über „Ersetzen".
-					echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a>'
-						. '<a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener" title="Nur ansehen — Änderungen laufen über „Ersetzen".">Ansehen</a>';
+					if ( $is_desk ) {
+						// Kunden-Ansicht und Editor bewusst NICHT: den WP-Kundenlink hat dieser Kunde nie
+						// bekommen, er wuerde das Angebot in einer zweiten Gestalt zeigen — mit WP-Layout,
+						// WP-Fristen und einem „Angebot annehmen"-Knopf, den es fuer diesen Vorgang nicht
+						// gibt. Der Vorgang wird im Desk geoeffnet, nicht hier.
+						echo '<span style="color:#8a929c;font-size:12px;" title="Im Desk angelegt. Angebotsmail und PDF macht der Desk; WP spiegelt den Vorgang nur mit.">Angebot &amp; PDF im Desk</span>';
+					} else {
+						echo '<a href="' . esc_url( self::view_url( (string) $o->token ) ) . '" target="_blank" rel="noopener">Kunden-Ansicht</a>'
+							. '<a href="' . esc_url( self::reopen_url( $o ) ) . '" target="_blank" rel="noopener" title="Nur ansehen — Änderungen laufen über „Ersetzen".">Ansehen</a>';
+					}
 					// Supersede-Ergebnis (Spec §3/§7): das neue Angebot wartet auf den manuellen Versand.
 					// Bewusst kein Auto-Mail — wer ersetzt, will vorher draufschauen.
 					if ( ! empty( $o->needs_resend ) ) {
@@ -477,7 +508,7 @@ class M24_Offers {
 					// TODO (sobald der Desk-Token orders:read hat): den Empfänger zusätzlich frisch aus
 					// GET /api/orders/:id vorbefüllen — Adressen werden oft erst im Desk korrigiert. Bis dahin
 					// ist das editierbare Feld die Absicherung, damit nie stillschweigend die alte Adresse zieht.
-					if ( in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
+					if ( ! $is_desk && in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
 						echo '<a href="' . esc_url( $u_resend ) . '" style="color:#0e447e;" data-m24-resend="' . esc_attr( (string) $o->offer_no ) . '" data-m24-mail="' . esc_attr( (string) ( $cust['email'] ?? '' ) ) . '">Erneut senden</a>';
 					}
 					// Duplizieren: eigenständiger neuer Vorgang, Nummer erst beim Versand.
@@ -584,6 +615,14 @@ class M24_Offers {
 		$o = self::get_by_id( $offer_id );
 		if ( ! $o ) { return array( 'ok' => false, 'msg' => 'Angebot nicht gefunden.', 'id' => 0 ); }
 
+		// src_json wird kopiert (Sprache, Anredeform, Herkunft) — die Desk-Herkunft aber NICHT. Das
+		// Duplikat ist ein eigenstaendiger WP-Vorgang: es zieht eine WP-Nummer und wird aus WP versendet.
+		// Bliebe desk_origin stehen, waere der Entwurf dauerhaft als Desk-Auftrag markiert und liesse
+		// sich nie senden — an einem Angebot, das der Desk gar nicht kennt.
+		$dup_src = json_decode( (string) $o->src_json, true );
+		$dup_src = is_array( $dup_src ) ? $dup_src : array();
+		unset( $dup_src['desk_origin'], $dup_src['desk_customer_id'] );
+
 		$row = array(
 			'offer_no'      => 'E-' . bin2hex( random_bytes( 8 ) ), // Platzhalter, KEIN Sequenz-Verbrauch
 			'token'         => bin2hex( random_bytes( 16 ) ),
@@ -601,7 +640,7 @@ class M24_Offers {
 			'total_gross'   => (float) $o->total_gross,
 			'currency'      => (string) $o->currency,
 			'valid_until'   => null,   // Frist laeuft ab Versand
-			'src_json'      => (string) $o->src_json, // enthaelt Sprache und Anredeform
+			'src_json'      => wp_json_encode( $dup_src ), // Sprache + Anredeform, ohne Desk-Herkunft
 			'created_at'    => current_time( 'mysql', true ),
 			'sent_at'       => null,
 		);
@@ -648,6 +687,7 @@ class M24_Offers {
 	/** Darf dieses Angebot ersetzt werden? Einmal ersetzt → kein zweites Mal (sonst Ketten von Waisen). */
 	public static function can_replace( $o ): bool {
 		return $o
+			&& ! self::ist_desk_auftrag( $o ) // Ersatz zoege eine WP-Nummer und eine WP-Mail nach sich
 			&& empty( $o->deleted_at )
 			&& self::hat_nummer( $o )
 			&& '' === trim( (string) ( $o->superseded_by ?? '' ) )
@@ -771,6 +811,12 @@ class M24_Offers {
 		if ( ! empty( $o->deleted_at ) ) { return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' liegt im Papierkorb — erst wiederherstellen.' ); }
 		if ( ! in_array( (string) $o->status, self::RESEND_STATUS, true ) ) {
 			return array( 'ok' => false, 'msg' => 'Angebot ' . $no . ' hat den Status „' . (string) $o->status . '" — „Erneut senden" gibt es nur für offene/versandte Angebote.' );
+		}
+		// Riegel serverseitig, nicht nur in der Liste: der Knopf ist an Desk-Auftraegen ausgeblendet,
+		// aber die URL ist erratbar, und ein Doppelversand in anderer Gestalt waere gegenueber dem Kunden
+		// der teuerste der moeglichen Fehler.
+		if ( self::ist_desk_auftrag( $o ) ) {
+			return array( 'ok' => false, 'msg' => $no . ' ist ein Desk-Auftrag — Angebotsmail und PDF macht der Desk. Aus WP geht dafür nichts raus.' );
 		}
 
 		$cust = json_decode( (string) $o->customer_json, true ) ?: array();
@@ -2398,6 +2444,10 @@ class M24_Offers {
 		$now = current_time( 'mysql', true );
 		foreach ( (array) $rows as $r ) {
 			$oid = (int) $r->id;
+			// Desk-Auftraege erinnert der Desk, nicht WP. Praktisch greift schon `valid_until IS NOT NULL`
+			// oben (gespiegelte Zeilen tragen keine WP-Frist) — aber auf einen Zufall soll sich ein
+			// Mailversand nicht verlassen.
+			if ( self::ist_desk_auftrag( self::get_by_id( $oid ) ) ) { continue; }
 			// Flag ZUERST setzen (nur wenn noch NULL) → verhindert Doppelversand; bei Mail-Fehler bewusst kein Retry (§7).
 			$claimed = $wpdb->query( $wpdb->prepare(
 				"UPDATE $t SET reminder_sent_at = %s WHERE id = %d AND reminder_sent_at IS NULL", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

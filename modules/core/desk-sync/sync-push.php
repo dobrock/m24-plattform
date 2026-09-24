@@ -26,6 +26,7 @@ class M24_Sync_Push {
 	const ENDPOINT    = '/api/sync/apply';
 	const CRON        = 'm24_sync_push_pending';
 	const EVENT       = 'm24_sync_push_offer';
+	const ANNOUNCE    = 'm24_sync_announce_uid'; // uid-Bootstrap fuer einen frisch gespiegelten Desk-Auftrag
 	const TIMEOUT     = 15;
 	const BATCH       = 25;  // Angebote je Cron-Lauf — hält den Request kurz
 	const MAX_RECORDS = 500; // Desk-Limit. Die Zeilen EINES Auftrags dürfen nie über Calls zerrissen
@@ -37,6 +38,7 @@ class M24_Sync_Push {
 		// Sofort-Push nach jeder lokalen Änderung (M24_Sync_LWW::touch feuert das).
 		add_action( 'm24_sync_touched', array( __CLASS__, 'on_touched' ), 10, 2 );
 		add_action( self::EVENT, array( __CLASS__, 'push_offer' ), 10, 1 );
+		add_action( self::ANNOUNCE, array( __CLASS__, 'announce_uid' ), 10, 1 );
 
 		// Nachzügler: alles, was rev > last_synced_rev hat.
 		add_action( self::CRON, array( __CLASS__, 'run_pending' ) );
@@ -360,6 +362,35 @@ class M24_Sync_Push {
 		$note = empty( $res['ok'] ) ? (string) ( $res['note'] ?? 'Fehler' ) : 'ok';
 		self::log( 'seed_customer_uids', count( $records ) . ' Kunden-uid(s) gepusht, ' . $skipped . ' ohne Desk-Kunden-ID übersprungen · ' . $note );
 		return array( 'ok' => ! empty( $res['ok'] ), 'sent' => count( $records ), 'skipped' => $skipped, 'note' => $note );
+	}
+
+	/**
+	 * uid-Bootstrap fuer einen Auftrag, den WP gerade aus dem Desk gespiegelt hat.
+	 *
+	 * Dasselbe Problem wie bei seed_customer_uids(), nur fuer Auftraege: WP ist laut Vertrag die
+	 * vergebende Seite fuer wp_offer_uid (Abweichung 1), aber beim Desk ankommen tut sie nur ueber
+	 * push_offer() — und das steigt bei `! needs_push()` sofort wieder aus. Genau dieser Fall liegt
+	 * hier vor: M24_Sync_Apply::adopt() verbucht die frische Zeile als gesynct, weil sie ja exakt dem
+	 * gerade empfangenen Record entspricht. Ohne diesen einen aktiven Push kennt der Desk unsere uid
+	 * nie, adoptiert sie nie — und die Positionen des Auftrags finden in apply_line() nie ihr Angebot.
+	 *
+	 * Geschickt wird EIN orders-Record. Er traegt denselben updated_at/rev wie der Record, aus dem die
+	 * Zeile entstanden ist: bei Gleichstand fuehrt der Desk (M24_Sync_LWW::wins), es kann also nichts
+	 * zurueckschlagen, was von drueben kam. Idempotent — ein zweiter Lauf schickt dasselbe Paar.
+	 */
+	public static function announce_uid( $offer_id ): void {
+		$offer_id = (int) $offer_id;
+		if ( $offer_id <= 0 || ! self::enabled() || self::applying() ) { return; }
+		$o = M24_Offers::get_by_id( $offer_id );
+		if ( ! $o ) { return; }
+		$uid = trim( (string) ( $o->wp_offer_uid ?? '' ) );
+		if ( '' === $uid || '' === trim( (string) $o->desk_order_id ) ) {
+			self::log( 'announce_skipped', 'Angebot ' . $offer_id . ' hat keine uid oder keine desk_order_id.' );
+			return;
+		}
+		$res = self::send( 'orders', array( self::order_record( $o ) ) );
+		self::log( empty( $res['ok'] ) ? 'announce_failed' : 'announce_ok',
+			$uid . ' ↔ Desk-Auftrag #' . (string) $o->desk_order_id . ' · ' . (string) ( $res['note'] ?? '' ) );
 	}
 
 	/**
