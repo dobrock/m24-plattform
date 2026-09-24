@@ -26,6 +26,7 @@ class M24_Sync_Reconcile {
 	const ENDPOINT   = '/api/sync/changes';
 	const CRON       = 'm24_sync_reconcile';
 	const OPT_PREFIX = 'm24_sync_last_reconcile_';
+	const OPT_RESULT = 'm24_sync_last_pull_'; // Ergebnis des letzten Laufs je Entitaet, fuer den Monitor
 	const TIMEOUT    = 20;
 	const PAGE       = 200;
 	const MAX_PAGES      = 25;   // Sicherheitsnetz gegen einen Cursor, der nie endet
@@ -64,6 +65,12 @@ class M24_Sync_Reconcile {
 
 	public static function last_reconcile_at( string $entity ): string {
 		return (string) get_option( self::OPT_PREFIX . $entity, '' );
+	}
+
+	/** Ergebnis des letzten Laufs je Entitaet (fuer den Desk-Sync-Monitor). */
+	public static function last_pull_result( string $entity ): array {
+		$r = get_option( self::OPT_RESULT . $entity, array() );
+		return is_array( $r ) ? $r : array();
 	}
 
 	private static function set_last_reconcile_at( string $entity, string $utc ): void {
@@ -222,6 +229,17 @@ class M24_Sync_Reconcile {
 			$detail = ' · nicht angewandt: ' . implode( ', ', $teile );
 		}
 		self::log( 'pull', $entity . ': ' . $fetched . ' geholt, ' . $applied . ' angewandt (seit ' . $since . ')' . $detail . '.' );
+		// Ergebnis festhalten, damit die Gruende nicht nur im Protokoll stehen. „347 von 910" sagt
+		// nichts darueber, WORAN die 563 gescheitert sind — und genau diese Aufschluesselung war der
+		// Befund, den Daniel am 25.09. aus dem Log klauben musste. Der Monitor zeigt sie jetzt.
+		update_option( self::OPT_RESULT . $entity, array(
+			'at'      => gmdate( 'Y-m-d H:i:s' ),
+			'full'    => (bool) $full,
+			'since'   => (string) $since,
+			'fetched' => (int) $fetched,
+			'applied' => (int) $applied,
+			'gruende' => $gruende,
+		), false );
 		// 'offer_unknown' bei `thread` ist echter Verlust: der Wasserstand wandert weiter, ein
 		// inkrementeller Lauf liefert denselben Eintrag nie wieder. Zurueckzuhalten waere schlimmer —
 		// ein dauerhaft unzuordenbarer Eintrag brachte den Lauf dann in eine Endlosschleife. Also

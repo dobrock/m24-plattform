@@ -32,6 +32,30 @@ class M24_Sync_Push {
 	const MAX_RECORDS = 500; // Desk-Limit. Die Zeilen EINES Auftrags dürfen nie über Calls zerrissen
 	                         // werden — die line_uid-Adoption braucht sie als Satz (s. push_offer).
 
+	/**
+	 * Nach so vielen 'unbekannter_auftrag' wird die uid-Meldung fuer ein Angebot eingestellt.
+	 *
+	 * Drei, nicht einer: ein einzelnes 'unbekannter_auftrag' kann ein Zeitproblem sein (der Auftrag
+	 * entsteht drueben gerade, ein Deploy laeuft, eine Charge kam quer). Drei Laeufe hintereinander
+	 * sind kein Zeitproblem mehr. Und nicht unbegrenzt: bei einem HART geloeschten Desk-Auftrag ist
+	 * die Bedingung fuers Ende — der Auftrag taucht auf — nie erfuellbar, die Meldung liefe ewig
+	 * (Testangebote aus dem Juli, zwei Monate lang alle zehn Minuten).
+	 */
+	const ANNOUNCE_STRIKES = 3;
+
+	/**
+	 * Antwortgruende des Desks (applyOrder), Wortschatz laut BRIDGE_App.md 25.09. 09:10.
+	 *
+	 * NUR 'unbekannter_auftrag' ist ein Strike. Pauschal auf applied:false zu zaehlen waere der
+	 * Fehler, vor dem das App-Fenster ausdruecklich warnt: 'lww_aelter' ist der HAEUFIGSTE gesunde
+	 * Ausgang ueberhaupt — der Desk haelt den neueren Stand —, und wer darauf zaehlt, stellt die
+	 * Meldung ausgerechnet fuer die Auftraege ein, bei denen alles stimmt.
+	 */
+	const REASON_STRIKE  = 'unbekannter_auftrag'; // Auftrag unter keinem der drei Schluessel gefunden
+	const REASON_RESET   = 'uid_adoptiert';       // Desk hat die uid uebernommen → Zaehler auf 0
+	const REASON_ALARM   = 'uid_kollision';       // Zielauftrag traegt eine ANDERE uid → sofort melden
+	const REASONS_GESUND = array( 'lww_aelter', 'already_deleted', 'kein_key' );
+
 	public static function init() {
 		// Einmaliger Initial-Seed der Kunden-uids (Admin-Button in der Angebote-Liste).
 		add_action( 'admin_post_m24_sync_seed_customers', array( __CLASS__, 'handle_seed_customers' ) );
@@ -388,9 +412,97 @@ class M24_Sync_Push {
 			self::log( 'announce_skipped', 'Angebot ' . $offer_id . ' hat keine uid oder keine desk_order_id.' );
 			return;
 		}
+		if ( self::announce_aufgegeben( $o ) ) {
+			self::log( 'announce_aufgegeben', $uid . ' — nach ' . self::ANNOUNCE_STRIKES . ' erfolglosen Laeufen eingestellt.' );
+			return;
+		}
 		$res = self::send( 'orders', array( self::order_record( $o ) ) );
 		self::log( empty( $res['ok'] ) ? 'announce_failed' : 'announce_ok',
 			$uid . ' ↔ Desk-Auftrag #' . (string) $o->desk_order_id . ' · ' . (string) ( $res['note'] ?? '' ) );
+		if ( ! empty( $res['ok'] ) ) {
+			self::bewerte_announce( (array) ( $res['results'] ?? array() ), array( $uid => $offer_id ) );
+		}
+	}
+
+	/* ── Drei-Strikes fuer den uid-Bootstrap ──────────────────────────────── */
+
+	/** Ist die uid-Meldung fuer dieses Angebot eingestellt? */
+	public static function announce_aufgegeben( $o ): bool {
+		return (int) ( $o->announce_fail ?? 0 ) >= self::ANNOUNCE_STRIKES;
+	}
+
+	/**
+	 * Die Antwort des Desks auf eine uid-Meldung auswerten und den Zaehler je Angebot fuehren.
+	 *
+	 * Der Desk antwortet je Record mit {key, applied, reason}; `key` ist die wp_offer_uid. Vier
+	 * Ausgaenge, und sie sind bewusst NICHT „gut/schlecht" sortiert, sondern nach dem, was sie ueber
+	 * den Auftrag drueben aussagen:
+	 *
+	 *   uid_adoptiert       → der Desk kennt uns. Zaehler auf 0, auch wenn er vorher bei 2 stand.
+	 *   unbekannter_auftrag → Strike. Bei Erreichen von ANNOUNCE_STRIKES einmal ins Fehlerprotokoll
+	 *                         und danach Ruhe — nicht bei jedem weiteren Lauf erneut, sonst waere die
+	 *                         Meldung genau das Rauschen, das sie abstellen soll.
+	 *   uid_kollision       → KEIN Strike, sondern SOFORT ins Fehlerprotokoll. Zwei WP-Angebote zeigen
+	 *                         auf denselben Desk-Auftrag; das braucht einen Menschen. Es nach drei
+	 *                         Laeufen still einzustellen hiesse, eine falsche Zuordnung zu begraben.
+	 *   alles andere        → kein Strike. 'lww_aelter', 'already_deleted' und 'kein_key' sind
+	 *                         Normalbetrieb. Ein UNBEKANNTER Grund zaehlt ebenfalls nicht — was wir
+	 *                         nicht verstehen, wird gemeldet, nicht bestraft.
+	 *
+	 * @param array $results  Antwort-Records des Desks.
+	 * @param array $by_uid   wp_offer_uid => offer_id, fuer die Zuordnung der Antworten.
+	 */
+	private static function bewerte_announce( array $results, array $by_uid ): void {
+		global $wpdb;
+		$t = M24_Offers::table();
+		foreach ( $results as $r ) {
+			$uid = (string) ( $r['key'] ?? '' );
+			$id  = (int) ( $by_uid[ $uid ] ?? 0 );
+			if ( $id <= 0 ) { continue; }
+			$reason = (string) ( $r['reason'] ?? '' );
+
+			// Angenommen ist angenommen: der Desk kennt den Auftrag, egal unter welchem Grund.
+			if ( ! empty( $r['applied'] ) || self::REASON_RESET === $reason ) {
+				$wpdb->query( $wpdb->prepare( "UPDATE $t SET announce_fail = 0 WHERE id = %d AND announce_fail > 0", $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				continue;
+			}
+
+			if ( self::REASON_ALARM === $reason ) {
+				self::log( 'announce_kollision', $uid . ' — der Desk-Auftrag traegt bereits eine andere wp_offer_uid.' );
+				if ( class_exists( 'M24_Error_Log' ) ) {
+					M24_Error_Log::capture( 'sync_push', 'error', 'uid-Kollision: zwei WP-Angebote zeigen auf denselben Desk-Auftrag', array(
+						'wp_offer_uid' => $uid, 'offer_id' => $id, 'offer_no' => (string) self::offer_no( $id ),
+					) );
+				}
+				continue;
+			}
+
+			if ( self::REASON_STRIKE !== $reason ) {
+				if ( '' !== $reason && ! in_array( $reason, self::REASONS_GESUND, true ) ) {
+					self::log( 'announce_reason_unbekannt', $uid . ' → "' . $reason . '" steht in keinem Vertrag — nicht gezaehlt.' );
+				}
+				continue;
+			}
+
+			$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT announce_fail FROM $t WHERE id = %d", $id ) ) + 1; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$n = min( 255, $n );
+			$wpdb->query( $wpdb->prepare( "UPDATE $t SET announce_fail = %d WHERE id = %d", $n, $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			self::log( 'announce_strike', $uid . ' → unbekannter_auftrag (' . $n . '/' . self::ANNOUNCE_STRIKES . ')' );
+
+			if ( self::ANNOUNCE_STRIKES === $n && class_exists( 'M24_Error_Log' ) ) {
+				M24_Error_Log::capture( 'sync_push', 'warning', 'uid-Meldung eingestellt — der Desk kennt diesen Auftrag nach drei Laeufen nicht', array(
+					'wp_offer_uid'  => $uid,
+					'offer_id'      => $id,
+					'offer_no'      => (string) self::offer_no( $id ),
+					'was_nun'       => 'Der Desk-Auftrag ist vermutlich hart geloescht. Angebot pruefen und ggf. in den Papierkorb legen.',
+				) );
+			}
+		}
+	}
+
+	private static function offer_no( int $id ): string {
+		global $wpdb;
+		return (string) $wpdb->get_var( $wpdb->prepare( 'SELECT offer_no FROM ' . M24_Offers::table() . ' WHERE id = %d', $id ) ); // phpcs:ignore WordPress.DB
 	}
 
 	/**
@@ -416,20 +528,28 @@ class M24_Sync_Push {
 		if ( ! self::enabled() || self::applying() ) {
 			return array( 'ok' => false, 'sent' => 0, 'note' => 'Sync nicht scharf oder Apply laeuft.' );
 		}
-		$t   = M24_Offers::table();
+		$t = M24_Offers::table();
+		// announce_fail < ANNOUNCE_STRIKES: aufgegebene Angebote gar nicht erst einsammeln. Das ist die
+		// Stelle, an der die Drei-Strikes-Regel tatsaechlich Last spart — die Einzelmeldung laeuft nur
+		// nach einer Neuanlage, dieser Sammellauf bei jedem Abgleich.
 		$ids = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			"SELECT id FROM $t
 			  WHERE wp_offer_uid <> '' AND desk_order_id <> '' AND deleted_at IS NULL AND src_json LIKE %s
+			    AND announce_fail < %d
 			  ORDER BY id DESC LIMIT %d",
 			'%' . $wpdb->esc_like( '"desk_origin":true' ) . '%',
+			self::ANNOUNCE_STRIKES,
 			max( 1, $limit )
 		) );
 		if ( empty( $ids ) ) { return array( 'ok' => true, 'sent' => 0, 'note' => 'keine gespiegelten Desk-Auftraege' ); }
 
 		$records = array();
+		$by_uid  = array();
 		foreach ( (array) $ids as $id ) {
 			$o = M24_Offers::get_by_id( (int) $id );
-			if ( $o ) { $records[] = self::order_record( $o ); }
+			if ( ! $o ) { continue; }
+			$records[] = self::order_record( $o );
+			$by_uid[ (string) $o->wp_offer_uid ] = (int) $o->id;
 		}
 		if ( empty( $records ) ) { return array( 'ok' => true, 'sent' => 0, 'note' => 'nichts zu melden' ); }
 
@@ -437,6 +557,9 @@ class M24_Sync_Push {
 		$note = empty( $res['ok'] ) ? (string) ( $res['note'] ?? 'Fehler' ) : 'ok';
 		self::log( empty( $res['ok'] ) ? 'announce_bulk_failed' : 'announce_bulk',
 			count( $records ) . ' Desk-Auftrag-uid(s) gemeldet · ' . $note );
+		if ( ! empty( $res['ok'] ) ) {
+			self::bewerte_announce( (array) ( $res['results'] ?? array() ), $by_uid );
+		}
 		return array( 'ok' => ! empty( $res['ok'] ), 'sent' => count( $records ), 'note' => $note );
 	}
 

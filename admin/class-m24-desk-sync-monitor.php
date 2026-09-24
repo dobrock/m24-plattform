@@ -84,6 +84,40 @@ class M24_Desk_Sync_Monitor {
             }
         }
 
+        // ── Letzter Abgleich je Entitaet, MIT den Gruenden der nicht angewandten Records.
+        //
+        // „347 von 910 angewandt" beantwortet die falsche Frage. Entscheidend ist, WORAN die
+        // uebrigen 563 gescheitert sind: 'noop' ist Normalbetrieb (der Eintrag lag schon vor),
+        // 'not_found' heisst fehlendes Angebot, 'line_uid_vorlaeufig' heisst wartende Adoption,
+        // 'offer_unknown' ist Verlust. Vier voellig verschiedene Lagen hinter derselben Zahl.
+        if ( class_exists( 'M24_Sync_Reconcile' ) ) {
+            $zeilen = array();
+            foreach ( M24_Sync_Reconcile::ENTITIES as $ent ) {
+                $r = M24_Sync_Reconcile::last_pull_result( $ent );
+                if ( empty( $r ) ) { continue; }
+                $g = array();
+                foreach ( (array) ( $r['gruende'] ?? array() ) as $grund => $n ) {
+                    $g[] = (int) $n . '× ' . $grund;
+                }
+                $zeilen[] = '<tr><td><code>' . esc_html( $ent ) . '</code></td>'
+                    . '<td>' . (int) ( $r['applied'] ?? 0 ) . ' / ' . (int) ( $r['fetched'] ?? 0 ) . '</td>'
+                    . '<td>' . ( empty( $g ) ? '—' : esc_html( implode( ' · ', $g ) ) ) . '</td>'
+                    . '<td style="color:#8a929c;">' . esc_html( (string) ( $r['at'] ?? '' ) ) . ' UTC'
+                    . ( ! empty( $r['full'] ) ? ' · Erstabgleich' : '' ) . '</td></tr>';
+            }
+            if ( ! empty( $zeilen ) ) {
+                echo '<h2 style="margin-top:22px;">Letzter Abgleich</h2>';
+                echo '<table class="widefat striped" style="max-width:1000px;"><thead><tr>'
+                    . '<th style="width:110px;">Entität</th><th style="width:110px;">angewandt</th>'
+                    . '<th>nicht angewandt</th><th style="width:230px;">Stand</th></tr></thead><tbody>'
+                    . implode( '', $zeilen ) . '</tbody></table>'; // phpcs:ignore WordPress.Security.EscapeOutput
+                echo '<p class="description" style="margin:6px 0 0;">'
+                    . '<code>noop</code> = lag schon vor (Normalbetrieb) · <code>lww_aelter</code> = lokaler Stand ist neuer (gesund) · '
+                    . '<code>line_uid_vorlaeufig</code> = Position wartet auf die uid-Adoption · '
+                    . '<code>not_found</code> / <code>offer_unknown</code> = Angebot zur uid fehlt hier.</p>';
+            }
+        }
+
         // ── Gespiegelte Desk-Auftraege. Die Zahl rechts ist der Gradmesser fuer den uid-Bootstrap:
         // ein Auftrag ohne eine einzige Position heisst fast immer, dass der Desk unsere wp_offer_uid
         // noch nicht adoptiert hat — M24_Sync_Apply::apply_line() findet sein Angebot ausschliesslich
