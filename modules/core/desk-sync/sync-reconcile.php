@@ -85,11 +85,58 @@ class M24_Sync_Reconcile {
 	 * bevor ihre Positionen ankommen) — und für den Button-Pfad vorher noch die offenen Pushes, damit der
 	 * Desk unsere line_uids adoptiert hat, bevor wir seine lesen.
 	 */
-	public static function pull_all( bool $push_first = true ): array {
+	public static function pull_all( bool $push_first = true, bool $full = false ): array {
 		if ( $push_first && class_exists( 'M24_Sync_Push' ) ) { M24_Sync_Push::run_pending(); }
 		$out = array();
-		foreach ( self::ENTITIES as $e ) { $out[ $e ] = self::pull( $e ); }
+		foreach ( self::ENTITIES as $e ) {
+			$out[ $e ] = self::pull( $e, null, $full );
+			// ZWISCHEN orders und offer_lines: dem Desk die uids der eben gespiegelten Desk-Auftraege
+			// melden. Die Reihenfolge ist der ganze Witz — apply_line() findet sein Angebot
+			// ausschliesslich ueber die wp_offer_uid, und die vergibt WP erst beim Anlegen des Kopfes.
+			// Wuerde das erst nach dem Lauf passieren (eingeplantes Einzel-Event, +15 s), kaemen die
+			// Positionen im selben Lauf garantiert ins Leere und erst eine Runde spaeter an.
+			//
+			// Nicht bei JEDEM Lauf: der Voll-Pull ist der Reparaturweg und meldet immer, inkrementell
+			// nur, wenn sich am Kopf etwas getan hat ODER noch gespiegelte Auftraege ohne eine einzige
+			// Position herumliegen. Letzteres ist die Selbstheilung — sie hoert von allein auf, sobald
+			// die Zeilen angekommen sind, und erspart einen Handgriff, den sonst niemand mehr macht.
+			if ( 'orders' === $e
+				&& ( $full || (int) ( $out[ $e ]['applied'] ?? 0 ) > 0 || self::desk_orders_without_lines() > 0 ) ) {
+				self::announce_desk_uids();
+			}
+		}
 		return $out;
+	}
+
+	/**
+	 * Gespiegelte Desk-Auftraege, an denen keine einzige Position haengt.
+	 *
+	 * Das ist der sichtbare Abdruck eines uid-Bootstraps, der noch nicht durch ist: der Kopf steht in
+	 * WP, die Zeilen finden ihn nicht. Ein Auftrag kann legitim ohne Positionen sein — dann meldet der
+	 * Lauf seine uid eben weiter mit, was nichts kostet und nichts kaputtmacht.
+	 */
+	private static function desk_orders_without_lines(): int {
+		global $wpdb;
+		$t = M24_Offers::table();
+		return (int) $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT COUNT(*) FROM $t
+			  WHERE deleted_at IS NULL AND desk_order_id <> '' AND src_json LIKE %s
+			    AND ( items_json IS NULL OR items_json = '' OR items_json = '[]' )",
+			'%' . $wpdb->esc_like( '"desk_origin":true' ) . '%'
+		) );
+	}
+
+	/** uid-Bootstrap der gespiegelten Desk-Auftraege — EIN Call, synchron, Fehler brechen den Lauf nie ab. */
+	private static function announce_desk_uids(): void {
+		if ( ! class_exists( 'M24_Sync_Push' ) ) { return; }
+		try {
+			$r = M24_Sync_Push::announce_desk_orders();
+			if ( (int) ( $r['sent'] ?? 0 ) > 0 ) {
+				self::log( 'announce', (int) $r['sent'] . ' Desk-Auftrag-uid(s) gemeldet · ' . (string) ( $r['note'] ?? '' ) );
+			}
+		} catch ( \Throwable $e ) {
+			self::log( 'announce_error', $e->getMessage() );
+		}
 	}
 
 	/**
@@ -183,8 +230,7 @@ class M24_Sync_Reconcile {
 			M24_Sync_Push::seed_customer_uids();
 			M24_Sync_Push::run_pending();
 		}
-		$out = array();
-		foreach ( self::ENTITIES as $e ) { $out[ $e ] = self::pull( $e, null, true ); }
+		$out = self::pull_all( false, true ); // Push ist oben schon gelaufen; Voll-Pull ohne Wasserstand
 		self::log( 'full_pull', self::summary( $out ) );
 		return $out;
 	}

@@ -394,6 +394,53 @@ class M24_Sync_Push {
 	}
 
 	/**
+	 * ALLE gespiegelten Desk-Auftraege auf einmal ankuendigen — EIN Call statt 36.
+	 *
+	 * Warum es das zusaetzlich zum eingeplanten Einzel-Event braucht: der Voll-Pull holt orders,
+	 * offer_lines und customers in EINEM Request. Die Einzel-Events sind auf +15 s geplant und koennen
+	 * darin unmoeglich gefeuert haben, bevor die Positionen gezogen werden — der Desk kennt unsere uid
+	 * zu dem Zeitpunkt also noch nicht, und apply_line() findet fuer jede Zeile kein Angebot. Genau das
+	 * war der Befund vom 24.09.: 36 Auftraege angelegt, 30 davon ohne eine einzige Position.
+	 *
+	 * Deshalb laeuft dieser Schritt im Reconcile ZWISCHEN orders und offer_lines (M24_Sync_Reconcile),
+	 * synchron. Danach kennt der Desk die uids und liefert die Zeilen im selben Lauf unter ihnen aus.
+	 *
+	 * Idempotent: ein zweiter Lauf schickt dieselben Paare, der Desk haengt eine bestehende uid laut
+	 * Vertrag nie um. Die Records tragen den Stempel, den WP vom Desk uebernommen hat — bei Gleichstand
+	 * fuehrt der Desk, es kann also nichts zurueckschlagen, was von drueben kam.
+	 *
+	 * @return array{ok:bool,sent:int,note:string}
+	 */
+	public static function announce_desk_orders( int $limit = 500 ): array {
+		global $wpdb;
+		if ( ! self::enabled() || self::applying() ) {
+			return array( 'ok' => false, 'sent' => 0, 'note' => 'Sync nicht scharf oder Apply laeuft.' );
+		}
+		$t   = M24_Offers::table();
+		$ids = $wpdb->get_col( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT id FROM $t
+			  WHERE wp_offer_uid <> '' AND desk_order_id <> '' AND deleted_at IS NULL AND src_json LIKE %s
+			  ORDER BY id DESC LIMIT %d",
+			'%' . $wpdb->esc_like( '"desk_origin":true' ) . '%',
+			max( 1, $limit )
+		) );
+		if ( empty( $ids ) ) { return array( 'ok' => true, 'sent' => 0, 'note' => 'keine gespiegelten Desk-Auftraege' ); }
+
+		$records = array();
+		foreach ( (array) $ids as $id ) {
+			$o = M24_Offers::get_by_id( (int) $id );
+			if ( $o ) { $records[] = self::order_record( $o ); }
+		}
+		if ( empty( $records ) ) { return array( 'ok' => true, 'sent' => 0, 'note' => 'nichts zu melden' ); }
+
+		$res  = self::send( 'orders', $records );
+		$note = empty( $res['ok'] ) ? (string) ( $res['note'] ?? 'Fehler' ) : 'ok';
+		self::log( empty( $res['ok'] ) ? 'announce_bulk_failed' : 'announce_bulk',
+			count( $records ) . ' Desk-Auftrag-uid(s) gemeldet · ' . $note );
+		return array( 'ok' => ! empty( $res['ok'] ), 'sent' => count( $records ), 'note' => $note );
+	}
+
+	/**
 	 * Was sagt der Desk zu einer Charge? 'unknown' nur, wenn er den Auftrag gar nicht kennt — dann ist
 	 * W1 dran. Ein 'lww_aelter' bedeutet, dass drüben schon der gleiche oder ein neuerer Stand liegt:
 	 * für uns erledigt.

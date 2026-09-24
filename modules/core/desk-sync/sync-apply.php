@@ -62,6 +62,11 @@ class M24_Sync_Apply {
 	 */
 	const ORDER_FIELDS = array(
 		'status'        => 'status',
+		// Die Desk-Auftragsnummer. Sie stand hier nicht, weil sie beim Anlegen einmal gesetzt wird —
+		// nur kam sie bei manchen Auftraegen erst SPAETER (im Desk noch nicht vergeben, als WP die Zeile
+		// zog). Ohne dieses Feld blieb desk_order_num fuer immer leer und die Karte zeigte die
+		// Ausweichnummer D-<id> statt der echten. Sonderbehandlung unten: nie mit Leer ueberschreiben.
+		'order_num'     => 'desk_order_num',
 		'delivery_days' => 'delivery_time',
 		'payment_date'  => 'payment_date',
 		'carrier'       => 'carrier',
@@ -290,6 +295,14 @@ class M24_Sync_Apply {
 				$cols[ $col ] = $st;
 				continue;
 			}
+			if ( 'order_num' === $field ) {
+				// Eine Nummer wird nachgetragen, nie geloescht: schickt der Desk das Feld leer mit,
+				// bleibt die vorhandene stehen.
+				$num = mb_substr( sanitize_text_field( (string) $v ), 0, 40 );
+				if ( '' === $num ) { continue; }
+				$cols['desk_order_num'] = $num;
+				continue;
+			}
 			if ( 'ship_name' === $field ) {
 				// Der Desk führt einen einzeiligen Empfängernamen; WP hat drei Spalten dafür.
 				$parts = preg_split( '/\s+/', trim( sanitize_text_field( (string) $v ) ) ) ?: array();
@@ -301,6 +314,20 @@ class M24_Sync_Apply {
 				$cols[ $col ] = '' !== (string) $v ? M24_Sync_LWW::from_iso( (string) $v ) : null;
 			} else {
 				$cols[ $col ] = is_scalar( $v ) ? sanitize_text_field( (string) $v ) : null;
+			}
+		}
+
+		// customer_uid eines GESPIEGELTEN Auftrags nachtragen. Dasselbe wie in create_from_desk(), nur
+		// fuer Zeilen, die schon stehen: die 36 Auftraege aus dem Voll-Pull vom 24.09. tragen als
+		// Gast-Kunden noch die Zufalls-uid aus init_row() und wuerden ihre customers-Zeile sonst nie
+		// wiederfinden — namenlose Karten, bis jemand sie von Hand verknuepft.
+		//
+		// Nur bei Desk-Auftraegen und nur ohne WP-Konto: fuer ein in WP entstandenes Angebot ist die
+		// von WP vergebene uid die vereinbarte, und die wuerde hier sonst von der Gegenseite umgehaengt.
+		if ( class_exists( 'M24_Offers' ) && M24_Offers::ist_desk_auftrag( $o ) && (int) $o->account_id <= 0 ) {
+			$rec_cuid = trim( (string) ( $rec['customer_uid'] ?? '' ) );
+			if ( '' !== $rec_cuid && $rec_cuid !== (string) $o->customer_uid ) {
+				$cols['customer_uid'] = $rec_cuid;
 			}
 		}
 
@@ -671,7 +698,11 @@ class M24_Sync_Apply {
 			"SELECT id, customer_json FROM $t WHERE customer_uid = %s AND deleted_at IS NULL AND status IN ('entwurf','offen','versandt','angenommen')",
 			$customer_uid
 		) );
-		$map = array( 'email' => 'email', 'firma' => 'firma', 'strasse' => 'strasse', 'plz' => 'plz', 'ort' => 'ort', 'land' => 'land', 'tel' => 'telefon', 'uid' => 'ustid' );
+		// `name` stand hier nicht drin — acht Felder wurden gespiegelt, ausgerechnet der Name nicht.
+		// Bei einem WP-eigenen Angebot faellt das nie auf: den Namen hat der Operator beim Anlegen
+		// getippt. Bei einem im Desk angelegten Auftrag ist die customers-Zeile die EINZIGE Quelle —
+		// steht auf der orders-Zeile kein `cust`, blieb die Karte namenlos (202609123, Befund 24.09.).
+		$map = array( 'email' => 'email', 'name' => 'name', 'firma' => 'firma', 'strasse' => 'strasse', 'plz' => 'plz', 'ort' => 'ort', 'land' => 'land', 'tel' => 'telefon', 'uid' => 'ustid' );
 		$n   = 0;
 		foreach ( (array) $rows as $r ) {
 			$cust  = json_decode( (string) $r->customer_json, true );
@@ -734,6 +765,7 @@ class M24_Sync_Apply {
 	 * @return object|null
 	 */
 	private static function create_from_desk( string $desk_id, array $rec ) {
+		global $wpdb;
 		// M24_Desk_Inbound fuehrt die Desk-Auftrags-ID als int — der ganze D-Kanal ist darauf gebaut.
 		// Eine nicht-numerische ID wuerde dort zu 0, und alle so angelegten Zeilen trugen denselben
 		// Anker '0': jeder weitere Auftrag faende die erste und schriebe sie um. Lieber nicht anlegen
@@ -767,7 +799,22 @@ class M24_Sync_Apply {
 			return null;
 		}
 
-		$o = self::offer_by_uid( M24_Sync_LWW::offer_uid( $new_id ) );
+		// ── customer_uid: die des Records uebernehmen, wenn KEIN WP-Konto dahintersteht.
+		//
+		// init_row() vergibt sie in create_order(): mit Konto deterministisch die Konto-ID, ohne Konto
+		// eine ZUFALLS-UUID. Fuer einen im Desk angelegten Gast-Kunden ist das eine Nummer, die sonst
+		// niemand kennt — sync_offer_snapshots() sucht seine Angebote ueber customer_uid und fand sie
+		// nie. Ergebnis: die customers-Zeile kam an, der Auftrag blieb trotzdem namen- und adresslos.
+		//
+		// Mit Konto NICHT anfassen: dort ist die WP-Schreibweise die vereinbarte, und apply_customer()
+		// leitet eingehende Kunden ueber denselben Weg auf sie zurueck.
+		$o        = self::offer_by_uid( M24_Sync_LWW::offer_uid( $new_id ) );
+		$rec_cuid = trim( (string) ( $rec['customer_uid'] ?? '' ) );
+		if ( $o && '' !== $rec_cuid && (int) $o->account_id <= 0 && $rec_cuid !== (string) $o->customer_uid ) {
+			$wpdb->update( M24_Offers::table(), array( 'customer_uid' => $rec_cuid ), array( 'id' => $new_id ) );
+			$o->customer_uid = $rec_cuid;
+			self::log( 'customer_uid_adopted', 'Angebot ' . $new_id . ' → customer_uid ' . $rec_cuid . ' (Gast-Kunde, kein WP-Konto).' );
+		}
 		self::log( 'created', 'Desk-Auftrag #' . $desk_id . ' → neues Angebot id ' . $new_id
 			. ' (' . (string) ( $o->offer_no ?? '?' ) . ')' );
 		if ( class_exists( 'M24_Error_Log' ) ) {

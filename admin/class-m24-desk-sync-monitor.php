@@ -84,6 +84,28 @@ class M24_Desk_Sync_Monitor {
             }
         }
 
+        // ── Gespiegelte Desk-Auftraege. Die Zahl rechts ist der Gradmesser fuer den uid-Bootstrap:
+        // ein Auftrag ohne eine einzige Position heisst fast immer, dass der Desk unsere wp_offer_uid
+        // noch nicht adoptiert hat — M24_Sync_Apply::apply_line() findet sein Angebot ausschliesslich
+        // ueber die uid. Steht die Zahl nach zwei Abgleichen unveraendert, liegt es an der Gegenseite
+        // und nicht an uns; dann gehoert die Frage ins Desk-Fenster, nicht in einen weiteren Versuch.
+        global $wpdb;
+        $ot   = M24_Offers::table();
+        $like = '%' . $wpdb->esc_like( '"desk_origin":true' ) . '%';
+        $dsk  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $ot WHERE deleted_at IS NULL AND src_json LIKE %s", $like ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $leer = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $ot WHERE deleted_at IS NULL AND src_json LIKE %s AND ( items_json IS NULL OR items_json = '' OR items_json = '[]' )", $like ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( $dsk > 0 ) {
+            echo '<h2 style="margin-top:22px;">Desk-eigene Aufträge</h2>';
+            echo '<p style="margin:0;">' . (int) $dsk . ' gespiegelt';
+            if ( $leer > 0 ) {
+                echo ' · <strong style="color:#b45309;">' . (int) $leer . ' noch ohne Positionen</strong>'
+                    . '<br><span class="description">Solange der Desk unsere <code>wp_offer_uid</code> nicht adoptiert hat, finden seine Positionen ihr Angebot nicht. Der nächste Abgleich meldet die uids erneut — bleibt die Zahl über zwei Läufe stehen, adoptiert der Desk sie nicht und die Klärung gehört dorthin.</span>';
+            } else {
+                echo ' · <strong style="color:#1a7a3c;">alle mit Positionen</strong>';
+            }
+            echo '</p>';
+        }
+
         echo '<h2 style="margin-top:22px;">Werkzeuge</h2>';
         echo '<p class="description" style="margin:0 0 10px;">Wartungsaktionen mit Desk-Verkehr. Der Erstabgleich ist für die einmalige Verknüpfung gedacht; im Normalbetrieb erledigt das der 10-Minuten-Abgleich.</p>';
         echo '<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">';
