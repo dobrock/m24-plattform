@@ -620,8 +620,18 @@ class M24_Sync_Apply {
 		// nur die DE-formatierte Anzeige), `note` die Artikelnummer, `is25a` die Differenzbesteuerung.
 		if ( array_key_exists( 'art', $rec ) )    { $line['title']   = sanitize_text_field( (string) $rec['art'] ); }
 		if ( array_key_exists( 'note', $rec ) )   { $line['art_nr']  = sanitize_text_field( (string) $rec['note'] ); }
+		//
+		// `amt` traegt aber nur eine Zeile, die WP selbst angelegt hat (map_item schreibt es). Eine im Desk
+		// angelegte Position kennt es nicht: der Desk-Editor (src/app.js, readItems) speichert art/qty/price/
+		// gesamt, `price` als DE-String "12.500,00", `qty` als Eingabetext. Fuer desk_origin (0.11.523) hiess
+		// das: unit_price blieb auf 0,00 — gemeldet an 202609120 (Helleu), drei Positionen 0 EUR statt 12.500/50/134.
+		// Deshalb: `amt`, wenn da, sonst `price` parsen. `qty` bleibt (int) — das entspricht parseFloat() im Desk.
 		if ( array_key_exists( 'qty', $rec ) )    { $line['qty']     = max( 1, (int) $rec['qty'] ); }
-		if ( array_key_exists( 'amt', $rec ) )    { $line['unit_price'] = round( (float) $rec['amt'], 2 ); }
+		if ( array_key_exists( 'amt', $rec ) && null !== $rec['amt'] && '' !== trim( (string) $rec['amt'] ) ) {
+			$line['unit_price'] = round( (float) $rec['amt'], 2 );
+		} elseif ( array_key_exists( 'price', $rec ) && '' !== trim( (string) $rec['price'] ) ) {
+			$line['unit_price'] = round( self::num( $rec['price'] ), 2 );
+		}
 		if ( array_key_exists( 'is25a', $rec ) )  { $line['tax25a']  = (bool) $rec['is25a']; }
 		if ( array_key_exists( 'src_pid', $rec ) && ctype_digit( (string) $rec['src_pid'] ) ) { $line['teil_id'] = (int) $rec['src_pid']; }
 		foreach ( array( 'hs_code', 'weight_kg' ) as $k ) {
@@ -638,6 +648,20 @@ class M24_Sync_Apply {
 		$line['rev']        = (int) ( $rec['rev'] ?? 1 );
 		$line['origin']     = 'desk';
 		return $line;
+	}
+
+	/**
+	 * Zahl aus dem Desk. Dieselbe Regel wie parsePreis() in sync-lww.js — NICHT M24_Desk_Inbound::
+	 * parse_de_price(): der liest "12.500" als 12,5, der Desk als 12.500. Beide Seiten muessen dieselbe
+	 * Zahl sehen, sonst weichen die Summen auseinander.
+	 */
+	private static function num( $v ): float {
+		if ( is_int( $v ) || is_float( $v ) ) { return (float) $v; }
+		$s = preg_replace( '/[€\s]/u', '', (string) $v );
+		if ( '' === $s ) { return 0.0; }
+		if ( preg_match( '/^\d{1,3}(\.\d{3})*(,\d+)?$/', $s ) ) { return (float) str_replace( ',', '.', str_replace( '.', '', $s ) ); }
+		if ( preg_match( '/^\d{1,3}(,\d{3})*(\.\d+)?$/', $s ) ) { return (float) str_replace( ',', '', $s ); }
+		return (float) str_replace( ',', '.', $s );
 	}
 
 	/* ── customers ────────────────────────────────────────────────────────── */
