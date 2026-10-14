@@ -49,6 +49,9 @@ class M24_Catalog_Admin_List {
 		// Row-Actions + Quick-View
 		add_filter( 'post_row_actions',  array( __CLASS__, 'row_actions' ), 10, 2 );
 		add_action( 'admin_action_m24_teil_action', array( __CLASS__, 'handle_action' ) );
+		// Duplizieren auch direkt im Bearbeiten-Bildschirm (Kasten „Veröffentlichen"), Daniel 14.10.2026
+		add_action( 'post_submitbox_start', array( __CLASS__, 'submitbox_dup' ) );
+		add_action( 'admin_notices',        array( __CLASS__, 'dup_notice' ) );
 
 		// Quick-Edit Erweiterung
 		add_action( "quick_edit_custom_box", array( __CLASS__, 'quick_edit_box' ), 10, 2 );
@@ -632,13 +635,49 @@ class M24_Catalog_Admin_List {
 			wp_die( 'Ungültiger Sicherheits-Token.' );
 		}
 		if ( 'dup' === $do ) {
-			self::duplicate( $post_id );
+			$new_id = self::duplicate( $post_id );
+			// Aus dem Bearbeiten-Bildschirm: direkt in die Kopie springen.
+			if ( $new_id && isset( $_GET['ziel'] ) && 'edit' === $_GET['ziel'] ) {
+				wp_safe_redirect( add_query_arg( 'm24_dup_von', $post_id, get_edit_post_link( $new_id, 'url' ) ) );
+				exit;
+			}
 		} elseif ( in_array( $do, array( 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ) {
 			update_post_meta( $post_id, '_m24_status', $do );
 		}
 		$ref = wp_get_referer();
 		wp_safe_redirect( $ref ?: admin_url( 'edit.php?post_type=' . self::PT ) );
 		exit;
+	}
+
+	/**
+	 * Link „Duplizieren" im Kasten „Veröffentlichen" des Teil-Editors (über „In den Papierkorb").
+	 * Nutzt dieselbe Aktion wie die Zeilen-Aktion in der Teile-Verwaltung, springt aber danach
+	 * direkt in den Editor der Kopie.
+	 */
+	public static function submitbox_dup( $post = null ) {
+		$post = $post ?: get_post();
+		if ( ! $post || self::PT !== $post->post_type || 'auto-draft' === $post->post_status ) { return; }
+		if ( ! current_user_can( 'edit_post', $post->ID ) ) { return; }
+		$url = admin_url( 'admin.php?action=m24_teil_action&do=dup&ziel=edit&post=' . $post->ID
+			. '&_wpnonce=' . wp_create_nonce( 'm24_teil_action_' . $post->ID ) );
+		printf(
+			'<div class="m24-dup-box" style="margin:0 0 10px"><a href="%s" class="button" style="width:100%%;text-align:center">⧉ Teil duplizieren</a>'
+			. '<p class="description" style="margin:6px 0 0">Kopie als Entwurf, ausgeblendet, ohne Artikelnummer. Ungespeicherte Änderungen hier vorher speichern.</p></div>',
+			esc_url( $url )
+		);
+	}
+
+	/** Hinweis im Editor der frisch angelegten Kopie. */
+	public static function dup_notice() {
+		if ( empty( $_GET['m24_dup_von'] ) ) { return; }
+		$von = absint( $_GET['m24_dup_von'] );
+		$s   = get_current_screen();
+		if ( ! $s || self::PT !== $s->post_type || 'post' !== $s->base ) { return; }
+		printf(
+			'<div class="notice notice-success is-dismissible"><p>Kopie von <a href="%s">%s</a> angelegt — Entwurf, ausgeblendet. Bitte Titel und Artikelnummer anpassen, dann veröffentlichen.</p></div>',
+			esc_url( get_edit_post_link( $von, 'url' ) ),
+			esc_html( get_the_title( $von ) )
+		);
 	}
 
 	/**
@@ -666,6 +705,12 @@ class M24_Catalog_Admin_List {
 		}
 		// Artikelnummer leeren (Eindeutigkeit)
 		update_post_meta( $new_id, '_m24_artikelnummer', '' );
+		// Auch in den Preisoptionen (Eindeutigkeit, Daniel 14.10.2026)
+		$opts = json_decode( (string) get_post_meta( $new_id, '_m24_preisoptionen', true ), true );
+		if ( is_array( $opts ) ) {
+			foreach ( $opts as $i => $o ) { if ( is_array( $o ) ) { $opts[ $i ]['art_nr'] = ''; } }
+			update_post_meta( $new_id, '_m24_preisoptionen', wp_json_encode( $opts ) );
+		}
 		update_post_meta( $new_id, '_m24_status', 'ausgeblendet' );
 
 		// Taxonomie-Terms kopieren
