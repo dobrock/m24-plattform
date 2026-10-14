@@ -426,6 +426,12 @@ class M24_Catalog_Fields {
 		$modus  = ( isset( $_POST['m24_mwst_modus'] ) && in_array( $_POST['m24_mwst_modus'], array( 'regel', 'paragraf25a' ), true ) ) ? $_POST['m24_mwst_modus'] : 'regel';
 		$status = ( isset( $_POST['m24_status'] ) && in_array( $_POST['m24_status'], array( 'entwurf', 'aktiv', 'ausgeblendet', 'verkauft' ), true ) ) ? $_POST['m24_status'] : 'aktiv';
 
+		// „Veröffentlichen" gedrückt, Statusfeld steht aber noch auf „Entwurf" (z. B. frisch duplizierte
+		// Teile): Der Knopf gewinnt → aktiv. Sonst setzte set_status() den Beitrag sofort wieder auf
+		// Entwurf, und Veröffentlichen lief ins Leere (Daniel 14.10.2026).
+		if ( 'entwurf' === $status && ! empty( $_POST['publish'] ) ) {
+			$status = 'aktiv';
+		}
 		update_post_meta( $post_id, '_m24_typ', $typ );
 		update_post_meta( $post_id, '_m24_mwst_modus', $modus );
 
