@@ -101,7 +101,6 @@ class M24_Garage_Share_Card {
 			$y = self::text( $img, $reg, 20, $grey, $x, $y + 44, $sub, 440, 27 );
 			if ( '' !== $first_title ) { self::text( $img, $reg, 19, $white, $x, $y + 50, self::shorten( $first_title, 70 ), 440, 26 ); }
 			if ( '' !== $gno ) { self::text( $img, $bold, 20, $blue, $x, 572, ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno, 440 ); }
-			self::text( $img, $reg, 16, $grey, self::W - 48 - 160, 596, 'motorsport24.de', 160 );
 		} else {
 			// ── A (Daniel, 20.10.2026, wie auf der Facebook-Seite): Foto vollflächig; untere 20 % schwarz mit ~50 % Deckkraft,
 			//    darüber bis 45 % von unten ausfaden; Schrift über dem dunklen Teil; Logo oben links. Kein blaues Band.
@@ -117,10 +116,9 @@ class M24_Garage_Share_Card {
 			// leichter Schatten oben links fürs Logo
 			for ( $y = 0; $y < 130; $y++ ) { $a = (int) round( 127 - 45 * ( 1 - $y / 130 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $a ) ) ) ); }
 			// Logo dezenter (Daniel, 20.10.2026): kleiner, Abstand oben = Abstand des Texts unten (38 px).
-			self::logo( $img, 48, 38, 240 );
-			self::text( $img, $bold, 40, $white, 48, 548, $title, 760 );
-			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 860 );
-			self::text( $img, $reg, 17, $grey, self::W - 48 - 170, 592, 'motorsport24.de', 170 );
+			self::logo( $img, 48, 25, 240 ); // 25 px zum oberen Rand (Daniel, 20.10.2026), kein „motorsport24.de" unten rechts
+			self::text( $img, $bold, 40, $white, 48, 548, $title, 1000 );
+			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 1100 );
 		}
 		if ( $hero ) { imagedestroy( $hero ); }
 		imagejpeg( $img, $file, 88 );
@@ -166,10 +164,20 @@ class M24_Garage_Share_Card {
 		if ( ! $l ) { return; }
 		imagealphablending( $l, false ); imagesavealpha( $l, true );
 		$lw = imagesx( $l ); $lh = imagesy( $l );
-		$h = (int) round( $lh * $w / $lw );
+		// Leerraum der PNG abschneiden (die Datei hat oben/unten transparente Ränder) → $y ist der echte Abstand zum Rand.
+		$top = 0; $bot = $lh - 1;
+		while ( $top < $lh && self::row_empty( $l, $top, $lw ) ) { $top++; }
+		while ( $bot > $top && self::row_empty( $l, $bot, $lw ) ) { $bot--; }
+		$ch = max( 1, $bot - $top + 1 );
+		$h  = (int) round( $ch * $w / $lw );
 		imagealphablending( $dst, true );
-		imagecopyresampled( $dst, $l, $x, $y, 0, 0, $w, $h, $lw, $lh );
+		imagecopyresampled( $dst, $l, $x, $y, 0, $top, $w, $h, $lw, $ch );
 		imagedestroy( $l );
+	}
+
+	private static function row_empty( $im, int $y, int $w ): bool {
+		for ( $x = 0; $x < $w; $x += 2 ) { if ( ( ( imagecolorat( $im, $x, $y ) >> 24 ) & 0x7F ) < 120 ) { return false; } }
+		return true;
 	}
 
 	/** Text mit Umbruch in eine Breite; $lh = Zeilenhöhe. */
