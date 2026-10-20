@@ -116,7 +116,8 @@ class M24_Garage_Share_Card {
 			}
 			// leichter Schatten oben links fürs Logo
 			for ( $y = 0; $y < 130; $y++ ) { $a = (int) round( 127 - 45 * ( 1 - $y / 130 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $a ) ) ) ); }
-			self::logo( $img, 44, 36, 330 );
+			// Logo dezenter (Daniel, 20.10.2026): kleiner, Abstand oben = Abstand des Texts unten (38 px).
+			self::logo( $img, 48, 38, 240 );
 			self::text( $img, $bold, 40, $white, 48, 548, $title, 760 );
 			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 860 );
 			self::text( $img, $reg, 17, $grey, self::W - 48 - 170, 592, 'motorsport24.de', 170 );
