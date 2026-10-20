@@ -2004,11 +2004,15 @@ class M24_Garage_Cart {
 								<div class="m24gc-brutto-big" data-m24gc-grand><?php echo esc_html( $grand_fmt ); ?></div>
 								<div class="m24gc-net"><span data-m24gc-net><?php echo esc_html( $net_fmt ); ?></span> netto</div>
 								<?php if ( $has_unpriced ) : ?><p class="m24gc-note" data-m24gc-note>Einzelne Positionen sind „Preis auf Anfrage" und nicht in der Summe enthalten.</p><?php endif; ?>
-								<p class="m24gc-intro">Sende uns Deine Garage als Anfrage, damit wir dir ein verbindliches Angebot inkl. Lieferzeit und Nebenkosten wie Verpackung, Versand und ggf. Zollabwicklung kalkulieren können.</p>
-								<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Nachricht (optional)"></textarea>
-								<button type="button" class="m24gc-send-btn m24gc-btn-blue" data-m24gc-send-btn>Als Anfrage senden</button>
-								<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
-								<p class="m24gc-hint">Deine Kontaktdaten sind hinterlegt.</p>
+								<?php // Eingeklappt (Daniel, 20.10.2026): nur Summe sichtbar, Anfrage-Teil bei Bedarf aufklappen. ?>
+								<details class="m24gc-fold">
+									<summary class="m24gc-fold-sum">Angebot anfragen</summary>
+									<p class="m24gc-intro">Sende uns Deine Garage als Anfrage, damit wir dir ein verbindliches Angebot inkl. Lieferzeit und Nebenkosten wie Verpackung, Versand und ggf. Zollabwicklung kalkulieren können.</p>
+									<textarea class="m24gc-send-msg" data-m24gc-send-msg rows="2" placeholder="Nachricht (optional)"></textarea>
+									<button type="button" class="m24gc-send-btn m24gc-btn-blue" data-m24gc-send-btn>Als Anfrage senden</button>
+									<span class="m24gc-send-status" data-m24gc-send-status role="status"></span>
+									<p class="m24gc-hint">Deine Kontaktdaten sind hinterlegt.</p>
+								</details>
 							</div>
 							<?php $share_short = ( '' !== $share_url ) ? preg_replace( '#^https?://#', '', rtrim( $share_url, '/' ) ) : ''; ?>
 							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
