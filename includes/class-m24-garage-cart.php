@@ -882,6 +882,7 @@ class M24_Garage_Cart {
 				'title'       => (string) $it['title'],
 				'art_nr'      => (string) $it['artnr'],
 				'variant'     => (string) ( $it['variant'] ?? '' ), // #6: Varianten-Name mit in den Snapshot
+				'base_gross'  => isset( $it['base'] ) ? $it['base'] : null, // Grundpreis ohne Option (20.10.2026)
 				'price_gross' => $gross,
 				'price_net'   => $net,
 				'qty'         => (int) $it['qty'],
@@ -1643,8 +1644,11 @@ class M24_Garage_Cart {
 			$vlabel = (string) ( $r['variant_label'] ?? '' );
 			$vartnr = (string) ( $r['variant_artnr'] ?? '' );
 			$vprice = ( isset( $r['variant_price'] ) && null !== $r['variant_price'] && '' !== (string) $r['variant_price'] ) ? (float) $r['variant_price'] : null;
-			$unit   = ( null !== $vprice ) ? $vprice : self::unit_price( $pt, $pid ); // Varianten-Preis (Brutto) hat Vorrang
+			$base   = self::unit_price( $pt, $pid );                                   // Grundpreis des Teils (Brutto)
+			$unit   = ( null !== $vprice ) ? $vprice : $base;                           // Varianten-Preis (Brutto) hat Vorrang
 			$artnr  = ( '' !== $vartnr ) ? $vartnr : self::artnr( $pt, $pid );        // abweichende Varianten-Art-Nr. hat Vorrang
+			// Aufpreis der gewählten Option (Daniel, 20.10.2026: „Teilepreis + Aufpreis für ausgewählte Option").
+			$aufpreis = ( '' !== $vlabel && null !== $vprice && null !== $base && abs( $vprice - $base ) >= 0.005 ) ? $vprice - $base : null;
 			$line   = ( null !== $unit ) ? $unit * $qty : null;
 			$thumb  = get_the_post_thumbnail_url( $pid, 'medium' );
 			$out[] = array(
@@ -1658,6 +1662,8 @@ class M24_Garage_Cart {
 				'thumb'         => $thumb ? (string) $thumb : '',
 				'artnr'         => $artnr,
 				'variant'       => $vlabel,
+				'base'          => $base,
+				'aufpreis'      => $aufpreis,
 				'unit'          => $unit,
 				'unit_fmt'      => ( null !== $unit ) ? self::fmt( $unit ) : null,
 				'line_total'    => $line,
@@ -2128,7 +2134,14 @@ class M24_Garage_Cart {
 				<?php if ( '' !== $it['artnr'] ) : ?>
 					<span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( $it['artnr'] ); ?></span>
 				<?php endif; ?>
-				<span class="m24gc-unit"><?php echo esc_html( null !== $it['unit_fmt'] ? $it['unit_fmt'] : 'Preis auf Anfrage' ); ?></span>
+				<?php if ( ! empty( $it['variant'] ) ) : ?>
+					<span class="m24gc-variant">Option: <?php echo esc_html( $it['variant'] ); ?><?php if ( isset( $it['aufpreis'] ) && null !== $it['aufpreis'] ) : ?> <b>(<?php echo esc_html( ( $it['aufpreis'] > 0 ? '+ ' : '− ' ) . self::fmt( abs( (float) $it['aufpreis'] ) ) ); ?>)</b><?php endif; ?></span>
+				<?php endif; ?>
+				<?php if ( isset( $it['aufpreis'] ) && null !== $it['aufpreis'] && null !== ( $it['base'] ?? null ) ) : ?>
+					<span class="m24gc-unit"><?php echo esc_html( self::fmt( (float) $it['base'] ) . ( $it['aufpreis'] > 0 ? ' + ' : ' − ' ) . self::fmt( abs( (float) $it['aufpreis'] ) ) . ' = ' . $it['unit_fmt'] ); ?></span>
+				<?php else : ?>
+					<span class="m24gc-unit"><?php echo esc_html( null !== $it['unit_fmt'] ? $it['unit_fmt'] : 'Preis auf Anfrage' ); ?></span>
+				<?php endif; ?>
 			</div>
 			<?php if ( $readonly ) : ?>
 				<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $it['qty']; ?></span></div>
@@ -2423,7 +2436,9 @@ class M24_Garage_Cart {
 			$it   = (array) $it;
 			$aid  = (int) ( $it['article_id'] ?? 0 );
 			$qty  = max( 1, (int) ( $it['qty'] ?? 1 ) );
-			if ( $aid > 0 && 'm24_teil' === get_post_type( $aid ) && 'publish' === get_post_status( $aid ) ) {
+			if ( '' !== (string) ( $it['variant'] ?? '' ) && isset( $it['price_gross'] ) && null !== $it['price_gross'] ) {
+				$g = (float) $it['price_gross']; // Variante: eingefrorener Optionspreis (der Live-Preis wäre der Grundpreis)
+			} elseif ( $aid > 0 && 'm24_teil' === get_post_type( $aid ) && 'publish' === get_post_status( $aid ) ) {
 				$g = self::unit_price( 'm24_teil', $aid ); // live (null = auf Anfrage)
 			} else {
 				$g = ( isset( $it['price_gross'] ) && null !== $it['price_gross'] ) ? (float) $it['price_gross'] : null; // gelöscht → eingefroren
@@ -2524,7 +2539,13 @@ class M24_Garage_Cart {
 			</span>
 			<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 			<div class="m24gc-info">
-				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant"><?php echo esc_html( ( $T['variant'] ?? 'Variante: ' ) . (string) $it['variant'] ); ?></span><?php endif; ?>
+				<?php
+				$base_g = isset( $it['base_gross'] ) && null !== $it['base_gross'] ? (float) $it['base_gross'] : null;
+				$auf    = ( ! empty( $it['variant'] ) && null !== $gross && null !== $base_g && abs( $gross - $base_g ) >= 0.005 ) ? $gross - $base_g : null;
+				$f      = function ( $v ) use ( $net_mode ) { return self::fmt( $net_mode ? round( $v / 1.19, 2 ) : $v ); };
+				?>
+				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant"><?php echo esc_html( ( $T['option'] ?? 'Option: ' ) . (string) $it['variant'] ); ?><?php if ( null !== $auf ) : ?> <b>(<?php echo esc_html( ( $auf > 0 ? '+ ' : '− ' ) . $f( abs( $auf ) ) ); ?>)</b><?php endif; ?></span><?php endif; ?>
+				<?php if ( null !== $auf ) : ?><span class="m24gc-artnr"><?php echo esc_html( ( $T['base_price'] ?? 'Grundpreis' ) . ' ' . $f( $base_g ) . ( $auf > 0 ? ' + ' : ' − ' ) . $f( abs( $auf ) ) . ' = ' . $f( $gross ) ); ?></span><?php endif; ?>
 				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr"><?php echo esc_html( ( $T['artnr'] ?? 'Art.-Nr.: ' ) . (string) $it['art_nr'] ); ?></span><?php endif; ?>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
