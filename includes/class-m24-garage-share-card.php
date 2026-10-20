@@ -97,9 +97,9 @@ class M24_Garage_Share_Card {
 			imagefilledrectangle( $img, $pw, 0, $pw + 8, self::H, $blue ); // blauer Steg
 			$x = $pw + 48;
 			self::logo( $img, $x, 56, 380 );
-			self::text( $img, $bold, 40, $white, $x, 300, $title, 440 );
-			self::text( $img, $reg, 22, $grey, $x, 352, $sub, 440 );
-			if ( '' !== $first_title ) { self::text( $img, $reg, 20, $white, $x, 430, self::shorten( $first_title, 70 ), 440, 28 ); }
+			$y = self::text( $img, $bold, 34, $white, $x, 290, $title, 440, 42 );
+			$y = self::text( $img, $reg, 20, $grey, $x, $y + 44, $sub, 440, 27 );
+			if ( '' !== $first_title ) { self::text( $img, $reg, 19, $white, $x, $y + 50, self::shorten( $first_title, 70 ), 440, 26 ); }
 			if ( '' !== $gno ) { self::text( $img, $bold, 20, $blue, $x, 572, ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno, 440 ); }
 			self::text( $img, $reg, 16, $grey, self::W - 48 - 160, 596, 'motorsport24.de', 160 );
 		} else {
@@ -174,8 +174,9 @@ class M24_Garage_Share_Card {
 	}
 
 	/** Text mit Umbruch in eine Breite; $lh = Zeilenhöhe. */
-	private static function text( $img, string $font, int $size, int $col, int $x, int $y, string $txt, int $maxw, int $lh = 0 ): void {
-		if ( ! is_readable( $font ) ) { imagestring( $img, 5, $x, $y - 14, $txt, $col ); return; }
+	/** Liefert die Grundlinie der letzten gezeichneten Zeile. */
+	private static function text( $img, string $font, int $size, int $col, int $x, int $y, string $txt, int $maxw, int $lh = 0 ): int {
+		if ( ! is_readable( $font ) ) { imagestring( $img, 5, $x, $y - 14, $txt, $col ); return $y; }
 		$lh = $lh ?: (int) round( $size * 1.3 );
 		$words = preg_split( '/\s+/u', trim( $txt ) ); $line = '';
 		foreach ( $words as $w ) {
@@ -185,6 +186,7 @@ class M24_Garage_Share_Card {
 			else { $line = $try; }
 		}
 		if ( '' !== $line ) { imagettftext( $img, $size, 0, $x, $y, $col, $font, $line ); }
+		return $y;
 	}
 
 	private static function shorten( string $s, int $n ): string { return mb_strlen( $s ) > $n ? rtrim( mb_substr( $s, 0, $n - 1 ) ) . '…' : $s; }
