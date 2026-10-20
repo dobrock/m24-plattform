@@ -510,17 +510,20 @@ class M24_Garage_Cart {
 
 	/* ── Paket 4: Garagen-Nummer pro Kunde (stabil, referenzierbar) ─────────── */
 
-	/** Formatiert „G-1042" für ein Konto. $assign=true vergibt beim ersten Mal die nächste Nummer. */
+	/** Formatiert „2026-2810" für ein Konto (Daniel, 20.10.2026: nicht mehr „G-1000", Start bei 2026-2810). $assign=true vergibt beim ersten Mal die nächste Nummer. */
 	public static function garage_no( int $acc, bool $assign = true ): string {
 		if ( $acc <= 0 ) { return ''; }
 		$n = (int) get_user_meta( $acc, self::META_GARAGE_NO, true );
+		if ( $n > 0 && $n < self::GARAGE_NO_START ) { $n = 0; } // alte „G-10xx" verwerfen → neue Nummer
 		if ( $n <= 0 && $assign ) { $n = self::assign_garage_no( $acc ); }
-		return $n > 0 ? 'G-' . $n : '';
+		return $n > 0 ? self::GARAGE_NO_PREFIX . $n : '';
 	}
-	/** Nächste fortlaufende Nummer vergeben (ab 1000) und am Konto festhalten. */
+	const GARAGE_NO_START  = 2810;    // erste vergebene Nummer
+	const GARAGE_NO_PREFIX = '2026-'; // Anzeige „2026-2810"
+	/** Nächste fortlaufende Nummer vergeben (ab 2810) und am Konto festhalten. */
 	private static function assign_garage_no( int $acc ): int {
-		$last = (int) get_option( self::GARAGE_NO_SEQ, 999 );
-		if ( $last < 999 ) { $last = 999; }
+		$last = (int) get_option( self::GARAGE_NO_SEQ, self::GARAGE_NO_START - 1 );
+		if ( $last < self::GARAGE_NO_START - 1 ) { $last = self::GARAGE_NO_START - 1; }
 		$n = $last + 1;
 		update_option( self::GARAGE_NO_SEQ, $n, false );
 		update_user_meta( $acc, self::META_GARAGE_NO, $n );
@@ -532,7 +535,7 @@ class M24_Garage_Cart {
 		$n = max( 0, $n );
 		if ( 0 === $n ) { delete_user_meta( $acc, self::META_GARAGE_NO ); return; }
 		update_user_meta( $acc, self::META_GARAGE_NO, $n );
-		if ( $n > (int) get_option( self::GARAGE_NO_SEQ, 999 ) ) { update_option( self::GARAGE_NO_SEQ, $n, false ); }
+		if ( $n > (int) get_option( self::GARAGE_NO_SEQ, self::GARAGE_NO_START - 1 ) ) { update_option( self::GARAGE_NO_SEQ, $n, false ); }
 	}
 	/** Lookup „G-1042" / „1042" → account_id (0 = nicht gefunden). */
 	public static function resolve_garage_no( string $g ): int {
@@ -2137,11 +2140,7 @@ class M24_Garage_Cart {
 				<?php if ( ! empty( $it['variant'] ) ) : ?>
 					<span class="m24gc-variant">Option: <?php echo esc_html( $it['variant'] ); ?><?php if ( isset( $it['aufpreis'] ) && null !== $it['aufpreis'] ) : ?> <b>(<?php echo esc_html( ( $it['aufpreis'] > 0 ? '+ ' : '− ' ) . self::fmt( abs( (float) $it['aufpreis'] ) ) ); ?>)</b><?php endif; ?></span>
 				<?php endif; ?>
-				<?php if ( isset( $it['aufpreis'] ) && null !== $it['aufpreis'] && null !== ( $it['base'] ?? null ) ) : ?>
-					<span class="m24gc-unit"><?php echo esc_html( self::fmt( (float) $it['base'] ) . ( $it['aufpreis'] > 0 ? ' + ' : ' − ' ) . self::fmt( abs( (float) $it['aufpreis'] ) ) . ' = ' . $it['unit_fmt'] ); ?></span>
-				<?php else : ?>
-					<span class="m24gc-unit"><?php echo esc_html( null !== $it['unit_fmt'] ? $it['unit_fmt'] : 'Preis auf Anfrage' ); ?></span>
-				<?php endif; ?>
+				<span class="m24gc-unit"><?php echo esc_html( null !== $it['unit_fmt'] ? $it['unit_fmt'] : 'Preis auf Anfrage' ); ?></span>
 			</div>
 			<?php if ( $readonly ) : ?>
 				<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $it['qty']; ?></span></div>
@@ -2545,7 +2544,7 @@ class M24_Garage_Cart {
 				$f      = function ( $v ) use ( $net_mode ) { return self::fmt( $net_mode ? round( $v / 1.19, 2 ) : $v ); };
 				?>
 				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant"><?php echo esc_html( ( $T['option'] ?? 'Option: ' ) . (string) $it['variant'] ); ?><?php if ( null !== $auf ) : ?> <b>(<?php echo esc_html( ( $auf > 0 ? '+ ' : '− ' ) . $f( abs( $auf ) ) ); ?>)</b><?php endif; ?></span><?php endif; ?>
-				<?php if ( null !== $auf ) : ?><span class="m24gc-artnr"><?php echo esc_html( ( $T['base_price'] ?? 'Grundpreis' ) . ' ' . $f( $base_g ) . ( $auf > 0 ? ' + ' : ' − ' ) . $f( abs( $auf ) ) . ' = ' . $f( $gross ) ); ?></span><?php endif; ?>
+
 				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr"><?php echo esc_html( ( $T['artnr'] ?? 'Art.-Nr.: ' ) . (string) $it['art_nr'] ); ?></span><?php endif; ?>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>

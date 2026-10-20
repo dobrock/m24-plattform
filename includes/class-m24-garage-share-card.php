@@ -103,18 +103,23 @@ class M24_Garage_Share_Card {
 			if ( '' !== $gno ) { self::text( $img, $bold, 20, $blue, $x, 572, ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno, 440 ); }
 			self::text( $img, $reg, 16, $grey, self::W - 48 - 160, 596, 'motorsport24.de', 160 );
 		} else {
-			// ── A: Foto vollflächig, dunkles Band unten ──
+			// ── A (Daniel, 20.10.2026, wie auf der Facebook-Seite): Foto vollflächig; untere 20 % schwarz mit ~50 % Deckkraft,
+			//    darüber bis 45 % von unten ausfaden; Schrift über dem dunklen Teil; Logo oben links. Kein blaues Band.
 			if ( $hero ) { self::cover( $img, $hero, 0, 0, self::W, self::H ); }
-			// Verlauf oben (Logo lesbar) und Band unten
-			for ( $y = 0; $y < 150; $y++ ) { $a = (int) round( 127 - 70 * ( 1 - $y / 150 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 10, 20, 35, max( 0, min( 127, $a ) ) ) ); }
-			$band_y = 470;
-			for ( $y = $band_y - 70; $y < $band_y; $y++ ) { $a = (int) round( 127 * ( 1 - ( $y - ( $band_y - 70 ) ) / 70 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 14, 36, 64, max( 0, min( 127, $a ) ) ) ); }
-			imagefilledrectangle( $img, 0, $band_y, self::W, self::H, $navy );
-			imagefilledrectangle( $img, 0, $band_y, self::W, $band_y + 6, $blue );
-			self::logo( $img, 48, 40, 300 );
-			self::text( $img, $bold, 38, $white, 48, 530, $title, 760 );
-			self::text( $img, $reg, 21, $grey, 48, 578, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 820 );
-			self::text( $img, $reg, 17, $grey, self::W - 48 - 170, 596, 'motorsport24.de', 170 );
+			imagealphablending( $img, true );
+			$solid_from = (int) round( self::H * 0.80 ); // ab 80 % Höhe (= untere 20 %) volle 50 %
+			$fade_from  = (int) round( self::H * 0.55 ); // bei 45 % von unten beginnt der Verlauf (0 %)
+			for ( $y = $fade_from; $y < self::H; $y++ ) {
+				$t = $y >= $solid_from ? 1.0 : ( $y - $fade_from ) / max( 1, $solid_from - $fade_from );
+				$alpha = (int) round( 127 - 64 * $t ); // 127 = unsichtbar … 63 = ~50 % Schwarz
+				imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $alpha ) ) ) );
+			}
+			// leichter Schatten oben links fürs Logo
+			for ( $y = 0; $y < 130; $y++ ) { $a = (int) round( 127 - 45 * ( 1 - $y / 130 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $a ) ) ) ); }
+			self::logo( $img, 44, 36, 330 );
+			self::text( $img, $bold, 40, $white, 48, 548, $title, 760 );
+			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 860 );
+			self::text( $img, $reg, 17, $grey, self::W - 48 - 170, 592, 'motorsport24.de', 170 );
 		}
 		if ( $hero ) { imagedestroy( $hero ); }
 		imagejpeg( $img, $file, 88 );
@@ -152,21 +157,14 @@ class M24_Garage_Share_Card {
 		imagecopyresampled( $dst, $src, $x, $y, $sx, $sy, $w, $h, $cw, $ch );
 	}
 
-	/** Logo weiß (dunkle Pixel → weiß, das blaue „24" bleibt) in gewünschter Breite. */
+	/** Weißes Logo (assets/img/m24-logo-weiss.png, von Daniel 20.10.2026) in gewünschter Breite. */
 	private static function logo( $dst, int $x, int $y, int $w ): void {
-		$p = M24_PLATTFORM_DIR . 'assets/img/m24-logo.png';
+		$p = M24_PLATTFORM_DIR . 'assets/img/m24-logo-weiss.png';
 		if ( ! is_readable( $p ) ) { return; }
 		$l = imagecreatefrompng( $p );
 		if ( ! $l ) { return; }
 		imagealphablending( $l, false ); imagesavealpha( $l, true );
 		$lw = imagesx( $l ); $lh = imagesy( $l );
-		for ( $i = 0; $i < $lw; $i++ ) {
-			for ( $j = 0; $j < $lh; $j++ ) {
-				$c = imagecolorat( $l, $i, $j );
-				$a = ( $c >> 24 ) & 0x7F; $r = ( $c >> 16 ) & 0xFF; $g = ( $c >> 8 ) & 0xFF; $b = $c & 0xFF;
-				if ( $a < 127 && $r < 140 && $g < 140 && $b < 140 ) { imagesetpixel( $l, $i, $j, imagecolorallocatealpha( $l, 255, 255, 255, $a ) ); }
-			}
-		}
 		$h = (int) round( $lh * $w / $lw );
 		imagealphablending( $dst, true );
 		imagecopyresampled( $dst, $l, $x, $y, 0, 0, $w, $h, $lw, $lh );
