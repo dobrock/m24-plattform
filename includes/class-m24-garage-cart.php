@@ -2021,7 +2021,7 @@ class M24_Garage_Cart {
 								<?php if ( class_exists( 'M24_Garage_Share_Opts' ) ) { M24_Garage_Share_Opts::render_fields( $acc ); } // Sprache + Steuerfall (20.10.2026) ?>
 								<!-- Variante A: EIN primärer Button — friert den aktuellen Stand in DENSELBEN Token neu ein + kopiert. -->
 								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link erstellen &amp; teilen</button>
-								<p class="m24gc-share-info">Dein Klick auf den Button erstellt ein Abbild deiner aktuellen Garage, welches du über den Link versenden kannst. Änderungen speicherst du mit einem erneuten Klick.</p>
+								<p class="m24gc-share-info">Friert den aktuellen Stand ein und kopiert den Link. Nach Änderungen erneut klicken.</p>
 								<span class="m24gc-share-msg" data-m24gc-share-msg role="status"></span>
 								<input type="hidden" data-m24gc-share-input value="<?php echo esc_attr( $share_url ); ?>">
 
