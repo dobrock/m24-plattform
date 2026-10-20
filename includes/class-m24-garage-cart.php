@@ -129,7 +129,7 @@ class M24_Garage_Cart {
 		$datum = $ts ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) ) : '';
 		$ctx = self::share_ctx( $token ); $T = $ctx['T']; $lang = $ctx['lang'];
 		$t   = function ( $k, $d = '' ) use ( $T ) { return (string) ( $T[ $k ] ?? $d ); };
-		$og_title = 'en' === $lang ? 'Your parts selection – MOTORSPORT24' : 'Deine Teile-Auswahl – MOTORSPORT24';
+		$og_title = 'en' === $lang ? 'Your racing parts selection – MOTORSPORT24' : 'Deine Rennsport-Teile Auswahl – MOTORSPORT24';
 		$og_desc  = 'en' === $lang
 			? ( $n . ( 1 === $n ? ' item' : ' items' ) . ', prepared for you by MOTORSPORT24' . ( '' !== $datum ? ' on ' . $datum : '' ) . '. Request a binding quote incl. packaging, transport and customs clearance.' )
 			: ( $n . ( 1 === $n ? ' Position' : ' Positionen' ) . ', zusammengestellt für Dich von MOTORSPORT24' . ( '' !== $datum ? ' am ' . $datum : '' ) . '. Verbindliches Angebot inkl. Verpackung, Transport und Zollabwicklung anfordern.' );

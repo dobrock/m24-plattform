@@ -70,7 +70,7 @@ class M24_Garage_Share_Opts {
 	public static function t( string $lang ): array {
 		if ( 'en' === $lang ) {
 			return array(
-				'title'        => 'Your parts selection',
+				'title'        => 'Your racing parts selection',
 				'page_title'   => 'Shared garage – MOTORSPORT24',
 				'hint'         => 'Put together for you by MOTORSPORT24 on %s.',
 				'garage_no'    => 'Garage no. %s',
@@ -108,7 +108,7 @@ class M24_Garage_Share_Opts {
 				'foot_claim'   => 'Classic & Race Cars and Parts Sales since 2006',
 				'foot_imprint' => 'Imprint', 'foot_privacy' => 'Privacy',
 				// Mail
-				'm_subject'    => 'Your parts selection – MOTORSPORT24',
+				'm_subject'    => 'Your racing parts selection – MOTORSPORT24',
 				'm_hello'      => 'Hello,',
 				'm_intro'      => 'here is your personal MOTORSPORT24 parts selection%s, prepared on %s.',
 				'm_link'       => 'The link%s is valid for three months.',
@@ -121,7 +121,7 @@ class M24_Garage_Share_Opts {
 			);
 		}
 		return array(
-			'title'        => 'Deine Teile-Auswahl',
+			'title'        => 'Deine Rennsport-Teile Auswahl',
 			'page_title'   => 'Geteilte Garage – MOTORSPORT24',
 			'hint'         => 'Zusammengestellt für Dich von MOTORSPORT24 am %s.',
 			'garage_no'    => 'Garagen-Nr. %s',
@@ -158,7 +158,7 @@ class M24_Garage_Share_Opts {
 			'invalid'      => 'Dieser Link ist nicht (mehr) gültig. Bitte den Absender um einen aktuellen Link.',
 			'foot_claim'   => 'Classic & Race Cars and Parts Sales since 2006',
 			'foot_imprint' => 'Impressum', 'foot_privacy' => 'Datenschutz',
-			'm_subject'    => 'Deine Teile-Auswahl – MOTORSPORT24',
+			'm_subject'    => 'Deine Rennsport-Teile Auswahl – MOTORSPORT24',
 			'm_hello'      => 'Hallo,',
 			'm_intro'      => 'hier ist Deine persönliche MOTORSPORT24-Teile-Auswahl%s, zusammengestellt am %s Uhr.',
 			'm_link'       => 'Der Link%s ist drei Monate gültig.',
