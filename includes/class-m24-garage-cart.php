@@ -177,7 +177,13 @@ class M24_Garage_Cart {
 		if ( 'ok' === $ap_status )  { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">' . esc_html( $t( 'flash_ok' ) ) . '</div>'; }
 		if ( 'dup' === $ap_status ) { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">' . esc_html( $t( 'flash_dup' ) ) . '</div>'; }
 		// Call-to-Action (Daniel, 20.10.2026): verbindliches Angebot inkl. Verpackung, Transport, ggf. Zollabwicklung — in der Sprache des Kunden.
-		$offer_cta = $has_parts ? '<div class="m24sa-ctabox"><p class="m24sa-ctabox-p">' . esc_html( $t( 'cta_sub' ) ) . '</p><button type="button" class="m24sa-btn" id="m24-angebot-open">' . esc_html( $t( 'cta_btn', 'Angebot anfragen' ) ) . '</button></div>' : '';
+		// „Auswahl anpassen" (Daniel, 20.10.2026, 14:51): Empfänger übernimmt die Liste in seine eigene Garage auf der
+		// Seite (Gast: localStorage, eingeloggt: Konto), entfernt Teile, legt andere aus dem Shop dazu und fragt an.
+		$edit_items = array();
+		foreach ( (array) ( $snap['items'] ?? array() ) as $it ) { $it = (array) $it; if ( (int) ( $it['article_id'] ?? 0 ) > 0 ) { $edit_items[] = array( 'id' => (int) $it['article_id'], 'q' => max( 1, (int) ( $it['qty'] ?? 1 ) ), 'vl' => (string) ( $it['variant'] ?? '' ) ); } }
+		$gno_ref  = ( ( $acc_ref = self::resolve_share_token( $token ) ) > 0 ) ? self::garage_no( $acc_ref, false ) : '';
+		$edit_btn = $has_parts ? '<div class="m24sa-editrow"><button type="button" class="m24sa-btn m24sa-btn-outline" id="m24-auswahl-anpassen" data-items="' . esc_attr( wp_json_encode( $edit_items ) ) . '" data-ref="' . esc_attr( $gno_ref ) . '" data-to="' . esc_url( self::page_url() ) . '">' . esc_html( $t( 'edit_btn', 'Auswahl anpassen' ) ) . '</button><span class="m24sa-editsub">' . esc_html( $t( 'edit_sub' ) ) . '</span></div>' : '';
+		$offer_cta = $has_parts ? '<div class="m24sa-ctabox"><p class="m24sa-ctabox-p">' . esc_html( $t( 'cta_sub' ) ) . '</p><button type="button" class="m24sa-btn" id="m24-angebot-open">' . esc_html( $t( 'cta_btn', 'Angebot anfragen' ) ) . '</button>' . $edit_btn . '</div>' : '';
 		if ( $has_parts ) {
 			$fields = '';
 			if ( $logged ) {
@@ -213,7 +219,10 @@ class M24_Garage_Cart {
 			. 'function go(){if(!form)return;form.removeAttribute("data-collapsed");try{form.scrollIntoView({behavior:"smooth",block:"start"});}catch(e){form.scrollIntoView();}'
 			. 'var fld=form.querySelector("input[name=name],textarea[name=nachricht]");if(fld)setTimeout(function(){fld.focus();},320);}'
 			. 'var b=document.getElementById("m24-angebot-open");if(b)b.addEventListener("click",function(e){e.preventDefault();go();});'
-			. 'if(/[?&]angebot=start/.test(location.search)||"#m24-kontakt"===location.hash)setTimeout(go,80);})();</script>'
+			. 'if(/[?&]angebot=start/.test(location.search)||"#m24-kontakt"===location.hash)setTimeout(go,80);'
+			// Auswahl anpassen: Liste in die Gast-Garage (localStorage) legen, Herkunft merken, zur Garage-Seite.
+			. 'var ed=document.getElementById("m24-auswahl-anpassen");if(ed)ed.addEventListener("click",function(){try{var items=JSON.parse(ed.getAttribute("data-items")||"[]");localStorage.setItem("m24_guest_garage",JSON.stringify(items));localStorage.setItem("m24_guest_from_share",ed.getAttribute("data-ref")||"");}catch(e){}location.href=ed.getAttribute("data-to");});'
+			. '})();</script>'
 		) : '';
 		echo '<!doctype html><html lang="' . esc_attr( $lang ) . '"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -247,6 +256,7 @@ class M24_Garage_Cart {
 			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}.m24gc-shared .m24gc-row .m24gc-qty,.m24gc-shared .m24gc-row .m24gc-line{align-self:start}'
 			. '}'
 			. '.m24sa-ctabox{max-width:900px;margin:8px auto 0;padding:22px;background:#fff;border:1px solid #eef0f2;border-radius:14px;text-align:center}.m24sa-ctabox-p{margin:0;color:#5a6474;font-size:14px;line-height:1.55}.m24sa-ctabox .m24sa-btn{margin-top:14px}'
+			. '.m24sa-editrow{margin:18px 0 0;padding-top:16px;border-top:1px solid #eef0f2}.m24sa-btn.m24sa-btn-outline{background:#fff;color:#1f74c4;border:1.5px solid #1f74c4;margin-top:0}.m24sa-editsub{display:block;margin:8px 0 0;color:#7e8794;font-size:12.5px}'
 			. '.m24gc-taxline{margin:10px 0 0;color:#7e8794;font-size:12.5px;line-height:1.5;text-align:right}'
 			. $offer_css . '</style></head><body>'
 			. '<div class="m24sa-bar"><div class="m24sa-bar-inner"><img src="' . $logo . '" alt="MOTORSPORT24"></div></div>'
@@ -773,6 +783,7 @@ class M24_Garage_Cart {
 			if ( count( $items ) >= 60 ) { break; }
 		}
 		if ( empty( $items ) ) { self::guest_inquiry_redirect( 'empty' ); }
+		$from_share = sanitize_text_field( wp_unslash( $_POST['from_share'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification
 
 		$kt      = isset( $_POST['kundentyp'] ) ? sanitize_text_field( wp_unslash( $_POST['kundentyp'] ) ) : '';
 		$is_b2b  = in_array( $kt, array( 'Geschäftskunde', 'b2b', 'gewerblich' ), true );
@@ -792,9 +803,9 @@ class M24_Garage_Cart {
 			'land'                => ( '' !== $land ) ? $land : 'DE',
 			'uid'                 => '',
 			'biz'                 => $is_b2b ? '1' : '0',
-			'notes'               => $message,
+			'notes'               => ( '' !== $from_share ? '[Angepasst aus geteilter Garage ' . $from_share . '] ' : '' ) . $message,
 			'inquiry_source'      => ( class_exists( 'M24_Inquiries' ) && defined( 'M24_Inquiries::SOURCE_CART' ) ) ? M24_Inquiries::SOURCE_CART : 'cart',
-			'inquiry_source_meta' => array( 'origin' => 'guest_garage' ),
+			'inquiry_source_meta' => array( 'origin' => 'guest_garage', 'from_share' => sanitize_text_field( wp_unslash( $_POST['from_share'] ?? '' ) ) ), // Garagen-Nr. der geteilten Auswahl (20.10.2026)
 			'items'               => $items,
 		) );
 
@@ -1880,6 +1891,7 @@ class M24_Garage_Cart {
 					<form method="post" action="<?php echo $ap_url; ?>">
 						<input type="hidden" name="action" value="m24_guest_inquiry">
 						<input type="hidden" name="guest_items" value="" data-m24gc-guest-payload>
+						<input type="hidden" name="from_share" value="" data-m24gc-guest-fromshare>
 						<input type="text" name="website" class="m24sa-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 						<div class="m24sa-f"><span>Kundenart</span><span class="m24sa-seg">
 							<label><input type="radio" name="kundentyp" value="Privat" checked><span>Privat</span></label>

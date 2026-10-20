@@ -300,6 +300,8 @@
 	window.M24GarageCard = { set: setGarageBtn };
 
 	if (cfg.loggedIn) {
+		// Geteilte Garage → „Auswahl anpassen" (20.10.2026): Herkunft (Garagen-Nr.) ins Gast-Anfrageformular.
+		try { var fs = document.querySelector('[data-m24gc-guest-fromshare]'); var fsv = window.localStorage.getItem('m24_guest_from_share'); if (fs && fsv) { fs.value = fsv; } } catch (e) {}
 		// Phase 2b: Gast-Garage (localStorage) nach Login/Registrierung in den Account übernehmen + leeren.
 		(function adoptGuestGarage() {
 			var raw; try { raw = window.localStorage.getItem('m24_guest_garage'); } catch (e) { return; }
