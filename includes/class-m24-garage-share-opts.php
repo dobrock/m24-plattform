@@ -19,16 +19,16 @@ class M24_Garage_Share_Opts {
 	/** Steuerfälle: Schlüssel → [Label im Formular, Anzeige netto?, Steuerzeile DE, Steuerzeile EN]. */
 	public static function tax_cases(): array {
 		return array(
-			'brutto'       => array( 'Brutto inkl. 19 % USt (Deutschland, Privatkunden EU)', false,
+			'brutto'       => array( 'Brutto inkl. 19 % USt', false,
 				'Alle Preise inkl. 19 % USt.',
 				'All prices include 19 % German VAT.' ),
-			'netto_de'     => array( 'Netto zzgl. 19 % USt (Geschäftskunden Deutschland)', true,
+			'netto_de'     => array( 'Netto zzgl. 19 % USt (Firma DE)', true,
 				'Alle Preise netto zzgl. 19 % USt.',
 				'All prices are net, plus 19 % German VAT.' ),
-			'netto_eu'     => array( 'Netto · innergemeinschaftlich, Reverse Charge (EU-Firma mit USt-IdNr.)', true,
+			'netto_eu'     => array( 'Netto · Reverse Charge (EU-Firma)', true,
 				'Alle Preise netto. Steuerfreie innergemeinschaftliche Lieferung bei gültiger USt-IdNr. (Reverse Charge, § 6a UStG).',
 				'All prices are net. VAT-exempt intra-community supply with a valid VAT ID (reverse charge, Art. 138 VAT Directive).' ),
-			'netto_export' => array( 'Netto · Export Drittland (Schweiz, UK, USA …)', true,
+			'netto_export' => array( 'Netto · Export Drittland', true,
 				'Alle Preise netto. Steuerfreie Ausfuhrlieferung; Einfuhrabgaben und Zoll im Bestimmungsland trägt der Empfänger.',
 				'All prices are net. VAT-exempt export; import duties and customs in the destination country are paid by the recipient.' ),
 		);
@@ -175,22 +175,16 @@ class M24_Garage_Share_Opts {
 	public static function render_fields( int $acc ): void {
 		$o = self::get( $acc );
 		?>
-		<div class="m24gc-shareopts" data-m24gc-shareopts>
-			<label class="m24gc-field">
-				<span class="m24gc-field-lbl">Sprache für den Kunden</span>
-				<span class="m24sa-seg m24gc-seg">
-					<label><input type="radio" name="m24gc_lang" value="de" <?php checked( 'de', $o['lang'] ); ?>><span>Deutsch</span></label>
-					<label><input type="radio" name="m24gc_lang" value="en" <?php checked( 'en', $o['lang'] ); ?>><span>English</span></label>
-				</span>
-			</label>
-			<label class="m24gc-field">
-				<span class="m24gc-field-lbl">Steuerfall · so sieht der Kunde die Preise</span>
-				<select class="m24gc-field-input" name="m24gc_tax" data-m24gc-tax>
-					<?php foreach ( self::tax_cases() as $k => $c ) : ?>
-						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $k, $o['tax'] ); ?>><?php echo esc_html( $c[0] ); ?></option>
-					<?php endforeach; ?>
-				</select>
-			</label>
+		<div class="m24gc-shareopts m24gc-shareopts-row" data-m24gc-shareopts>
+			<span class="m24gc-seg m24gc-seg-flags" role="radiogroup" aria-label="Sprache für den Kunden">
+				<label title="Deutsch"><input type="radio" name="m24gc_lang" value="de" <?php checked( 'de', $o['lang'] ); ?>><span>🇩🇪</span></label>
+				<label title="English"><input type="radio" name="m24gc_lang" value="en" <?php checked( 'en', $o['lang'] ); ?>><span>🇬🇧</span></label>
+			</span>
+			<select class="m24gc-field-input m24gc-taxsel" name="m24gc_tax" data-m24gc-tax aria-label="Steuerfall · so sieht der Kunde die Preise" title="Steuerfall · so sieht der Kunde die Preise">
+				<?php foreach ( self::tax_cases() as $k => $c ) : ?>
+					<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $k, $o['tax'] ); ?>><?php echo esc_html( $c[0] ); ?></option>
+				<?php endforeach; ?>
+			</select>
 		</div>
 		<?php
 	}
