@@ -43,6 +43,7 @@ class M24_Garage_Share_Card {
 		$neu   = ! empty( $_GET['neu'] ) && current_user_can( 'manage_options' ); // phpcs:ignore
 		$file  = self::build( $token, $stil, $neu );
 		if ( '' === $file ) { status_header( 404 ); exit; }
+		while ( ob_get_level() > 0 ) { ob_end_clean(); } // Whitespace anderer Dateien vor den JPEG-Bytes verwerfen
 		nocache_headers();
 		header( 'Content-Type: image/jpeg' );
 		header( 'Cache-Control: public, max-age=3600' );
