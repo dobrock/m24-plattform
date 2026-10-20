@@ -597,13 +597,20 @@
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: headers(),
-				body: JSON.stringify({ action: action })
+				body: JSON.stringify(Object.assign({ action: action }, shareOpts()))
 			}).then(function (r) { return r.json(); }).then(function (d) {
 				if (d && d.ok) { applyUrl(d.url); if (d.url) { mirrorUrl(d.url); } if (after) { after(d); } }
 				else { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); }
 			}).catch(function () { shareMsg((cfg.i18n && cfg.i18n.failed) || 'Aktion fehlgeschlagen.'); });
 		}
 
+		// Sprache + Steuerfall aus der Karte „Garage teilen" (20.10.2026) — gehen mit in generate/rotate und in die Mail.
+		function shareOpts() {
+			var o = {};
+			var l = sharePanel.querySelector('input[name=m24gc_lang]:checked'); if (l) { o.lang = l.value; }
+			var t = sharePanel.querySelector('[data-m24gc-tax]'); if (t) { o.tax = t.value; }
+			return o;
+		}
 		function copyUrl() {
 			var val = inEl ? inEl.value : '';
 			if (!val) { return; }
@@ -690,11 +697,11 @@
 				smBtn.addEventListener('click', function () {
 					var to = (smTo && smTo.value || '').trim();
 					if (!reEmail.test(to)) { smSet('Bitte eine gültige E-Mail-Adresse eingeben.', 'error'); if (smTo) { smTo.focus(); } return; }
-					var payload = {
+					var payload = Object.assign({
 						to: to,
 						message: (smMsg && smMsg.value || '').trim(),
 						attach_pdf: smPdf ? !!smPdf.checked : true
-					};
+					}, shareOpts());
 					smBtn.disabled = true;
 					smBtn.classList.add('is-loading');
 					smSet('Wird gesendet …', '');

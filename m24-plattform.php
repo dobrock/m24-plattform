@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.526
+ * Version:           0.11.527
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -144,6 +144,8 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-alert-taxonomie.php'; // Fa
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-client.php'; // Brevo-API-Wrapper (Phase 2: Liste 3 + Alert-Listen)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-brevo-il.php';     // Interessentenliste plugin-managed DOI + Alert-Spiegel
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage.php';      // Meine Garage G1: Store + Add-to-Garage + DOI (No-Account)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-share-opts.php'; // Garage teilen: Sprache + Steuerfall (20.10.2026)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-share-card.php'; // Garage teilen: Vorschaubild Logo + Herobild (20.10.2026)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-cart.php'; // Meine Garage Etappe 1: kontogebundener Warenkorb (Menge, Garage-Seite, Zähler)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-guest-share.php'; // Paket G #4: anonymer 1-Wochen-Gast-Share (7-Tage-TTL, noindex, keine PII)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-pdf.php';  // Meine Garage Etappe 3: Garage als PDF (Dompdf, vendor/)
@@ -387,6 +389,7 @@ add_action( 'plugins_loaded', function() {
     M24_Brevo_IL::init();
     M24_Garage::init(); // Meine Garage G1
     M24_Garage_Cart::init(); // Meine Garage Etappe 1: kontogebundener Warenkorb
+    M24_Garage_Share_Card::init();
     M24_Garage_Offer_Bridge::init(); // Garage → Angebot (Operator, manage_options): REST /offers/from-garage
     M24_Offer_Accept::init(); // Angebots-Annahme: Login-Gate + Magic-Link-Rückkehr (REST /offers/request-login)
     M24_Guest_Share::init(); // Paket G #4: anonymer 1-Wochen-Gast-Share

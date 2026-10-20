@@ -127,10 +127,12 @@ class M24_Garage_Cart {
 		$n     = ( $snap ? count( (array) ( $snap['items'] ?? array() ) ) + count( (array) ( $snap['vehicles'] ?? array() ) ) : 0 );
 		$ts    = ( $snap && ! empty( $snap['created_at'] ) ) ? strtotime( (string) $snap['created_at'] ) : 0;
 		$datum = $ts ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) ) : '';
-		$pid   = (int) get_option( self::PAGE_OPTION );
-		$og_title = $pid ? trim( (string) get_post_meta( $pid, '_yoast_wpseo_opengraph-title', true ) ) : '';
-		if ( '' === $og_title ) { $og_title = 'Meine MOTORSPORT24 Garage'; }
-		$og_desc  = 'Meine MOTORSPORT24-Rennsport Teile Garage mit ' . $n . ' Artikel' . ( 1 === $n ? '' : 'n' ) . ( '' !== $datum ? ' vom ' . $datum : '' );
+		$ctx = self::share_ctx( $token ); $T = $ctx['T']; $lang = $ctx['lang'];
+		$t   = function ( $k, $d = '' ) use ( $T ) { return (string) ( $T[ $k ] ?? $d ); };
+		$og_title = 'en' === $lang ? 'Your parts selection – MOTORSPORT24' : 'Deine Teile-Auswahl – MOTORSPORT24';
+		$og_desc  = 'en' === $lang
+			? ( $n . ( 1 === $n ? ' item' : ' items' ) . ', prepared for you by MOTORSPORT24' . ( '' !== $datum ? ' on ' . $datum : '' ) . '. Request a binding quote incl. packaging, transport and customs clearance.' )
+			: ( $n . ( 1 === $n ? ' Position' : ' Positionen' ) . ', zusammengestellt für Dich von MOTORSPORT24' . ( '' !== $datum ? ' am ' . $datum : '' ) . '. Verbindliches Angebot inkl. Verpackung, Transport und Zollabwicklung anfordern.' );
 		$soc      = get_option( 'wpseo_social' );
 		$og_img   = self::garage_og_image( $token ); // 1 Artikel → dessen Beitragsbild; sonst stabiles Default
 		$og_url   = self::share_url( $token );
@@ -172,35 +174,36 @@ class M24_Garage_Cart {
 			. '.m24sa-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden}'
 			. '.m24sa-submit{width:100%;border:0;border-radius:9px;background:linear-gradient(135deg,#1f74c4,#0e447e);color:#fff;font:700 15px/1 Saira,Arial,sans-serif;padding:14px;cursor:pointer;margin-top:4px}';
 		$offer_flash = '';
-		if ( 'ok' === $ap_status )  { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">Danke! Deine Anfrage ist bei uns eingegangen — wir melden uns mit einem verbindlichen Angebot.</div>'; }
-		if ( 'dup' === $ap_status ) { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">Wir haben Deine Anfrage bereits erhalten — bitte etwas Geduld.</div>'; }
-		$offer_cta = $has_parts ? '<div style="max-width:900px;margin:0 auto;text-align:center;"><button type="button" class="m24sa-btn" id="m24-angebot-open">Angebot anfragen</button></div>' : '';
+		if ( 'ok' === $ap_status )  { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">' . esc_html( $t( 'flash_ok' ) ) . '</div>'; }
+		if ( 'dup' === $ap_status ) { $offer_flash = '<div class="m24sa-flash" id="m24-kontakt-flash">' . esc_html( $t( 'flash_dup' ) ) . '</div>'; }
+		// Call-to-Action (Daniel, 20.10.2026): verbindliches Angebot inkl. Verpackung, Transport, ggf. Zollabwicklung — in der Sprache des Kunden.
+		$offer_cta = $has_parts ? '<div class="m24sa-ctabox"><p class="m24sa-ctabox-p">' . esc_html( $t( 'cta_sub' ) ) . '</p><button type="button" class="m24sa-btn" id="m24-angebot-open">' . esc_html( $t( 'cta_btn', 'Angebot anfragen' ) ) . '</button></div>' : '';
 		if ( $has_parts ) {
 			$fields = '';
 			if ( $logged ) {
-				$fields = '<p class="m24sa-form-note">Angemeldet als ' . esc_html( $cur_email ) . ' — wir nutzen Deine hinterlegten Kontodaten.</p>'
-					. '<label class="m24sa-f"><span>Nachricht (optional)</span><textarea name="nachricht" placeholder="Anmerkungen zu Deiner Anfrage …"></textarea></label>';
+				$fields = '<p class="m24sa-form-note">' . esc_html( sprintf( $t( 'f_logged', 'Angemeldet als %s' ), $cur_email ) ) . '</p>'
+					. '<label class="m24sa-f"><span>' . esc_html( $t( 'f_msg' ) ) . '</span><textarea name="nachricht" placeholder="' . esc_attr( $t( 'f_msg_ph' ) ) . '"></textarea></label>';
 			} else {
 				$copts = '';
 				foreach ( $countries as $iso => $label ) { $copts .= '<option value="' . esc_attr( $iso ) . '"' . ( 'DE' === $iso ? ' selected' : '' ) . '>' . esc_html( $label ) . '</option>'; }
-				$fields = '<div class="m24sa-f"><span>Kundenart</span><span class="m24sa-seg">'
-					. '<label><input type="radio" name="kundentyp" value="Privat" checked><span>Privat</span></label>'
-					. '<label><input type="radio" name="kundentyp" value="Geschäftskunde"><span>Geschäftskunde</span></label></span></div>'
-					. '<label class="m24sa-f"><span>Lieferland *</span><select name="lieferland" required>' . $copts . '</select></label>'
-					. '<label class="m24sa-f"><span>Name *</span><input type="text" name="name" required autocomplete="name"></label>'
-					. '<label class="m24sa-f"><span>E-Mail *</span><input type="email" name="email" required autocomplete="email"></label>'
-					. '<label class="m24sa-f"><span>Nachricht (optional)</span><textarea name="nachricht" placeholder="Anmerkungen zu Deiner Anfrage …"></textarea></label>'
-					. '<label class="m24sa-consent"><input type="checkbox" name="consent" value="1" required> <span>' . $consent . '</span></label>'
-					. '<label class="m24sa-consent"><input type="checkbox" name="register" value="1"> <span>Kostenloses MOTORSPORT24-Kundenkonto anlegen und meine Garage übernehmen.</span></label>';
+				$fields = '<div class="m24sa-f"><span>' . esc_html( $t( 'f_type' ) ) . '</span><span class="m24sa-seg">'
+					. '<label><input type="radio" name="kundentyp" value="Privat" checked><span>' . esc_html( $t( 'f_private' ) ) . '</span></label>'
+					. '<label><input type="radio" name="kundentyp" value="Geschäftskunde"><span>' . esc_html( $t( 'f_business' ) ) . '</span></label></span></div>'
+					. '<label class="m24sa-f"><span>' . esc_html( $t( 'f_country' ) ) . '</span><select name="lieferland" required>' . $copts . '</select></label>'
+					. '<label class="m24sa-f"><span>' . esc_html( $t( 'f_name' ) ) . '</span><input type="text" name="name" required autocomplete="name"></label>'
+					. '<label class="m24sa-f"><span>' . esc_html( $t( 'f_email' ) ) . '</span><input type="email" name="email" required autocomplete="email"></label>'
+					. '<label class="m24sa-f"><span>' . esc_html( $t( 'f_msg' ) ) . '</span><textarea name="nachricht" placeholder="' . esc_attr( $t( 'f_msg_ph' ) ) . '"></textarea></label>'
+					. '<label class="m24sa-consent"><input type="checkbox" name="consent" value="1" required> <span>' . ( 'en' === $lang ? esc_html( $t( 'f_consent' ) ) : $consent ) . '</span></label>'
+					. '<label class="m24sa-consent"><input type="checkbox" name="register" value="1"> <span>' . esc_html( $t( 'f_register' ) ) . '</span></label>';
 			}
 			$offer_form = '<section class="m24sa-form" id="m24-kontakt" data-collapsed>'
-				. '<h2 class="m24sa-form-h">Angebot anfragen</h2>'
-				. '<p class="m24sa-form-sub">Wir übernehmen Deine Auswahl automatisch — Du musst nichts erneut eingeben. Nach dem Absenden melden wir uns mit einem verbindlichen Angebot inkl. Verpackung, Versand und (falls nötig) Zollabwicklung.</p>'
+				. '<h2 class="m24sa-form-h">' . esc_html( $t( 'cta_h' ) ) . '</h2>'
+				. '<p class="m24sa-form-sub">' . esc_html( $t( 'cta_sub' ) ) . '</p>'
 				. '<form method="post" action="' . $ap_url . '">'
 				. '<input type="hidden" name="action" value="m24_garage_offer_request"><input type="hidden" name="garage_token" value="' . $ap_tok . '">'
 				. '<input type="text" name="website" class="m24sa-hp" tabindex="-1" autocomplete="off" aria-hidden="true">'
 				. $fields
-				. '<button type="submit" class="m24sa-submit">Anfrage senden</button>'
+				. '<button type="submit" class="m24sa-submit">' . esc_html( $t( 'f_submit' ) ) . '</button>'
 				. '</form></section>';
 		} else {
 			$offer_form = '';
@@ -212,9 +215,9 @@ class M24_Garage_Cart {
 			. 'var b=document.getElementById("m24-angebot-open");if(b)b.addEventListener("click",function(e){e.preventDefault();go();});'
 			. 'if(/[?&]angebot=start/.test(location.search)||"#m24-kontakt"===location.hash)setTimeout(go,80);})();</script>'
 		) : '';
-		echo '<!doctype html><html lang="de"><head><meta charset="utf-8">'
+		echo '<!doctype html><html lang="' . esc_attr( $lang ) . '"><head><meta charset="utf-8">'
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
-			. '<title>Geteilte Garage – MOTORSPORT24</title>'
+			. '<title>' . esc_html( $t( 'page_title', 'Geteilte Garage – MOTORSPORT24' ) ) . '</title>'
 			. '<meta name="robots" content="noindex,nofollow">'
 			. $og // phpcs:ignore WordPress.Security.EscapeOutput — Werte bereits escaped
 			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -243,13 +246,15 @@ class M24_Garage_Cart {
 			. '.m24gc-shared .m24gc-row .m24gc-title{font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
 			. '.m24gc-shared .m24gc-row .m24gc-qty{grid-area:qty}.m24gc-shared .m24gc-row .m24gc-line{grid-area:line}.m24gc-shared .m24gc-row .m24gc-qty,.m24gc-shared .m24gc-row .m24gc-line{align-self:start}'
 			. '}'
+			. '.m24sa-ctabox{max-width:900px;margin:8px auto 0;padding:22px;background:#fff;border:1px solid #eef0f2;border-radius:14px;text-align:center}.m24sa-ctabox-p{margin:0;color:#5a6474;font-size:14px;line-height:1.55}.m24sa-ctabox .m24sa-btn{margin-top:14px}'
+			. '.m24gc-taxline{margin:10px 0 0;color:#7e8794;font-size:12.5px;line-height:1.5;text-align:right}'
 			. $offer_css . '</style></head><body>'
 			. '<div class="m24sa-bar"><div class="m24sa-bar-inner"><img src="' . $logo . '" alt="MOTORSPORT24"></div></div>'
 			. '<div class="m24sa-wrap">' . $offer_flash . $inner . $offer_cta . $offer_form . '</div>'
 			. '<div class="m24sa-foot">'
-			. '<div style="color:#7e8794">Classic &amp; Race Cars and Parts Sales since 2006</div>'
-			. '<div style="margin-top:8px">MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin</div>'
-			. '<div style="margin-top:8px"><a href="https://www.motorsport24.de/impressum/">Impressum</a> · <a href="https://www.motorsport24.de/datenschutz/">Datenschutz</a> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></div>'
+			. '<div style="color:#7e8794">' . esc_html( $t( 'foot_claim', 'Classic & Race Cars and Parts Sales since 2006' ) ) . '</div>'
+			. '<div style="margin-top:8px">MOTORSPORT24 GmbH · Scharfe Lanke 109–131 · Haus 113a · 13595 Berlin · Germany</div>'
+			. '<div style="margin-top:8px"><a href="https://www.motorsport24.de/impressum/">' . esc_html( $t( 'foot_imprint', 'Impressum' ) ) . '</a> · <a href="https://www.motorsport24.de/datenschutz/">' . esc_html( $t( 'foot_privacy', 'Datenschutz' ) ) . '</a> · <a href="https://www.motorsport24.de">www.motorsport24.de</a></div>'
 			. '</div>'
 			. $offer_js . '</body></html>';
 		exit;
@@ -847,8 +852,9 @@ class M24_Garage_Cart {
 		wp_mail( $to, 'Garage-Anfrage ' . $gno . ( '' !== $offer ? ' · Entwurf ' . $offer : '' ), $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 	}
 
-	public static function write_snapshot( int $acc, string $token ): void {
+	public static function write_snapshot( int $acc, string $token, array $opts = array() ): void {
 		if ( $acc <= 0 || '' === $token ) { return; }
+		if ( ! $opts && class_exists( 'M24_Garage_Share_Opts' ) ) { $opts = M24_Garage_Share_Opts::get( $acc ); }
 		self::garage_no( $acc, true ); // Paket 4: beim Teilen sicherstellen, dass das Konto eine Garagen-Nr. hat
 		global $wpdb;
 		$t     = self::snapshot_table();
@@ -880,6 +886,9 @@ class M24_Garage_Cart {
 			'net_fmt'   => self::fmt( $gross_sum / 1.19 ),
 			'count'     => count( $items ),
 			'unpriced'  => $unpriced,
+			// Sprache + Steuerfall der geteilten Ansicht (20.10.2026) — eingefroren wie die Positionen.
+			'lang'      => (string) ( $opts['lang'] ?? 'de' ),
+			'tax'       => (string) ( $opts['tax'] ?? 'brutto' ),
 		);
 
 		// Fahrzeuge zusätzlich einfrieren (frozen). DATENSCHUTZ: KEINE FIN/Art.-Nr. in den Snapshot.
@@ -1084,11 +1093,13 @@ class M24_Garage_Cart {
 		}
 		$message = trim( (string) $req->get_param( 'message' ) );
 		$attach  = filter_var( $req->get_param( 'attach_pdf' ), FILTER_VALIDATE_BOOLEAN );
+		$opts    = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::from_request( $acc, $req->get_param( 'lang' ), $req->get_param( 'tax' ) ) : array( 'lang' => 'de', 'tax' => 'brutto' );
+		$T       = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::t( $opts['lang'] ) : array();
 
 		// A) Frischen Snapshot am neuen Token (wie share-rotate) → gemailter Link = Abbild zum Sendezeitpunkt.
 		$had_prev  = ( '' !== self::share_token_existing( $acc ) ); // vor dem Rotate: hatte der Kunde schon mal geteilt?
 		$token     = self::share_token_rotate( $acc );
-		self::write_snapshot( $acc, $token );
+		self::write_snapshot( $acc, $token, $opts );
 		$share_url = self::share_url( $token );
 
 		// B) Exposé-PDF optional in eine Temp-Datei (sauberer Anhangsname, kollisionsfrei).
@@ -1108,33 +1119,35 @@ class M24_Garage_Cart {
 		}
 
 		// C) Mail über die kanonische Basis-Vorlage (blauer Header + weißes Logo). KOMPLETT Du-Stil.
-		$subject     = 'MOTORSPORT24-Teile-Auswahl';
-		$owner       = get_userdata( $acc );
-		$owner_email = $owner ? (string) $owner->user_email : '';
-		$snap_time   = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', current_time( 'timestamp' ) ) : gmdate( 'd.m.Y, H:i', current_time( 'timestamp' ) );
-		$verb        = $had_prev ? 'aktualisiert' : 'erstellt';
+		// Mail in der gewählten Sprache (20.10.2026): Texte aus M24_Garage_Share_Opts::t(); Absender ist MOTORSPORT24,
+		// nicht mehr „vom Benutzer …" — der Kunde bekommt die Auswahl von uns zusammengestellt.
+		$lang        = (string) $opts['lang'];
+		$subject     = (string) ( $T['m_subject'] ?? 'MOTORSPORT24-Teile-Auswahl' );
+		$snap_time   = function_exists( 'wp_date' ) ? wp_date( 'en' === $lang ? 'd M Y, H:i' : 'd.m.Y, H:i', current_time( 'timestamp' ) ) : gmdate( 'd.m.Y, H:i', current_time( 'timestamp' ) );
 		$gno         = self::garage_no( $acc, false );
 		$contact_url = add_query_arg( 'angebot', 'start', $share_url ) . '#m24-kontakt'; // öffnet/fokussiert das Kontaktformular
 		$btn_style   = 'display:inline-block;background:#1f74c4;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:6px;font-size:15px;';
-		$btn         = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="' . $btn_style . '">Zur Teile-Übersicht</a></p>';
+		$btn         = '<p style="margin:22px 0;text-align:center;"><a href="' . esc_url( $share_url ) . '" style="' . $btn_style . '">' . esc_html( $T['m_btn'] ?? 'Zur Teile-Übersicht' ) . '</a></p>';
+		$taxline     = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::tax_line( (string) $opts['tax'], $lang ) : '';
 
-		$inner  = '<p style="margin:0 0 14px;">Hallo,</p>'
-			. '<p style="margin:0 0 14px;">hier ist die persönliche MOTORSPORT24-Teile-Auswahl' . ( '' !== $owner_email ? ' vom Benutzer ' . esc_html( $owner_email ) : '' ) . ', ' . esc_html( $verb ) . ' am ' . esc_html( $snap_time ) . ' Uhr.</p>'
-			. '<p style="margin:0 0 14px;">Der Link' . ( '' !== $gno ? ' zur Garagen-Nummer <strong>' . esc_html( $gno ) . '</strong>' : '' ) . ' ist drei Monate gültig.</p>';
+		$inner  = '<p style="margin:0 0 14px;">' . esc_html( $T['m_hello'] ?? 'Hallo,' ) . '</p>'
+			. '<p style="margin:0 0 14px;">' . sprintf( esc_html( $T['m_intro'] ?? 'hier ist Deine persönliche MOTORSPORT24-Teile-Auswahl%s, zusammengestellt am %s Uhr.' ), '', esc_html( $snap_time ) ) . '</p>'
+			. '<p style="margin:0 0 14px;">' . sprintf( esc_html( $T['m_link'] ?? 'Der Link%s ist drei Monate gültig.' ), '' !== $gno ? sprintf( $T['m_garage'] ?? ' zur Garagen-Nummer <strong>%s</strong>', esc_html( $gno ) ) : '' ) . '</p>';
 		if ( '' !== $message ) {
 			$inner .= '<p style="margin:0 0 14px;padding:12px 14px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap;">' . nl2br( esc_html( $message ) ) . '</p>';
 		}
 		$inner .= $btn;
+		if ( '' !== $taxline ) { $inner .= '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">' . esc_html( $taxline ) . '</p>'; }
 		if ( ! empty( $attachments ) ) {
-			$inner .= '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.</p>';
+			$inner .= '<p style="margin:0 0 14px;color:#5a6474;font-size:13px;">' . esc_html( $T['m_pdf'] ?? 'Im Anhang befindet sich die Auswahl zusammengefasst als PDF-Datei.' ) . '</p>';
 		}
-		// Angebots-Absatz: „Zum Kontaktformular" als zentrierter Action-Button (öffnet das Kontaktformular in der Garage).
+		// Call-to-Action: verbindliches Angebot inkl. Verpackung, Transport, ggf. Zoll — zentrierter Button.
 		$inner .= '<div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e6e9ee;">'
-			. '<p style="margin:0 0 10px;">Möchtest Du daraus ein verbindliches Kaufangebot machen? Melde Dich einfach bei uns — wir ergänzen Verpackung, Versand und (falls nötig) die Zollabwicklung und senden Dir ein verbindliches Angebot zurück. Deine Auswahl übernehmen wir dabei automatisch, Du musst nichts erneut eingeben.</p>'
-			. '<p style="margin:18px 0 0;text-align:center;"><a href="' . esc_url( $contact_url ) . '" style="' . $btn_style . '">Zum Kontaktformular</a></p></div>';
+			. '<p style="margin:0 0 10px;">' . esc_html( $T['m_cta_p'] ?? '' ) . '</p>'
+			. '<p style="margin:18px 0 0;text-align:center;"><a href="' . esc_url( $contact_url ) . '" style="' . $btn_style . '">' . esc_html( $T['m_cta_btn'] ?? 'Zum Kontaktformular' ) . '</a></p></div>';
 		$html = function_exists( 'm24_mail_shell' )
-			? m24_mail_shell( 'MOTORSPORT24-Teile-Auswahl', $inner )
-			: '<h1>MOTORSPORT24-Teile-Auswahl</h1>' . $inner;
+			? m24_mail_shell( (string) ( $T['title'] ?? 'MOTORSPORT24-Teile-Auswahl' ), $inner )
+			: '<h1>' . esc_html( $T['title'] ?? 'MOTORSPORT24-Teile-Auswahl' ) . '</h1>' . $inner;
 
 		$host      = preg_replace( '/^www\./i', '', (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
 		if ( '' === $host ) { $host = 'motorsport24.de'; }
@@ -1247,6 +1260,7 @@ class M24_Garage_Cart {
 	public static function handle_share( WP_REST_Request $req ) {
 		$acc    = self::current_account_id();
 		$action = (string) $req->get_param( 'action' );
+		if ( class_exists( 'M24_Garage_Share_Opts' ) ) { M24_Garage_Share_Opts::from_request( $acc, $req->get_param( 'lang' ), $req->get_param( 'tax' ) ); }
 
 		if ( 'rotate' === $action ) {
 			$tok = self::share_token_rotate( $acc );
@@ -1979,6 +1993,7 @@ class M24_Garage_Cart {
 							<div class="m24gc-card m24gc-sharecard" data-m24gc-share>
 								<h3 class="m24gc-card-h">Garage teilen</h3>
 
+								<?php if ( class_exists( 'M24_Garage_Share_Opts' ) ) { M24_Garage_Share_Opts::render_fields( $acc ); } // Sprache + Steuerfall (20.10.2026) ?>
 								<!-- Variante A: EIN primärer Button — friert den aktuellen Stand in DENSELBEN Token neu ein + kopiert. -->
 								<button type="button" class="m24gc-share-primary m24gc-btn-blue" data-m24gc-share-primary>Garage-Link erstellen &amp; teilen</button>
 								<p class="m24gc-share-info">Dein Klick auf den Button erstellt ein Abbild deiner aktuellen Garage, welches du über den Link versenden kannst. Änderungen speicherst du mit einem erneuten Klick.</p>
@@ -2342,16 +2357,28 @@ class M24_Garage_Cart {
 	 * Read-only-Ansicht der AKTUELLEN Garage des Token-Eigentümers (live).
 	 * Keine PII (E-Mail/Name) — nur Inhalt + Preise, neutral als „Geteilte Garage".
 	 */
+	/** Sprache/Steuerfall + Texte der geteilten Ansicht zu einem Token (20.10.2026). */
+	public static function share_ctx( string $token ): array {
+		$snap = self::read_snapshot( $token );
+		$o = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::from_snapshot( $snap ) : array( 'lang' => 'de', 'tax' => 'brutto' );
+		$o['net'] = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::is_net( $o['tax'] ) : false;
+		$o['T']   = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::t( $o['lang'] ) : array();
+		$o['taxline'] = class_exists( 'M24_Garage_Share_Opts' ) ? M24_Garage_Share_Opts::tax_line( $o['tax'], $o['lang'] ) : '';
+		return $o;
+	}
+
 	private static function render_shared( string $token ): string {
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
 		$acc = self::resolve_share_token( $token );
+		$ctx = self::share_ctx( $token ); $T = $ctx['T']; $net_mode = $ctx['net'];
+		$t = function ( $k, $d = '' ) use ( $T ) { return (string) ( $T[ $k ] ?? $d ); };
 		ob_start();
 
 		if ( $acc <= 0 ) {
 			?>
 			<div class="m24gc-page m24gc-shared">
-				<h2 class="m24gc-h">Geteilte Garage</h2>
-				<p class="m24gc-empty">Dieser Link ist nicht (mehr) gültig. Bitte den Eigentümer um einen aktuellen Link.</p>
+				<h2 class="m24gc-h"><?php echo esc_html( $t( 'title', 'Geteilte Garage' ) ); ?></h2>
+				<p class="m24gc-empty"><?php echo esc_html( $t( 'invalid', 'Dieser Link ist nicht (mehr) gültig.' ) ); ?></p>
 			</div>
 			<?php
 			return (string) ob_get_clean();
@@ -2367,8 +2394,8 @@ class M24_Garage_Cart {
 		if ( $created > 0 && ( current_time( 'timestamp' ) - $created ) > ( 90 * DAY_IN_SECONDS ) ) {
 			?>
 			<div class="m24gc-page m24gc-shared">
-				<h2 class="m24gc-h">Geteilte Garage</h2>
-				<p class="m24gc-empty">Dieser Link ist abgelaufen. Bitte den Eigentümer um einen neuen Link.</p>
+				<h2 class="m24gc-h"><?php echo esc_html( $t( 'title', 'Geteilte Garage' ) ); ?></h2>
+				<p class="m24gc-empty"><?php echo esc_html( $t( 'expired', 'Dieser Link ist abgelaufen.' ) ); ?></p>
 			</div>
 			<?php
 			return (string) ob_get_clean();
@@ -2397,26 +2424,24 @@ class M24_Garage_Cart {
 		$grand_fmt = self::fmt( $gross_sum );
 		$net_fmt   = self::fmt( $gross_sum / 1.19 );
 		?>
-		<div class="m24gc-page m24gc-dash m24gc-shared">
+		<div class="m24gc-page m24gc-dash m24gc-shared<?php echo $net_mode ? ' is-netto' : ''; ?>">
 			<header class="m24gc-dash-head">
-				<h1 class="m24gc-dash-title">Geteilte Garage</h1>
+				<h1 class="m24gc-dash-title"><?php echo esc_html( $t( 'title', 'Deine Teile-Auswahl' ) ); ?></h1>
 				<?php
 				$snap_ts    = ( $created > 0 ) ? $created : current_time( 'timestamp' );
-				$snap_when  = function_exists( 'wp_date' ) ? wp_date( 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
-				$owner_u    = get_userdata( $acc );
-				$owner_mail = $owner_u ? (string) $owner_u->user_email : '';
+				$snap_when  = function_exists( 'wp_date' ) ? wp_date( 'en' === $ctx['lang'] ? 'd M Y, H:i' : 'd.m.Y, H:i', $snap_ts ) : gmdate( 'd.m.Y, H:i', $snap_ts );
 				?>
-				<p class="m24gc-shared-hint">Ein Blick in die Garage<?php echo '' !== $owner_mail ? ' von ' . esc_html( $owner_mail ) : ''; ?>, erstellt am <?php echo esc_html( $snap_when ); ?> Uhr.</p>
+				<p class="m24gc-shared-hint"><?php echo esc_html( sprintf( $t( 'hint', 'Zusammengestellt für Dich von MOTORSPORT24 am %s.' ), $snap_when ) ); ?></p>
 					<?php $gno = self::garage_no( $acc, false ); ?>
-					<?php if ( '' !== $gno ) : ?><p class="m24gc-shared-no">Garagen-Nr. <?php echo esc_html( $gno ); ?></p><?php endif; ?>
+					<?php if ( '' !== $gno ) : ?><p class="m24gc-shared-no"><?php echo esc_html( sprintf( $t( 'garage_no', 'Garagen-Nr. %s' ), $gno ) ); ?></p><?php endif; ?>
 			</header>
 
 			<?php if ( empty( $items ) && empty( $vehicles ) ) : ?>
-				<div class="m24gc-emptybox"><div class="m24gc-emptybox-t">Diese Garage ist aktuell leer</div></div>
+				<div class="m24gc-emptybox"><div class="m24gc-emptybox-t"><?php echo esc_html( $t( 'empty', 'Diese Garage ist aktuell leer' ) ); ?></div></div>
 			<?php else : ?>
 				<?php if ( ! empty( $vehicles ) ) : ?>
 					<section class="m24gc-shared-sec">
-						<h2 class="m24gc-shared-sec-title">Geparkte Fahrzeuge</h2>
+						<h2 class="m24gc-shared-sec-title"><?php echo esc_html( $t( 'vehicles', 'Geparkte Fahrzeuge' ) ); ?></h2>
 						<div class="m24gc-vlist">
 							<?php foreach ( $vehicles as $v ) : self::render_snapshot_vehicle_card( (array) $v ); endforeach; ?>
 						</div>
@@ -2425,17 +2450,23 @@ class M24_Garage_Cart {
 
 				<?php if ( ! empty( $items ) ) : ?>
 					<section class="m24gc-shared-sec">
-						<?php if ( ! empty( $vehicles ) ) : ?><h2 class="m24gc-shared-sec-title">Teile</h2><?php endif; ?>
+						<?php if ( ! empty( $vehicles ) ) : ?><h2 class="m24gc-shared-sec-title"><?php echo esc_html( $t( 'parts', 'Teile' ) ); ?></h2><?php endif; ?>
 						<div class="m24gc-list">
-							<?php foreach ( $items as $it ) : self::render_snapshot_row( (array) $it ); endforeach; ?>
+							<?php foreach ( $items as $it ) : self::render_snapshot_row( (array) $it, $ctx ); endforeach; ?>
 						</div>
 						<div class="m24gc-listfoot">
-							<span class="m24gc-listfoot-l"><?php echo (int) $p_count; ?> Position<?php echo 1 === $p_count ? '' : 'en'; ?><?php if ( $unpriced > 0 ) : ?> · <?php echo (int) $unpriced; ?> auf Anfrage<?php endif; ?></span>
+							<span class="m24gc-listfoot-l"><?php echo esc_html( sprintf( $t( 'positions', '%d Position(en)' ), $p_count ) ); ?><?php if ( $unpriced > 0 ) : ?> · <?php echo esc_html( sprintf( $t( 'on_request', '%d auf Anfrage' ), $unpriced ) ); ?><?php endif; ?></span>
 							<span class="m24gc-listfoot-r">
-								<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
-								<span class="m24gc-net"><?php echo esc_html( $net_fmt ); ?> netto</span>
+								<?php if ( $net_mode ) : ?>
+									<span class="m24gc-brutto"><?php echo esc_html( $net_fmt ); ?></span>
+									<span class="m24gc-net"><?php echo esc_html( $t( 'total_net', 'Gesamt netto' ) ); ?></span>
+								<?php else : ?>
+									<span class="m24gc-brutto"><?php echo esc_html( $grand_fmt ); ?></span>
+									<span class="m24gc-net"><?php echo esc_html( $net_fmt . ' ' . $t( 'net', 'netto' ) ); ?></span>
+								<?php endif; ?>
 							</span>
 						</div>
+						<?php if ( '' !== $ctx['taxline'] ) : ?><p class="m24gc-taxline"><?php echo esc_html( $ctx['taxline'] ); ?></p><?php endif; ?>
 					</section>
 				<?php endif; ?>
 			<?php endif; ?>
@@ -2445,16 +2476,23 @@ class M24_Garage_Cart {
 	}
 
 	/** Eine read-only Teile-Zeile aus einem Snapshot-Item (items_json-Shape). Preis: live_gross (Preis-Ausnahme) → sonst eingefroren. */
-	private static function render_snapshot_row( array $it ) {
+	private static function render_snapshot_row( array $it, array $ctx = array() ) {
+		$T = (array) ( $ctx['T'] ?? array() ); $net_mode = ! empty( $ctx['net'] );
 		if ( array_key_exists( 'live_gross', $it ) ) {
 			$gross = ( null !== $it['live_gross'] ) ? (float) $it['live_gross'] : null;
 		} else {
 			$gross = isset( $it['price_gross'] ) && null !== $it['price_gross'] ? (float) $it['price_gross'] : null;
 		}
 		$qty   = max( 1, (int) ( $it['qty'] ?? 1 ) );
-		$line  = ( null !== $gross ) ? self::fmt( $gross * $qty ) : 'Preis auf Anfrage';
-		// Netto pro Position (kaufmännisch gerundet) — dezente Grau-Zeile unter dem Brutto.
-		$net_line = ( null !== $gross ) ? self::fmt( round( $gross * $qty / 1.19, 2 ) ) : '';
+		$req   = (string) ( $T['price_req'] ?? 'Preis auf Anfrage' );
+		// Netto-Steuerfall (20.10.2026): Netto als Hauptpreis, keine Bruttozeile. Sonst Brutto + dezente Nettozeile.
+		if ( $net_mode ) {
+			$line     = ( null !== $gross ) ? self::fmt( round( $gross * $qty / 1.19, 2 ) ) : $req;
+			$net_line = '';
+		} else {
+			$line     = ( null !== $gross ) ? self::fmt( $gross * $qty ) : $req;
+			$net_line = ( null !== $gross ) ? self::fmt( round( $gross * $qty / 1.19, 2 ) ) : '';
+		}
 
 		// Shop-Link: eingefrorene URL → sonst live per article_id (Altlinks); leer → nicht verlinkt.
 		$url = (string) ( $it['url'] ?? '' );
@@ -2474,11 +2512,11 @@ class M24_Garage_Cart {
 			</span>
 			<span class="m24gc-title"><?php echo esc_html( (string) ( $it['title'] ?? '' ) ); ?></span>
 			<div class="m24gc-info">
-				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant">Variante: <?php echo esc_html( (string) $it['variant'] ); ?></span><?php endif; ?>
-				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr">Art.-Nr.: <?php echo esc_html( (string) $it['art_nr'] ); ?></span><?php endif; ?>
+				<?php if ( ! empty( $it['variant'] ) ) : ?><span class="m24gc-variant"><?php echo esc_html( ( $T['variant'] ?? 'Variante: ' ) . (string) $it['variant'] ); ?></span><?php endif; ?>
+				<?php if ( ! empty( $it['art_nr'] ) ) : ?><span class="m24gc-artnr"><?php echo esc_html( ( $T['artnr'] ?? 'Art.-Nr.: ' ) . (string) $it['art_nr'] ); ?></span><?php endif; ?>
 			</div>
 			<div class="m24gc-qty m24gc-qty-static" aria-label="Menge"><span class="m24gc-qty-x">×</span><span class="m24gc-qty-val"><?php echo (int) $qty; ?></span></div>
-			<div class="m24gc-line"><?php echo esc_html( $line ); ?><?php if ( '' !== $net_line ) : ?><span class="m24gc-line-net">inkl. 19 % MwSt · <?php echo esc_html( $net_line ); ?> netto</span><?php endif; ?></div>
+			<div class="m24gc-line"><?php echo esc_html( $line ); ?><?php if ( '' !== $net_line ) : ?><span class="m24gc-line-net"><?php echo esc_html( ( $T['incl_vat'] ?? 'inkl. 19 % MwSt' ) . ' · ' . $net_line . ' ' . ( $T['net'] ?? 'netto' ) ); ?></span><?php endif; ?></div>
 		</<?php echo $tag; ?>>
 		<?php
 	}
