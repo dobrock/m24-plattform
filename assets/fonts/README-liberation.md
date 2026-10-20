@@ -11,3 +11,7 @@ sauberer Fallback (Arial-Stack bzw. bestehendes PNG-Logo) — das PDF bricht nic
 ## Dompdf-Font-Cache
 Der Font-Cache liegt in wp-content/uploads/m24-dompdf-fonts/ (beschreibbar, nicht in vendor/).
 Nach dem Austausch der TTFs diesen Ordner LEEREN, damit Dompdf die Fonts neu einliest.
+
+
+## Saira (20.10.2026)
+- Saira-Bold.ttf / Saira-Regular.ttf: statische Instanzen (wght 700/400, wdth 100) aus `Saira[wdth,wght].ttf` (Google Fonts, SIL OFL 1.1, Omnibus-Type). Für das GD-Vorschaubild der geteilten Garage (class-m24-garage-share-card.php).

@@ -81,8 +81,11 @@ class M24_Garage_Share_Card {
 		$white = imagecolorallocate( $img, 255, 255, 255 );
 		$grey  = imagecolorallocate( $img, 190, 200, 212 );
 		imagefill( $img, 0, 0, $navy );
-		$bold = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Bold.ttf';
-		$reg  = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Regular.ttf';
+		// Hero-Schrift der Seite (Daniel, 20.10.2026): Saira (OFL), statische Schnitte aus der Google-Fonts-Variable.
+		$bold = M24_PLATTFORM_DIR . 'assets/fonts/Saira-Bold.ttf';
+		$reg  = M24_PLATTFORM_DIR . 'assets/fonts/Saira-Regular.ttf';
+		if ( ! is_readable( $bold ) ) { $bold = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Bold.ttf'; }
+		if ( ! is_readable( $reg ) )  { $reg  = M24_PLATTFORM_DIR . 'assets/fonts/LiberationSans-Regular.ttf'; }
 		$title = $en ? 'Your racing parts selection' : 'Deine Rennsport-Teile Auswahl'; // Daniel, 20.10.2026 (Schrift: fette Grotesk, Liberation Sans Bold = Helvetica-Metrik)
 		$sub   = $en ? ( $n . ( 1 === $n ? ' item' : ' items' ) . ' · prepared for you' ) : ( $n . ( 1 === $n ? ' Position' : ' Positionen' ) . ' · zusammengestellt für Dich' );
 		$first_title = (string) ( $first['title'] ?? '' );
@@ -117,7 +120,7 @@ class M24_Garage_Share_Card {
 			for ( $y = 0; $y < 130; $y++ ) { $a = (int) round( 127 - 45 * ( 1 - $y / 130 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $a ) ) ) ); }
 			// Logo dezenter (Daniel, 20.10.2026): kleiner, Abstand oben = Abstand des Texts unten (38 px).
 			self::logo( $img, 48, 25, 240 ); // 25 px zum oberen Rand (Daniel, 20.10.2026), kein „motorsport24.de" unten rechts
-			self::text( $img, $bold, 42, $white, 48, 548, $title, 1100 );
+			self::text( $img, $bold, 44, $white, 48, 548, $title, 1100 );
 			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 1100 );
 		}
 		if ( $hero ) { imagedestroy( $hero ); }
