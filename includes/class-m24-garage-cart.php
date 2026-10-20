@@ -129,10 +129,14 @@ class M24_Garage_Cart {
 		$datum = $ts ? ( function_exists( 'wp_date' ) ? wp_date( 'd.m.Y', $ts ) : gmdate( 'd.m.Y', $ts ) ) : '';
 		$ctx = self::share_ctx( $token ); $T = $ctx['T']; $lang = $ctx['lang'];
 		$t   = function ( $k, $d = '' ) use ( $T ) { return (string) ( $T[ $k ] ?? $d ); };
-		$og_title = 'en' === $lang ? 'Your racing parts selection – MOTORSPORT24' : 'Deine Rennsport-Teile Auswahl – MOTORSPORT24';
+		// Nicht doppelt zum Bild (Daniel, 20.10.2026): die Überschrift steht im Bild, der Link-Titel trägt die Garagen-Nr.
+		$gno_og   = ( ( $acc_og = self::resolve_share_token( $token ) ) > 0 ) ? self::garage_no( $acc_og, false ) : '';
+		$og_title = 'en' === $lang
+			? ( 'MOTORSPORT24' . ( '' !== $gno_og ? ' · Garage no. ' . $gno_og : '' ) )
+			: ( 'MOTORSPORT24' . ( '' !== $gno_og ? ' · Garagen-Nr. ' . $gno_og : '' ) );
 		$og_desc  = 'en' === $lang
-			? ( $n . ( 1 === $n ? ' item' : ' items' ) . ', prepared for you by MOTORSPORT24' . ( '' !== $datum ? ' on ' . $datum : '' ) . '. Request a binding quote incl. packaging, transport and customs clearance.' )
-			: ( $n . ( 1 === $n ? ' Position' : ' Positionen' ) . ', zusammengestellt für Dich von MOTORSPORT24' . ( '' !== $datum ? ' am ' . $datum : '' ) . '. Verbindliches Angebot inkl. Verpackung, Transport und Zollabwicklung anfordern.' );
+			? 'Request a binding quote incl. packaging, transport and customs clearance.'
+			: 'Verbindliches Angebot inkl. Verpackung, Transport und Zollabwicklung anfordern.';
 		$soc      = get_option( 'wpseo_social' );
 		$og_img   = self::garage_og_image( $token ); // 1 Artikel → dessen Beitragsbild; sonst stabiles Default
 		$og_url   = self::share_url( $token );

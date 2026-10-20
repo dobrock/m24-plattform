@@ -121,7 +121,7 @@ class M24_Garage_Share_Card {
 			// Logo dezenter (Daniel, 20.10.2026): kleiner, Abstand oben = Abstand des Texts unten (38 px).
 			self::logo( $img, 48, 25, 240 ); // 25 px zum oberen Rand (Daniel, 20.10.2026), kein „motorsport24.de" unten rechts
 			self::text( $img, $bold, 44, $white, 48, 548, $title, 1100 );
-			self::text( $img, $reg, 21, $grey, 48, 592, $sub . ( '' !== $gno ? ' · ' . ( $en ? 'Garage no. ' : 'Garagen-Nr. ' ) . $gno : '' ), 1100 );
+			self::text( $img, $reg, 21, $grey, 48, 592, $sub, 1100 ); // Garagen-Nr. steht im Link-Titel (og:title), nicht doppelt im Bild
 		}
 		if ( $hero ) { imagedestroy( $hero ); }
 		imagejpeg( $img, $file, 88 );
