@@ -119,9 +119,9 @@ class M24_Garage_Share_Card {
 			// leichter Schatten oben links fürs Logo
 			for ( $y = 0; $y < 130; $y++ ) { $a = (int) round( 127 - 45 * ( 1 - $y / 130 ) ); imageline( $img, 0, $y, self::W, $y, imagecolorallocatealpha( $img, 0, 0, 0, max( 0, min( 127, $a ) ) ) ); }
 			// Logo dezenter (Daniel, 20.10.2026): kleiner, Abstand oben = Abstand des Texts unten (38 px).
-			self::logo( $img, 54, 25, 240 ); // 25 px oben, 54 px links (Daniel, 20.10.2026: 6 px weiter rechts)
-			self::text( $img, $bold, 44, $white, 54, 548, $title, 1100 );
-			self::text( $img, $reg, 21, $grey, 54, 592, $sub, 1100 ); // Garagen-Nr. steht im Link-Titel (og:title), nicht doppelt im Bild
+			self::logo( $img, 60, 25, 240 ); // 25 px oben, 60 px links = bündig mit dem Link-Titel in der Mail-Vorschau (Daniel, 20.10.2026)
+			self::text( $img, $bold, 44, $white, 60, 548, $title, 1100 );
+			self::text( $img, $reg, 21, $grey, 60, 592, $sub, 1100 ); // Garagen-Nr. steht im Link-Titel (og:title), nicht doppelt im Bild
 		}
 		if ( $hero ) { imagedestroy( $hero ); }
 		imagejpeg( $img, $file, 88 );
