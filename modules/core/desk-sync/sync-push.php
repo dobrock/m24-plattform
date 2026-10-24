@@ -218,8 +218,10 @@ class M24_Sync_Push {
 			$rec['vat_mode']      = M24_Desk_Push::vat_mode( (string) $o->tax_mode, $biz, $land );
 		}
 		$rec['offer_date'] = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : null;
-		$cs = json_decode( (string) $o->completed_steps, true );
-		if ( is_array( $cs ) ) { $rec['completed_steps'] = array_values( array_map( 'strval', $cs ) ); }
+		// completed_steps NICHT mehr mitschicken: der Auftrags-Lebenszyklus gehoert dem Desk, WP haelt nur
+		// eine Spiegel-Kopie. Mit neuerem updated_at (nach einem WP-Touch) hat diese veraltete Kopie im Desk
+		// „Erledigt" wieder geloescht (Desk-Auftraege 202608103, 202610110). Den einzigen WP-eigenen Schritt
+		// („confirmed") setzt weiterhin W2b in desk-push.php per PUT.
 
 		// Lieferadresse: ship_name setzt sich wie im D-Kanal aus Anrede + Vor- + Nachname zusammen.
 		$rec['ship_name'] = trim( implode( ' ', array_filter( array(
