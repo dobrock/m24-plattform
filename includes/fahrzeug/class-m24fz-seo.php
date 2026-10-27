@@ -135,7 +135,7 @@ class M24FZ_SEO {
 		$preis = (int) get_post_meta( $id, '_m24fz_preis', true );
 		$red   = (int) get_post_meta( $id, '_m24fz_preis_reduziert', true );
 		$eff   = ( $red > 0 && $red < $preis ) ? $red : $preis;
-		$cur   = ( 'CHF' === strtoupper( (string) get_post_meta( $id, '_m24fz_waehrung', true ) ) ) ? 'CHF' : '€';
+		$cur   = M24FZ_Telemetry::currency_symbol( get_post_meta( $id, '_m24fz_waehrung', true ) );
 
 		if ( ! $paf && $eff > 0 ) {
 			return $base . ' für ' . number_format( $eff, 0, ',', '.' ) . ' ' . $cur;
@@ -289,7 +289,7 @@ class M24FZ_SEO {
 		$preis = (int) $g( '_m24fz_preis' );
 		$red   = (int) $g( '_m24fz_preis_reduziert' );
 		$eff   = ( $red > 0 && $red < $preis ) ? $red : $preis;
-		$cur   = ( 'CHF' === strtoupper( $g( '_m24fz_waehrung' ) ) ) ? 'CHF' : 'EUR';
+		$cur   = M24FZ_Telemetry::currency_code( $g( '_m24fz_waehrung' ) );
 		$avail = M24FZ_CPT::is_sold( $id ) ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
 		$offer = array( '@type' => 'Offer', 'priceCurrency' => $cur, 'availability' => $avail, 'url' => get_permalink( $id ),
 			'seller' => array( '@type' => 'Organization', 'name' => 'MOTORSPORT24 GmbH' ) );

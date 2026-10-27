@@ -415,7 +415,7 @@ class M24FZ_Editor_Screen {
 							<?php self::field( $id, '_m24fz_preis', 'Preis', array( 'ph' => 'z. B. 189000' ) ); ?>
 							<div class="fz-f">
 								<label for="_m24fz_waehrung">Währung</label>
-								<select id="_m24fz_waehrung" name="_m24fz_waehrung"><option value="EUR"<?php selected( $waehr, 'EUR' ); ?>>EUR (€)</option><option value="CHF"<?php selected( $waehr, 'CHF' ); ?>>CHF</option></select>
+								<select id="_m24fz_waehrung" name="_m24fz_waehrung"><?php foreach ( M24FZ_Telemetry::currencies() as $wc => $ws ) : ?><option value="<?php echo esc_attr( $wc ); ?>"<?php selected( $waehr, $wc ); ?>><?php echo esc_html( 'EUR' === $wc ? 'EUR (€)' : $wc ); ?></option><?php endforeach; ?></select>
 							</div>
 							<?php self::field( $id, '_m24fz_preis_reduziert', 'Reduzierter Preis (optional)', array( 'ph' => 'durchgestrichener Originalpreis' ) ); ?>
 						</div>
@@ -584,7 +584,7 @@ class M24FZ_Editor_Screen {
 		// Neue optionale Felder (nur Komfort-Maske → keine Kollision mit klassischer Box).
 		$unit = in_array( ( $_POST['_m24fz_laufleistung_einheit'] ?? '' ), array( 'mi', 'h' ), true ) ? (string) $_POST['_m24fz_laufleistung_einheit'] : 'km';
 		update_post_meta( $id, '_m24fz_laufleistung_einheit', $unit );
-		update_post_meta( $id, '_m24fz_waehrung', ( 'CHF' === ( $_POST['_m24fz_waehrung'] ?? '' ) ) ? 'CHF' : 'EUR' );
+		update_post_meta( $id, '_m24fz_waehrung', M24FZ_Telemetry::currency_code( $_POST['_m24fz_waehrung'] ?? '' ) );
 		update_post_meta( $id, '_m24fz_anzahl_halter', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_anzahl_halter'] ?? '' ) ) );
 		update_post_meta( $id, '_m24fz_preis_reduziert', (int) preg_replace( '/\D/', '', (string) wp_unslash( $_POST['_m24fz_preis_reduziert'] ?? '' ) ) );
 		update_post_meta( $id, '_m24fz_fahrbereit', empty( $_POST['_m24fz_fahrbereit'] ) ? 0 : 1 );
