@@ -616,9 +616,12 @@ class M24_Desk_Inbound {
 
         // Angebotsdatum aus dem Desk (echtes Sende-/Angebotsdatum), NICHT „jetzt" → Übersicht zeigt das reale
         // Datum statt „heute". Reihenfolge nach Verlässlichkeit; nur bei komplett fehlendem Datum auf jetzt.
-        $offer_date_raw = (string) ( $data['offer_date'] ?? $data['order_date'] ?? $data['created'] ?? $data['created_at'] ?? '' );
+        // NUR offer_date: ohne gesendetes Angebot bleibt sent_at NULL (Karte ohne „Gesendet am"). Der fruehere
+        // Fallback auf created_at/„jetzt" machte aus jedem frisch angelegten Desk-Auftrag ein „gesendetes"
+        // Angebot — und sync-push trug das Datum als offer_date in den Desk zurueck (28.10.2026, 202610123).
+        $offer_date_raw = (string) ( $data['offer_date'] ?? '' );
         $sent_at        = '' !== trim( $offer_date_raw ) ? self::to_mysql_utc( $offer_date_raw ) : null;
-        if ( empty( $sent_at ) ) { $sent_at = current_time( 'mysql', true ); }
+        if ( empty( $sent_at ) ) { $sent_at = null; }
         $steps = $data['completed_steps'] ?? array();
         if ( is_string( $steps ) ) { $steps = json_decode( $steps, true ); }
         $steps = is_array( $steps ) ? array_values( array_map( 'strval', $steps ) ) : array();

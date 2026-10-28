@@ -217,7 +217,14 @@ class M24_Sync_Push {
 			$rec['delivery_days'] = M24_Desk_Push::payload_lieferzeit( $o ); // kompakter Code, wie in W1
 			$rec['vat_mode']      = M24_Desk_Push::vat_mode( (string) $o->tax_mode, $biz, $land );
 		}
-		$rec['offer_date'] = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : null;
+		// offer_date nur fuer WP-EIGENE Angebote: dort ist sent_at der echte Versand. Bei der Spiegel-Kopie eines
+		// Desk-Auftrags stammt sent_at aus dem Desk (oder war ein Fallback auf „jetzt", s. desk-inbound) — wieder
+		// zurueckgeschickt hat es am 28.10.2026 den Desk-Auftrag 202610123 als „Angebot raus / wartet auf Zahlung"
+		// gefuehrt, obwohl nie ein Angebot gesendet war. Das Angebotsdatum eines Desk-Auftrags gehoert dem Desk.
+		$desk_eigen = class_exists( 'M24_Offers' ) && M24_Offers::ist_desk_auftrag( $o );
+		if ( ! $desk_eigen ) {
+			$rec['offer_date'] = ! empty( $o->sent_at ) ? substr( (string) $o->sent_at, 0, 10 ) : null;
+		}
 		// completed_steps NICHT mehr mitschicken: der Auftrags-Lebenszyklus gehoert dem Desk, WP haelt nur
 		// eine Spiegel-Kopie. Mit neuerem updated_at (nach einem WP-Touch) hat diese veraltete Kopie im Desk
 		// „Erledigt" wieder geloescht (Desk-Auftraege 202608103, 202610110). Den einzigen WP-eigenen Schritt
