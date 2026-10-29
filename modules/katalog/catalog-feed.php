@@ -11,7 +11,8 @@
  *
  *   GET /wp-json/m24/v1/teile-feed?token=…            → JSON  { generated, count, items: [...] }
  *   GET /wp-json/m24/v1/teile-feed?token=…&format=csv → CSV (UTF-8 mit BOM, Semikolon; Bilder mit | getrennt)
- *   Parameter: typ=gebraucht|neu|alle (Standard gebraucht), seit=YYYY-MM-DD (nur seitdem geänderte), limit (Std. 500)
+ *   Parameter: typ=gebraucht|neu|alle (Standard gebraucht), seit=YYYY-MM-DD (nur seitdem geänderte), limit (Std. 500),
+ *              ka=1 → nur Teile mit Häkchen „Für Kleinanzeigen freigeben" (Daniel, 29.10.: nur ausgewählte Teile exportieren)
  *
  * Token: Option m24_teile_feed_token (beim ersten Aufruf der Admin-Seite erzeugt). Eingeloggte Admins brauchen keins.
  * Admin-Seite „Teile-Feed" (MOTORSPORT24-Menü) zeigt die URLs, Vorschau und den Knopf „Token erneuern".
@@ -47,6 +48,7 @@ class M24_Catalog_Feed {
 				'typ'    => array( 'default' => 'gebraucht' ),
 				'seit'   => array( 'default' => '' ),
 				'limit'  => array( 'default' => 500 ),
+				'ka'     => array( 'default' => '' ),
 			),
 		) );
 	}
@@ -75,7 +77,7 @@ class M24_Catalog_Feed {
 	/* ── Daten ──────────────────────────────────────────────────────────────── */
 
 	/** Aktive, veröffentlichte Teile als Feed-Datensätze. */
-	public static function items( string $typ = 'gebraucht', string $seit = '', int $limit = 500 ): array {
+	public static function items( string $typ = 'gebraucht', string $seit = '', int $limit = 500, bool $nur_ka = false ): array {
 		$mq = array( 'relation' => 'AND',
 			array( 'relation' => 'OR',
 				array( 'key' => '_m24_status', 'value' => 'aktiv' ),
@@ -84,6 +86,7 @@ class M24_Catalog_Feed {
 				array( 'key' => '_m24_preis_auf_anfrage', 'value' => '1', 'compare' => '!=' ),
 				array( 'key' => '_m24_preis_auf_anfrage', 'compare' => 'NOT EXISTS' ) ),
 		);
+		if ( $nur_ka ) { $mq[] = array( 'key' => '_m24_kleinanzeigen', 'value' => '1' ); }
 		if ( 'alle' !== $typ ) {
 			$mq[] = ( 'gebraucht' === $typ )
 				? array( 'relation' => 'OR', array( 'key' => '_m24_typ', 'value' => 'gebraucht' ), array( 'key' => '_m24_typ', 'compare' => 'NOT EXISTS' ) )
@@ -155,6 +158,7 @@ class M24_Catalog_Feed {
 			'mwst'          => 'paragraf25a' === ( $preis['modus'] ?? '' ) ? '25a' : '19',
 			'zustand'       => 'gebraucht' === $typ ? 'Gebraucht' : 'Neu',
 			'typ'           => $typ,
+			'kleinanzeigen' => '1' === (string) get_post_meta( $id, '_m24_kleinanzeigen', true ),
 			'kategorie'     => 'Auto, Rad & Boot > Autoteile & Reifen',
 			'versand'       => 'Versand möglich',
 			'plz'           => (string) apply_filters( 'm24_feed_plz', '13595' ),
@@ -192,9 +196,10 @@ class M24_Catalog_Feed {
 
 	public static function rest( WP_REST_Request $r ) {
 		$typ   = sanitize_key( (string) $r->get_param( 'typ' ) ) ?: 'gebraucht';
-		$items = self::items( in_array( $typ, array( 'gebraucht', 'neu', 'alle' ), true ) ? $typ : 'gebraucht', sanitize_text_field( (string) $r->get_param( 'seit' ) ), (int) $r->get_param( 'limit' ) );
+		$nur_ka = in_array( (string) $r->get_param( 'ka' ), array( '1', 'true', 'ja' ), true );
+		$items = self::items( in_array( $typ, array( 'gebraucht', 'neu', 'alle' ), true ) ? $typ : 'gebraucht', sanitize_text_field( (string) $r->get_param( 'seit' ) ), (int) $r->get_param( 'limit' ), $nur_ka );
 		if ( 'csv' === strtolower( (string) $r->get_param( 'format' ) ) ) {
-			$cols = array( 'id', 'art_nr', 'teilenummer', 'titel', 'beschreibung', 'preis', 'preistyp', 'mwst', 'zustand', 'kategorie', 'versand', 'plz', 'ort', 'modelle', 'baugruppe', 'bilder', 'url', 'geaendert' );
+			$cols = array( 'id', 'art_nr', 'teilenummer', 'titel', 'beschreibung', 'preis', 'preistyp', 'mwst', 'zustand', 'kleinanzeigen', 'kategorie', 'versand', 'plz', 'ort', 'modelle', 'baugruppe', 'bilder', 'url', 'geaendert' );
 			$fh = fopen( 'php://temp', 'w+' );
 			fwrite( $fh, "\xEF\xBB\xBF" );
 			fputcsv( $fh, $cols, ';' );
@@ -209,7 +214,7 @@ class M24_Catalog_Feed {
 			echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput
 			exit;
 		}
-		return rest_ensure_response( array( 'generated' => gmdate( 'c' ), 'typ' => $typ, 'count' => count( $items ), 'items' => $items ) );
+		return rest_ensure_response( array( 'generated' => gmdate( 'c' ), 'typ' => $typ, 'nur_kleinanzeigen' => $nur_ka, 'count' => count( $items ), 'items' => $items ) );
 	}
 
 	/* ── Admin-Seite ────────────────────────────────────────────────────────── */
@@ -222,20 +227,22 @@ class M24_Catalog_Feed {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
 		$tok  = self::token();
 		$base = rest_url( self::NS . self::ROUTE );
-		$json = add_query_arg( array( 'token' => $tok ), $base );
-		$csv  = add_query_arg( array( 'token' => $tok, 'format' => 'csv' ), $base );
-		$items = self::items( 'gebraucht', '', 5 );
-		$n     = count( self::items( 'gebraucht', '', 2000 ) );
+		$json = add_query_arg( array( 'token' => $tok, 'ka' => 1 ), $base );
+		$csv  = add_query_arg( array( 'token' => $tok, 'ka' => 1, 'format' => 'csv' ), $base );
+		$items = self::items( 'gebraucht', '', 5, true );
+		$n     = count( self::items( 'gebraucht', '', 2000, true ) );
+		$n_alle = count( self::items( 'gebraucht', '', 2000 ) );
 		echo '<div class="wrap"><h1>Teile-Feed</h1>';
 		if ( ! empty( $_GET['erneuert'] ) ) { echo '<div class="notice notice-success"><p>Token erneuert – alte Feed-URLs sind ungültig.</p></div>'; } // phpcs:ignore
 		echo '<p>Aktive Gebrauchtteile mit Preis und Bild im Kleinanzeigen-Zuschnitt (Titel ≤ 65 Zeichen, Klartext, Festpreis in ganzen Euro, max. 20 Bilder). Der Feed ist die eine Quelle für Kleinanzeigen-Tools, eBay & Co. – Preis und Bestand kommen immer aus dem Katalog.</p>';
-		echo '<p><strong>' . (int) $n . '</strong> Gebrauchtteile im Feed. Varianten: <code>&amp;typ=neu</code>, <code>&amp;typ=alle</code>, <code>&amp;seit=2026-11-01</code> (nur seitdem geändert).</p>';
+		echo '<p><strong>' . (int) $n . '</strong> Teile für Kleinanzeigen freigegeben (Häkchen „Für Kleinanzeigen freigeben" im Teil) von ' . (int) $n_alle . ' aktiven Gebrauchtteilen. Die URLs unten liefern nur die freigegebenen (<code>ka=1</code>); ohne <code>ka=1</code> kommen alle. Varianten: <code>&amp;typ=neu</code>, <code>&amp;typ=alle</code>, <code>&amp;seit=2026-11-01</code> (nur seitdem geändert).</p>';
 		echo '<table class="widefat striped" style="max-width:980px"><tbody>';
 		echo '<tr><th style="width:120px">JSON</th><td><code style="user-select:all">' . esc_html( $json ) . '</code></td></tr>';
 		echo '<tr><th>CSV</th><td><code style="user-select:all">' . esc_html( $csv ) . '</code> <a class="button button-small" href="' . esc_url( $csv ) . '">Herunterladen</a></td></tr>';
 		echo '</tbody></table>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin:12px 0 24px" onsubmit="return confirm(\'Token wirklich erneuern? Eingetragene Feed-URLs in Fremd-Tools müssen danach ersetzt werden.\')"><input type="hidden" name="action" value="m24_feed_token">' . wp_nonce_field( 'm24_feed_token', '_wpnonce', true, false ) . '<button class="button">Token erneuern</button> <span class="description">Die URL enthält das Token – nicht öffentlich posten.</span></form>';
-		echo '<h2>Vorschau (die 5 zuletzt geänderten)</h2>';
+		echo '<h2>Vorschau (die 5 zuletzt geänderten freigegebenen)</h2>';
+		if ( ! $items ) { echo '<p>Noch kein Teil freigegeben – im Teil unter „Kleinanzeigen" das Häkchen setzen.</p>'; }
 		foreach ( $items as $it ) {
 			echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin:0 0 10px;max-width:980px;display:grid;grid-template-columns:96px 1fr;gap:14px">';
 			echo '<div>' . ( $it['bilder'] ? '<img src="' . esc_url( $it['bilder'][0] ) . '" style="width:96px;height:72px;object-fit:cover;border-radius:4px">' : '<div style="width:96px;height:72px;background:#eee;border-radius:4px"></div>' ) . '<div style="font-size:11px;color:#666;margin-top:4px">' . count( $it['bilder'] ) . ' Bilder</div></div>';
