@@ -134,15 +134,35 @@ class M24_Catalog_Feed {
 		$hinweis   = $g( '_m24_hinweis' );
 		$beschr    = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_de', true ) );
 
+		// Standort je Teil (29.10.2026, Daniel): Berlin oder Düderode – PLZ/Ort und Abholhinweis folgen daraus.
+		$standort = 'duederode' === $g( '_m24_standort' ) ? 'duederode' : 'berlin';
+		$plz      = 'duederode' === $standort ? '37589' : '13595';
+		$ort      = 'duederode' === $standort ? 'Düderode' : 'Berlin';
+		$ist25a   = 'paragraf25a' === ( $preis['modus'] ?? '' );
+		$e_reihe  = (bool) preg_match( '/\b(E\d{2}|E9x)\b/i', implode( ' ', $modelle ) . ' ' . $titel );   // E-Baureihe → Hinweis auf s14.de
+		$titel_en = html_entity_decode( $g( '_m24_titel_en' ), ENT_QUOTES, 'UTF-8' );
+		$beschr_en = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_en', true ) );
+
 		$zeilen = array_filter( array(
 			$beschr,
 			$modelle ? 'Passend für: ' . implode( ', ', $modelle ) : '',
 			$teilenr ? 'Teilenummer: ' . $teilenr : '',
 			$artnr ? 'Artikelnummer: ' . $artnr : '',
 			$hinweis,
-			'gebraucht' === $typ ? 'Gebrauchtteil, geprüft – Zustand siehe Fotos. Versand oder Abholung in Berlin möglich.' : 'Neuteil. Versand oder Abholung in Berlin möglich.',
-			'paragraf25a' === ( $preis['modus'] ?? '' ) ? 'Differenzbesteuert nach § 25a UStG, keine MwSt. ausweisbar.' : 'Preis inkl. 19 % MwSt., Rechnung mit ausgewiesener MwSt.',
+			( 'gebraucht' === $typ ? 'Gebrauchtteil, geprüft – Zustand siehe Fotos.' : 'Neuteil.' ) . ' Weltweiter Versand möglich, Abholung in ' . $plz . ' ' . $ort . '.',
+			$ist25a ? 'Differenzbesteuert nach § 25a UStG – keine MwSt. ausweisbar.' : 'Preis inkl. 19 % MwSt., Rechnung mit ausgewiesener MwSt.',
+			$e_reihe ? 'Weitere Teile für BMW E-Baureihen in den s14.de Kleinanzeigen: https://s14.de/markt/teile/' : '',
 			'Alle Details und weitere Bilder: ' . $url,
+		) );
+		$zeilen_en = array_filter( array(
+			$beschr_en ?: '',
+			$modelle ? 'Fits: ' . implode( ', ', $modelle ) : '',
+			$teilenr ? 'Part number: ' . $teilenr : '',
+			$artnr ? 'Item no.: ' . $artnr : '',
+			( 'gebraucht' === $typ ? 'Used part, inspected – condition as pictured.' : 'New part.' ) . ' Worldwide shipping available, pickup in ' . $plz . ' ' . $ort . ', Germany.',
+			$ist25a ? 'Margin scheme (sec. 25a German VAT Act) – no VAT shown on invoice.' : 'Price incl. 19% German VAT; VAT invoice provided.',
+			$e_reihe ? 'More parts for BMW E-series on s14.de classifieds: https://s14.de/markt/teile/' : '',
+			'All details and more pictures: ' . $url,
 		) );
 
 		return array(
@@ -152,6 +172,9 @@ class M24_Catalog_Feed {
 			'titel'         => self::kuerzen( $titel, self::TITEL_MAX ),
 			'titel_voll'    => $titel,
 			'beschreibung'  => implode( "\n\n", $zeilen ),
+			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n— English —\n\n" . implode( "\n\n", $zeilen_en ),
+			'titel_en'      => $titel_en ? self::kuerzen( $titel_en, self::TITEL_MAX ) : '',
+			'beschreibung_en' => implode( "\n\n", $zeilen_en ),
 			'preis'         => (int) round( $brutto ),       // Kleinanzeigen: ganze Euro, Festpreis
 			'preis_brutto'  => round( $brutto, 2 ),
 			'preistyp'      => 'Festpreis',
@@ -161,8 +184,9 @@ class M24_Catalog_Feed {
 			'kleinanzeigen' => '1' === (string) get_post_meta( $id, '_m24_kleinanzeigen', true ),
 			'kategorie'     => 'Auto, Rad & Boot > Autoteile & Reifen',
 			'versand'       => 'Versand möglich',
-			'plz'           => (string) apply_filters( 'm24_feed_plz', '13595' ),
-			'ort'           => (string) apply_filters( 'm24_feed_ort', 'Berlin' ),
+			'standort'      => $standort,
+			'plz'           => $plz,
+			'ort'           => $ort,
 			'modelle'       => array_values( $modelle ),
 			'baugruppe'     => array_values( $baugruppe ),
 			'bilder'        => $bilder,
@@ -199,7 +223,7 @@ class M24_Catalog_Feed {
 		$nur_ka = in_array( (string) $r->get_param( 'ka' ), array( '1', 'true', 'ja' ), true );
 		$items = self::items( in_array( $typ, array( 'gebraucht', 'neu', 'alle' ), true ) ? $typ : 'gebraucht', sanitize_text_field( (string) $r->get_param( 'seit' ) ), (int) $r->get_param( 'limit' ), $nur_ka );
 		if ( 'csv' === strtolower( (string) $r->get_param( 'format' ) ) ) {
-			$cols = array( 'id', 'art_nr', 'teilenummer', 'titel', 'beschreibung', 'preis', 'preistyp', 'mwst', 'zustand', 'kleinanzeigen', 'kategorie', 'versand', 'plz', 'ort', 'modelle', 'baugruppe', 'bilder', 'url', 'geaendert' );
+			$cols = array( 'id', 'art_nr', 'teilenummer', 'titel', 'titel_en', 'beschreibung', 'beschreibung_en', 'beschreibung_de_en', 'preis', 'preistyp', 'mwst', 'zustand', 'kleinanzeigen', 'standort', 'kategorie', 'versand', 'plz', 'ort', 'modelle', 'baugruppe', 'bilder', 'url', 'geaendert' );
 			$fh = fopen( 'php://temp', 'w+' );
 			fwrite( $fh, "\xEF\xBB\xBF" );
 			fputcsv( $fh, $cols, ';' );
