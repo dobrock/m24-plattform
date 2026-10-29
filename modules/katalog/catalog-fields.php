@@ -70,7 +70,7 @@ class M24_Catalog_Fields {
 		$leichtbau    = (bool) (int) get_post_meta( $post->ID, '_m24_leichtbau', true );
 		$rennsport_hinweis = (bool) (int) get_post_meta( $post->ID, '_m24_rennsport_hinweis', true );
 		$kleinanzeigen     = (bool) (int) get_post_meta( $post->ID, '_m24_kleinanzeigen', true ); // Teile-Feed (29.10.2026): nur markierte Teile gehen zu Kleinanzeigen
-		$standort          = get_post_meta( $post->ID, '_m24_standort', true ) ?: 'berlin';             // Lagerort fuer Feed/Kleinanzeigen (PLZ/Ort + Abholhinweis)
+		$standort          = get_post_meta( $post->ID, '_m24_standort', true ) ?: 'duederode';             // Lagerort fuer Feed/Kleinanzeigen (PLZ/Ort + Abholhinweis)
 		$show_nachbau  = (bool) (int) get_post_meta( $post->ID, '_m24_show_nachbau_hinweis', true );
 		// N2/T8: URL-Slug.
 		//  - Input-Feld immer LEER (value=""): leer lassen = Auto-Slug aus Titel.
@@ -246,8 +246,8 @@ class M24_Catalog_Fields {
 
 			<label>Standort (Lager)</label>
 			<select name="m24_standort">
-				<option value="berlin" <?php selected( $standort, 'berlin' ); ?>>13595 Berlin (MOTORSPORT24)</option>
 				<option value="duederode" <?php selected( $standort, 'duederode' ); ?>>37589 Düderode (KK Automobile)</option>
+				<option value="berlin" <?php selected( $standort, 'berlin' ); ?>>13595 Berlin (MOTORSPORT24)</option>
 			</select>
 
 			<label>URL-Slug <span class="hint">(leer lassen = Auto aus Titel · <?php echo $slug_is_manual ? '<strong style="color:#c8102e">aktuell manuell</strong>' : '<strong style="color:#2f7d52">aktuell automatisch</strong>'; ?>)</span></label>
@@ -486,7 +486,7 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_leichtbau',         isset( $_POST['m24_leichtbau'] )         ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_rennsport_hinweis', isset( $_POST['m24_rennsport_hinweis'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_kleinanzeigen',     isset( $_POST['m24_kleinanzeigen'] ) ? 1 : 0 );
-		update_post_meta( $post_id, '_m24_standort', ( isset( $_POST['m24_standort'] ) && 'duederode' === $_POST['m24_standort'] ) ? 'duederode' : 'berlin' );
+		update_post_meta( $post_id, '_m24_standort', ( isset( $_POST['m24_standort'] ) && 'berlin' === $_POST['m24_standort'] ) ? 'berlin' : 'duederode' );
 		update_post_meta( $post_id, '_m24_show_nachbau_hinweis', isset( $_POST['m24_show_nachbau_hinweis'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_preis_auf_anfrage', isset( $_POST['m24_preis_auf_anfrage'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_beschreibung_de', wp_kses_post( wp_unslash( isset( $_POST['m24_beschreibung_de'] ) ? $_POST['m24_beschreibung_de'] : '' ) ) );
