@@ -69,6 +69,7 @@ class M24_Catalog_Fields {
 		$original_teil = '1' === get_post_meta( $post->ID, '_m24_original_teil', true );
 		$leichtbau    = (bool) (int) get_post_meta( $post->ID, '_m24_leichtbau', true );
 		$rennsport_hinweis = (bool) (int) get_post_meta( $post->ID, '_m24_rennsport_hinweis', true );
+		$kleinanzeigen     = (bool) (int) get_post_meta( $post->ID, '_m24_kleinanzeigen', true ); // Teile-Feed (29.10.2026): nur markierte Teile gehen zu Kleinanzeigen
 		$show_nachbau  = (bool) (int) get_post_meta( $post->ID, '_m24_show_nachbau_hinweis', true );
 		// N2/T8: URL-Slug.
 		//  - Input-Feld immer LEER (value=""): leer lassen = Auto-Slug aus Titel.
@@ -234,6 +235,12 @@ class M24_Catalog_Fields {
 			<label style="font-weight:400;cursor:pointer">
 				<input type="checkbox" name="m24_rennsport_hinweis" value="1" <?php checked( $rennsport_hinweis, true ); ?>>
 				<span>„Verkauf rein für den Rennsport…" im Detail-Header anzeigen (sonst Standard-Logik: nur bei Neuteil)</span>
+			</label>
+
+			<label>Kleinanzeigen</label>
+			<label style="font-weight:400;cursor:pointer">
+				<input type="checkbox" name="m24_kleinanzeigen" value="1" <?php checked( $kleinanzeigen, true ); ?>>
+				<span>Für Kleinanzeigen freigeben <span class="hint">(erscheint im Teile-Feed mit <code>ka=1</code>; nur aktive Teile mit Preis)</span></span>
 			</label>
 
 			<label>URL-Slug <span class="hint">(leer lassen = Auto aus Titel · <?php echo $slug_is_manual ? '<strong style="color:#c8102e">aktuell manuell</strong>' : '<strong style="color:#2f7d52">aktuell automatisch</strong>'; ?>)</span></label>
@@ -471,6 +478,7 @@ class M24_Catalog_Fields {
 		update_post_meta( $post_id, '_m24_original_teil', isset( $_POST['m24_original_teil'] ) ? '1' : '0' );
 		update_post_meta( $post_id, '_m24_leichtbau',         isset( $_POST['m24_leichtbau'] )         ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_rennsport_hinweis', isset( $_POST['m24_rennsport_hinweis'] ) ? 1 : 0 );
+		update_post_meta( $post_id, '_m24_kleinanzeigen',     isset( $_POST['m24_kleinanzeigen'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_show_nachbau_hinweis', isset( $_POST['m24_show_nachbau_hinweis'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_preis_auf_anfrage', isset( $_POST['m24_preis_auf_anfrage'] ) ? 1 : 0 );
 		update_post_meta( $post_id, '_m24_beschreibung_de', wp_kses_post( wp_unslash( isset( $_POST['m24_beschreibung_de'] ) ? $_POST['m24_beschreibung_de'] : '' ) ) );
