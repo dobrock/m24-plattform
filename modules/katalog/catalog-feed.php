@@ -35,6 +35,7 @@ class M24_Catalog_Feed {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ), 40 );
 		add_action( 'admin_post_m24_feed_token', array( __CLASS__, 'token_erneuern' ) );
+		add_action( 'admin_post_m24_ka_auswahl', array( __CLASS__, 'auswahl_speichern' ) );
 	}
 
 	public static function routes() {
@@ -97,8 +98,10 @@ class M24_Catalog_Feed {
 			'orderby' => 'modified', 'order' => 'DESC', 'meta_query' => $mq, 'no_found_rows' => true,
 		);
 		if ( $seit && preg_match( '/^\d{4}-\d{2}-\d{2}/', $seit ) ) { $args['date_query'] = array( array( 'column' => 'post_modified_gmt', 'after' => $seit ) ); }
-		$out = array();
-		foreach ( get_posts( $args ) as $p ) {
+		$out   = array();
+		$posts = get_posts( $args );
+		self::s14_links_vorwaermen( $posts );
+		foreach ( $posts as $p ) {
 			$it = self::item( $p );
 			if ( $it ) { $out[] = $it; }
 		}
@@ -135,12 +138,13 @@ class M24_Catalog_Feed {
 		$beschr    = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_de', true ) );
 
 		// Standort je Teil (29.10.2026, Daniel): Berlin oder Düderode – PLZ/Ort und Abholhinweis folgen daraus.
-		$standort = 'duederode' === $g( '_m24_standort' ) ? 'duederode' : 'berlin';
+		$standort = 'berlin' === $g( '_m24_standort' ) ? 'berlin' : 'duederode'; // Standard Düderode (Daniel, 29.10.: „in Berlin habe ich kaum etwas“)
 		$plz      = 'duederode' === $standort ? '37589' : '13595';
 		$ort      = 'duederode' === $standort ? 'Düderode' : 'Berlin';
 		$ist25a   = 'paragraf25a' === ( $preis['modus'] ?? '' );
 		$e_reihe  = (bool) preg_match( '/\b(E\d{2}|E9x)\b/i', implode( ' ', $modelle ) . ' ' . $titel );   // E-Baureihe → Hinweis auf s14.de
 		$titel_en = html_entity_decode( $g( '_m24_titel_en' ), ENT_QUOTES, 'UTF-8' );
+		$link     = self::s14_link( $id, $url ) ?: $url;   // immer zu s14.de verlinken (Daniel, 29.10.); ohne s14-Inserat (F/G-Baureihen) bleibt der m24-Link
 		$beschr_en = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_en', true ) );
 
 		$zeilen = array_filter( array(
@@ -152,7 +156,7 @@ class M24_Catalog_Feed {
 			( 'gebraucht' === $typ ? 'Gebrauchtteil, geprüft – Zustand siehe Fotos.' : 'Neuteil.' ) . ' Weltweiter Versand möglich, Abholung in ' . $plz . ' ' . $ort . '.',
 			$ist25a ? 'Differenzbesteuert nach § 25a UStG – keine MwSt. ausweisbar.' : 'Preis inkl. 19 % MwSt., Rechnung mit ausgewiesener MwSt.',
 			$e_reihe ? 'Weitere Teile für BMW E-Baureihen in den s14.de Kleinanzeigen: https://s14.de/markt/teile/' : '',
-			'Alle Details und weitere Bilder: ' . $url,
+			'Alle Details und weitere Bilder: ' . $link,
 		) );
 		$zeilen_en = array_filter( array(
 			$beschr_en ?: '',
@@ -162,7 +166,7 @@ class M24_Catalog_Feed {
 			( 'gebraucht' === $typ ? 'Used part, inspected – condition as pictured.' : 'New part.' ) . ' Worldwide shipping available, pickup in ' . $plz . ' ' . $ort . ', Germany.',
 			$ist25a ? 'Margin scheme (sec. 25a German VAT Act) – no VAT shown on invoice.' : 'Price incl. 19% German VAT; VAT invoice provided.',
 			$e_reihe ? 'More parts for BMW E-series on s14.de classifieds: https://s14.de/markt/teile/' : '',
-			'All details and more pictures: ' . $url,
+			'All details and more pictures: ' . $link,
 		) );
 
 		return array(
@@ -191,6 +195,7 @@ class M24_Catalog_Feed {
 			'baugruppe'     => array_values( $baugruppe ),
 			'bilder'        => $bilder,
 			'url'           => $url,
+			'link'          => $link,
 			'geaendert'     => get_post_modified_time( 'c', true, $p ),
 		);
 	}
@@ -214,6 +219,69 @@ class M24_Catalog_Feed {
 		$sp = mb_strrpos( $k, ' ' );
 		if ( false !== $sp && $sp > $max * 0.6 ) { $k = mb_substr( $k, 0, $sp ); }
 		return rtrim( $k, " ,-–/·" );
+	}
+
+	/** s14.de-Permalink zum Teil aus dem Meta-Cache (24 h); gefüllt von s14_links_vorwaermen(). '' = s14 hat das Teil nicht. */
+	public static function s14_link( int $id, string $m24_url ): string {
+		$c = get_post_meta( $id, '_m24_s14_link', true );
+		return ( is_array( $c ) && isset( $c['u'] ) ) ? (string) $c['u'] : '';
+	}
+
+	/** Cache für viele Teile auf einmal füllen: REST s14/v1/m24-link nimmt bis 50 URLs je Aufruf (statt 1 Request je Teil). */
+	private static function s14_links_vorwaermen( array $posts ): void {
+		$offen = array();
+		foreach ( $posts as $p ) {
+			$c = get_post_meta( $p->ID, '_m24_s14_link', true );
+			if ( is_array( $c ) && isset( $c['t'] ) && time() - (int) $c['t'] < DAY_IN_SECONDS ) { continue; }
+			$offen[ (string) get_permalink( $p ) ] = (int) $p->ID;
+		}
+		if ( ! $offen ) { return; }
+		foreach ( array_chunk( array_keys( $offen ), 50 ) as $i => $urls ) {
+			if ( $i >= 20 ) { break; } // max. 1.000 je Lauf, der Rest beim nächsten Aufruf
+			$r = wp_remote_get( 'https://s14.de/wp-json/s14/v1/m24-link?url=' . rawurlencode( implode( ',', $urls ) ), array( 'timeout' => 15 ) );
+			if ( is_wp_error( $r ) || 200 !== (int) wp_remote_retrieve_response_code( $r ) ) { break; }
+			$j = json_decode( (string) wp_remote_retrieve_body( $r ), true );
+			if ( ! is_array( $j ) ) { break; }
+			foreach ( $urls as $u ) { update_post_meta( $offen[ $u ], '_m24_s14_link', array( 't' => time(), 'u' => (string) ( $j[ $u ] ?? '' ) ) ); }
+		}
+	}
+
+	/* ── Auswahl-Seite: Teile für Kleinanzeigen abhaken ─────────────────────── */
+
+	public static function auswahl_speichern() {
+		if ( ! current_user_can( 'manage_options' ) || ! check_admin_referer( 'm24_ka_auswahl' ) ) { wp_die( 'Nicht erlaubt.' ); }
+		$ids  = array_map( 'intval', (array) ( $_POST['teil'] ?? array() ) );            // alle gelisteten
+		$an   = array_map( 'intval', (array) ( $_POST['ka'] ?? array() ) );              // angehakt
+		$ort  = (array) ( $_POST['standort'] ?? array() );
+		foreach ( $ids as $id ) {
+			update_post_meta( $id, '_m24_kleinanzeigen', in_array( $id, $an, true ) ? 1 : 0 );
+			if ( isset( $ort[ $id ] ) ) { update_post_meta( $id, '_m24_standort', 'berlin' === $ort[ $id ] ? 'berlin' : 'duederode' ); }
+		}
+		wp_safe_redirect( add_query_arg( array( 'page' => self::SLUG, 'tab' => 'auswahl', 'gespeichert' => count( $an ) ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	private static function auswahl_seite() {
+		$items = self::items( 'alle', '', 2000 );
+		usort( $items, function ( $a, $b ) { return $b['preis'] <=> $a['preis']; } );
+		$n_an = count( array_filter( $items, function ( $i ) { return $i['kleinanzeigen']; } ) );
+		echo '<p>Teuerste zuerst. Haken = „Für Kleinanzeigen freigeben“ (landet im Feed mit <code>ka=1</code>). Standort je Teil: Düderode (Standard) oder Berlin. <b>' . (int) $n_an . '</b> von ' . count( $items ) . ' freigegeben.</p>';
+		if ( isset( $_GET['gespeichert'] ) ) { echo '<div class="notice notice-success"><p>Gespeichert – ' . (int) $_GET['gespeichert'] . ' Teile für Kleinanzeigen freigegeben.</p></div>'; } // phpcs:ignore
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="m24_ka_auswahl">' . wp_nonce_field( 'm24_ka_auswahl', '_wpnonce', true, false );
+		echo '<p style="position:sticky;top:32px;background:#f0f0f1;padding:8px 0;z-index:5;margin:0 0 8px"><button class="button button-primary">Auswahl speichern</button> <input type="search" id="m24kaf" placeholder="Filter …" style="margin-left:10px;width:240px"> <label style="margin-left:10px"><input type="checkbox" id="m24kanur"> nur freigegebene</label></p>';
+		echo '<table class="widefat striped" id="m24katab" style="max-width:1100px"><thead><tr><th style="width:30px">KA</th><th style="width:60px">Bild</th><th>Teil</th><th style="width:80px">Preis</th><th style="width:60px">Typ</th><th style="width:70px">MwSt</th><th style="width:150px">Standort</th><th style="width:60px">s14</th></tr></thead><tbody>';
+		foreach ( $items as $it ) {
+			$id = (int) $it['id'];
+			echo '<tr data-t="' . esc_attr( mb_strtolower( $it['titel_voll'] . ' ' . $it['art_nr'] ) ) . '" data-ka="' . ( $it['kleinanzeigen'] ? 1 : 0 ) . '">';
+			echo '<td><input type="hidden" name="teil[]" value="' . $id . '"><input type="checkbox" name="ka[]" value="' . $id . '"' . checked( $it['kleinanzeigen'], true, false ) . '></td>';
+			echo '<td>' . ( $it['bilder'] ? '<img src="' . esc_url( $it['bilder'][0] ) . '" style="width:56px;height:42px;object-fit:cover;border-radius:3px">' : '' ) . '</td>';
+			echo '<td><a href="' . esc_url( get_edit_post_link( $id ) ) . '">' . esc_html( $it['titel_voll'] ) . '</a><br><span style="color:#666;font-size:11px">' . esc_html( $it['art_nr'] ) . ' · ' . count( $it['bilder'] ) . ' Bilder · ' . esc_html( implode( ', ', $it['modelle'] ) ) . '</span></td>';
+			echo '<td><b>' . number_format( (int) $it['preis'], 0, ',', '.' ) . ' €</b></td><td>' . esc_html( $it['zustand'] ) . '</td><td>' . ( '25a' === $it['mwst'] ? '§ 25a' : '19 %' ) . '</td>';
+			echo '<td><select name="standort[' . $id . ']"><option value="duederode"' . selected( $it['standort'], 'duederode', false ) . '>37589 Düderode</option><option value="berlin"' . selected( $it['standort'], 'berlin', false ) . '>13595 Berlin</option></select></td>';
+			echo '<td>' . ( $it['link'] !== $it['url'] ? '<a href="' . esc_url( $it['link'] ) . '" target="_blank">✓</a>' : '<span style="color:#aaa">–</span>' ) . '</td></tr>';
+		}
+		echo '</tbody></table><p style="margin-top:10px"><button class="button button-primary">Auswahl speichern</button></p></form>';
+		echo '<script>(function(){var f=document.getElementById("m24kaf"),n=document.getElementById("m24kanur"),rows=document.querySelectorAll("#m24katab tbody tr");function go(){var q=f.value.toLowerCase();rows.forEach(function(r){var ok=(!q||r.dataset.t.indexOf(q)>-1)&&(!n.checked||r.dataset.ka==="1"||r.querySelector("input[type=checkbox]").checked);r.style.display=ok?"":"none";});}f.addEventListener("input",go);n.addEventListener("change",go);})();</script>';
 	}
 
 	/* ── Ausgabe ────────────────────────────────────────────────────────────── */
@@ -256,7 +324,10 @@ class M24_Catalog_Feed {
 		$items = self::items( 'gebraucht', '', 5, true );
 		$n     = count( self::items( 'gebraucht', '', 2000, true ) );
 		$n_alle = count( self::items( 'gebraucht', '', 2000 ) );
+		$tab = sanitize_key( (string) ( $_GET['tab'] ?? 'feed' ) ); // phpcs:ignore
 		echo '<div class="wrap"><h1>Teile-Feed</h1>';
+		echo '<nav class="nav-tab-wrapper" style="margin-bottom:12px"><a class="nav-tab' . ( 'feed' === $tab ? ' nav-tab-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">Feed</a><a class="nav-tab' . ( 'auswahl' === $tab ? ' nav-tab-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG . '&tab=auswahl' ) ) . '">Kleinanzeigen-Auswahl</a></nav>';
+		if ( 'auswahl' === $tab ) { self::auswahl_seite(); echo '</div>'; return; }
 		if ( ! empty( $_GET['erneuert'] ) ) { echo '<div class="notice notice-success"><p>Token erneuert – alte Feed-URLs sind ungültig.</p></div>'; } // phpcs:ignore
 		echo '<p>Aktive Gebrauchtteile mit Preis und Bild im Kleinanzeigen-Zuschnitt (Titel ≤ 65 Zeichen, Klartext, Festpreis in ganzen Euro, max. 20 Bilder). Der Feed ist die eine Quelle für Kleinanzeigen-Tools, eBay & Co. – Preis und Bestand kommen immer aus dem Katalog.</p>';
 		echo '<p><strong>' . (int) $n . '</strong> Teile für Kleinanzeigen freigegeben (Häkchen „Für Kleinanzeigen freigeben" im Teil) von ' . (int) $n_alle . ' aktiven Gebrauchtteilen. Die URLs unten liefern nur die freigegebenen (<code>ka=1</code>); ohne <code>ka=1</code> kommen alle. Varianten: <code>&amp;typ=neu</code>, <code>&amp;typ=alle</code>, <code>&amp;seit=2026-11-01</code> (nur seitdem geändert).</p>';
