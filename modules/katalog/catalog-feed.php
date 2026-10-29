@@ -144,6 +144,15 @@ class M24_Catalog_Feed {
 		$ist25a   = 'paragraf25a' === ( $preis['modus'] ?? '' );
 		$e_reihe  = (bool) preg_match( '/\b(E\d{2}|E9x)\b/i', implode( ' ', $modelle ) . ' ' . $titel );   // E-Baureihe → Hinweis auf s14.de
 		$titel_en = html_entity_decode( $g( '_m24_titel_en' ), ENT_QUOTES, 'UTF-8' );
+		// BMW-Teilenummer immer mit in den Anzeigentitel (Daniel, 29.10.) – kompakt ohne Leerzeichen, wenn sie noch fehlt und Platz ist
+		$tn_kompakt = preg_replace( '/\s+/', '', $teilenr );
+		if ( $tn_kompakt && false === stripos( preg_replace( '/\s+/', '', $titel ), $tn_kompakt ) ) {
+			$kurz = self::kuerzen( $titel, self::TITEL_MAX - mb_strlen( $tn_kompakt ) - 1 );
+			$titel_ka = $kurz . ' ' . $tn_kompakt;
+			if ( $titel_en ) { $titel_en = self::kuerzen( $titel_en, self::TITEL_MAX - mb_strlen( $tn_kompakt ) - 1 ) . ' ' . $tn_kompakt; }
+		} else {
+			$titel_ka = self::kuerzen( $titel, self::TITEL_MAX );
+		}
 		$link     = self::s14_link( $id, $url ) ?: $url;   // immer zu s14.de verlinken (Daniel, 29.10.); ohne s14-Inserat (F/G-Baureihen) bleibt der m24-Link
 		$beschr_en = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_en', true ) );
 
@@ -173,7 +182,7 @@ class M24_Catalog_Feed {
 			'id'            => $id,
 			'art_nr'        => $artnr,
 			'teilenummer'   => $teilenr,
-			'titel'         => self::kuerzen( $titel, self::TITEL_MAX ),
+			'titel'         => $titel_ka,
 			'titel_voll'    => $titel,
 			'beschreibung'  => implode( "\n\n", $zeilen ),
 			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n— English —\n\n" . implode( "\n\n", $zeilen_en ),
