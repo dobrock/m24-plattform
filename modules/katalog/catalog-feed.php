@@ -166,7 +166,8 @@ class M24_Catalog_Feed {
 		$block = array_filter( array(
 			'gebraucht' === $typ ? 'ZUSTAND · Gebrauchtteil mit gebrauchsüblichen Spuren, siehe Fotos – vereinbarte Beschaffenheit.' : 'ZUSTAND · Neuteil, unbenutzt – siehe Fotos.',
 			'gebraucht' === $typ ? 'EINBAU · Fachwerkstatt empfohlen.' : '',
-			'VERFÜGBARKEIT · solange online. FESTPREIS · zzgl. Verpackung und Versand.',
+			'VERFÜGBARKEIT · solange online.',
+			'FESTPREIS · zzgl. Verpackung und Versand.',
 			$ist25a ? 'RECHNUNG · Differenzbesteuerung nach § 25a UStG, MwSt. wird nicht gesondert ausgewiesen.' : 'RECHNUNG · mit ausgewiesener MwSt. (inkl. 19 %, netto ' . $netto_de . ').',
 			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtware 1 Jahr (siehe Zustandshinweise).' : '',
 			'VERSAND · weltweit – Lieferanschrift senden, wir nennen die genauen Transportkosten.' . ( $abholung ? ' ABHOLUNG · optional in 37589 Kalefeld.' : '' ),
@@ -175,14 +176,15 @@ class M24_Catalog_Feed {
 		$block_en = array_filter( array(
 			'gebraucht' === $typ ? 'CONDITION · used part with normal signs of wear, see photos – this is the agreed condition.' : 'CONDITION · new part, unused – see photos.',
 			'gebraucht' === $typ ? 'INSTALLATION · by a specialist workshop recommended.' : '',
-			'AVAILABILITY · while online. FIXED PRICE · plus packaging and shipping.',
+			'AVAILABILITY · while online.',
+			'FIXED PRICE · plus packaging and shipping.',
 			$ist25a ? 'INVOICE · margin scheme (§ 25a UStG), no VAT shown separately.' : 'INVOICE · 19% German VAT shown (net ' . $netto_en . '), net export possible.',
 			'gebraucht' === $typ ? 'WARRANTY · used items 1 year (see condition notes).' : '',
 			'SHIPPING · worldwide – send your delivery address for an exact quote.' . ( $abholung ? ' PICKUP · optional in 37589 Kalefeld, Germany.' : '' ),
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 for a quote including packaging and insured shipping.' : '',
 		) );
-		$s14_de = "► s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009.\nWeitere Teile von uns: https://s14.de/markt/teile/ · Alle Details und Bilder: " . $link;
-		$s14_en = "► s14.de – the marketplace for classic BMW: cars and parts for the E-series 1966–2009.\nMore parts from us: https://s14.de/markt/teile/ · All details and photos: " . $link;
+		$s14_de = "► s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009.\nWeitere Teile von uns: https://s14.de/m24 · Alle Details und Bilder: " . $link;
+		$s14_en = "► s14.de – the marketplace for classic BMW: cars and parts for the E-series 1966–2009.\nMore parts from us: https://s14.de/m24 · All details and photos: " . $link;
 		$zeilen = array_filter( array(
 			$beschr,
 			implode( "\n", array_filter( array(
@@ -212,7 +214,7 @@ class M24_Catalog_Feed {
 			'titel'         => $titel_ka,
 			'titel_voll'    => $titel,
 			'beschreibung'  => implode( "\n\n", $zeilen ),
-			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n— English —\n\n" . implode( "\n\n", $zeilen_en ),
+			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n---------------- ENGLISH ----------------\n\n" . implode( "\n\n", $zeilen_en ),
 			'titel_en'      => $titel_en ? self::kuerzen( $titel_en, self::TITEL_MAX ) : '',
 			'beschreibung_en' => implode( "\n\n", $zeilen_en ),
 			'preis'         => (int) round( $brutto ),       // Kleinanzeigen: ganze Euro, Festpreis
