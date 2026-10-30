@@ -201,6 +201,26 @@ class M24_Catalog_Pricing {
 	 * Liest und parsed `_m24_preisoptionen`. Liefert IMMER ein Array (ggf. leer).
 	 * Jede Option ist normalisiert auf {label, art_nr, netto|null, brutto}.
 	 */
+	/**
+	 * Preis von aussen setzen (Plattform-Sync s14 -> m24, 30.10.2026): aendert den Bruttopreis der
+	 * ERSTEN Option, Netto folgt aus dem MwSt-Modus. Weitere Optionen bleiben unangetastet.
+	 * Rueckgabe true, wenn sich etwas geaendert hat.
+	 */
+	public static function set_brutto( $post_id, $brutto ) {
+		$brutto = round( (float) $brutto, 2 );
+		if ( $brutto <= 0 ) { return false; }
+		$opts = self::raw_options( $post_id );
+		if ( empty( $opts ) ) {
+			$opts = array( array( 'label' => '', 'art_nr' => (string) get_post_meta( $post_id, '_m24_artikelnummer', true ), 'netto' => null, 'brutto' => 0.0 ) );
+		}
+		if ( abs( (float) $opts[0]['brutto'] - $brutto ) < 0.005 ) { return false; }
+		$modus = get_post_meta( $post_id, '_m24_mwst_modus', true );
+		$opts[0]['brutto'] = $brutto;
+		$opts[0]['netto']  = 'paragraf25a' === $modus ? null : round( $brutto / ( 1 + self::MWST_SATZ ), 2 );
+		update_post_meta( (int) $post_id, '_m24_preisoptionen', wp_json_encode( $opts, JSON_UNESCAPED_UNICODE ) );
+		return true;
+	}
+
 	public static function raw_options( $post_id ) {
 		$raw = get_post_meta( $post_id, '_m24_preisoptionen', true );
 		if ( '' === $raw || null === $raw ) {
