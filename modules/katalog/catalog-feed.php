@@ -156,26 +156,53 @@ class M24_Catalog_Feed {
 		$link     = self::s14_link( $id, $url ) ?: $url;   // immer zu s14.de verlinken (Daniel, 29.10.); ohne s14-Inserat (F/G-Baureihen) bleibt der m24-Link
 		$beschr_en = self::klartext( (string) get_post_meta( $id, '_m24_beschreibung_en', true ) );
 
+		// Standardblock „Variante B" (Daniel, 30.10.2026): Großbuchstaben-Label · Text, eine Zeile je Punkt.
+		// Nur Kleinanzeigen – auf m24/s14 bleiben diese Zusätze weg. Abholung nur noch in 37589 Kalefeld (Daniel, 30.10.).
+		$netto     = $brutto / 1.19;
+		$netto_de  = number_format( $netto, 2, ',', '.' ) . ' €';
+		$netto_en  = 'EUR ' . number_format( $netto, 2, '.', ',' );
+		$wa        = $brutto >= 5000;   // WhatsApp nur ab 5.000 € (Daniel, 29.10.)
+		$abholung  = 'duederode' === $standort;
+		$block = array_filter( array(
+			'gebraucht' === $typ ? 'ZUSTAND · Gebrauchtteil mit gebrauchsüblichen Spuren, siehe Fotos – vereinbarte Beschaffenheit.' : 'ZUSTAND · Neuteil, unbenutzt – siehe Fotos.',
+			'gebraucht' === $typ ? 'EINBAU · Fachwerkstatt empfohlen.' : '',
+			'VERFÜGBARKEIT · solange online. FESTPREIS · zzgl. Verpackung und Versand.',
+			$ist25a ? 'RECHNUNG · Differenzbesteuerung nach § 25a UStG, MwSt. wird nicht gesondert ausgewiesen.' : 'RECHNUNG · mit ausgewiesener MwSt. (inkl. 19 %, netto ' . $netto_de . ').',
+			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtware 1 Jahr (siehe Zustandshinweise).' : '',
+			'VERSAND · weltweit – Lieferanschrift senden, wir nennen die genauen Transportkosten.' . ( $abholung ? ' ABHOLUNG · optional in 37589 Kalefeld.' : '' ),
+			$wa ? 'WHATSAPP · +49 (0)30 692014090 für ein Angebot inkl. Verpackung und versichertem Versand.' : '',
+		) );
+		$block_en = array_filter( array(
+			'gebraucht' === $typ ? 'CONDITION · used part with normal signs of wear, see photos – this is the agreed condition.' : 'CONDITION · new part, unused – see photos.',
+			'gebraucht' === $typ ? 'INSTALLATION · by a specialist workshop recommended.' : '',
+			'AVAILABILITY · while online. FIXED PRICE · plus packaging and shipping.',
+			$ist25a ? 'INVOICE · margin scheme (§ 25a UStG), no VAT shown separately.' : 'INVOICE · 19% German VAT shown (net ' . $netto_en . '), net export possible.',
+			'gebraucht' === $typ ? 'WARRANTY · used items 1 year (see condition notes).' : '',
+			'SHIPPING · worldwide – send your delivery address for an exact quote.' . ( $abholung ? ' PICKUP · optional in 37589 Kalefeld, Germany.' : '' ),
+			$wa ? 'WHATSAPP · +49 (0)30 692014090 for a quote including packaging and insured shipping.' : '',
+		) );
+		$s14_de = "🏁 s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009.\nWeitere Teile von uns: https://s14.de/markt/teile/ · Alle Details und Bilder: " . $link;
+		$s14_en = "🏁 s14.de – the marketplace for classic BMW: cars and parts for the E-series 1966–2009.\nMore parts from us: https://s14.de/markt/teile/ · All details and photos: " . $link;
 		$zeilen = array_filter( array(
 			$beschr,
-			$modelle ? 'Passend für: ' . implode( ', ', $modelle ) : '',
-			$teilenr ? 'Teilenummer: ' . $teilenr : '',
-			$artnr ? 'Artikelnummer: ' . $artnr : '',
+			implode( "\n", array_filter( array(
+				$modelle ? 'PASSEND FÜR · ' . implode( ', ', $modelle ) : '',
+				$teilenr ? 'TEILENUMMER · ' . $teilenr : '',
+				$artnr ? 'ARTIKELNUMMER · ' . $artnr : '',
+			) ) ),
 			$hinweis,
-			( 'gebraucht' === $typ ? 'Gebrauchtteil, geprüft – Zustand siehe Fotos.' : 'Neuteil.' ) . ' Weltweiter Versand möglich, Abholung in ' . $plz . ' ' . $ort . '.',
-			$ist25a ? 'Differenzbesteuert nach § 25a UStG – keine MwSt. ausweisbar.' : 'Preis inkl. 19 % MwSt., Rechnung mit ausgewiesener MwSt.',
-			$e_reihe ? 'Weitere Teile für BMW E-Baureihen in den s14.de Kleinanzeigen: https://s14.de/markt/teile/' : '',
-			'Alle Details und weitere Bilder: ' . $link,
+			implode( "\n", $block ),
+			$s14_de,
 		) );
 		$zeilen_en = array_filter( array(
 			$beschr_en ?: '',
-			$modelle ? 'Fits: ' . implode( ', ', $modelle ) : '',
-			$teilenr ? 'Part number: ' . $teilenr : '',
-			$artnr ? 'Item no.: ' . $artnr : '',
-			( 'gebraucht' === $typ ? 'Used part, inspected – condition as pictured.' : 'New part.' ) . ' Worldwide shipping available, pickup in ' . $plz . ' ' . $ort . ', Germany.',
-			$ist25a ? 'Margin scheme (sec. 25a German VAT Act) – no VAT shown on invoice.' : 'Price incl. 19% German VAT; VAT invoice provided.',
-			$e_reihe ? 'More parts for BMW E-series on s14.de classifieds: https://s14.de/markt/teile/' : '',
-			'All details and more pictures: ' . $link,
+			implode( "\n", array_filter( array(
+				$modelle ? 'FITS · ' . implode( ', ', $modelle ) : '',
+				$teilenr ? 'PART NUMBER · ' . $teilenr : '',
+				$artnr ? 'ITEM NO. · ' . $artnr : '',
+			) ) ),
+			implode( "\n", $block_en ),
+			$s14_en,
 		) );
 
 		return array(
