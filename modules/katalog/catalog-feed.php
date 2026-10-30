@@ -165,7 +165,7 @@ class M24_Catalog_Feed {
 		$abholung  = 'duederode' === $standort;
 		// Reihenfolge (Daniel, 30.10.): Zustand, Festpreis, Rechnung, Verfügbarkeit, Versand, Gewährleistung, Einbau
 		$block = array_filter( array(
-			'gebraucht' === $typ ? 'ZUSTAND · Gebrauchtteil mit gebrauchsüblichen Spuren, siehe Fotos – vereinbarte Beschaffenheit.' : 'ZUSTAND · Neuteil, unbenutzt – siehe Fotos.',
+			'gebraucht' === $typ ? 'ZUSTAND · Gebrauchtteil mit gebrauchsüblichen Spuren, siehe Fotos.' : 'ZUSTAND · Neuteil, unbenutzt – siehe Fotos.',
 			'FESTPREIS · zzgl. Verpackung und Versand.',
 			$ist25a ? 'RECHNUNG · Differenzbesteuerung nach § 25a UStG, MwSt. wird nicht gesondert ausgewiesen.' : 'RECHNUNG · mit ausgewiesener MwSt. (inkl. 19 %, netto ' . $netto_de . ').',
 			'VERFÜGBARKEIT · solange online.',
@@ -215,7 +215,7 @@ class M24_Catalog_Feed {
 			'titel'         => $titel_ka,
 			'titel_voll'    => $titel,
 			'beschreibung'  => implode( "\n\n", $zeilen ),
-			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n------------------------------------ ENGLISH ------------------------------------\n\n" . implode( "\n\n", $zeilen_en ),
+			'beschreibung_de_en' => implode( "\n\n", $zeilen ) . "\n\n------------------------- ENGLISH -------------------------\n\n" . implode( "\n\n", $zeilen_en ),
 			'titel_en'      => $titel_en ? self::kuerzen( $titel_en, self::TITEL_MAX ) : '',
 			'beschreibung_en' => implode( "\n\n", $zeilen_en ),
 			'preis'         => (int) round( $brutto ),       // Kleinanzeigen: ganze Euro, Festpreis
