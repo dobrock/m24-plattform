@@ -334,10 +334,12 @@ jQuery(function($){
 		if ( ! empty( $r['s14_id'] ) && ! get_post_meta( $id, '_m24_s14_id', true ) ) { update_post_meta( $id, '_m24_s14_id', absint( $r['s14_id'] ) ); }
 		if ( ! empty( $r['s14_url'] ) ) { update_post_meta( $id, '_m24_s14_url', esc_url_raw( (string) $r['s14_url'] ) ); }
 
+		// Vergleich inhaltlich, nicht byteweise: Entities (– vs. &#8211;) und wpautop-Hüllen sind keine Änderung
+		$norm = function ( $x ) { $x = html_entity_decode( wp_strip_all_tags( (string) $x ), ENT_QUOTES, 'UTF-8' ); return trim( preg_replace( '/\s+/u', ' ', $x ) ); };
 		$upd = array( 'ID' => $id );
-		if ( isset( $r['titel'] ) && '' !== trim( (string) $r['titel'] ) && (string) $r['titel'] !== get_the_title( $id ) ) { $upd['post_title'] = sanitize_text_field( (string) $r['titel'] ); $geaendert[] = 'Titel'; }
+		if ( isset( $r['titel'] ) && '' !== trim( (string) $r['titel'] ) && $norm( $r['titel'] ) !== $norm( get_the_title( $id ) ) ) { $upd['post_title'] = sanitize_text_field( (string) $r['titel'] ); $geaendert[] = 'Titel'; }
 		if ( count( $upd ) > 1 ) { wp_update_post( $upd ); }
-		if ( isset( $r['beschreibung'] ) && (string) $r['beschreibung'] !== (string) get_post_meta( $id, '_m24_beschreibung_de', true ) ) {
+		if ( isset( $r['beschreibung'] ) && '' !== trim( (string) $r['beschreibung'] ) && $norm( $r['beschreibung'] ) !== $norm( get_post_meta( $id, '_m24_beschreibung_de', true ) ) ) {
 			update_post_meta( $id, '_m24_beschreibung_de', wp_kses_post( (string) $r['beschreibung'] ) ); $geaendert[] = 'Text';
 		}
 		if ( isset( $r['preis'] ) && class_exists( 'M24_Catalog_Pricing' ) && method_exists( 'M24_Catalog_Pricing', 'set_brutto' ) ) {
