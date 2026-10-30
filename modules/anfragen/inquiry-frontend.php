@@ -19,8 +19,8 @@ class M24_Inquiry_Frontend {
 	private static $initialized = false;
 
 	/**
-	 * Europaeische Laender (ISO -> Name) fuer das Autocomplete-Feld im Modal.
-	 * EU-27 + EFTA (CH/NO/IS/LI) + UK + weitere europaeische Staaten.
+	 * Laender (ISO -> Name) fuer das Lieferland-Feld aller Anfrageformulare.
+	 * Europa + weltweit die Maerkte, aus denen Anfragen kommen (seit 30.10.2026).
 	 */
 	public static function lands() {
 		// Rohliste (ISO => Name). Alphabetisch sortiert + Deutschland gepinnt an der EINEN Quelle, damit ALLE
@@ -39,6 +39,20 @@ class M24_Inquiry_Frontend {
 			'SM' => 'San Marino', 'SE' => 'Schweden', 'CH' => 'Schweiz', 'RS' => 'Serbien',
 			'SK' => 'Slowakei', 'SI' => 'Slowenien', 'ES' => 'Spanien', 'TR' => 'Türkei',
 			'UA' => 'Ukraine',
+			// Weltweit (Daniel, 30.10.2026: Kunde aus Melbourne fand kein Australien und nahm Großbritannien –
+			// „Da müssen ganz dringend alle Länder rein … außer den ganz exotischen afrikanischen Ländern.“)
+			// Namen wie im Desk (server-flags.js COUNTRY_FLAGS), damit Flagge und Steuerart dort greifen.
+			'US' => 'USA', 'CA' => 'Kanada', 'MX' => 'Mexiko', 'BR' => 'Brasilien', 'AR' => 'Argentinien',
+			'CL' => 'Chile', 'CO' => 'Kolumbien', 'PE' => 'Peru', 'UY' => 'Uruguay', 'CR' => 'Costa Rica',
+			'PA' => 'Panama', 'PR' => 'Puerto Rico', 'DO' => 'Dominikanische Republik',
+			'AU' => 'Australien', 'NZ' => 'Neuseeland', 'JP' => 'Japan', 'KR' => 'Südkorea', 'SG' => 'Singapur',
+			'HK' => 'Hongkong', 'TW' => 'Taiwan', 'CN' => 'China', 'MO' => 'Macau', 'TH' => 'Thailand',
+			'MY' => 'Malaysia', 'ID' => 'Indonesien', 'PH' => 'Philippinen', 'VN' => 'Vietnam', 'IN' => 'Indien',
+			'AE' => 'Vereinigte Arabische Emirate', 'SA' => 'Saudi-Arabien', 'QA' => 'Katar', 'KW' => 'Kuwait',
+			'BH' => 'Bahrain', 'OM' => 'Oman', 'IL' => 'Israel', 'JO' => 'Jordanien', 'LB' => 'Libanon',
+			'GE' => 'Georgien', 'AM' => 'Armenien', 'AZ' => 'Aserbaidschan', 'KZ' => 'Kasachstan',
+			'ZA' => 'Südafrika', 'NA' => 'Namibia', 'MA' => 'Marokko', 'EG' => 'Ägypten', 'TN' => 'Tunesien',
+			'MU' => 'Mauritius',
 		);
 		return function_exists( 'm24_inquiry_sort_countries' ) ? m24_inquiry_sort_countries( $raw ) : $raw;
 	}
@@ -49,7 +63,7 @@ class M24_Inquiry_Frontend {
 	 * (US) — damit der gemeinsame Validation-Check jenes Formular nicht bricht.
 	 */
 	public static function accepted_iso() {
-		return array_merge( array_keys( self::lands() ), array( 'US' ) );
+		return array_keys( self::lands() ); // US steht jetzt in der Liste selbst
 	}
 
 	public static function init() {
