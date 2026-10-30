@@ -181,8 +181,8 @@ class M24_Catalog_Feed {
 			'SHIPPING · worldwide – send your delivery address for an exact quote.' . ( $abholung ? ' PICKUP · optional in 37589 Kalefeld, Germany.' : '' ),
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 for a quote including packaging and insured shipping.' : '',
 		) );
-		$s14_de = "🏁 s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009.\nWeitere Teile von uns: https://s14.de/markt/teile/ · Alle Details und Bilder: " . $link;
-		$s14_en = "🏁 s14.de – the marketplace for classic BMW: cars and parts for the E-series 1966–2009.\nMore parts from us: https://s14.de/markt/teile/ · All details and photos: " . $link;
+		$s14_de = "► s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009.\nWeitere Teile von uns: https://s14.de/markt/teile/ · Alle Details und Bilder: " . $link;
+		$s14_en = "► s14.de – the marketplace for classic BMW: cars and parts for the E-series 1966–2009.\nMore parts from us: https://s14.de/markt/teile/ · All details and photos: " . $link;
 		$zeilen = array_filter( array(
 			$beschr,
 			implode( "\n", array_filter( array(
