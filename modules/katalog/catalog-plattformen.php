@@ -123,35 +123,45 @@ class M24_Catalog_Plattformen {
 		$screen = get_current_screen();
 		if ( ! $screen || self::PT !== $screen->post_type ) { return; }
 		wp_add_inline_style( 'wp-admin', '
-#m24_teil_plattformen .pf-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f1;font-size:13px}
-#m24_teil_plattformen .pf-row:last-of-type{border-bottom:0}
-#m24_teil_plattformen .pf-dot{width:9px;height:9px;border-radius:50%;background:#9aa0a8;flex:none}
-#m24_teil_plattformen .pf-dot.ok{background:#2e8b57}#m24_teil_plattformen .pf-dot.warn{background:#c98a1b}#m24_teil_plattformen .pf-dot.bad{background:#b3121f}
-#m24_teil_plattformen .pf-name{min-width:96px;font-weight:600}
-#m24_teil_plattformen .pf-st{color:#646970;flex:1;min-width:0}
-#m24_teil_plattformen .pf-row a{font-size:12px;white-space:nowrap}
-#m24_teil_plattformen h4{margin:12px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#646970}
-#m24_teil_plattformen label.pf-cb{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}
-#m24_teil_plattformen .pf-kaid{display:flex;align-items:center;gap:6px;margin-top:6px}
-#m24_teil_plattformen .pf-kaid input{width:130px}
-#m24_teil_plattformen .pf-log{font:11px/1.5 Menlo,Consolas,monospace;color:#646970;border-top:1px dashed #dcdcde;margin-top:8px;padding-top:6px;max-height:120px;overflow:auto}
-#m24_teil_plattformen .pf-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-#m24_teil_plattformen .pf-meld{font-size:12px;margin-top:6px;color:#646970}
+#m24_teil_plattformen .pf-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f0f1;font-size:13px}
+#m24_teil_plattformen .pf-row:last-child{border-bottom:0}
+#m24_teil_plattformen .pf-name{font-weight:600;min-width:92px}
+#m24_teil_plattformen .pf-st{color:#646970;flex:1;min-width:0;font-size:12px;line-height:1.35}
+#m24_teil_plattformen .pf-sw{position:relative;display:inline-flex;flex:none;cursor:pointer}
+#m24_teil_plattformen .pf-sw input{position:absolute;opacity:0;width:1px;height:1px}
+#m24_teil_plattformen .pf-led{width:34px;height:18px;border-radius:9px;background:#dcdcde;position:relative;transition:background .15s}
+#m24_teil_plattformen .pf-led:after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#8c8f94;transition:all .15s}
+#m24_teil_plattformen .pf-sw input:checked + .pf-led{background:#d7f0df}
+#m24_teil_plattformen .pf-sw input:checked + .pf-led:after{left:19px;background:#2e8b57;box-shadow:0 0 6px 1px rgba(46,139,87,.7)}
+#m24_teil_plattformen .pf-sw input:focus-visible + .pf-led{outline:2px solid #2271b1;outline-offset:2px}
+#m24_teil_plattformen .pf-fix{width:34px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+#m24_teil_plattformen .pf-fix i{width:12px;height:12px;border-radius:50%;background:#8c8f94}
+#m24_teil_plattformen .pf-fix i.ok{background:#2e8b57;box-shadow:0 0 6px 1px rgba(46,139,87,.7)}
+#m24_teil_plattformen .pf-fix i.warn{background:#c98a1b}#m24_teil_plattformen .pf-fix i.bad{background:#b3121f}
+#m24_teil_plattformen .pf-go{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#2271b1;border-radius:4px;text-decoration:none}
+#m24_teil_plattformen .pf-go:hover{background:#f0f6fc}
+#m24_teil_plattformen .pf-go.leer{visibility:hidden}
+#m24_teil_plattformen .pf-kaid{display:flex;align-items:center;gap:6px;margin:2px 0 4px 100px}
+#m24_teil_plattformen .pf-kaid[hidden]{display:none}
+#m24_teil_plattformen .pf-kaid input{width:120px;font-size:12px}
+#m24_teil_plattformen .pf-meld{font-size:11px;margin-top:6px;color:#8c8f94}
+#m24_teil_plattformen details{margin-top:6px}#m24_teil_plattformen summary{font-size:11px;color:#8c8f94;cursor:pointer}
+#m24_teil_plattformen .pf-log{font:11px/1.5 Menlo,Consolas,monospace;color:#646970;margin-top:4px;max-height:120px;overflow:auto}
 ' );
 		wp_add_inline_script( 'jquery-core', "
 jQuery(function($){
-  $('#m24_teil_plattformen').on('click','[data-pf-send]',function(e){
-    e.preventDefault(); var b=$(this), m=$('#m24_teil_plattformen .pf-meld');
-    b.prop('disabled',true); m.text('sendet an s14.de …');
-    $.post(ajaxurl,{action:'m24_plattform_senden',post_id:b.data('pf-send'),_wpnonce:b.data('nonce')}).done(function(r){
-      m.text(r&&r.data&&r.data.meldung?r.data.meldung:(r.success?'übertragen':'Fehler'));
-      if(r.success&&r.data&&r.data.html){ $('#m24_teil_plattformen .pf-status').replaceWith(r.data.html); }
-    }).fail(function(){ m.text('Verbindung fehlgeschlagen'); }).always(function(){ b.prop('disabled',false); });
-  });
+  $('#m24_teil_plattformen').on('change','input[name=m24_pub_ka]',function(){ $('#m24_teil_plattformen .pf-kaid').prop('hidden',!this.checked); });
 });
 " );
 	}
 
+	/** Externer-Link-Icon (öffnet die Artikelseite im neuen Tab). */
+	private static function link_icon( string $url, string $wo ): string {
+		if ( ! $url ) { return '<span class="pf-go leer" aria-hidden="true"></span>'; }
+		return '<a class="pf-go" href="' . esc_url( $url ) . '" target="_blank" rel="noopener" title="Artikel auf ' . esc_attr( $wo ) . ' ansehen" aria-label="Artikel auf ' . esc_attr( $wo ) . ' ansehen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>';
+	}
+
+	/** Box-Inhalt: m24 (fester Status) · s14 + Kleinanzeigen als LED-Schalter, je Zeile ein Link-Icon. */
 	public static function status_html( int $id ): string {
 		$st   = self::status( $id );
 		$s14  = (int) self::m( $id, '_m24_s14_id', 0 );
@@ -162,28 +172,36 @@ jQuery(function($){
 		$kau  = (string) self::m( $id, '_m24_ka_url' ) ?: ( $kaid ? 'https://www.kleinanzeigen.de/s-anzeige/' . rawurlencode( $kaid ) : '' );
 		$kas  = (string) self::m( $id, '_m24_ka_stand' );
 		$kaoffen = '1' === (string) self::m( $id, '_m24_ka_offen', '0' );
-		$pub_s14 = '1' === (string) self::m( $id, '_m24_pub_s14', '0' );
-		$pub_ka  = '1' === (string) self::m( $id, '_m24_kleinanzeigen', '0' );
+		$pub_s14 = '1' === (string) self::m( $id, '_m24_pub_s14', $s14 ? '1' : '0' );
+		$pub_ka  = '1' === (string) self::m( $id, '_m24_kleinanzeigen', $kaid ? '1' : '0' );
 		$preis  = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::get( $id ) : array( 'brutto_fmt' => '' );
 		$pf     = (string) ( $preis['brutto_fmt'] ?? '' );
 		$zeit   = function ( $s ) { return $s ? date_i18n( 'd.m. H:i', strtotime( $s ) ) : ''; };
-
-		$row = function ( $dot, $name, $st, $link, $linktext = 'ansehen' ) {
-			return '<div class="pf-row"><span class="pf-dot ' . esc_attr( $dot ) . '"></span><span class="pf-name">' . esc_html( $name ) . '</span><span class="pf-st">' . esc_html( $st ) . '</span>' . ( $link ? '<a href="' . esc_url( $link ) . '" target="_blank" rel="noopener">' . esc_html( $linktext ) . '</a>' : '' ) . '</div>';
+		$schalter = function ( $name, $an, $titel ) {
+			return '<label class="pf-sw" title="' . esc_attr( $titel ) . '"><input type="checkbox" name="' . esc_attr( $name ) . '" value="1" ' . checked( $an, true, false ) . ' aria-label="' . esc_attr( $titel ) . '"><span class="pf-led"></span></label>';
 		};
+
+		// m24 – Quelle, kein Schalter (Sichtbarkeit über den Status des Teils)
 		$m24dot = 'aktiv' === $st ? 'ok' : ( 'verkauft' === $st ? 'bad' : 'warn' );
 		$h  = '<div class="pf-status">';
-		$h .= $row( $m24dot, 'm24', ucfirst( $st ) . ( $pf ? ' · ' . $pf : '' ), 'publish' === get_post_status( $id ) ? get_permalink( $id ) : '' );
-		if ( $s14 || $s14u ) {
-			$h .= $row( 'ok', 's14', ( $s14s ? 'synchron ' . $zeit( $s14s ) : 'online (importiert)' ), $s14u );
+		$h .= '<div class="pf-row"><span class="pf-name">m24</span><span class="pf-st">' . esc_html( ucfirst( $st ) . ( $pf ? ' · ' . $pf : '' ) ) . '</span><span class="pf-fix" title="Status auf motorsport24.de"><i class="' . esc_attr( $m24dot ) . '"></i></span>' . self::link_icon( 'publish' === get_post_status( $id ) ? (string) get_permalink( $id ) : '', 'motorsport24.de' ) . '</div>';
+
+		// s14
+		if ( $pub_s14 ) {
+			$t = $s14 ? ( $s14s ? 'online · ' . $zeit( $s14s ) : 'online' ) : 'wird beim Speichern angelegt';
 		} else {
-			$h .= $row( '', 's14', $pub_s14 ? 'wird beim Speichern angelegt' : 'nicht veröffentlicht', '' );
+			$t = $s14 ? 'ausgeblendet' : 'aus';
 		}
-		if ( $kaid ) {
-			$h .= $row( $kaoffen ? 'warn' : 'ok', 'Kleinanzeigen', $kaoffen ? 'Text älter – wartet auf Erweiterung' : ( $kas ? 'synchron ' . $zeit( $kas ) : 'online' ), $kau );
+		$h .= '<div class="pf-row"><span class="pf-name">s14</span><span class="pf-st">' . esc_html( $t ) . '</span>' . $schalter( 'm24_pub_s14', $pub_s14, 'Auf s14.de anzeigen' ) . self::link_icon( $s14 || $s14u ? $s14u : '', 's14.de' ) . '</div>';
+
+		// Kleinanzeigen
+		if ( $pub_ka ) {
+			$t = $kaid ? ( $kaoffen ? 'Text älter – wird nachgezogen' : ( $kas ? 'online · ' . $zeit( $kas ) : 'online' ) ) : 'an – Anzeigen-ID fehlt';
 		} else {
-			$h .= $row( $pub_ka ? 'warn' : '', 'Kleinanzeigen', $pub_ka ? 'freigegeben – noch keine Anzeigen-ID' : 'nicht veröffentlicht', '' );
+			$t = $kaid ? 'aus – Anzeige bei KA pausieren' : 'aus';
 		}
+		$h .= '<div class="pf-row"><span class="pf-name">Kleinanzeigen</span><span class="pf-st">' . esc_html( $t ) . '</span>' . $schalter( 'm24_pub_ka', $pub_ka, 'Auf Kleinanzeigen anzeigen' ) . self::link_icon( $kau, 'Kleinanzeigen' ) . '</div>';
+		$h .= '<div class="pf-kaid"' . ( $pub_ka ? '' : ' hidden' ) . '><label for="m24_ka_id" style="font-size:11px;color:#646970">KA-ID</label><input type="text" id="m24_ka_id" name="m24_ka_id" value="' . esc_attr( $kaid ) . '" placeholder="z. B. 3555358742" inputmode="numeric"></div>';
 		$h .= '</div>';
 		return $h;
 	}
@@ -192,23 +210,13 @@ jQuery(function($){
 		$id = (int) $post->ID;
 		wp_nonce_field( 'm24_plattformen_' . $id, 'm24_plattformen_nonce' );
 		echo self::status_html( $id );
-
-		$pub_s14 = '1' === (string) self::m( $id, '_m24_pub_s14', get_post_meta( $id, '_m24_s14_id', true ) ? '1' : '0' );
-		$pub_ka  = '1' === (string) self::m( $id, '_m24_kleinanzeigen', '0' );
-		echo '<h4>Auch veröffentlichen auf</h4>';
-		echo '<label class="pf-cb"><input type="checkbox" name="m24_pub_s14" value="1" ' . checked( $pub_s14, true, false ) . '> s14.de <span style="color:#646970">(BMW E-Baureihen)</span></label>';
-		echo '<label class="pf-cb"><input type="checkbox" name="m24_pub_ka" value="1" ' . checked( $pub_ka, true, false ) . '> Kleinanzeigen <span style="color:#646970">(Standardtext kommt dazu)</span></label>';
-		echo '<div class="pf-kaid"><label for="m24_ka_id" style="font-size:12px">KA-Anzeige-ID</label><input type="text" id="m24_ka_id" name="m24_ka_id" value="' . esc_attr( (string) self::m( $id, '_m24_ka_id' ) ) . '" placeholder="z. B. 3555358742" inputmode="numeric"></div>';
-
 		$ok = self::s14_token() !== '';
-		echo '<div class="pf-btns"><button type="button" class="button" data-pf-send="' . $id . '" data-nonce="' . esc_attr( wp_create_nonce( 'm24_plattform_' . $id ) ) . '" ' . ( $ok ? '' : 'disabled title="M24_S14_TOKEN fehlt in der wp-config.php"' ) . '>Jetzt an s14.de senden</button></div>';
-		echo '<div class="pf-meld">' . ( $ok ? 'Speichern überträgt Änderungen automatisch.' : 'M24_S14_TOKEN fehlt in der wp-config.php – Sync zu s14 inaktiv.' ) . '</div>';
-
+		echo '<div class="pf-meld">' . ( $ok ? 'Schalter und Änderungen werden beim Speichern übertragen.' : 'M24_S14_TOKEN fehlt in der wp-config.php – Sync zu s14 inaktiv.' ) . '</div>';
 		$log = get_post_meta( $id, '_m24_sync_log', true );
 		if ( is_array( $log ) && $log ) {
-			echo '<div class="pf-log">';
+			echo '<details><summary>Verlauf</summary><div class="pf-log">';
 			foreach ( $log as $e ) { echo esc_html( date_i18n( 'd.m. H:i', (int) $e['t'] ) . ' · ' . $e['x'] ) . '<br>'; }
-			echo '</div>';
+			echo '</div></details>';
 		}
 	}
 
@@ -222,7 +230,13 @@ jQuery(function($){
 
 		// Formularwerte (nur wenn die Box auf dem Bildschirm war)
 		if ( isset( $_POST['m24_plattformen_nonce'] ) && wp_verify_nonce( (string) $_POST['m24_plattformen_nonce'], 'm24_plattformen_' . $post_id ) ) {
-			update_post_meta( $post_id, '_m24_pub_s14', empty( $_POST['m24_pub_s14'] ) ? '0' : '1' );
+			$s14_vorher = (string) get_post_meta( $post_id, '_m24_pub_s14', true );
+			$s14_jetzt  = empty( $_POST['m24_pub_s14'] ) ? '0' : '1';
+			update_post_meta( $post_id, '_m24_pub_s14', $s14_jetzt );
+			if ( $s14_vorher !== $s14_jetzt && get_post_meta( $post_id, '_m24_s14_id', true ) ) {
+				delete_post_meta( $post_id, '_m24_sync_hash' ); // erzwingt Übertragung (aus = ausgeblendet, an = wieder sichtbar)
+				self::log( $post_id, 's14: ' . ( '1' === $s14_jetzt ? 'eingeblendet' : 'ausgeblendet' ) . ' (Schalter)' );
+			}
 			update_post_meta( $post_id, '_m24_kleinanzeigen', empty( $_POST['m24_pub_ka'] ) ? '0' : '1' );
 			$kaid = preg_replace( '/\D+/', '', (string) ( $_POST['m24_ka_id'] ?? '' ) );
 			$alt  = (string) get_post_meta( $post_id, '_m24_ka_id', true );
@@ -251,7 +265,10 @@ jQuery(function($){
 		if ( $h === (string) get_post_meta( $id, '_m24_sync_hash', true ) && 'manuell' !== $anlass ) { return; }
 		update_post_meta( $id, '_m24_sync_hash', $h );
 
-		if ( '1' === (string) self::m( $id, '_m24_pub_s14', '0' ) || get_post_meta( $id, '_m24_s14_id', true ) ) {
+		if ( '1' === (string) self::m( $id, '_m24_pub_s14', '0' ) ) {
+			self::an_s14( $id, $n );
+		} elseif ( get_post_meta( $id, '_m24_s14_id', true ) ) {
+			$n['status'] = 'ausgeblendet';   // Schalter s14 aus → dort als Entwurf, nicht löschen
 			self::an_s14( $id, $n );
 		}
 		if ( '1' === (string) self::m( $id, '_m24_kleinanzeigen', '0' ) && get_post_meta( $id, '_m24_ka_id', true ) ) {
@@ -350,6 +367,7 @@ jQuery(function($){
 		if ( isset( $r['status'] ) ) {
 			$map = array( 'live' => 'aktiv', 'aktiv' => 'aktiv', 'reserviert' => 'aktiv', 'verkauft' => 'verkauft', 'ausgeblendet' => 'ausgeblendet' );
 			$neu = $map[ (string) $r['status'] ] ?? null;
+			if ( 'ausgeblendet' === $neu && '0' === (string) get_post_meta( $id, '_m24_pub_s14', true ) ) { $neu = null; } // auf s14 bewusst ausgeschaltet → m24 bleibt sichtbar
 			if ( $neu && $neu !== self::status( $id ) && class_exists( 'M24_Catalog_Admin_List' ) ) { M24_Catalog_Admin_List::set_status( $id, $neu ); $geaendert[] = 'Status ' . $neu; }
 			if ( 'reserviert' === (string) $r['status'] ) { update_post_meta( $id, '_m24_reserviert', '1' ); $geaendert[] = 'reserviert (Merker)'; }
 			elseif ( isset( $map[ (string) $r['status'] ] ) ) { delete_post_meta( $id, '_m24_reserviert' ); }
