@@ -125,7 +125,7 @@ class M24_Catalog_Plattformen {
 		wp_add_inline_style( 'wp-admin', '
 #m24_teil_plattformen .pf-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f0f1;font-size:13px}
 #m24_teil_plattformen .pf-row:last-child{border-bottom:0}
-#m24_teil_plattformen .pf-name{font-weight:600;min-width:92px}
+#m24_teil_plattformen .pf-name{font-weight:600;min-width:52px}
 #m24_teil_plattformen .pf-st{color:#646970;flex:1;min-width:0;font-size:12px;line-height:1.35}
 #m24_teil_plattformen .pf-sw{position:relative;display:inline-flex;flex:none;cursor:pointer}
 #m24_teil_plattformen .pf-sw input{position:absolute;opacity:0;width:1px;height:1px}
@@ -141,9 +141,9 @@ class M24_Catalog_Plattformen {
 #m24_teil_plattformen .pf-go{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#2271b1;border-radius:4px;text-decoration:none}
 #m24_teil_plattformen .pf-go:hover{background:#f0f6fc}
 #m24_teil_plattformen .pf-go.leer{visibility:hidden}
-#m24_teil_plattformen .pf-kaid{display:flex;align-items:center;gap:6px;margin:2px 0 4px 100px}
+#m24_teil_plattformen .pf-kaid{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:0 0 6px}
 #m24_teil_plattformen .pf-kaid[hidden]{display:none}
-#m24_teil_plattformen .pf-kaid input{width:120px;font-size:12px}
+#m24_teil_plattformen .pf-kaid input{width:150px;font-size:12px}
 #m24_teil_plattformen .pf-meld{font-size:11px;margin-top:6px;color:#8c8f94}
 #m24_teil_plattformen details{margin-top:6px}#m24_teil_plattformen summary{font-size:11px;color:#8c8f94;cursor:pointer}
 #m24_teil_plattformen .pf-log{font:11px/1.5 Menlo,Consolas,monospace;color:#646970;margin-top:4px;max-height:120px;overflow:auto}
@@ -201,7 +201,7 @@ jQuery(function($){
 			$t = $kaid ? 'aus – Anzeige bei KA pausieren' : 'aus';
 		}
 		$h .= '<div class="pf-row"><span class="pf-name">Kleinanzeigen</span><span class="pf-st">' . esc_html( $t ) . '</span>' . $schalter( 'm24_pub_ka', $pub_ka, 'Auf Kleinanzeigen anzeigen' ) . self::link_icon( $kau, 'Kleinanzeigen' ) . '</div>';
-		$h .= '<div class="pf-kaid"' . ( $pub_ka ? '' : ' hidden' ) . '><label for="m24_ka_id" style="font-size:11px;color:#646970">KA-ID</label><input type="text" id="m24_ka_id" name="m24_ka_id" value="' . esc_attr( $kaid ) . '" placeholder="z. B. 3555358742" inputmode="numeric"></div>';
+		$h .= '<div class="pf-kaid"' . ( $pub_ka ? '' : ' hidden' ) . '><label for="m24_ka_id" style="font-size:11px;color:#646970">Kleinanzeigen-ID</label><input type="text" id="m24_ka_id" name="m24_ka_id" value="' . esc_attr( $kaid ) . '" placeholder="z. B. 3555358742" inputmode="numeric"></div>';
 		$h .= '</div>';
 		return $h;
 	}
