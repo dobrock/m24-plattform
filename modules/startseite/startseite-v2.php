@@ -96,13 +96,13 @@ class M24_Startseite_V2 {
 		return $url;
 	}
 
-	/** Mobil: einfacher Wisch-Slider mit den Beiträgen der Kategorie „startseite-slider" (wie der Desktop-Big-Grid). */
+	/** Mobil: einfacher Wisch-Slider mit den Beiträgen der Kategorie 31 (wie der Desktop-Big-Grid). */
 	public static function mobile_slider() {
 		$ids = get_posts( array(
-			'post_type'      => 'any',
+			'post_type'      => array( 'post', 'm24_fahrzeug' ),
 			'post_status'    => 'publish',
 			'posts_per_page' => 8,
-			'category_name'  => 'startseite-slider',
+			'cat'            => (int) apply_filters( 'm24_startseite_slider_cat', 31 ), // = Kategorie des Desktop-Big-Grids
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'meta_query'     => array( array( 'key' => '_thumbnail_id', 'compare' => 'EXISTS' ) ),
