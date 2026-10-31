@@ -276,3 +276,26 @@ body:has(#m24-startseite) .vc_row:has(> .vc_column .td-big-grid-slide){margin-to
 .m24s-bau__img .m24s-ph img{position:absolute;inset:0}
 .m24s-svc{align-self:start}
 @media (max-width:980px){.m24s-bau__img .m24s-ph img{position:static}}
+
+/* ── Z4-GT3-Kompetenzband (Vorschlag A) ── */
+.m24s-z4{position:relative;padding:var(--sec) 0;background:#15171b;color:#fff;overflow:hidden}
+.m24s-z4::before{content:"";position:absolute;inset:0;background:radial-gradient(800px 380px at 80% 10%,rgba(31,116,196,.22),transparent),radial-gradient(600px 300px at 10% 100%,rgba(216,180,90,.12),transparent);pointer-events:none}
+.m24s-z4__grid{position:relative;display:grid;grid-template-columns:.82fr 1.6fr;gap:3px;align-items:stretch}
+.m24s-z4__pic{position:relative;display:block;min-height:520px;overflow:hidden;background:#222}
+.m24s-z4__pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.m24s-z4__pic:hover img{transform:scale(1.03)}
+.m24s-z4__body{background:rgba(255,255,255,.04);padding:30px 32px;display:flex;flex-direction:column}
+.m24s-z4__p{font-size:15px;line-height:1.6;color:#b9c0c9;max-width:760px}
+.m24s-z4__pts{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:20px 0}
+.m24s-z4__pt{background:rgba(255,255,255,.06);padding:14px 16px;border-left:3px solid var(--gold2)}
+.m24s-z4__pt.is-blue{border-left-color:#1f74c4}
+.m24s-z4__pt b{display:block;font:800 15.5px Saira,sans-serif}
+.m24s-z4__pt span{display:block;font-size:13.5px;line-height:1.5;color:#aeb5bf;margin-top:3px}
+.m24s-z4__det{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:20px}
+.m24s-z4__det a{display:block;aspect-ratio:3/2;overflow:hidden;background:#222}
+.m24s-z4__det img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+.m24s-z4__det a:hover img{transform:scale(1.06)}
+.m24s-z4__cta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:auto}
+.m24s-z4__src{margin-left:auto;font-size:12.5px;color:#8d949e}
+@media (max-width:980px){.m24s-z4__grid{grid-template-columns:1fr}.m24s-z4__pic{min-height:0;aspect-ratio:3/4;max-height:620px}}
+@media (max-width:767px){.m24s-z4__body{padding:20px 16px}.m24s-z4__pts{grid-template-columns:1fr}.m24s-z4__det{grid-template-columns:1fr 1fr}.m24s-z4__src{margin-left:0;width:100%}}

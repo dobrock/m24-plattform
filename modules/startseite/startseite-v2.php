@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_4';
+	const CACHE_KEY = 'm24_startseite_v2_html_5';
 
 	private static $initialized = false;
 
@@ -269,6 +269,51 @@ class M24_Startseite_V2 {
 		);
 	}
 
+	/** Anzahl aktiver Teile mit Modell-Term „GT3" (Z4 GT3), alle Typen. */
+	private static function z4_count() {
+		$terms = self::model_terms( 'GT3' );
+		if ( ! $terms ) { return 0; }
+		$q = new WP_Query( array(
+			'post_type'      => 'm24_teil',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array( array( 'key' => '_m24_status', 'value' => 'aktiv' ) ),
+			'tax_query'      => array( array( 'taxonomy' => 'm24_fahrzeugkat', 'field' => 'term_id', 'terms' => $terms ) ),
+		) );
+		return (int) $q->found_posts;
+	}
+
+	/** Z4-GT3-Kompetenzband (Vorschlag A, 31.10.2026). */
+	private static function z4_band() {
+		$n      = self::z4_count();
+		$bodykit = self::img( '2025/02/BMW-Z4-GT3-Body-Parts-23.jpg', 'large' );
+		$det    = array_map( array( __CLASS__, 'img' ), array( '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-22.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-28.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-24.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-15.webp' ) );
+		$pts    = array(
+			array( 'Komplettfahrzeuge', 'Aufbau kompletter BMW Z4 GT3 – vom Chassis bis zum rennfertigen Fahrzeug.' ),
+			array( 'P65-Motoren', 'Revision und komplette Motoren, Hubraum-Kit 4,4 l, Nockenwellen, Ölpumpen.' ),
+			array( 'Getriebe', 'Xtrac-Getriebe revidiert oder komplett – inklusive Ersatzteile.' ),
+			array( 'Karosserie & Bodykit', 'Alle Karosserieteile bis zum kompletten Bodykit-Paket ab Lager.' ),
+		);
+		ob_start();
+		?>
+<section class="m24s-z4">
+	<div class="m24s-w m24s-z4__grid">
+		<a class="m24s-z4__pic" href="<?php echo esc_url( home_url( '/bmw-z4-gt3-bodykit-neuteile/' ) ); ?>"><img src="<?php echo esc_url( $bodykit ); ?>" alt="BMW Z4 GT3 Bodykit komplett" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k">Ab Lager</span><b>Komplettes Z4 GT3 Bodykit</b></span></a>
+		<div class="m24s-z4__body">
+			<div class="m24s-eb m24s-eb--light">Spezialist · BMW Z4 GT3</div>
+			<h2 class="m24s-h2 m24s-h2--light">BMW Z4 GT3 – Teile, Motoren, Getriebe und Fahrzeugbau.</h2>
+			<p class="m24s-z4__p">Aus unserem umfangreichen Sortiment an BMW Z4 GT3 Neu- und Gebrauchtteilen liefern wir vom einzelnen Längsträger bis zum kompletten Fahrzeug. Gemeinsam mit KK Automobile – selbst mit dem Z4 GT3 im Rennsport unterwegs – bauen und revidieren wir Fahrzeuge, Motoren und Getriebe.</p>
+			<div class="m24s-z4__pts"><?php foreach ( $pts as $i => $p ) : ?><div class="m24s-z4__pt<?php echo $i % 2 ? ' is-blue' : ''; ?>"><b><?php echo esc_html( $p[0] ); ?></b><span><?php echo esc_html( $p[1] ); ?></span></div><?php endforeach; ?></div>
+			<div class="m24s-z4__det"><?php foreach ( $det as $d ) : ?><a href="<?php echo esc_url( home_url( '/fahrzeuge/bmw-z4-gt3-ex-bartels-1033/' ) ); ?>"><img src="<?php echo esc_url( $d ); ?>" alt="BMW Z4 GT3 Detail" decoding="async"></a><?php endforeach; ?></div>
+			<div class="m24s-z4__cta"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><?php echo $n ? esc_html( 'Alle ' . $n . ' Z4 GT3 Teile ansehen' ) : 'Alle Z4 GT3 Teile ansehen'; ?></a><a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Z4 GT3 Projekt anfragen</a><span class="m24s-z4__src">Bilder: BMW Z4 GT3 Ex-Bartels #1033</span></div>
+		</div>
+	</div>
+</section>
+		<?php
+		return ob_get_clean();
+	}
+
 	// ── Render ─────────────────────────────────────────────────────────
 
 	private static function render() {
@@ -366,7 +411,9 @@ class M24_Startseite_V2 {
 	</div>
 </section>
 
-<section class="m24s-sec m24s-sec--top0">
+<?php echo self::z4_band(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+
+<section class="m24s-sec">
 	<div class="m24s-w">
 		<div class="m24s-intro m24s-intro--left"><div class="m24s-eb">Fahrzeugbau · Motorenbau · Restauration</div><h2 class="m24s-h2">Fahrzeugbau, Motorenbau &amp; Restauration.</h2></div>
 		<div class="m24s-bau">
