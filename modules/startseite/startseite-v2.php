@@ -46,7 +46,7 @@ class M24_Startseite_V2 {
 	}
 
 	public static function mobile_template( $template ) {
-		if ( self::is_preview() && wp_is_mobile() ) {
+		if ( self::is_preview() && ( wp_is_mobile() || isset( $_GET['m24_mobil'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification — ?m24_mobil = Testansicht
 			$t = __DIR__ . '/startseite-v2-mobile-template.php';
 			if ( file_exists( $t ) ) { return $t; }
 		}
