@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.569
+ * Version:           0.11.570
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -246,6 +246,7 @@ require_once M24_PLATTFORM_DIR . 'modules/anfragen/ppwr.php';            // rein
 require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-submit.php';
 require_once M24_PLATTFORM_DIR . 'modules/anfragen/inquiry-frontend.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-kontakt-form.php';   // Kontaktformular [m24_kontakt] → Anfragen-Pipeline (ersetzt Formidable auf /kontakt/, 31.10.2026)
+require_once M24_PLATTFORM_DIR . 'modules/startseite/startseite-v2.php';     // Neue Startseite „Design 2b" [m24_startseite_v2] – Vorschau (31.10.2026)
 
 // Fahrzeug-Modul (CPT m24_fahrzeug: Inserate Straßen-/Rennfahrzeuge, Detail-Template, SEO, Verwaltung).
 require_once M24_PLATTFORM_DIR . 'includes/fahrzeug/class-m24fz-cpt.php';
@@ -383,6 +384,7 @@ add_action( 'plugins_loaded', function() {
     M24_Inquiry_Recorder::init(); // beobachtet POST /inquiry, aendert die Verarbeitung nicht
     M24_Inquiry_Frontend::init();
     M24_Kontakt_Form::init(); // [m24_kontakt] + REST /kontakt
+    M24_Startseite_V2::init(); // [m24_startseite_v2] Vorschau neue Startseite
     // Gruppierte Suche: REST-Route, Vollergebnis-Routing, Frontend-Assets.
     M24_Search_REST::init();
     M24_Search_Results::init();

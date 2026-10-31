@@ -1,0 +1,314 @@
+<?php
+/**
+ * M24 — Neue Startseite „Design 2b" als Shortcode [m24_startseite_v2] (Vorschau, 31.10.2026)
+ * Modul: modules/startseite/startseite-v2.php
+ *
+ * Wird unter den bestehenden Header + Big-Grid-Slider gesetzt (Vorschau-Seite /startseite-neu/,
+ * privat). Noch NICHT die echte Startseite.
+ *
+ * Abschnitte: Hero „25 Jahre" (Jägermeister-Band) · 4 Kategorie-Karten · Fahrzeug-Slider
+ * (verfügbar zuerst, aufgefüllt mit verkauften) · Teile-Umschalter Rennsport/Gebraucht mit
+ * Modell-Liste + Zufallsartikeln · Fahrzeugbau (KK Automobile) · Zeitleiste 25 Jahre ·
+ * s14.de-Band · Ableger-Hinweis.
+ *
+ * Nur lesend: m24_fahrzeug (Status über M24FZ_CPT::status) und m24_teil (_m24_status=aktiv,
+ * _m24_typ=neu|gebraucht, Modell-Taxonomie m24_fahrzeugkat). Ausgabe gecacht (Transient 15 min).
+ *
+ * @package m24-plattform
+ */
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class M24_Startseite_V2 {
+
+	const CACHE_KEY = 'm24_startseite_v2_html';
+
+	private static $initialized = false;
+
+	public static function init() {
+		if ( self::$initialized ) { return; }
+		self::$initialized = true;
+		add_shortcode( 'm24_startseite_v2', array( __CLASS__, 'shortcode' ) );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'register_assets' ) );
+	}
+
+	public static function register_assets() {
+		if ( is_admin() ) { return; }
+		$base = plugin_dir_url( M24_PLATTFORM_FILE );
+		wp_register_style( 'm24-startseite-v2', $base . 'assets/css/m24-startseite-v2.css', array(), M24_PLATTFORM_VERSION );
+		wp_register_script( 'm24-startseite-v2', $base . 'assets/js/m24-startseite-v2.js', array(), M24_PLATTFORM_VERSION, true );
+	}
+
+	private static function img( $path ) {
+		return content_url( 'rennsport-teile-bilder/' . $path );
+	}
+
+	public static function shortcode() {
+		wp_enqueue_style( 'm24-startseite-v2' );
+		wp_enqueue_script( 'm24-startseite-v2' );
+		$html = get_transient( self::CACHE_KEY );
+		if ( false === $html || isset( $_GET['m24_nocache'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$html = self::render();
+			set_transient( self::CACHE_KEY, $html, 15 * MINUTE_IN_SECONDS );
+		}
+		return $html;
+	}
+
+	// ── Daten ──────────────────────────────────────────────────────────
+
+	/** Fahrzeuge: verfügbar/reserviert zuerst, dann verkaufte bis max. 10. */
+	private static function vehicles() {
+		if ( ! post_type_exists( 'm24_fahrzeug' ) ) { return array(); }
+		$ids = get_posts( array(
+			'post_type'      => 'm24_fahrzeug',
+			'post_status'    => 'publish',
+			'posts_per_page' => 60,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		) );
+		$avail = array();
+		$sold  = array();
+		foreach ( $ids as $id ) {
+			if ( ! has_post_thumbnail( $id ) ) { continue; }
+			$st = class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status( $id ) : 'gelistet';
+			if ( 'verkauft' === $st ) { $sold[] = array( $id, $st ); }
+			elseif ( in_array( $st, array( 'gelistet', 'reserviert' ), true ) ) { $avail[] = array( $id, $st ); }
+		}
+		$list = array_slice( $avail, 0, 10 );
+		if ( count( $list ) < 8 ) {
+			$list = array_merge( $list, array_slice( $sold, 0, 8 - count( $list ) ) );
+		}
+		return $list;
+	}
+
+	/** Term-IDs der Modell-Taxonomie, deren Name den Schlüssel enthält (z. B. „E30"). */
+	private static function model_terms( $needle ) {
+		$terms = get_terms( array( 'taxonomy' => 'm24_fahrzeugkat', 'hide_empty' => true, 'fields' => 'id=>name' ) );
+		if ( is_wp_error( $terms ) ) { return array(); }
+		$out = array();
+		foreach ( $terms as $id => $name ) {
+			if ( false !== stripos( $name, $needle ) ) { $out[] = (int) $id; }
+		}
+		return $out;
+	}
+
+	/** Bis zu $n zufällige aktive Teile eines Typs, optional auf Term-IDs (oder deren Ausschluss) begrenzt. */
+	private static function parts( $typ, $terms = null, $exclude = false, $n = 4 ) {
+		if ( ! post_type_exists( 'm24_teil' ) ) { return array(); }
+		$args = array(
+			'post_type'      => 'm24_teil',
+			'post_status'    => 'publish',
+			'posts_per_page' => $n,
+			'orderby'        => 'rand',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array(
+				'relation' => 'AND',
+				array( 'key' => '_m24_status', 'value' => 'aktiv' ),
+				array( 'key' => '_m24_typ', 'value' => $typ ),
+				array( 'key' => '_thumbnail_id', 'compare' => 'EXISTS' ),
+			),
+		);
+		if ( is_array( $terms ) ) {
+			if ( ! $terms && ! $exclude ) { return array(); }
+			if ( $terms ) {
+				$args['tax_query'] = array( array(
+					'taxonomy' => 'm24_fahrzeugkat',
+					'field'    => 'term_id',
+					'terms'    => $terms,
+					'operator' => $exclude ? 'NOT IN' : 'IN',
+				) );
+			}
+		}
+		return get_posts( $args );
+	}
+
+	private static function price( $id ) {
+		if ( get_post_meta( $id, '_m24_preis_auf_anfrage', true ) || ! class_exists( 'M24_Catalog_Pricing' ) ) { return 'Preis auf Anfrage'; }
+		$p = M24_Catalog_Pricing::get( $id );
+		if ( ! ( $p['brutto'] > 0 ) ) { return 'Preis auf Anfrage'; }
+		$vp = function_exists( 'm24_variant_price_info' ) ? m24_variant_price_info( $id ) : array();
+		if ( ! empty( $vp['hat_varianten'] ) && empty( $vp['alle_gleich'] ) ) { return 'ab ' . $vp['min_fmt']; }
+		return $p['brutto_fmt'];
+	}
+
+	// ── Bausteine ──────────────────────────────────────────────────────
+
+	private static function part_card( $id ) {
+		$artnr = get_post_meta( $id, '_m24_artikelnummer', true );
+		return sprintf(
+			'<a class="m24s-prod" href="%1$s"><span class="m24s-prod__im">%2$s</span><span class="m24s-prod__bd"><b>%3$s</b><small>%4$s</small><span class="m24s-prod__pr">%5$s</span></span></a>',
+			esc_url( get_permalink( $id ) ),
+			get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy', 'alt' => esc_attr( get_the_title( $id ) ) ) ),
+			esc_html( wp_trim_words( get_the_title( $id ), 12, '…' ) ),
+			$artnr ? 'Art.-Nr. ' . esc_html( $artnr ) : '&nbsp;',
+			esc_html( self::price( $id ) )
+		);
+	}
+
+	private static function parts_panel( $typ, $active ) {
+		$archive = ( 'neu' === $typ ) ? '/rennsport-teile/' : '/gebrauchtteile/';
+		$models  = array(
+			'e30'   => array( 'M3 E30', 'E30', '/teile/bmw-m3-e30/' ),
+			'e36'   => array( 'M3 E36', 'E36', '/teile/bmw-m3-e36/' ),
+			'e46'   => array( 'M3 E46', 'E46', '/teile/bmw-m3-e46/' ),
+			'e9x'   => array( 'M3 E9x', 'E9', '/teile/bmw-m3-e9x/' ),
+		);
+		$side  = '';
+		$grids = '';
+		$all_terms = array();
+		$first = true;
+		foreach ( $models as $key => $m ) {
+			$terms     = self::model_terms( $m[1] );
+			$all_terms = array_merge( $all_terms, $terms );
+			$ids       = self::parts( $typ, $terms );
+			if ( ! $ids ) { continue; }
+			$side  .= sprintf( '<button type="button" class="m24s-model%1$s" data-model="%2$s">%3$s<span>→</span></button>', $first ? ' is-on' : '', esc_attr( $typ . '-' . $key ), esc_html( $m[0] ) );
+			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $typ . '-' . $key ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $ids ) ) );
+			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>Alle Teile für %4$s →</a>', esc_attr( $typ . '-' . $key ), esc_url( home_url( $m[2] ) ), $first ? '' : ' hidden', esc_html( $m[0] ) );
+			$first = false;
+		}
+		$other = self::parts( $typ, array_values( array_unique( $all_terms ) ), true );
+		if ( $other ) {
+			$side  .= sprintf( '<button type="button" class="m24s-model%1$s" data-model="%2$s">Sonstige BMW M<span>→</span></button>', $first ? ' is-on' : '', esc_attr( $typ . '-sonst' ) );
+			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $typ . '-sonst' ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $other ) ) );
+			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>Alle Teile ansehen →</a>', esc_attr( $typ . '-sonst' ), esc_url( home_url( $archive ) ), $first ? '' : ' hidden' );
+		}
+		return sprintf(
+			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-card m24s-models"><div class="m24s-models__h">Modelle</div>%3$s<a class="m24s-models__all" href="%4$s">Alle %5$s →</a></div><div>%6$s</div></div>',
+			esc_attr( $typ ),
+			$active ? '' : ' hidden',
+			$side,
+			esc_url( home_url( $archive ) ),
+			( 'neu' === $typ ) ? 'Rennsport-Teile' : 'Gebrauchtteile',
+			$grids
+		);
+	}
+
+	// ── Render ─────────────────────────────────────────────────────────
+
+	private static function render() {
+		$J   = self::img( '2024/07/MOTORSPORT24-Rennsport-Teile-Online-Shop.jpg' );
+		$sig = 'https://s14.de/wp-content/themes/s14/assets/img/signet.png';
+		$im  = array(
+			'e30b'   => self::img( '2026/09/BMW-M3-E30-Diamantschwarz-S14B25-07.webp' ),
+			'z4'     => self::img( '2026/05/BMW-Z4-GT3-Ex-Vita4One-For-Sale-32.jpg' ),
+			'carbon' => self::img( '2024/07/Carbon-Karosserie-Teile-fuer-M3-E30_01.jpg' ),
+			's14eng' => self::img( '2025/09/BMW-M3-E30-S14-Engine-For-Sale-24.jpg' ),
+			'gtr'    => self::img( '2025/07/BMW-E36-GTR-M3-E46-GTR-M4-GTR-12.jpg' ),
+			'dtmeng' => self::img( '2025/10/S14-DTM-1992-12.jpg' ),
+			'dtm'    => self::img( '2025/11/BMW-E36-DTM-Tourenwagen-Jaegermeister-57.jpg' ),
+			'cab'    => self::img( '2024/03/BMW-320i-E30-Cabrio-Sterlingsilber-For-Sale_8776.jpg' ),
+		);
+		$cats = array(
+			array( $im['e30b'], 'Fahrzeuge', 'Klassische Fahrzeuge', '/classic-cars-for-sale/' ),
+			array( $im['z4'], 'Fahrzeuge', 'Rennsport-Fahrzeuge', '/racecars-for-sale/' ),
+			array( $im['carbon'], 'Teile · passend für BMW M', 'Rennsport-Teile', '/rennsport-teile/' ),
+			array( $im['s14eng'], 'Teile · Original BMW', 'Gebrauchte BMW Teile', '/gebrauchtteile/' ),
+		);
+		$svc = array(
+			array( '01', 'Fahrzeugbau aus einer Hand', 'Renn- und Clubsportfahrzeuge von der Konzeption bis zur Fertigung.' ),
+			array( '02', 'Sport- & Rennmotorenbau', 'Klassischer Motorenbau als Königsdisziplin – haltbar für jeden Einsatz.' ),
+			array( '03', 'Restauration & Neuaufbau', 'Historische Straßen- und Wettbewerbsfahrzeuge bis zur Vollrestauration.' ),
+			array( '04', 'Saisonbetreuung', 'Prüfstand, Abstimmung und Renn-Team-Betreuung auf Wunsch.' ),
+		);
+		$tl = array(
+			array( '2001', 's14motorsport.de', 'Gründung von s14motorsport.de.' ),
+			array( '2006', 'MOTORSPORT24', 'Exklusiver Vertrieb der Rennsport-Teile von KK Automobile.' ),
+			array( 'Fahrzeugbau', 'Gruppe A · DTM · GTR', 'Aufbau und Restauration historischer Renn- und Straßenfahrzeuge.' ),
+			array( 'Weltweit', 'Versand', 'Teile in alle Welt, Fahrzeuge im Trailer oder Container.' ),
+			array( '2026', 's14.de', 'Gründungspartner des Marktplatzes für klassische BMW.' ),
+		);
+		$feats = array(
+			array( 'Marktplatz', 'Fahrzeuge und Teile von geprüften Händlern und privaten Liebhabern – ausschließlich klassische BMW.' ),
+			array( 'Archiv', 'Wissen zu Modellen, Baureihen und Ausstattungen der E‑Modelle.' ),
+			array( 'Magazin', 'Fahrzeugporträts, Geschichten und Neuigkeiten aus der Szene.' ),
+		);
+
+		ob_start();
+		?>
+<div class="m24s" id="m24-startseite">
+<section class="m24s-hero" style="--m24s-bg:url('<?php echo esc_url( $J ); ?>')">
+	<div class="m24s-hero__in">
+		<div class="m24s-eb m24s-eb--light">Seit 2001 · s14motorsport.de · MOTORSPORT24</div>
+		<div class="m24s-hero__25 m24s-gold">25</div>
+		<h2 class="m24s-hero__h">Jahre Erfahrung in BMW Rennsport &amp; Klassik</h2>
+		<p class="m24s-hero__lead">Klassische BMW, Rennfahrzeuge und Rennsport-Teile passend für BMW M Modelle – international seit 2006.</p>
+		<div class="m24s-hero__btns"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/classic-cars-for-sale/' ) ); ?>">Fahrzeuge ansehen</a><a class="m24s-btn m24s-btn--glass" href="<?php echo esc_url( home_url( '/rennsport-teile/' ) ); ?>">Teile finden</a></div>
+	</div>
+</section>
+<div class="m24s-w m24s-cats">
+	<?php foreach ( $cats as $c ) : ?>
+	<a class="m24s-ph m24s-cat" href="<?php echo esc_url( home_url( $c[3] ) ); ?>"><img src="<?php echo esc_url( $c[0] ); ?>" alt="<?php echo esc_attr( $c[2] ); ?>" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k"><?php echo esc_html( $c[1] ); ?></span><b><?php echo esc_html( $c[2] ); ?></b></span></a>
+	<?php endforeach; ?>
+</div>
+
+<section class="m24s-dark m24s-slider">
+	<div class="m24s-w">
+		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Fahrzeuge mit Geschichte</h2></div>
+			<div class="m24s-arrows"><button type="button" class="m24s-arr" data-dir="-1" aria-label="Zurück">←</button><button type="button" class="m24s-arr m24s-arr--gold" data-dir="1" aria-label="Weiter">→</button></div></div>
+		<div class="m24s-track">
+			<?php foreach ( self::vehicles() as $v ) :
+				list( $vid, $st ) = $v;
+				$sub = array_filter( array( get_post_meta( $vid, '_m24fz_baujahr', true ), get_post_meta( $vid, '_m24fz_leistung_ps', true ) ? get_post_meta( $vid, '_m24fz_leistung_ps', true ) . ' PS' : '' ) );
+				$tag = ( 'verkauft' === $st ) ? array( 'sold', 'Verkauft' ) : ( ( 'reserviert' === $st ) ? array( 'res', 'Reserviert' ) : array( '', 'Verfügbar' ) );
+				?>
+			<a class="m24s-car" href="<?php echo esc_url( get_permalink( $vid ) ); ?>"><span class="m24s-car__im"><?php echo get_the_post_thumbnail( $vid, 'large', array( 'loading' => 'lazy', 'alt' => esc_attr( get_the_title( $vid ) ) ) ); ?><span class="m24s-tag <?php echo esc_attr( $tag[0] ); ?>"><?php echo esc_html( $tag[1] ); ?></span></span><b><?php echo esc_html( get_the_title( $vid ) ); ?></b><span class="m24s-car__sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></span></a>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+
+<section class="m24s-sec">
+	<div class="m24s-w">
+		<div class="m24s-center"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
+			<div class="m24s-tabs" role="tablist"><button type="button" class="m24s-tab is-on" data-tab="neu">Rennsport-Teile passend für BMW M</button><button type="button" class="m24s-tab" data-tab="gebraucht">Gebrauchte BMW M Teile</button></div></div>
+		<?php echo self::parts_panel( 'neu', true ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php echo self::parts_panel( 'gebraucht', false ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+	</div>
+</section>
+
+<section class="m24s-sec m24s-sec--top0">
+	<div class="m24s-w m24s-bau">
+		<div>
+			<div class="m24s-eb">Fahrzeugbau · Rennsport · Restauration</div>
+			<h2 class="m24s-h2">Aufbau, Restauration und Vollrestauration.</h2>
+			<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
+			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb <b>KK Automobile</b> in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
+			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
+		</div>
+		<div class="m24s-bau__img">
+			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>GTR · DTM · Gruppe A</span></span></div>
+			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
+			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
+		</div>
+	</div>
+</section>
+
+<section class="m24s-tl">
+	<div class="m24s-tl__bg25" aria-hidden="true">25</div>
+	<div class="m24s-w m24s-tl__grid">
+		<div><div class="m24s-gold m24s-tl__25">25</div><div class="m24s-eb">2001 – 2026</div><h2 class="m24s-h2">Jahre Erfahrung</h2><p class="m24s-lead">Ein Vierteljahrhundert BMW Rennsport und Klassik – Vertrauen, das man nachprüfen kann.</p></div>
+		<div class="m24s-tl__list"><?php foreach ( $tl as $t ) : ?><div class="m24s-tl__i"><span class="m24s-tl__dot"></span><div class="m24s-tl__card"><b class="m24s-tl__y"><?php echo esc_html( $t[0] ); ?></b><div><b><?php echo esc_html( $t[1] ); ?></b><p><?php echo esc_html( $t[2] ); ?></p></div></div></div><?php endforeach; ?></div>
+	</div>
+</section>
+
+<section class="m24s-s14" style="--m24s-s14bg:url('<?php echo esc_url( $im['cab'] ); ?>')">
+	<div class="m24s-w m24s-s14__grid">
+		<div>
+			<a class="m24s-s14logo" href="https://s14.de/" target="_blank" rel="noopener"><img src="<?php echo esc_url( $sig ); ?>" alt="s14.de"><b>s14<i></i>de</b></a>
+			<div class="m24s-eb m24s-eb--light">MOTORSPORT24 ist Gründungspartner</div>
+			<h2 class="m24s-h2 m24s-h2--light">Der Marktplatz für klassische BMW E‑Modelle.</h2>
+			<p class="m24s-s14__p">s14.de ist Archiv, Magazin und Marktplatz für die klassischen BMW E‑Baureihen von 1966 bis 2009 – vom 02er über E9, E21, E30 und E28 bis zum E46. Händler und Privatverkäufer bieten hier Fahrzeuge und Teile an, gelesen und gekauft von Menschen, die diese Autos wirklich kennen.</p>
+			<a class="m24s-btn" href="https://s14.de/" target="_blank" rel="noopener">s14.de entdecken</a>
+		</div>
+		<div class="m24s-s14__feats"><?php foreach ( $feats as $i => $f ) : ?><div class="m24s-s14__f"><span>0<?php echo (int) ( $i + 1 ); ?></span><div><b><?php echo esc_html( $f[0] ); ?></b><p><?php echo esc_html( $f[1] ); ?></p></div></div><?php endforeach; ?></div>
+	</div>
+</section>
+<div class="m24s-foot"><div class="m24s-w"><span>MOTORSPORT24 und s14.de sind Ableger von <b>s14motorsport.de</b> (seit 2001) – MOTORSPORT24 seit 2006.</span></div></div>
+</div>
+		<?php
+		return ob_get_clean();
+	}
+}
