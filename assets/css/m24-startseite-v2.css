@@ -113,7 +113,7 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-tl__list::before{content:"";position:absolute;left:8px;top:10px;bottom:26px;width:2px;background:linear-gradient(180deg,#d8b45a,#e8e2d2)}
 .m24s-tl__i{position:relative;margin-bottom:16px}
 .m24s-tl__dot{position:absolute;left:-44px;top:22px;width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--gold2);box-shadow:0 0 0 6px rgba(216,180,90,.15)}
-.m24s-tl__card{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center;padding:18px 24px;border-radius:16px;background:#fff;box-shadow:0 14px 36px rgba(20,24,30,.08)}
+.m24s-tl__card{display:grid;grid-template-columns:210px 1fr;gap:18px;align-items:center;padding:18px 24px;border-radius:16px;background:#fff;box-shadow:0 14px 36px rgba(20,24,30,.08)}
 .m24s-tl__y{font:800 26px Saira,sans-serif;color:var(--gold)}
 .m24s-tl__card div b{font:700 16.5px Saira,sans-serif}
 .m24s-tl__card p{font-size:14px;color:#6b717c;margin-top:2px!important}
