@@ -14,7 +14,9 @@
  *   - _m24_typ='neu' + fester Modell-Term via Filter (m24_sw_import_typ /
  *     m24_sw_import_modell_terms); Gebrauchtteile (_m24_typ='gebraucht') werden NIE
  *     angefasst (andere Kategorien, anderer Hook).
- *   - Idempotent ueber _m24_sw_id (Re-Run = Update), Medien-Hash-Reuse.
+ *   - Idempotent ueber _m24_sw_id, Medien-Hash-Reuse. Admin-Import: Kategorie-Auswahl +
+ *     „Nur neue Teile anlegen" (Standard) + Dubletten-Schutz + Probelauf (analyze()).
+ *     CLI/AS-Pfade: Re-Run = Update (unveraendert).
  *
  * Kategorie-Discovery (Stand 2026-06-16, LIVE motorsport24.shop):
  *   Z4 GT3  9a43ce428ef14ef6b2f5ca95da656f96  → Term „Z4 GT3"  (Hub bmw-z4-gt3)
@@ -63,14 +65,20 @@ class M24_Shopware_Rennsport {
 	 */
 	private static function skip_existing_gebraucht( $sw_id ) {
 		if ( ! apply_filters( 'm24_rennsport_skip_existing_gebraucht', true ) ) { return 0; }
+		$pid = self::post_id_by_sw_id( $sw_id );
+		if ( $pid && 'gebraucht' === (string) get_post_meta( $pid, '_m24_typ', true ) ) { return $pid; }
+		return 0;
+	}
+
+	/** Post-ID eines m24_teil mit dieser _m24_sw_id (beliebiger Status außer Papierkorb), sonst 0. */
+	private static function post_id_by_sw_id( $sw_id ) {
+		if ( '' === (string) $sw_id ) { return 0; }
 		$q = get_posts( array(
 			'post_type' => 'm24_teil', 'post_status' => 'any', 'posts_per_page' => 1,
 			'fields' => 'ids', 'no_found_rows' => true,
 			'meta_query' => array( array( 'key' => '_m24_sw_id', 'value' => (string) $sw_id ) ),
 		) );
-		$pid = $q ? (int) $q[0] : 0;
-		if ( $pid && 'gebraucht' === (string) get_post_meta( $pid, '_m24_typ', true ) ) { return $pid; }
-		return 0;
+		return $q ? (int) $q[0] : 0;
 	}
 
 	private static function as_available() {
@@ -262,8 +270,17 @@ class M24_Shopware_Rennsport {
 	 *
 	 * @return array { status, post_id, name, error, img:{done,remaining}|null }
 	 */
-	public static function import_one( $product, $term, $force = false ) {
+	public static function import_one( $product, $term, $force = false, $only_new = false ) {
 		$sw_id = (string) ( $product['id'] ?? '' );
+		// „Nur neue Teile anlegen": existiert das Produkt (per _m24_sw_id) schon, wird es
+		// KOMPLETT übersprungen — kein Post-/Meta-/Term-/Medien-/Varianten-/SEO-Update.
+		// Letzte Sicherung zur Laufzeit (die Worklist filtert bereits vorab).
+		if ( $only_new && '' !== $sw_id ) {
+			$ex = self::post_id_by_sw_id( $sw_id );
+			if ( $ex ) {
+				return array( 'status' => 'skipped_existing', 'post_id' => $ex, 'name' => (string) ( $product['name'] ?? '' ), 'error' => '', 'img' => null );
+			}
+		}
 		if ( self::skip_existing_gebraucht( $sw_id ) ) {
 			return array( 'status' => 'skipped_gebraucht', 'post_id' => 0, 'name' => '', 'error' => '', 'img' => null );
 		}
@@ -393,25 +410,196 @@ class M24_Shopware_Rennsport {
 		return $tot;
 	}
 
-	/** Worklist fuer den Admin-Chunk-Loop: neue Items [{id,term}] der gewaehlten Kategorien. */
-	public static function build_worklist( $keys = array() ) {
-		$map      = self::category_map();
-		$keys     = empty( $keys ) ? array_keys( $map ) : array_values( array_intersect( array_keys( $map ), $keys ) );
-		$client   = new M24_Shopware_Client();
-		$existing = self::existing_sw_ids();
-		$items    = array();
-		foreach ( $keys as $key ) {
-			$cfg = $map[ $key ];
-			$ids = self::collect_ids( $client, $cfg['cat'], ! empty( $cfg['direct'] ) );
-			sort( $ids );
-			foreach ( $ids as $id ) { if ( ! isset( $existing[ $id ] ) ) { $items[] = array( 'id' => $id, 'term' => $cfg['term'] ); } }
+	/**
+	 * Worklist fuer den Admin-Chunk-Loop: Items [{id,term,update?}] der GEWAEHLTEN Kategorien.
+	 *
+	 * $only_new=true (Standard): nur Produkte ohne vorhandenen m24_teil (per _m24_sw_id);
+	 *   vorhandene werden NICHT angefasst.
+	 * $only_new=false: zusaetzlich vorhandene Produkte als Update-Items (update=true).
+	 * Dubletten-Schutz IMMER: vermutete Dubletten von Hand angelegter Teile (gleiche
+	 * Artikelnummer oder sehr aehnlicher Titel im selben Modell) kommen nie in die Worklist.
+	 *
+	 * @param array      $keys     Teilmenge von category_map()-Keys (leer = keine).
+	 * @param bool       $only_new
+	 * @param array|null $report   OUT: Ergebnis von analyze() (fuer Protokoll/Anzeige).
+	 */
+	public static function build_worklist( $keys = array(), $only_new = true, &$report = null ) {
+		$report = self::analyze( $keys );
+		$items  = array();
+		foreach ( $report['per_cat'] as $c ) {
+			foreach ( $c['new'] as $n ) { $items[] = array( 'id' => $n['id'], 'term' => $c['term'] ); }
+		}
+		if ( ! $only_new ) {
+			foreach ( $report['per_cat'] as $c ) {
+				foreach ( $c['existing_ids'] as $id ) { $items[] = array( 'id' => $id, 'term' => $c['term'], 'update' => true ); }
+			}
 		}
 		return $items;
 	}
 
-	/** Verarbeitet einen Chunk [{id,term}] (Admin-AJAX). Gibt Zaehler zurueck. */
+	/**
+	 * READ-ONLY-Analyse (Probelauf + Worklist-Basis). Keine Schreibvorgaenge.
+	 * Pro Kategorie: Anzahl im Shop, davon vorhanden (sw_id), vermutete Dubletten, neu.
+	 *
+	 * @return array { per_cat: { key: { label, term, shop, existing, existing_ids[], other_cat,
+	 *                 dupes[ {sw_id,name,pno,post_id,post_title,reason} ], new[ {id,name,pno} ] } } }
+	 */
+	public static function analyze( $keys = array() ) {
+		$map    = self::category_map();
+		$keys   = array_values( array_intersect( array_keys( $map ), (array) $keys ) );
+		$out    = array( 'per_cat' => array() );
+		if ( empty( $keys ) ) { return $out; }
+		$client   = new M24_Shopware_Client();
+		$existing = self::existing_sw_ids();
+		$index    = self::dup_index();
+		$seen     = array(); // Produkt in mehreren gewaehlten Kategorien (z. B. E90+E92) nur 1x
+
+		foreach ( $keys as $key ) {
+			$cfg = $map[ $key ];
+			$ids = self::collect_ids( $client, $cfg['cat'], ! empty( $cfg['direct'] ) );
+			sort( $ids );
+			$c = array(
+				'label' => (string) ( $cfg['label'] ?? $key ), 'term' => (string) $cfg['term'],
+				'shop' => count( $ids ), 'existing' => 0, 'existing_ids' => array(), 'other_cat' => 0,
+				'dupes' => array(), 'new' => array(),
+			);
+			$todo = array();
+			foreach ( $ids as $id ) {
+				if ( isset( $seen[ $id ] ) ) { $c['other_cat']++; continue; }
+				$seen[ $id ] = true;
+				if ( isset( $existing[ $id ] ) ) { $c['existing']++; $c['existing_ids'][] = $id; continue; }
+				$todo[] = $id;
+			}
+			$info = self::fetch_light( $client, $todo );
+			foreach ( $todo as $id ) {
+				$pno  = isset( $info[ $id ] ) ? $info[ $id ]['pno'] : '';
+				$name = isset( $info[ $id ] ) ? $info[ $id ]['name'] : '';
+				$d    = self::find_dupe( $index, $pno, $name, (string) $cfg['term'] );
+				if ( $d ) {
+					$c['dupes'][] = array( 'sw_id' => $id, 'name' => $name, 'pno' => $pno,
+						'post_id' => $d['id'], 'post_title' => $d['title'], 'reason' => $d['reason'] );
+				} else {
+					$c['new'][] = array( 'id' => $id, 'name' => $name, 'pno' => $pno );
+				}
+			}
+			$out['per_cat'][ $key ] = $c;
+		}
+		return $out;
+	}
+
+	/** Leichtgewichtiger Fetch (id, productNumber, name) — fuer Probelauf/Dubletten-Check. */
+	private static function fetch_light( $client, array $ids ) {
+		$out = array();
+		foreach ( array_chunk( array_values( $ids ), 100 ) as $chunk ) {
+			$res = $client->post( '/api/search/product', array(
+				'filter'   => array( array( 'type' => 'equalsAny', 'field' => 'id', 'value' => implode( '|', $chunk ) ) ),
+				'includes' => array( 'product' => array( 'id', 'productNumber', 'name', 'translated' ) ),
+				'limit'    => count( $chunk ),
+			) );
+			$data = isset( $res['data'] ) && is_array( $res['data'] ) ? $res['data'] : array();
+			foreach ( $data as $p ) {
+				$id   = (string) ( $p['id'] ?? '' );
+				$name = (string) ( $p['name'] ?? '' );
+				if ( '' === trim( $name ) && isset( $p['translated']['name'] ) ) { $name = (string) $p['translated']['name']; }
+				if ( '' !== $id ) { $out[ $id ] = array( 'pno' => (string) ( $p['productNumber'] ?? '' ), 'name' => $name ); }
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Index aller VEROEFFENTLICHTEN m24_teil fuer den Dubletten-Schutz (3 Queries):
+	 *   artnr  → Artikelnummer (lowercase) ⇒ {id,title}  (alle veroeffentlichten Teile)
+	 *   titles → Modell-Term (lowercase) ⇒ [ {norm,id,title} ]  (nur Teile OHNE _m24_sw_id,
+	 *            d. h. von Hand angelegt — Shopware-Teile sind per sw_id abgedeckt)
+	 */
+	private static function dup_index() {
+		global $wpdb;
+		$pt  = class_exists( 'M24_Catalog_CPT' ) ? M24_Catalog_CPT::POST_TYPE : 'm24_teil';
+		$tax = class_exists( 'M24_Catalog_CPT' ) ? M24_Catalog_CPT::TAXONOMY : 'm24_fahrzeugkat';
+		// phpcs:disable WordPress.DB
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT p.ID, p.post_title, an.meta_value AS artnr, sw.meta_value AS sw_id
+			   FROM {$wpdb->posts} p
+			   LEFT JOIN {$wpdb->postmeta} an ON an.post_id = p.ID AND an.meta_key = '_m24_artikelnummer'
+			   LEFT JOIN {$wpdb->postmeta} sw ON sw.post_id = p.ID AND sw.meta_key = '_m24_sw_id'
+			  WHERE p.post_type = %s AND p.post_status = 'publish'", $pt ), ARRAY_A );
+		$trows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT tr.object_id, t.name
+			   FROM {$wpdb->term_relationships} tr
+			   JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = %s
+			   JOIN {$wpdb->terms} t ON t.term_id = tt.term_id
+			   JOIN {$wpdb->posts} p ON p.ID = tr.object_id AND p.post_type = %s AND p.post_status = 'publish'", $tax, $pt ), ARRAY_A );
+		// phpcs:enable
+		$terms = array();
+		foreach ( (array) $trows as $t ) { $terms[ (int) $t['object_id'] ][] = strtolower( trim( (string) $t['name'] ) ); }
+
+		$idx = array( 'artnr' => array(), 'titles' => array() );
+		$done = array();
+		foreach ( (array) $rows as $r ) {
+			$id = (int) $r['ID'];
+			$an = strtolower( trim( (string) $r['artnr'] ) );
+			if ( '' !== $an && ! isset( $idx['artnr'][ $an ] ) ) { $idx['artnr'][ $an ] = array( 'id' => $id, 'title' => (string) $r['post_title'] ); }
+			if ( isset( $done[ $id ] ) ) { continue; }
+			$done[ $id ] = true;
+			if ( '' !== trim( (string) $r['sw_id'] ) ) { continue; }
+			$norm = self::norm_title( (string) $r['post_title'] );
+			if ( '' === $norm ) { continue; }
+			foreach ( $terms[ $id ] ?? array() as $tn ) {
+				$idx['titles'][ $tn ][] = array( 'norm' => $norm, 'id' => $id, 'title' => (string) $r['post_title'] );
+			}
+		}
+		return $idx;
+	}
+
+	/** Vermutete Dublette? → {id,title,reason} oder null. */
+	private static function find_dupe( array $idx, $pno, $name, $term ) {
+		$pno = strtolower( trim( (string) $pno ) );
+		if ( '' !== $pno && isset( $idx['artnr'][ $pno ] ) ) {
+			$m = $idx['artnr'][ $pno ];
+			return array( 'id' => $m['id'], 'title' => $m['title'], 'reason' => 'gleiche Artikelnummer' );
+		}
+		$norm = self::norm_title( $name );
+		$tn   = strtolower( trim( (string) $term ) );
+		if ( '' === $norm || empty( $idx['titles'][ $tn ] ) ) { return null; }
+		foreach ( $idx['titles'][ $tn ] as $cand ) {
+			if ( self::titles_similar( $norm, $cand['norm'] ) ) {
+				return array( 'id' => $cand['id'], 'title' => $cand['title'], 'reason' => 'ähnlicher Titel' );
+			}
+		}
+		return null;
+	}
+
+	/** Titel normalisieren: HTML/Entities raus, OEM-Nummer kompakt (wie beim Import), Umlaute, nur a-z0-9. */
+	public static function norm_title( $t ) {
+		$t = wp_strip_all_tags( html_entity_decode( (string) $t, ENT_QUOTES, 'UTF-8' ) );
+		if ( class_exists( 'M24_BMW_Teilenummer_Extractor' ) ) { $t = M24_BMW_Teilenummer_Extractor::compact_in_title( $t ); }
+		$t = strtolower( remove_accents( $t ) );
+		$t = preg_replace( '/[^a-z0-9]+/', ' ', $t );
+		return trim( preg_replace( '/\s+/', ' ', (string) $t ) );
+	}
+
+	/**
+	 * „Sehr ähnlich": identisch (auch ohne Leerzeichen) ODER Levenshtein ≤ 2 bei gleicher
+	 * Zahlenfolge und ≥ 15 Zeichen. Konservativ — „links"/„rechts", „Stufe 1"/„Stufe 2"
+	 * gelten NICHT als Dublette.
+	 */
+	private static function titles_similar( $a, $b ) {
+		if ( '' === $a || '' === $b ) { return false; }
+		if ( $a === $b || str_replace( ' ', '', $a ) === str_replace( ' ', '', $b ) ) { return true; }
+		preg_match_all( '/\d+/', $a, $da ); preg_match_all( '/\d+/', $b, $db );
+		if ( $da[0] !== $db[0] ) { return false; }
+		$la = strlen( $a ); $lb = strlen( $b );
+		if ( min( $la, $lb ) < 15 || abs( $la - $lb ) > 2 || max( $la, $lb ) > 255 ) { return false; }
+		return levenshtein( $a, $b ) <= 2;
+	}
+
+	/**
+	 * Verarbeitet einen Chunk [{id,term,update?}] (Admin-AJAX). Items ohne update=true laufen
+	 * im „Nur neu"-Modus (vorhandene → komplett übersprungen). Gibt Zaehler zurueck.
+	 */
 	public static function process_chunk( array $items, $force = false ) {
-		$r = array( 'processed' => 0, 'new' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
+		$r = array( 'processed' => 0, 'new' => 0, 'updated' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
 		if ( empty( $items ) ) { return $r; }
 		$client = new M24_Shopware_Client();
 		$ids    = array();
@@ -423,9 +611,10 @@ class M24_Shopware_Rennsport {
 			$r['processed']++;
 			$p = isset( $by[ $it['id'] ] ) ? $by[ $it['id'] ] : null;
 			if ( null === $p ) { $r['errors']++; continue; }
-			$res = self::import_one( $p, $it['term'], $force );
-			if ( in_array( $res['status'], array( 'created', 'updated' ), true ) ) { $r['new']++; }
-			elseif ( 'skipped_gebraucht' === $res['status'] ) { $r['skipped']++; }
+			$res = self::import_one( $p, $it['term'], $force, empty( $it['update'] ) );
+			if ( 'created' === $res['status'] ) { $r['new']++; }
+			elseif ( 'updated' === $res['status'] ) { $r['updated']++; }
+			elseif ( in_array( $res['status'], array( 'skipped_gebraucht', 'skipped_existing', 'skipped_lock' ), true ) ) { $r['skipped']++; }
 			else { $r['errors']++; }
 			if ( is_array( $res['img'] ) && (int) $res['img']['remaining'] > 0 ) { $r['img_pending']++; }
 		}
