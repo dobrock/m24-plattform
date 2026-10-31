@@ -6,6 +6,7 @@
  * Seite „Teile-Katalog → Shopware-Import" mit Buttons. JS ruft wiederholt einen
  * admin-ajax-Endpoint, der je Call ~10 Produkte ueber die BESTEHENDE Importer-Logik
  * verarbeitet (build_worklist + process_chunk + Fast-Skip via existing_sw_ids) und
+ * (Rennsport: Kategorie-Auswahl, „Nur neue Teile", Dubletten-Schutz, Probelauf) und
  * Fortschritt zurueckgibt. Loop bis done=true. Idempotent (Re-Klick skippt in ms).
  *
  * Sicherheit: Nonce + current_user_can('manage_options'). KEIN Action Scheduler,
@@ -37,6 +38,42 @@ class M24_Import_Admin {
 		add_action( 'wp_ajax_m24_impact_report', array( __CLASS__, 'ajax_impact_report' ) );
 		add_action( 'wp_ajax_m24_restore_attach', array( __CLASS__, 'ajax_restore_attach' ) );
 		add_action( 'wp_ajax_m24_restore_undo', array( __CLASS__, 'ajax_restore_undo' ) );
+		add_action( 'wp_ajax_m24_rennsport_probe', array( __CLASS__, 'ajax_rennsport_probe' ) );
+	}
+
+	/** Gewaehlte Rennsport-Kategorie-Keys aus $_POST['cats'] (nur gueltige Keys aus category_map). */
+	private static function posted_cats() {
+		$raw  = isset( $_POST['cats'] ) ? (array) wp_unslash( $_POST['cats'] ) : array(); // phpcs:ignore WordPress.Security
+		$keys = array_map( 'sanitize_key', array_map( 'strval', $raw ) );
+		return array_values( array_intersect( array_keys( M24_Shopware_Rennsport::category_map() ), $keys ) );
+	}
+
+	/**
+	 * Rennsport-Probelauf (READ-ONLY, Always-JSON): EINE Kategorie je Call (JS loopt),
+	 * damit kein Request ins Timeout laeuft. Keine Schreibvorgaenge.
+	 */
+	public static function ajax_rennsport_probe() {
+		@ini_set( 'display_errors', '0' ); // phpcs:ignore
+		ob_start();
+		register_shutdown_function( array( __CLASS__, 'shutdown_guard' ) );
+		try {
+			if ( ! current_user_can( 'manage_options' ) ) { self::json_error( 'keine Berechtigung' ); }
+			check_ajax_referer( self::NONCE, '_nonce' );
+			$cats = self::posted_cats();
+			if ( empty( $cats ) ) { self::json_error( 'Keine Kategorie gewählt.' ); }
+			$an  = M24_Shopware_Rennsport::analyze( $cats );
+			$out = array();
+			foreach ( $an['per_cat'] as $key => $c ) {
+				$out[] = array(
+					'key' => $key, 'label' => $c['label'], 'term' => $c['term'], 'shop' => $c['shop'],
+					'existing' => $c['existing'], 'other_cat' => $c['other_cat'],
+					'dupes' => $c['dupes'], 'new' => array_map( function ( $n ) { return array( 'name' => $n['name'], 'pno' => $n['pno'] ); }, $c['new'] ),
+				);
+			}
+			self::json_success( array( 'cats' => $out ) );
+		} catch ( Throwable $t ) {
+			self::json_error( 'Fehler: ' . $t->getMessage() );
+		}
 	}
 
 	/** Undo der Attachment-Rückholung (DB-only, Always-JSON). Dry-Run default; Execute mit confirm=1. */
@@ -198,7 +235,16 @@ class M24_Import_Admin {
 			if ( '' === $token ) {
 				$token  = substr( md5( uniqid( $type, true ) ), 0, 12 );
 				$offset = 0;
-				$items  = self::worklist( $type );
+				$report = null;
+				if ( 'rennsport' === $type ) {
+					$cats = self::posted_cats();
+					if ( empty( $cats ) ) { self::json_error( 'Bitte mindestens eine Rennsport-Kategorie anhaken.' ); }
+					$only_new = ! empty( $_POST['only_new'] );
+					$items    = M24_Shopware_Rennsport::build_worklist( $cats, $only_new, $report );
+					$start_info = self::rennsport_protocol( $report, $cats, $only_new );
+				} else {
+					$items = self::worklist( $type );
+				}
 				set_transient( self::WL_PREFIX . $token, $items, $ttl );
 			} else {
 				$items = get_transient( self::WL_PREFIX . $token );
@@ -229,13 +275,13 @@ class M24_Import_Admin {
 				) );
 			}
 
-			// Gebraucht/Rennsport: ZEIT-BUDGET-Chunk (mehrere/Call), unveraendert.
+			// Gebraucht/Rennsport: ZEIT-BUDGET-Chunk (mehrere/Call).
 			$budget    = 18.0;
 			$cap       = 40;
 			$start     = microtime( true );
 			$deadline  = $start + $budget;
 			$processed = 0;
-			$agg = array( 'processed' => 0, 'new' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
+			$agg = array( 'processed' => 0, 'new' => 0, 'updated' => 0, 'skipped' => 0, 'img_pending' => 0, 'unresolved' => 0, 'errors' => 0 );
 			while ( $offset + $processed < $total && $processed < $cap ) {
 				$slice = array_slice( $items, $offset + $processed, 5 );
 				if ( empty( $slice ) ) { break; }
@@ -246,7 +292,7 @@ class M24_Import_Admin {
 			}
 
 			$new_offset = $offset + $processed;
-			self::json_success( array(
+			$payload = array(
 				'token'       => $token,
 				'type'        => $type,
 				'total'       => $total,
@@ -257,8 +303,11 @@ class M24_Import_Admin {
 				'img_pending' => (int) $agg['img_pending'],
 				'unresolved'  => (int) $agg['unresolved'],
 				'errors'      => (int) $agg['errors'],
+				'updated'     => (int) $agg['updated'],
 				'done'        => $new_offset >= $total,
-			) );
+			);
+			if ( isset( $start_info ) ) { $payload['protocol'] = $start_info; }
+			self::json_success( $payload );
 		} catch ( Throwable $t ) {
 			self::json_error( 'Fehler: ' . $t->getMessage() );
 		}
@@ -290,10 +339,30 @@ class M24_Import_Admin {
 		echo wp_json_encode( array( 'success' => false, 'data' => array( 'message' => 'Abbruch (PHP-Fatal): ' . $e['message'] . ' — Chunk kleiner versuchen / erneut klicken.' ) ) );
 	}
 
-	/** Worklist je Typ (Array von Items; Struktur typ-spezifisch). */
+	/**
+	 * Rennsport-Startprotokoll (vermutete Dubletten etc.) → Import-Log + JSON fuer die Seite.
+	 * @return array { only_new, cats[ {key,label,shop,existing,dupes,new} ], dupes[ string ] }
+	 */
+	private static function rennsport_protocol( $report, array $cats, $only_new ) {
+		$out = array( 'only_new' => (bool) $only_new, 'cats' => array(), 'dupes' => array() );
+		foreach ( (array) ( $report['per_cat'] ?? array() ) as $key => $c ) {
+			$out['cats'][] = array( 'key' => $key, 'label' => $c['label'], 'shop' => $c['shop'], 'existing' => $c['existing'], 'dupes' => count( $c['dupes'] ), 'new' => count( $c['new'] ) );
+			foreach ( $c['dupes'] as $d ) {
+				$line = sprintf( 'vermutete Dublette: %s (ID %d) ← Shopware „%s“%s · %s', $d['post_title'], (int) $d['post_id'], $d['name'], '' !== $d['pno'] ? ' [' . $d['pno'] . ']' : '', $d['reason'] );
+				$out['dupes'][] = $line;
+				if ( class_exists( 'M24_Import_Log' ) ) { M24_Import_Log::log( 'rennsport: ' . $line ); }
+			}
+		}
+		if ( class_exists( 'M24_Import_Log' ) ) {
+			M24_Import_Log::log( sprintf( 'rennsport: Start · Kategorien %s · %s · %d vermutete Dubletten übersprungen',
+				implode( ',', $cats ), $only_new ? 'nur neue Teile' : 'neue + vorhandene aktualisieren', count( $out['dupes'] ) ) );
+		}
+		return $out;
+	}
+
+	/** Worklist je Typ (Array von Items; Struktur typ-spezifisch). Rennsport: siehe ajax() (Auswahl). */
 	private static function worklist( $type ) {
 		if ( 'gebraucht' === $type ) { return M24_Shopware_Gebraucht::build_worklist(); }
-		if ( 'rennsport' === $type ) { return M24_Shopware_Rennsport::build_worklist( array( 'z4-gt3', 'e30', 'e36', 'e46', 'e90', 'e92' ) ); }
 		if ( 'varianten' === $type ) { return M24_Shopware_Variants::build_worklist(); }
 		if ( 'seotitel' === $type ) { return M24_Catalog_SEO::all_ids(); }
 		// media: Galerie-Rebuild — alle Teile (neu+gebraucht) mit unvollst. Galerie/offenen Bildern.
@@ -319,9 +388,26 @@ class M24_Import_Admin {
 			<p>Import läuft direkt hier im Browser (chunkweise, kein Konsolen-/Cron-Zwang). Re-Klick überspringt bereits Importiertes in Millisekunden.</p>
 			<p>
 				<button class="button button-primary" data-m24imp="gebraucht">Gebraucht importieren / fortsetzen</button>
-				<button class="button button-primary" data-m24imp="rennsport">Rennsport importieren</button>
 				<button class="button" data-m24imp="media">Bilder / Galerie nachladen</button>
 			</p>
+			<div style="max-width:760px;margin:10px 0 6px;border:1px solid #dcdcde;border-radius:6px;padding:12px;background:#fff">
+				<p style="margin:0 0 8px;font-weight:600">Rennsport-Import</p>
+				<p style="margin:0 0 8px;font-size:13px">
+					<?php foreach ( M24_Shopware_Rennsport::category_map() as $key => $cfg ) : ?>
+						<label style="display:inline-block;margin:0 14px 6px 0"><input type="checkbox" class="m24rs-cat" value="<?php echo esc_attr( $key ); ?>"> <?php echo esc_html( $cfg['label'] ?? $key ); ?></label>
+					<?php endforeach; ?>
+					<br><a href="#" id="m24rs-all" style="font-size:12px">alle</a> · <a href="#" id="m24rs-none" style="font-size:12px">keine</a>
+				</p>
+				<p style="margin:0 0 8px;font-size:13px">
+					<label><input type="checkbox" id="m24rs-onlynew" checked> <strong>Nur neue Teile anlegen – vorhandene nicht verändern</strong></label>
+					<span style="color:#888;display:block;margin-left:22px">Bereits importierte Teile (Titel, Texte, SEO, Preise, Bilder, Varianten) bleiben unangetastet. Vermutete Dubletten von Hand angelegter Teile werden immer übersprungen.</span>
+				</p>
+				<p style="margin:0">
+					<button type="button" class="button" id="m24rs-probe">Probelauf (ändert nichts)</button>
+					<button class="button button-primary" data-m24imp="rennsport">Rennsport importieren</button>
+				</p>
+				<div id="m24rs-out" style="display:none;margin-top:10px;font-size:13px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:12px;max-height:520px;overflow:auto"></div>
+			</div>
 			<p style="margin-top:4px">
 				<button class="button" data-m24imp="varianten">Varianten aus Shopware übernehmen</button>
 				<label style="margin-left:10px;font-size:13px;color:#555"><input type="checkbox" id="m24imp-force"> Force-Resync <span style="color:#888">(überschreibt auch handgepflegte Varianten)</span></label>
@@ -415,7 +501,8 @@ class M24_Import_Admin {
 				var fd=new FormData();
 				fd.append('action','<?php echo esc_js( self::ACTION ); ?>'); fd.append('_nonce',NONCE);
 				fd.append('type',type); fd.append('token',token); fd.append('offset',offset);
-				var fc=document.getElementById('m24imp-force'); if(fc&&fc.checked){ fd.append('force','1'); }
+				var fc=document.getElementById('m24imp-force'); if(fc&&fc.checked&&type!=='rennsport'){ fd.append('force','1'); }
+				if(type==='rennsport'){ rsCats().forEach(function(k){ fd.append('cats[]',k); }); if(rsOnly.checked){ fd.append('only_new','1'); } }
 				var resp=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
 				var txt=await resp.text();
 				var d=null; try{ d=JSON.parse(txt); }catch(e){ d=null; }
@@ -423,10 +510,49 @@ class M24_Import_Admin {
 				if(!resp.ok && !('success' in d)){ throw new Error('HTTP '+resp.status); }
 				return d;
 			}
+			var rsOnly=document.getElementById('m24rs-onlynew'), rsOut=document.getElementById('m24rs-out');
+			function rsCats(){ var a=[]; document.querySelectorAll('.m24rs-cat').forEach(function(c){ if(c.checked){ a.push(c.value); } }); return a; }
+			function esc(t){ var d=document.createElement('div'); d.textContent=(t==null?'':String(t)); return d.innerHTML; }
+			document.getElementById('m24rs-all').addEventListener('click',function(e){ e.preventDefault(); document.querySelectorAll('.m24rs-cat').forEach(function(c){ c.checked=true; }); });
+			document.getElementById('m24rs-none').addEventListener('click',function(e){ e.preventDefault(); document.querySelectorAll('.m24rs-cat').forEach(function(c){ c.checked=false; }); });
+			// Probelauf (READ-ONLY): je Kategorie ein Call, Tabelle + Listen der neuen Titel / Dubletten.
+			var rsProbe=document.getElementById('m24rs-probe');
+			rsProbe.addEventListener('click',async function(){
+				var cats=rsCats(); if(!cats.length){ alert('Bitte mindestens eine Kategorie anhaken.'); return; }
+				rsProbe.disabled=true; rsOut.style.display=''; rsOut.innerHTML='Probelauf läuft … (ändert nichts)';
+				var rows=[], details='', sum={shop:0,ex:0,du:0,nw:0}, onlyNew=rsOnly.checked;
+				try{
+					for(var i=0;i<cats.length;i++){
+						rsOut.innerHTML='Probelauf läuft … Kategorie '+(i+1)+' / '+cats.length+' (ändert nichts)';
+						var fd=new FormData(); fd.append('action','m24_rennsport_probe'); fd.append('_nonce',NONCE); fd.append('cats[]',cats[i]);
+						var r=await fetch(AJAX,{method:'POST',credentials:'same-origin',body:fd});
+						var d=null; try{ d=JSON.parse(await r.text()); }catch(e){ throw new Error('Server-Antwort kein JSON (HTTP '+r.status+')'); }
+						if(!d.success){ throw new Error((d.data&&(d.data.message||d.data))||'Fehler'); }
+						(d.data.cats||[]).forEach(function(c){
+							sum.shop+=c.shop; sum.ex+=c.existing; sum.du+=c.dupes.length; sum.nw+=c.new.length;
+							rows.push('<tr><td>'+esc(c.label)+'</td><td style="text-align:right">'+c.shop+'</td><td style="text-align:right">'+c.existing+'</td><td style="text-align:right">'+c.dupes.length+'</td><td style="text-align:right"><strong>'+c.new.length+'</strong></td></tr>');
+							details+='<details style="margin-top:8px"'+(c.new.length&&c.new.length<=60?' open':'')+'><summary style="cursor:pointer"><strong>'+esc(c.label)+'</strong> – würde neu anlegen: '+c.new.length+(c.dupes.length?(' · vermutete Dubletten: '+c.dupes.length):'')+'</summary>';
+							if(c.new.length){ details+='<ol style="margin:6px 0 6px 22px">'+c.new.map(function(n){ return '<li>'+esc(n.name||'(ohne Namen)')+(n.pno?' <span style="color:#888">['+esc(n.pno)+']</span>':'')+'</li>'; }).join('')+'</ol>'; }
+							if(c.dupes.length){ details+='<p style="margin:6px 0 2px;color:#b32d2e">Vermutete Dubletten (werden übersprungen):</p><ul style="margin:0 0 6px 22px;list-style:disc">'+c.dupes.map(function(x){ return '<li>vermutete Dublette: '+esc(x.post_title)+' (ID '+x.post_id+') ← Shopware „'+esc(x.name)+'“'+(x.pno?' ['+esc(x.pno)+']':'')+' · '+esc(x.reason)+'</li>'; }).join('')+'</ul>'; }
+							if(c.other_cat){ details+='<p style="margin:2px 0;color:#888">'+c.other_cat+' Produkt(e) schon über eine andere gewählte Kategorie erfasst.</p>'; }
+							details+='</details>';
+						});
+					}
+					rsOut.innerHTML='<strong>Probelauf – nichts geändert</strong> · Modus: '+(onlyNew?'nur neue Teile anlegen':'<span style="color:#b32d2e">neue anlegen + '+sum.ex+' vorhandene AKTUALISIEREN</span>')+
+						'<table class="widefat striped" style="margin-top:8px"><thead><tr><th>Kategorie</th><th style="text-align:right">im Shop</th><th style="text-align:right">schon vorhanden</th><th style="text-align:right">verm. Dubletten</th><th style="text-align:right">würde neu anlegen</th></tr></thead><tbody>'+rows.join('')+
+						'<tr><td><strong>Summe</strong></td><td style="text-align:right">'+sum.shop+'</td><td style="text-align:right">'+sum.ex+'</td><td style="text-align:right">'+sum.du+'</td><td style="text-align:right"><strong>'+sum.nw+'</strong></td></tr></tbody></table>'+details;
+				}catch(e){ rsOut.innerHTML='Probelauf abgebrochen: '+esc(e.message); }
+				rsProbe.disabled=false;
+			});
 			function label(t){ return t==='gebraucht'?'Gebraucht':(t==='rennsport'?'Rennsport':(t==='varianten'?'Varianten':(t==='seotitel'?'SEO-Titel':'Bilder / Galerie'))); }
 			async function run(type){
-				if(busy) return; setBusy(true); wrap.style.display='';
-				var token='', offset=0, total=0, retries=0, calls=0, acc={new:0,skipped:0,img_pending:0,unresolved:0,errors:0};
+				if(busy) return;
+				if(type==='rennsport'){
+					if(!rsCats().length){ alert('Bitte mindestens eine Rennsport-Kategorie anhaken.'); return; }
+					if(!rsOnly.checked && !confirm('„Nur neue Teile anlegen“ ist AUS: vorhandene Teile der gewählten Kategorien werden aus Shopware AKTUALISIERT und Deine Änderungen (Titel, Texte, Preise …) ggf. überschrieben. Wirklich fortfahren?')) return;
+				}
+				setBusy(true); rsProbe.disabled=true; wrap.style.display='';
+				var token='', offset=0, total=0, retries=0, calls=0, acc={new:0,updated:0,skipped:0,img_pending:0,unresolved:0,errors:0};
 				st.textContent=label(type)+': starte …'; bar.style.width='0';
 				if(type==='media'){ document.getElementById('m24imp-diag').open=true; refreshLog(); }
 				while(true){
@@ -439,16 +565,22 @@ class M24_Import_Admin {
 					}
 					if(!d.success){ st.textContent='Fehler: '+((d.data&&(d.data.message||d.data))||'unbekannt')+' — erneut klicken setzt fort.'; break; }
 					d=d.data; token=d.token; total=d.total; offset=d.offset; calls++;
-					acc.new+=d.new; acc.skipped+=d.skipped; acc.unresolved+=d.unresolved; acc.errors+=d.errors; acc.img_pending=d.img_pending;
+					acc.new+=d.new; acc.updated+=(d.updated|0); acc.skipped+=d.skipped;
+					if(d.protocol){
+						var P=d.protocol, h='<strong>Rennsport-Import gestartet</strong> · '+(P.only_new?'nur neue Teile':'neue + vorhandene aktualisieren')+'<br>';
+						(P.cats||[]).forEach(function(c){ h+=esc(c.label)+': '+c.shop+' im Shop · '+c.existing+' vorhanden · '+c.dupes+' verm. Dubletten · '+c.new+' neu<br>'; });
+						if(P.dupes&&P.dupes.length){ h+='<p style="margin:6px 0 2px;color:#b32d2e">Übersprungen:</p><ul style="margin:0 0 0 22px;list-style:disc">'+P.dupes.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul>'; }
+						rsOut.style.display=''; rsOut.innerHTML=h;
+					} acc.unresolved+=d.unresolved; acc.errors+=d.errors; acc.img_pending=d.img_pending;
 					var pct=total?Math.round(offset/total*100):100;
 					bar.style.width=pct+'%';
 					var sfx=(type==='media')?(' · Produkt '+(offset+(d.img_pending?1:0))+' '+(d.stage==='seed'?'(lade Bildliste)':(d.img_pending?('· noch '+d.img_pending+' Bilder'):''))):'';
 					st.textContent=label(type)+': '+offset+' / '+total+' ('+pct+'%)'+sfx;
-					ct.textContent=(type==='media'?'Bilder geladen: ':'neu/aktualisiert: ')+acc.new+' · übersprungen: '+acc.skipped+(d.img_pending?(' · offen (Produkt): '+d.img_pending):'')+(acc.unresolved?(' · unresolved: '+acc.unresolved):'')+(acc.errors?(' · Fehler: '+acc.errors):'');
+					ct.textContent=(type==='media'?'Bilder geladen: ':(type==='rennsport'?'neu angelegt: ':'neu/aktualisiert: '))+acc.new+(acc.updated?(' · aktualisiert: '+acc.updated):'')+' · übersprungen: '+acc.skipped+(d.img_pending?(' · offen (Produkt): '+d.img_pending):'')+(acc.unresolved?(' · unresolved: '+acc.unresolved):'')+(acc.errors?(' · Fehler: '+acc.errors):'');
 					if(type==='media' && calls%15===0){ refreshLog(); }
-					if(d.done){ st.textContent=label(type)+': fertig — '+total+' verarbeitet ('+acc.new+' Bilder geladen).'; if(type==='media'){ refreshLog(); } break; }
+					if(d.done){ st.textContent=label(type)+': fertig — '+total+' verarbeitet ('+acc.new+(type==='media'?' Bilder geladen':(type==='rennsport'?' neu angelegt':' neu/aktualisiert'))+').'; if(type==='media'){ refreshLog(); } break; }
 				}
-				setBusy(false);
+				setBusy(false); rsProbe.disabled=false;
 			}
 			buttons.forEach(function(b){ b.addEventListener('click',function(){ run(b.getAttribute('data-m24imp')); }); });
 			document.getElementById('m24imp-log-refresh').addEventListener('click',refreshLog);
