@@ -117,9 +117,14 @@ class M24_Catalog_Template_Detail {
 		// E (Rennsport-Hinweis): wenn _m24_hinweis leer, Standardtext zeigen wenn
 		//   (a) Per-Teil-Checkbox _m24_rennsport_hinweis = 1 (Gebraucht oder Neu), ODER
 		//   (b) typ='neu' (Backward-Compat — Rennsport-Teile default-on).
-		if ( '' === trim( (string) $hinweis ) && ( $rennsport_hinweis_flag || 'neu' === $typ ) ) {
+		// „Teile · Hinweise prüfen": gesetzte Meta _m24_ohne_zulassung ('1'|'0') entscheidet; ohne Meta → Fallback oben.
+		$ohne_zul    = class_exists( 'M24_Catalog_Hinweise_Pruefen' ) ? M24_Catalog_Hinweise_Pruefen::meta_flag( $id, '_m24_ohne_zulassung' ) : '';
+		$kein_orig   = class_exists( 'M24_Catalog_Hinweise_Pruefen' ) ? M24_Catalog_Hinweise_Pruefen::meta_flag( $id, '_m24_kein_original' ) : '';
+		$zul_hinweis = '' !== $ohne_zul ? ( '1' === $ohne_zul ) : ( $rennsport_hinweis_flag || 'neu' === $typ );
+		if ( '' === trim( (string) $hinweis ) && $zul_hinweis ) {
 			$hinweis = m24_rennsport_hinweis();
 		}
+		$kein_orig_text = '1' === $kein_orig ? M24_Catalog_Hinweise_Pruefen::TEXT_KEIN_ORIGINAL : '';
 		// H.3: Logo-Anzeigen-Default = true (Meta leer = Default an).
 		$logo_raw     = get_post_meta( $id, '_m24_logo_anzeigen', true );
 		$logo_enabled = ( '' === $logo_raw ) ? true : (bool) (int) $logo_raw;
@@ -547,7 +552,9 @@ class M24_Catalog_Template_Detail {
 						<?php if ( $bmwnr ) : ?><div class="srow"><span class="k">BMW-Teilenummer</span><span class="v"><?php echo esc_html( $bmwnr ); ?></span></div><?php endif; ?>
 						<?php if ( $stand ) : ?><div class="srow"><span class="k">Stand</span><span class="v"><?php echo esc_html( $stand ); ?></span></div><?php endif; ?>
 						<?php if ( $hinweis ) : ?><div class="srow"><span class="k">Hinweis</span><span class="v" style="font-family:inherit"><?php echo esc_html( $hinweis ); ?></span></div><?php endif; ?>
-						<?php if ( get_post_meta( $id, '_m24_show_nachbau_hinweis', true ) ) : // Markenrecht: Nachbau-Label, leere Label-Spalte ?>
+						<?php if ( $kein_orig_text ) : // Hinweise prüfen: Kein Original-BMW-Teil (ersetzt das Nachbau-Label) ?>
+							<div class="srow"><span class="k"><?php echo $hinweis ? '' : 'Hinweis'; ?></span><span class="v" style="font-family:inherit"><?php echo esc_html( $kein_orig_text ); ?></span></div>
+						<?php elseif ( get_post_meta( $id, '_m24_show_nachbau_hinweis', true ) ) : // Markenrecht: Nachbau-Label, leere Label-Spalte ?>
 							<div class="srow"><span class="k"></span><span class="v" style="font-family:inherit"><?php esc_html_e( 'Nachbau / kein BMW-Originalteil', 'm24-plattform' ); ?></span></div>
 						<?php endif; ?>
 					</div>
