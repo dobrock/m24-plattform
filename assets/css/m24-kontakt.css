@@ -9,6 +9,7 @@
 .m24kf-input{display:block;width:100%;min-height:48px;margin:0;padding:11px 14px;font-family:inherit;font-size:16px;line-height:1.35;color:#14161a;background:#fff;border:1px solid #cfd6e2;border-radius:10px;box-shadow:none;transition:border-color .12s ease,box-shadow .12s ease}
 .m24kf-input:focus{outline:none;border-color:#0f4c9c;box-shadow:0 0 0 3px rgba(15,76,156,.14)}
 .m24kf-select{appearance:auto;cursor:pointer}
+.m24kf select.m24kf-input,.m24kf select.m24kf-select{height:48px !important;min-height:48px !important;padding:0 40px 0 14px !important;line-height:46px !important;font-size:16px !important;border:1px solid #cfd6e2 !important;border-radius:10px !important;background:#fff url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 fill=%27none%27 stroke=%27%2314161a%27 stroke-width=%271.6%27/%3E%3C/svg%3E") no-repeat right 14px center !important;-webkit-appearance:none !important;appearance:none !important;box-sizing:border-box !important}
 .m24kf-textarea{min-height:120px;resize:vertical}
 .m24kf-input.m24kf-invalid,.m24kf-seg.m24kf-invalid .m24kf-seg-btn{border-color:#9e2b2b}
 
