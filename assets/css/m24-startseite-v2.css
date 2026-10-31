@@ -102,10 +102,12 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-prod__pr{display:block;font:800 15px Saira,sans-serif;color:var(--ink);margin-top:6px}
 
 /* Fahrzeugbau: Überschrift → Bilder → 4 Punkte → Button */
-.m24s-bau__img{display:grid;grid-template-columns:2fr 1fr 1fr;gap:var(--gap)}
-.m24s-bau__img .m24s-ph{box-shadow:0 14px 30px rgba(0,0,0,.14);aspect-ratio:auto;height:clamp(170px,19vw,260px)}
-.m24s-ph--wide{aspect-ratio:auto}
-.m24s-svc{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);margin-top:var(--gap)}
+.m24s-bau{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);align-items:stretch}
+.m24s-bau__img{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);align-content:start}
+.m24s-bau__img .m24s-ph{box-shadow:0 14px 30px rgba(0,0,0,.14);aspect-ratio:3/2}
+.m24s-ph--wide{grid-column:span 2;aspect-ratio:16/8!important}
+.m24s-svc{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:var(--gap)}
+.m24s-svc__i{display:flex;flex-direction:column;justify-content:center}
 .m24s-svc__i{padding:18px}
 .m24s-svc__n{font:800 24px Saira,sans-serif}
 .m24s-svc__i b{display:block;font:700 15px Saira,sans-serif;margin-top:4px}
@@ -174,8 +176,8 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-ms__dots i.is-on{background:#d8b45a}
 
 /* Responsive */
-@media (max-width:1180px){
-	.m24s-svc{grid-template-columns:repeat(2,1fr)}
+@media (max-width:980px){
+	.m24s-bau{grid-template-columns:1fr}
 }
 @media (max-width:980px){
 	.m24s-tl__grid,.m24s-s14__grid{grid-template-columns:1fr;gap:28px}
