@@ -366,12 +366,14 @@ class M24_Startseite_V2 {
 <section class="m24s-sec m24s-sec--top0">
 	<div class="m24s-w">
 		<div class="m24s-intro m24s-intro--left"><div class="m24s-eb">Fahrzeugbau · Motorenbau · Restauration</div><h2 class="m24s-h2">Fahrzeugbau, Motorenbau &amp; Restauration.</h2></div>
+		<div class="m24s-bau">
 		<div class="m24s-bau__img">
 			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>BMW M · Gruppe A · DTM · GTR</span></span></div>
 			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
 			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
 		</div>
 		<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
+		</div>
 		<div class="m24s-bau__foot">
 			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb <b>KK Automobile</b> in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
 			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
