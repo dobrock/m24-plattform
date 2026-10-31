@@ -202,6 +202,10 @@ class M24_Inquiries_Storage {
             $who,
             $item_count
         );
+        // Optionaler sprechender Titel (z. B. Kontaktformular: „Kontaktanfrage: Fahrzeug — Name"); landet auch als Desk-subj.
+        if ( ! empty( $data['title'] ) ) {
+            $title = mb_substr( sanitize_text_field( (string) $data['title'] ), 0, 200 );
+        }
 
         $post_id = wp_insert_post( [
             'post_type'    => self::CPT_SLUG,

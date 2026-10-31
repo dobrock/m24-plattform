@@ -14,7 +14,44 @@
 		});
 		if (hidden) { hidden.value = val; }
 		seg.classList.remove('m24-iqf-invalid');
+		updateEuNote(seg.closest('form') || seg.parentNode);
 	}
+
+	// ── EU-Privatkunden-Hinweis (Teile nur an Geschäftskunden in der EU) ──────────────────────
+	// Sichtbar NUR bei Kundentyp „Privat" + EU-Lieferland. Blockiert den Versand nicht.
+	function isEn() {
+		try {
+			if (/^\/en(\/|$)/.test(location.pathname)) { return true; }
+			var h = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+			if (0 === h.indexOf('en')) { return true; }
+			if (/(?:^|;)\s*googtrans=\/[a-z]{2}\/en\b/.test(document.cookie)) { return true; }
+		} catch (e) {}
+		return false;
+	}
+	function updateEuNote(scope) {
+		if (!scope || !scope.querySelector) { return; }
+		var note = scope.querySelector('[data-m24-eunote]');
+		if (!note) { return; }
+		var kund = scope.querySelector('[name="kundentyp"]');
+		var land = scope.querySelector('[name="lieferland"]');
+		var eu = [];
+		try { eu = JSON.parse(note.getAttribute('data-eu') || '[]') || []; } catch (x) { eu = []; }
+		var iso = String(land ? land.value : '').toUpperCase();
+		var show = !!kund && kund.value === 'Privat' && iso !== '' && eu.indexOf(iso) > -1;
+		var en = isEn();
+		[].forEach.call(note.querySelectorAll('[data-lang]'), function (el) {
+			el.hidden = (el.getAttribute('data-lang') === 'en') !== en;
+		});
+		note.hidden = !show;
+	}
+	document.addEventListener('change', function (e) {
+		var t = e.target;
+		if (t && t.matches && t.matches('[name="lieferland"]')) { updateEuNote(t.closest('form') || t.parentNode); }
+	});
+	document.addEventListener('reset', function (e) {
+		var f = e.target;
+		setTimeout(function () { updateEuNote(f); }, 0); // nach dem Zurücksetzen der Werte
+	}, true);
 
 	// Klick auf Segment-Button (Delegation).
 	document.addEventListener('click', function (e) {
@@ -69,5 +106,5 @@
 		return { ok: true };
 	}
 
-	window.M24IqFields = { validate: validate, setKundentyp: setKundentyp };
+	window.M24IqFields = { validate: validate, setKundentyp: setKundentyp, updateEuNote: updateEuNote };
 })();

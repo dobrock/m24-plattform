@@ -119,6 +119,7 @@
 		var form = o.querySelector('[data-m24iq="form"]');
 		var success = o.querySelector('[data-m24iq="success"]');
 		if (form) { form.reset(); form.hidden = false; }
+		if (form && window.M24IqFields && M24IqFields.updateEuNote) { M24IqFields.updateEuNote(form); }
 		if (success) { success.hidden = true; }
 		var notice = o.querySelector('[data-m24iq="notice"]'); if (notice) { notice.hidden = true; }
 		toggleBiz();

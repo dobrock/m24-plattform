@@ -45,19 +45,48 @@ class M24_Kontakt_Schutz {
 		foreach ( (array) ( $values['item_meta'] ?? array() ) as $v ) {
 			$text .= ' ' . ( is_array( $v ) ? implode( ' ', array_map( 'strval', $v ) ) : (string) $v );
 		}
-		if ( preg_match( '~(https?://|www\.|\b[a-z0-9-]+\.(com|net|org|io|xyz|top|info|ru|cn|me|link|click|shop|site|online)\b|paypal|bit\.ly|t\.me/)~i', $text ) ) {
-			$errors['m24_schutz'] = __( 'Bitte keine Links in die Nachricht schreiben. / Please do not include links in your message.', 'm24-plattform' );
+		if ( self::hat_link( $text ) ) {
+			$errors['m24_schutz'] = self::meldung_link();
 			return $errors;
 		}
-		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
-		$key = 'm24_kf_' . substr( hash_hmac( 'sha256', $ip, wp_salt( 'nonce' ) ), 0, 20 );
-		$n   = (int) get_transient( $key );
-		if ( $n >= self::MAX_PRO_STUNDE ) {
-			$errors['m24_schutz'] = __( 'Zu viele Nachrichten – bitte später erneut versuchen. / Too many messages – please try again later.', 'm24-plattform' );
+		if ( ! self::limit_frei() ) {
+			$errors['m24_schutz'] = self::meldung_limit();
 			return $errors;
 		}
-		if ( empty( $errors ) ) { set_transient( $key, $n + 1, HOUR_IN_SECONDS ); }
+		if ( empty( $errors ) ) { self::limit_zaehlen(); }
 		return $errors;
+	}
+
+	// ── Gemeinsame Bausteine (auch fürs eigene Kontaktformular [m24_kontakt], M24_Kontakt_Form) ──
+
+	/** Enthält der Text einen Link / eine Domain? */
+	public static function hat_link( $text ) {
+		return (bool) preg_match( '~(https?://|www\.|\b[a-z0-9-]+\.(com|net|org|io|xyz|top|info|ru|cn|me|link|click|shop|site|online)\b|paypal|bit\.ly|t\.me/)~i', (string) $text );
+	}
+
+	/** Transient-Schlüssel je IP (nur Hash der IP). Gemeinsames Kontingent für Formidable + [m24_kontakt]. */
+	private static function limit_key() {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+		return 'm24_kf_' . substr( hash_hmac( 'sha256', $ip, wp_salt( 'nonce' ) ), 0, 20 );
+	}
+
+	/** Noch unter MAX_PRO_STUNDE Nachrichten in dieser Stunde? */
+	public static function limit_frei() {
+		return (int) get_transient( self::limit_key() ) < self::MAX_PRO_STUNDE;
+	}
+
+	/** Eine erfolgreiche Nachricht zählen. */
+	public static function limit_zaehlen() {
+		$key = self::limit_key();
+		set_transient( $key, (int) get_transient( $key ) + 1, HOUR_IN_SECONDS );
+	}
+
+	public static function meldung_link() {
+		return __( 'Bitte keine Links in die Nachricht schreiben. / Please do not include links in your message.', 'm24-plattform' );
+	}
+
+	public static function meldung_limit() {
+		return __( 'Zu viele Nachrichten – bitte später erneut versuchen. / Too many messages – please try again later.', 'm24-plattform' );
 	}
 }
 M24_Kontakt_Schutz::init();

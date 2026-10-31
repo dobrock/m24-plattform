@@ -19,3 +19,9 @@
 
 /* Registrieren-Checkbox: Datenschutz-Hinweis (klein, grau) unter dem Label-Text */
 .m24-iqf-optin-note{display:block;margin-top:3px;font-size:11.5px;line-height:1.45;color:#9aa3b0}
+
+/* EU-Privatkunden-Hinweis „Teile nur an Geschäftskunden" (unter dem Lieferland; Teile-Modal + Kontaktformular) */
+.m24-eunote{display:flex;gap:10px;align-items:flex-start;background:#fff7e6;border:1px solid #f0c27a;border-left:4px solid #e39400;border-radius:10px;padding:11px 13px;font-family:inherit;font-size:13px;line-height:1.5;color:#5a4210}
+.m24-eunote[hidden],.m24-eunote-body[hidden]{display:none}
+.m24-eunote-ico{flex:0 0 auto;font-size:16px;line-height:1.3}
+.m24-eunote-title{display:block;color:#3d2c06;font-weight:700;margin-bottom:2px}

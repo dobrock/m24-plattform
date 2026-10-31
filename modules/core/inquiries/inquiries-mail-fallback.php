@@ -395,6 +395,11 @@ class M24_Inquiries_Mail_Fallback {
         if ( self::REASON_MERKZETTEL === $reason ) {
             return sprintf( '[M24 Plattform] Merkzettel-Anfrage von %s', $name );
         }
+        if ( self::REASON_NOTIFY === $reason && M24_Inquiries::SOURCE_CONTACT === (string) ( $data['source'] ?? '' ) ) {
+            // Kontaktformular [m24_kontakt]: Position 1 heißt „Kontaktanfrage: <Thema>".
+            $art = isset( $data['items'][0]['art'] ) ? trim( (string) $data['items'][0]['art'] ) : '';
+            return sprintf( '%s — %s', '' !== $art ? $art : 'Kontaktanfrage', $name );
+        }
         if ( self::REASON_NOTIFY === $reason ) {
             return sprintf( '[M24 Plattform] Neue Anfrage von %s', $name );
         }

@@ -63,11 +63,45 @@ function m24_inquiry_consent_html() {
 	return wp_kses( sprintf( $tpl, $link ), array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) ) );
 }
 
+/** EU-Mitgliedstaaten (ISO-2) — eine Quelle (M24_EU_MEMBER aus ppwr.php), Fallback hart. */
+function m24_inquiry_eu_members() {
+	if ( defined( 'M24_EU_MEMBER' ) ) { return array_values( (array) M24_EU_MEMBER ); }
+	return array( 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE' );
+}
+
+/**
+ * Hinweis „Teileverkauf in der EU nur an Geschäftskunden" (Daniel, 31.10.2026).
+ * Sichtbar NUR bei Kundentyp „Privat" + EU-Lieferland — Logik in m24-inquiry-fields.js
+ * (M24IqFields.updateEuNote). Blockiert den Versand nicht. DE + EN sind beide eingebettet
+ * (notranslate), das JS zeigt die passende Sprache (GTranslate-Proxy verbirgt /en/ vor dem Server).
+ */
+function m24_inquiry_eu_note_html() {
+	$eu = wp_json_encode( m24_inquiry_eu_members() );
+	ob_start();
+	?>
+	<div class="m24-eunote notranslate" translate="no" data-m24-eunote data-eu="<?php echo esc_attr( (string) $eu ); ?>" role="note" hidden>
+		<span class="m24-eunote-ico" aria-hidden="true">🔧</span>
+		<span class="m24-eunote-body" data-lang="de">
+			<strong class="m24-eunote-title">Hinweis zum Teileverkauf</strong>
+			Innerhalb der EU verkaufen wir Teile nur an Geschäftskunden. Wir beraten Sie gern – bestellen kann dann Ihre Werkstatt für Sie. Außerhalb der EU liefern wir auch direkt an Privatkunden.
+		</span>
+		<span class="m24-eunote-body" data-lang="en" hidden>
+			<strong class="m24-eunote-title">Note on parts sales</strong>
+			Within the EU we sell parts to business customers only. We are happy to advise you – your workshop can then place the order for you. Outside the EU we also deliver directly to private customers.
+		</span>
+	</div>
+	<?php
+	return (string) ob_get_clean();
+}
+
 /**
  * Rendert das gemeinsame Feld-Set (innerhalb des jeweiligen <form>). Honeypot/Hidden-Context
  * (post_id, items_json) bleiben pro Modal außerhalb — hier nur die sichtbaren Nutzerfelder.
+ *
+ * @param array $args 'eu_note' (bool) — EU-Privatkunden-Hinweis unter dem Lieferland (nur Teile-Modal).
  */
-function m24_inquiry_fields() {
+function m24_inquiry_fields( $args = array() ) {
+	$args      = wp_parse_args( (array) $args, array( 'eu_note' => false ) );
 	$countries = m24_inquiry_countries();
 	?>
 	<div class="m24-iqf">
@@ -92,6 +126,7 @@ function m24_inquiry_fields() {
 				<?php endforeach; ?>
 			</select>
 		</div>
+		<?php if ( $args['eu_note'] ) { echo m24_inquiry_eu_note_html(); } // phpcs:ignore WordPress.Security.EscapeOutput — statisches Markup, Attribute escaped. ?>
 		<div class="m24-iqf-field">
 			<textarea name="nachricht" class="m24-iqf-input m24-iqf-textarea m24-ci-input" rows="3" placeholder="<?php esc_attr_e( 'Nachricht (optional)', 'm24-plattform' ); ?>"></textarea>
 		</div>
