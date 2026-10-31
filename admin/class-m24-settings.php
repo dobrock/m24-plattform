@@ -188,6 +188,16 @@ class M24_Settings {
                 'default'           => 0,
             ]
         );
+        // Verpackungsregister LUCID (VerpackG) — Teile-Detailseite + Shortcode [m24_lucid]. Leer = Zeile ausgeblendet.
+        register_setting(
+            'm24_plattform_group',
+            'm24_lucid_nr',
+            [
+                'type'              => 'string',
+                'sanitize_callback' => static function ( $v ) { return class_exists( 'M24_Catalog_Lucid' ) ? M24_Catalog_Lucid::sanitize( $v ) : sanitize_text_field( (string) $v ); },
+                'default'           => 'DE4212735792932',
+            ]
+        );
         // Brevo-API-Key (Interessentenliste, Phase 2). Maskiert; nie im Klartext gerendert.
         register_setting(
             'm24_plattform_group',
@@ -863,6 +873,15 @@ class M24_Settings {
                             </label>
                             <p class="description">
                                 <?php echo esc_html__( 'Default aus. Das Fehlerprotokoll (Menü „Fehlerprotokoll") sammelt unabhängig davon alle Fehler; PII wird maskiert, Auto-Prune > 90 Tage / > 5.000 Zeilen.', 'm24-plattform' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="m24_lucid_nr"><?php echo esc_html__( 'Verpackungsregister (LUCID)', 'm24-plattform' ); ?></label></th>
+                        <td>
+                            <input type="text" id="m24_lucid_nr" name="m24_lucid_nr" class="regular-text code" value="<?php echo esc_attr( (string) get_option( 'm24_lucid_nr', 'DE4212735792932' ) ); ?>" />
+                            <p class="description">
+                                <?php echo esc_html__( 'Registrierungsnummer der MOTORSPORT24 GmbH (VerpackG). Erscheint auf allen Teile-Detailseiten (TEILE-DATEN) und per Shortcode [m24_lucid] (nur Nummer) bzw. [m24_lucid label="1"] (mit Bezeichnung), z. B. im Impressum. Leer = ausgeblendet.', 'm24-plattform' ); ?>
                             </p>
                         </td>
                     </tr>
