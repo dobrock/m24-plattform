@@ -270,6 +270,11 @@ class M24_Catalog_SEO {
 	 * umkehrbar: leere Liste/Muster ⇒ wieder alle noindex.
 	 */
 	public static function is_indexable_teil( $post_id ) {
+		// Index-Automatik (catalog-index-auto.php) kann jedes veröffentlichte Teil freigeben.
+		return (bool) apply_filters( 'm24_teil_indexable', self::is_indexable_teil_allowlist( $post_id ), (int) $post_id );
+	}
+
+	private static function is_indexable_teil_allowlist( $post_id ) {
 		$slugs = wp_get_post_terms( (int) $post_id, 'm24_fahrzeugkat', array( 'fields' => 'slugs' ) );
 		if ( is_wp_error( $slugs ) || empty( $slugs ) ) { return false; }
 		// Single Source of Truth = dieselbe Allowlist wie Hub-Robots + Hub-Sitemap

@@ -126,6 +126,9 @@ class M24_Sitemap_Page {
 				<input type="hidden" name="action" value="m24_sitemap_save">
 				<?php wp_nonce_field( 'm24_sitemap_save' ); ?>
 				<h2><?php echo esc_html__( 'Indexierbare Hubs (in Sitemap + index,follow)', 'm24-plattform' ); ?></h2>
+				<?php if ( class_exists( 'M24_Catalog_Index_Auto' ) && M24_Catalog_Index_Auto::enabled() ) : ?>
+					<div class="notice notice-info inline"><p><?php echo esc_html__( 'Index-Automatik ist AN: alle Hubs, alle Teile und alle Modell-Übersichten (?m24_modell=) sind index,follow und stehen automatisch in der Sitemap (/sitemap-m24-modelle.xml). Die Häkchen unten gelten erst wieder, wenn die Option m24_index_auto auf 0 steht.', 'm24-plattform' ); ?></p></div>
+				<?php endif; ?>
 				<table class="wp-list-table widefat striped">
 					<thead><tr>
 						<th style="width:60px;"><?php echo esc_html__( 'Index', 'm24-plattform' ); ?></th>
