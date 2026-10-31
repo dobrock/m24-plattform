@@ -29,6 +29,35 @@ class M24_Startseite_V2 {
 		self::$initialized = true;
 		add_shortcode( 'm24_startseite_v2', array( __CLASS__, 'shortcode' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'register_assets' ) );
+		// Vorschauseite öffentlich erreichbar, aber nicht indexierbar und nicht in der Sitemap.
+		add_action( 'template_redirect', array( __CLASS__, 'noindex_header' ) );
+		add_filter( 'wp_robots', array( __CLASS__, 'noindex_meta' ), PHP_INT_MAX );
+		add_filter( 'm24_sitemap_exclude_urls', array( __CLASS__, 'sitemap_exclude' ) );
+	}
+
+	/** Seite mit dem Shortcode, die NICHT die Startseite ist (= Vorschau). */
+	private static function is_preview() {
+		if ( ! is_singular( 'page' ) || is_front_page() ) { return false; }
+		$p = get_queried_object();
+		return $p && isset( $p->post_content ) && has_shortcode( $p->post_content, 'm24_startseite_v2' );
+	}
+
+	public static function noindex_header() {
+		if ( self::is_preview() && ! headers_sent() ) { header( 'X-Robots-Tag: noindex, nofollow', true ); }
+	}
+
+	public static function noindex_meta( $robots ) {
+		if ( self::is_preview() ) {
+			unset( $robots['index'], $robots['max-image-preview'] );
+			$robots['noindex']  = true;
+			$robots['nofollow'] = true;
+		}
+		return $robots;
+	}
+
+	public static function sitemap_exclude( $urls ) {
+		$urls[] = home_url( '/startseite-neu/' );
+		return $urls;
 	}
 
 	public static function register_assets() {
