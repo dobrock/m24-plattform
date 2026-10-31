@@ -211,7 +211,10 @@ class M24_Native_Sitemap {
 		$verify     = $http_verify && (bool) apply_filters( 'm24_sitemap_http_verify', true );
 
 		$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+		// hreflang (31.10.2026): jede DE-URL + ihre GTranslate-Fassung /en/… als Paar mit xhtml:link-Alternates,
+		// damit Google die englischen Seiten sicher findet und richtig zuordnet. Abschaltbar per Filter.
+		$hl   = (bool) apply_filters( 'm24_sitemap_hreflang', true );
+		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' . ( $hl ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' : '' ) . '>' . "\n";
 		$seen = array();
 		foreach ( $urls as $u ) {
 			$loc = isset( $u['loc'] ) ? (string) $u['loc'] : '';
@@ -222,12 +225,25 @@ class M24_Native_Sitemap {
 			if ( self::is_redirect_source( $np, $redir_src ) ) { continue; }    // Regel 2: plugin-verwaltete 301-Quelle (deterministisch)
 			if ( $verify && self::http_redirects( $loc ) ) { continue; }        // generisch: liefert 3xx → raus
 			$seen[ $loc ] = 1;
-			$xml .= "\t<url>\n\t\t<loc>" . esc_url( $loc ) . "</loc>\n";
-			if ( ! empty( $u['lastmod'] ) ) { $xml .= "\t\t<lastmod>" . esc_html( (string) $u['lastmod'] ) . "</lastmod>\n"; }
-			$xml .= "\t</url>\n";
+			$en  = self::en_url( $loc );
+			$alt = ( $hl && $en ) ? "\t\t<xhtml:link rel=\"alternate\" hreflang=\"de-de\" href=\"" . esc_url( $loc ) . "\"/>\n"
+				. "\t\t<xhtml:link rel=\"alternate\" hreflang=\"en\" href=\"" . esc_url( $en ) . "\"/>\n"
+				. "\t\t<xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"" . esc_url( $loc ) . "\"/>\n" : '';
+			$lm  = ! empty( $u['lastmod'] ) ? "\t\t<lastmod>" . esc_html( (string) $u['lastmod'] ) . "</lastmod>\n" : '';
+			$xml .= "\t<url>\n\t\t<loc>" . esc_url( $loc ) . "</loc>\n" . $lm . $alt . "\t</url>\n";
+			if ( $alt && ! isset( $seen[ $en ] ) ) { $seen[ $en ] = 1; $xml .= "\t<url>\n\t\t<loc>" . esc_url( $en ) . "</loc>\n" . $lm . $alt . "\t</url>\n"; }
 		}
 		$xml .= '</urlset>' . "\n";
 		return $xml;
+	}
+
+	/** Englische Fassung (GTranslate-Unterverzeichnis /en/) zu einer DE-URL; '' wenn schon /en/ oder fremder Host. */
+	public static function en_url( string $loc ): string {
+		$home = untrailingslashit( home_url() );
+		if ( 0 !== strpos( $loc, $home . '/' ) && $loc !== $home ) { return ''; }
+		$pfad = substr( $loc, strlen( $home ) );
+		if ( preg_match( '~^/en(/|$)~', $pfad ) ) { return ''; }
+		return $home . '/en' . ( '' === $pfad ? '/' : $pfad );
 	}
 
 	private static function path_only( string $url ): string {
