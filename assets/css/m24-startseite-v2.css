@@ -6,7 +6,7 @@ body:has(#m24-startseite){overflow-x:hidden}
 body:has(#m24-startseite) .td-main-content-wrap,body:has(#m24-startseite) .td-theme-wrap{overflow:visible}
 body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 
-.m24s{--gold:#a8842f;--gold2:#d8b45a;--ink:#15171b;--sand:#f4f3ef;--pad:20px;--gap:14px;--sec:72px;--r:12px;position:relative;left:50%;width:100vw;margin-left:-50vw;background:var(--sand);color:var(--ink);font-family:Saira,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;line-height:1.5}
+.m24s{--gold:#a8842f;--gold2:#d8b45a;--ink:#15171b;--sand:#f4f3ef;--pad:35px;--gap:14px;--sec:72px;--r:12px;position:relative;left:50%;width:100vw;margin-left:-50vw;background:var(--sand);color:var(--ink);font-family:Saira,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;line-height:1.5}
 .m24s *,.m24s *::before,.m24s *::after{box-sizing:border-box}
 .m24s h2,.m24s p{margin:0}
 .m24s a{text-decoration:none;color:inherit}
@@ -186,7 +186,7 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 	.m24s-cats,.m24s-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:767px){
-	.m24s{--pad:12px;--gap:10px;--sec:44px}
+	.m24s{--pad:27px;--gap:10px;--sec:44px}
 	.m24s-h2{font-size:26px}
 	.m24s-lead{font-size:15px}
 	.m24s-intro{margin-bottom:18px}
