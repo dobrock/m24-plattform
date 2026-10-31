@@ -48,6 +48,7 @@ class M24_Catalog_Archive {
 
 	public static function heading() {
 		if ( 'alle' === self::current_kat() ) { return 'Alle Teile'; }
+		if ( class_exists( 'M24_Catalog_Index_Auto' ) ) { $h = M24_Catalog_Index_Auto::h1(); if ( '' !== $h ) { return $h; } }
 		return ( 'neu' === self::current_typ() ) ? 'Rennsport-Teile' : 'Gebrauchte Teile';
 	}
 

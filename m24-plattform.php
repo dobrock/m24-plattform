@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.562
+ * Version:           0.11.563
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -223,6 +223,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub-cpt.php';     // Modell-Hubs: CPT m24_modellhub (backend-editierbare Quelle + Seeder)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub.php';        // Modell-Hub-Landingpages (Routing/SEO; liest aus dem CPT)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub-sitemap.php'; // Eigene XML-Sitemap für die Hubs (CPT ist public=false)
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-index-auto.php'; // Index-Automatik: alle Hubs/Teile + Modell-Übersichten index + Sitemap
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-post-consolidation.php'; // SEO: dünne Alt-Übersichts-Beiträge → 301 auf Modell-Hubs (Dry-Run-Liste + Kill-Switch)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-robots.php';          // robots.txt aus dem Plugin (virtuelle robots.txt)
 require_once M24_PLATTFORM_DIR . 'includes/admin/class-m24-adminbar.php';   // Admin-Bar aufräumen (Fremd-Ballast raus, M24-Sprungziele)

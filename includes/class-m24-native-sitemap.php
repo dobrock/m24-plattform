@@ -37,6 +37,7 @@ class M24_Native_Sitemap {
 			'gebrauchtteile'=> 'build_gebrauchtteile', // Gebrauchtteile (index)
 			'vehicles'      => 'build_vehicles',       // Fahrzeuge / For-Sale (index)
 			'hubs'          => 'build_hubs',           // Modell-Hubs (Allowlist)
+			'modelle'       => 'build_modelle',        // Modell-Übersichten ?m24_modell= (Index-Automatik)
 			'categories'    => 'build_categories',     // Kategorie-Landingpages (index)
 			'pages'         => 'build_pages',          // statische Seiten (index)
 			'blog'          => 'build_blog',           // Blog-Beiträge (index)
@@ -205,7 +206,7 @@ class M24_Native_Sitemap {
 	 *                           (für redirect-anfällige Typen: categories/pages/blog). CPT-Singles/Hubs sind
 	 *                           self-canonical per Konstruktion → kein HTTP nötig.
 	 */
-	private static function urlset( array $urls, bool $http_verify = false ): string {
+	private static function urlset( array $urls, bool $http_verify = false, bool $allow_params = false ): string {
 		$excl_paths = array_map( array( __CLASS__, 'norm_path' ), (array) apply_filters( 'm24_sitemap_exclude_urls', array() ) );
 		$redir_src  = self::redirect_source_paths(); // Regel 2 (SSoT): dieselben Quell-Pfade, die das Plugin 301-umleitet
 		$verify     = $http_verify && (bool) apply_filters( 'm24_sitemap_http_verify', true );
@@ -218,7 +219,7 @@ class M24_Native_Sitemap {
 		$seen = array();
 		foreach ( $urls as $u ) {
 			$loc = isset( $u['loc'] ) ? (string) $u['loc'] : '';
-			if ( '' === $loc || false !== strpos( $loc, '?' ) ) { continue; }   // Regel 3: keine Param-URLs
+			if ( '' === $loc || ( ! $allow_params && false !== strpos( $loc, '?' ) ) ) { continue; }   // Regel 3: keine Param-URLs (Ausnahme: self-canonical Modell-Übersichten)
 			if ( isset( $seen[ $loc ] ) ) { continue; }
 			$np = self::norm_path( $loc );
 			if ( in_array( $np, $excl_paths, true ) ) { continue; }             // manuelle Ausschlussliste
@@ -349,6 +350,10 @@ class M24_Native_Sitemap {
 		return self::urlset( self::collect_posts( 'm24_fahrzeug', static function ( $id ) {
 			return ! ( class_exists( 'M24FZ_CPT' ) && M24FZ_CPT::is_disabled( $id ) );
 		} ) );
+	}
+
+	public static function build_modelle(): string {
+		return self::urlset( class_exists( 'M24_Catalog_Index_Auto' ) ? M24_Catalog_Index_Auto::sitemap_urls() : array(), false, true );
 	}
 
 	public static function build_hubs(): string {
