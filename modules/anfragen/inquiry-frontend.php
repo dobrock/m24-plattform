@@ -126,7 +126,7 @@ class M24_Inquiry_Frontend {
 				<form class="m24iq-form" data-m24iq="form" novalidate>
 					<div class="m24iq-notice" data-m24iq="notice" hidden></div>
 
-					<?php m24_inquiry_fields(); // gemeinsames Feld-Set (name, email, kundentyp, lieferland, nachricht, consent) ?>
+					<?php m24_inquiry_fields( array( 'eu_note' => true ) ); // gemeinsames Feld-Set + EU-Privatkunden-Hinweis (nur Teile) ?>
 
 					<input type="text" name="website_confirm" class="m24iq-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 
