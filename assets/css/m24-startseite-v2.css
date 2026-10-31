@@ -270,3 +270,9 @@ body:has(#m24-startseite) .vc_row:has(> .vc_column .td-big-grid-slide){margin-to
 	.m24s-bau__img .m24s-ph{aspect-ratio:3/2!important;height:auto}
 	.m24s-bau__img .m24s-ph--wide{aspect-ratio:16/8!important}
 }
+/* Fahrzeugbau: Bilder absolut, damit die Kartenhöhe die Zeile bestimmt */
+.m24s-bau{align-items:start}
+.m24s-bau__img{align-self:stretch}
+.m24s-bau__img .m24s-ph img{position:absolute;inset:0}
+.m24s-svc{align-self:start}
+@media (max-width:980px){.m24s-bau__img .m24s-ph img{position:static}}
