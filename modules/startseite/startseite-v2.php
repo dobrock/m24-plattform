@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html';
+	const CACHE_KEY = 'm24_startseite_v2_html_2';
 
 	private static $initialized = false;
 
@@ -85,8 +85,42 @@ class M24_Startseite_V2 {
 		wp_register_script( 'm24-startseite-v2', $base . 'assets/js/m24-startseite-v2.js', array(), M24_PLATTFORM_VERSION, true );
 	}
 
-	private static function img( $path ) {
-		return content_url( 'rennsport-teile-bilder/' . $path );
+	/** Bild-URL: verkleinerte Mediathek-Fassung (large), sonst Original. Große Originale lädt Mobile-Safari teils nicht. */
+	private static function img( $path, $size = 'large' ) {
+		$url = content_url( 'rennsport-teile-bilder/' . $path );
+		$id  = attachment_url_to_postid( $url );
+		if ( $id ) {
+			$sized = wp_get_attachment_image_url( $id, $size );
+			if ( $sized ) { return $sized; }
+		}
+		return $url;
+	}
+
+	/** Mobil: einfacher Wisch-Slider mit den Beiträgen der Kategorie „startseite-slider" (wie der Desktop-Big-Grid). */
+	public static function mobile_slider() {
+		$ids = get_posts( array(
+			'post_type'      => 'any',
+			'post_status'    => 'publish',
+			'posts_per_page' => 8,
+			'category_name'  => 'startseite-slider',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array( array( 'key' => '_thumbnail_id', 'compare' => 'EXISTS' ) ),
+		) );
+		if ( ! $ids ) {
+			$ids = get_posts( array( 'post_type' => 'post', 'posts_per_page' => 6, 'fields' => 'ids', 'no_found_rows' => true, 'meta_query' => array( array( 'key' => '_thumbnail_id', 'compare' => 'EXISTS' ) ) ) );
+		}
+		if ( ! $ids ) { return ''; }
+		$out = '';
+		foreach ( $ids as $id ) {
+			$out .= sprintf(
+				'<a class="m24s-ms__i" href="%1$s">%2$s<span class="m24s-sh"></span><b>%3$s</b></a>',
+				esc_url( get_permalink( $id ) ),
+				get_the_post_thumbnail( $id, 'large', array( 'alt' => esc_attr( get_the_title( $id ) ) ) ),
+				esc_html( get_the_title( $id ) )
+			);
+		}
+		return '<div class="m24s-ms"><div class="m24s-ms__track">' . $out . '</div></div>';
 	}
 
 	public static function shortcode() {
@@ -287,7 +321,7 @@ class M24_Startseite_V2 {
 </section>
 <div class="m24s-w m24s-cats">
 	<?php foreach ( $cats as $c ) : ?>
-	<a class="m24s-ph m24s-cat" href="<?php echo esc_url( home_url( $c[3] ) ); ?>"><img src="<?php echo esc_url( $c[0] ); ?>" alt="<?php echo esc_attr( $c[2] ); ?>" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k"><?php echo esc_html( $c[1] ); ?></span><b><?php echo esc_html( $c[2] ); ?></b></span></a>
+	<a class="m24s-ph m24s-cat" href="<?php echo esc_url( home_url( $c[3] ) ); ?>"><img src="<?php echo esc_url( $c[0] ); ?>" alt="<?php echo esc_attr( $c[2] ); ?>" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k"><?php echo esc_html( $c[1] ); ?></span><b><?php echo esc_html( $c[2] ); ?></b></span></a>
 	<?php endforeach; ?>
 </div>
 
@@ -326,9 +360,9 @@ class M24_Startseite_V2 {
 			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
 		</div>
 		<div class="m24s-bau__img">
-			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>GTR · DTM · Gruppe A</span></span></div>
-			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
-			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" loading="lazy"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
+			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>GTR · DTM · Gruppe A</span></span></div>
+			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
+			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
 		</div>
 	</div>
 </section>
