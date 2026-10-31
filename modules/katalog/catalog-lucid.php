@@ -3,7 +3,7 @@
  * M24 Katalog — Verpackungsregister-Nummer (LUCID, VerpackG) der MOTORSPORT24 GmbH (0.11.567).
  *
  *  - Option `m24_lucid_nr` (Default DE4212735792932), editierbar unter MOTORSPORT24 → Einstellungen.
- *  - Teile-Detailseite: Zeile „Verpackungsregister (LUCID): …" im Block TEILE-DATEN.
+ *  - Ausgabe zentral im Impressum (Shortcode); NICHT mehr auf den Teile-Detailseiten (seit 0.11.583).
  *  - Shortcode [m24_lucid] → nur die Nummer (z. B. fürs Impressum);
  *    [m24_lucid label="1"] → „Verpackungsregister (LUCID): DE…".
  *

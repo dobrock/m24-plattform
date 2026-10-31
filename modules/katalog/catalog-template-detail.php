@@ -557,10 +557,7 @@ class M24_Catalog_Template_Detail {
 						<?php elseif ( get_post_meta( $id, '_m24_show_nachbau_hinweis', true ) ) : // Markenrecht: Nachbau-Label, leere Label-Spalte ?>
 							<div class="srow"><span class="k"></span><span class="v" style="font-family:inherit"><?php esc_html_e( 'Nachbau / kein BMW-Originalteil', 'm24-plattform' ); ?></span></div>
 						<?php endif; ?>
-						<?php $lucid_zeile = class_exists( 'M24_Catalog_Lucid' ) ? M24_Catalog_Lucid::zeile_html() : ''; ?>
-						<?php if ( '' !== $lucid_zeile ) : // VerpackG: Verpackungsregister-Nr. (Option m24_lucid_nr), leere Label-Spalte wie Nachbau-Zeile ?>
-							<div class="srow m24-lucid-row"><span class="k"></span><span class="v" style="font-family:inherit"><?php echo $lucid_zeile; // phpcs:ignore WordPress.Security.EscapeOutput — intern escaped ?></span></div>
-						<?php endif; ?>
+						<?php // VerpackG-/LUCID-Nummer steht zentral im Impressum ([m24_lucid]), nicht mehr je Artikel (31.10.2026). ?>
 					</div>
 
 						<div class="m24-actions-group">
