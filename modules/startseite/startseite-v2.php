@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_3';
+	const CACHE_KEY = 'm24_startseite_v2_html_4';
 
 	private static $initialized = false;
 
@@ -237,6 +237,9 @@ class M24_Startseite_V2 {
 			'e36' => array( 'M3 E36', 'E36', '/teile/bmw-m3-e36/' ),
 			'e46' => array( 'M3 E46', 'E46', '/teile/bmw-m3-e46/' ),
 			'e9x' => array( 'M3 E9x', 'E9', '/teile/bmw-m3-e9x/' ),
+			'f82' => array( 'M4 F82', 'F82', '/rennsport-teile-passend-fur-f82/' ),
+			'f87' => array( 'M2 F87', 'F87', '/rennsport-teile-passend-fur-f87-f22/' ),
+			'z4'  => array( 'Z4 GT3', 'GT3', '/teile/bmw-z4-gt3/' ),
 		);
 		$chips     = '';
 		$grids     = '';
