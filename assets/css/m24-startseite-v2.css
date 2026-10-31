@@ -6,7 +6,7 @@ body:has(#m24-startseite){overflow-x:hidden}
 body:has(#m24-startseite) .td-main-content-wrap,body:has(#m24-startseite) .td-theme-wrap{overflow:visible}
 body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 
-.m24s{--gold:#a8842f;--gold2:#d8b45a;--ink:#15171b;--sand:#f4f3ef;--pad:35px;--gap:14px;--sec:72px;--r:12px;position:relative;left:50%;width:100vw;margin-left:-50vw;background:var(--sand);color:var(--ink);font-family:Saira,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;line-height:1.5}
+.m24s{--blue:#1763ad;--blue-grad:linear-gradient(135deg,#1f74c4,#0e447e);--gold:#a8842f;--gold2:#d8b45a;--ink:#15171b;--sand:#f4f3ef;--pad:35px;--gap:14px;--sec:72px;--r:12px;position:relative;left:50%;width:100vw;margin-left:-50vw;background:var(--sand);color:var(--ink);font-family:Saira,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;line-height:1.5}
 .m24s *,.m24s *::before,.m24s *::after{box-sizing:border-box}
 .m24s h2,.m24s p{margin:0}
 .m24s a{text-decoration:none;color:inherit}
@@ -231,3 +231,15 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 	.m24s-fam__row{grid-template-columns:1fr;gap:18px}
 	.m24s-fam__row::before{left:50%;right:auto;top:34px;bottom:34px;width:2px;height:auto;transform:translateX(-1px)}
 }
+
+/* Sekundärfarbe Blau (wie Buttons in Fahrzeug-/Teile-Inseraten) – dezent */
+.m24s-step i{background:var(--blue-grad);color:#fff}
+.m24s-opt.is-on{background:var(--blue-grad);border-color:#0e447e;color:#fff}
+.m24s-opt--type.is-on span{color:#cfe3f6}
+.m24s-opt:hover{border-color:var(--blue)}
+.m24s-more,.m24s-models__all{color:var(--blue)!important}
+.m24s-prod:hover{border-color:rgba(23,99,173,.45)}
+.m24s-btn--dark{background:var(--blue-grad);box-shadow:0 10px 26px rgba(15,68,126,.32)}
+.m24s-tag.res{background:var(--blue)}
+.m24s-tl__card:hover{box-shadow:0 12px 30px rgba(23,99,173,.14)}
+.m24s-ms__k{color:#8fc3ef}
