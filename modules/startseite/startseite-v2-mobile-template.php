@@ -7,5 +7,5 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 get_header();
-echo '<div class="m24s-mobile-wrap">' . do_shortcode( '[m24_startseite_v2]' ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+echo '<div class="m24s-mobile-wrap">' . M24_Startseite_V2::mobile_slider() . do_shortcode( '[m24_startseite_v2]' ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput
 get_footer();

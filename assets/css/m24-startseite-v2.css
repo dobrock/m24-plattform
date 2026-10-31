@@ -167,3 +167,10 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 	.m24s-foot{text-align:left}
 }
 .m24s-mobile-wrap{width:100%;overflow:hidden}.m24s-mobile-wrap .m24s{left:0;margin-left:0;width:100%}
+/* Mobil-Slider (ersetzt den Desktop-Big-Grid im Mobil-Template) */
+.m24s-ms{background:#15171b;padding:14px 0 16px}
+.m24s-ms__track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 16px}
+.m24s-ms__track::-webkit-scrollbar{display:none}
+.m24s-ms__i{position:relative;flex:0 0 86%;aspect-ratio:3/2;border-radius:16px;overflow:hidden;scroll-snap-align:center;background:#222;display:block}
+.m24s-ms__i img{width:100%;height:100%;object-fit:cover;display:block}
+.m24s-ms__i b{position:absolute;left:16px;right:16px;bottom:14px;color:#fff;font:800 17px/1.25 Saira,sans-serif}
