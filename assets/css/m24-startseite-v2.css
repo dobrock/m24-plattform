@@ -243,3 +243,30 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-tag.res{background:var(--blue)}
 .m24s-tl__card:hover{box-shadow:0 12px 30px rgba(23,99,173,.14)}
 .m24s-ms__k{color:#8fc3ef}
+
+/* ── Runde 3 (31.10. 21:56): eckig (außer Zeitleiste + s14-Band), 3-px-Fugen, neue Kategorie-Kacheln ── */
+body:has(#m24-startseite) .tdc-row:has(.td-big-grid-slide) > .vc_row,
+body:has(#m24-startseite) .vc_row:has(> .vc_column .td-big-grid-slide){margin-top:1px!important}
+.m24s-card,.m24s-ph,.m24s-cat,.m24s-car__im,.m24s-prod,.m24s-finder,.m24s-opt,.m24s-svc__i,.m24s-btn,.m24s-ms__more,.m24s-tag,.m24s-arr,.m24s-step i,.m24s-ms__i{border-radius:0!important}
+/* Kategorie-Kacheln: randlos, 3-px-Fuge, Goldlinie + Pfeil */
+.m24s-cats{gap:3px}
+.m24s-cat{border:0;box-shadow:0 18px 40px rgba(20,24,30,.28)}
+.m24s-cat .m24s-sh{background:linear-gradient(180deg,rgba(8,9,11,0) 30%,rgba(8,9,11,.9))}
+.m24s-cat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--gold2);transform:scaleX(.18);transform-origin:left;transition:transform .35s}
+.m24s-cat:hover::after{transform:scaleX(1)}
+.m24s-cat .m24s-tx{padding-right:30px}
+.m24s-cat .m24s-tx::after{content:"→";position:absolute;right:0;bottom:1px;color:#e3c27a;font:800 17px Saira,sans-serif;transition:transform .25s}
+.m24s-cat:hover .m24s-tx::after{transform:translateX(4px)}
+/* Fahrzeug-Slider + Teile: 3-px-Fugen */
+.m24s-track{gap:3px}
+.m24s-grid{gap:3px}
+.m24s-prod{border:0;box-shadow:0 1px 0 #ece9e2}
+/* Fahrzeugbau: Bildspalte exakt so hoch wie die 4 Karten */
+.m24s-bau__img{grid-template-rows:1.55fr 1fr;height:100%}
+.m24s-bau__img .m24s-ph,.m24s-bau__img .m24s-ph--wide{aspect-ratio:auto!important;height:100%;min-height:140px}
+.m24s-svc__i{justify-content:flex-start}
+@media (max-width:980px){
+	.m24s-bau__img{height:auto;grid-template-rows:auto}
+	.m24s-bau__img .m24s-ph{aspect-ratio:3/2!important;height:auto}
+	.m24s-bau__img .m24s-ph--wide{aspect-ratio:16/8!important}
+}
