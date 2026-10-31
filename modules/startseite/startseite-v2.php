@@ -33,6 +33,24 @@ class M24_Startseite_V2 {
 		add_action( 'template_redirect', array( __CLASS__, 'noindex_header' ) );
 		add_filter( 'wp_robots', array( __CLASS__, 'noindex_meta' ), PHP_INT_MAX );
 		add_filter( 'm24_sitemap_exclude_urls', array( __CLASS__, 'sitemap_exclude' ) );
+		// tagDiv-Mobil-Theme gibt Composer-Seiten ohne Inhalt aus → auf Mobilgeräten eigenes Mini-Template.
+		add_filter( 'template_include', array( __CLASS__, 'mobile_template' ), 99 );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_on_preview' ), 20 );
+	}
+
+	public static function enqueue_on_preview() {
+		if ( self::is_preview() ) {
+			wp_enqueue_style( 'm24-startseite-v2' );
+			wp_enqueue_script( 'm24-startseite-v2' );
+		}
+	}
+
+	public static function mobile_template( $template ) {
+		if ( self::is_preview() && wp_is_mobile() ) {
+			$t = __DIR__ . '/startseite-v2-mobile-template.php';
+			if ( file_exists( $t ) ) { return $t; }
+		}
+		return $template;
 	}
 
 	/** Seite mit dem Shortcode, die NICHT die Startseite ist (= Vorschau). */
