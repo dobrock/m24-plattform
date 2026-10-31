@@ -61,7 +61,7 @@ class M24_Catalog_Hub_Sitemap {
 		$reg   = class_exists( 'M24_Catalog_Hub' ) ? (array) M24_Catalog_Hub::registry() : array();
 
 		$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
 
 		foreach ( $allow as $slug ) {
 			$slug = (string) $slug;
@@ -78,6 +78,12 @@ class M24_Catalog_Hub_Sitemap {
 				}
 			}
 
+			// hreflang-Paar DE/EN (31.10.2026)
+			$en = class_exists( 'M24_Native_Sitemap' ) ? M24_Native_Sitemap::en_url( $loc ) : '';
+			if ( $en ) {
+				$alt  = "\t\t<xhtml:link rel=\"alternate\" hreflang=\"de-de\" href=\"" . esc_url( $loc ) . "\"/>\n\t\t<xhtml:link rel=\"alternate\" hreflang=\"en\" href=\"" . esc_url( $en ) . "\"/>\n\t\t<xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"" . esc_url( $loc ) . "\"/>\n";
+				$xml .= $alt . "\t</url>\n\t<url>\n\t\t<loc>" . esc_url( $en ) . "</loc>\n" . $alt;
+			}
 			$xml .= "\t</url>\n";
 		}
 
