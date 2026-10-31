@@ -290,7 +290,13 @@ class M24_Catalog_Hinweise_Pruefen {
 
 		self::render_savebar( $q );
 
-		echo '<table class="wp-list-table widefat fixed striped m24-hp-table"><thead><tr>'
+		// Feste Spaltenbreiten per <colgroup> (Titel = Restbreite, min. 320px über min-width der Tabelle).
+		// Bewusst ohne WP-Klasse „fixed" und ohne column-primary/has-row-actions: deren Core-Regeln
+		// (u. a. Mobil-Ansicht < 782px) verengen bzw. verstecken sonst Spalten.
+		echo '<div class="m24-hp-scroll"><table class="wp-list-table widefat striped m24-hp-table">'
+			. '<colgroup><col class="c-thumb"><col class="c-title"><col class="c-typ"><col class="c-modell">'
+			. '<col class="c-chk"><col class="c-chk"><col class="c-why"><col class="c-status"></colgroup>'
+			. '<thead><tr>'
 			. '<th class="c-thumb"></th><th class="c-title">Titel</th><th class="c-typ">Typ</th><th class="c-modell">Modell</th>'
 			. '<th class="c-chk">Ohne Straßen&shy;zulassung<br><label><input type="checkbox" class="m24-hp-all" data-col="zul"> alle</label></th>'
 			. '<th class="c-chk">Kein Original-BMW-Teil<br><label><input type="checkbox" class="m24-hp-all" data-col="orig"> alle</label></th>'
@@ -303,7 +309,7 @@ class M24_Catalog_Hinweise_Pruefen {
 		foreach ( $q->posts as $post ) {
 			self::render_row( $post );
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 
 		self::render_savebar( $q, true );
 		echo '</form>';
@@ -370,16 +376,16 @@ class M24_Catalog_Hinweise_Pruefen {
 		$typ   = (string) get_post_meta( $id, '_m24_typ', true );
 		$terms = get_the_terms( $id, M24_Catalog_CPT::TAXONOMY );
 		$names = ( $terms && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'name' ) : array();
-		$thumb = get_the_post_thumbnail( $id, array( 48, 48 ), array( 'loading' => 'lazy' ) );
+		$thumb = get_the_post_thumbnail( $id, 'thumbnail', array( 'loading' => 'lazy', 'class' => 'm24-hp-img' ) );
 		$artnr = (string) get_post_meta( $id, '_m24_artikelnummer', true );
 
 		echo '<tr data-id="' . esc_attr( (string) $id ) . '">';
 		echo '<td class="c-thumb">' . ( $thumb ? $thumb : '<span class="m24-hp-nothumb">–</span>' ) . '<input type="hidden" name="m24_ids[]" value="' . esc_attr( (string) $id ) . '"></td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- core-generiertes <img>
 		printf(
-			'<td class="c-title"><strong><a href="%s">%s</a></strong>%s<div class="row-actions"><a href="%s">Bearbeiten</a> | <a href="%s" target="_blank" rel="noopener">Ansehen</a></div></td>',
+			'<td class="c-title"><strong class="m24-hp-ttl"><a href="%s">%s</a></strong>%s<div class="row-actions"><a href="%s">Bearbeiten</a> | <a href="%s" target="_blank" rel="noopener">Ansehen</a></div></td>',
 			esc_url( (string) get_edit_post_link( $id ) ),
 			esc_html( get_the_title( $id ) ),
-			'' !== $artnr ? '<br><small class="m24-hp-artnr">' . esc_html( $artnr ) . '</small>' : '',
+			'' !== $artnr ? '<div class="m24-hp-artnr">' . esc_html( $artnr ) . '</div>' : '',
 			esc_url( (string) get_edit_post_link( $id ) ),
 			esc_url( (string) get_permalink( $id ) )
 		);
@@ -436,17 +442,38 @@ class M24_Catalog_Hinweise_Pruefen {
 			.m24-hp-count{color:#646970;margin-left:6px}
 			.m24-hp-key{background:#fff6c7;padding:0 4px;border-radius:2px}
 			.m24-hp-savebar{margin:10px 0;display:flex;gap:10px;align-items:center}
-			.m24-hp-table .c-thumb{width:56px}
-			.m24-hp-table .c-thumb img{width:48px;height:48px;object-fit:cover;border-radius:3px}
-			.m24-hp-table .c-typ{width:90px}
-			.m24-hp-table .c-modell{width:15%}
-			.m24-hp-table .c-chk{width:120px;text-align:center}
+			/* Tabelle: feste Spaltenbreiten, Titel flexibel (min. 320px); schmaler → horizontal scrollen. */
+			.m24-hp-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+			.m24-hp .wp-list-table.m24-hp-table{table-layout:fixed;width:100%;min-width:1236px;border-collapse:collapse}
+			.m24-hp-table col.c-thumb{width:96px}
+			.m24-hp-table col.c-title{width:auto}
+			.m24-hp-table col.c-typ{width:110px}
+			.m24-hp-table col.c-modell{width:130px}
+			.m24-hp-table col.c-chk{width:130px}
+			.m24-hp-table col.c-why{width:220px}
+			.m24-hp-table col.c-status{width:100px}
+			.m24-hp .wp-list-table.m24-hp-table th,.m24-hp .wp-list-table.m24-hp-table td{width:auto;vertical-align:top;word-break:normal;overflow-wrap:break-word;white-space:normal}
+			.m24-hp .wp-list-table.m24-hp-table th{vertical-align:bottom;font-weight:600}
+			.m24-hp-table .c-thumb{padding:8px}
+			.m24-hp-table .c-thumb img{display:block;width:80px;height:80px;max-width:none;object-fit:cover;border-radius:6px;background:#f0f0f1}
+			.m24-hp-table .m24-hp-nothumb{display:flex;width:80px;height:80px;align-items:center;justify-content:center;border-radius:6px;background:#f0f0f1}
+			.m24-hp-table td.c-title{min-width:320px}
+			.m24-hp-table .m24-hp-ttl{display:block;font-size:14px;line-height:1.4;word-break:normal;overflow-wrap:anywhere;hyphens:manual}
+			.m24-hp-table .m24-hp-artnr{margin-top:3px;font-size:12px}
+			.m24-hp-table .row-actions{position:static;left:auto;padding-top:4px}
+			.m24-hp-table .c-chk{text-align:center}
 			.m24-hp-table th.c-chk label{font-weight:400;font-size:11px;color:#646970}
-			.m24-hp-table td.c-chk input{transform:scale(1.25)}
+			.m24-hp-table td.c-chk input{transform:scale(1.25);margin:4px 0 0}
 			.m24-hp-table td.c-chk.is-sug{background:#fff6c7!important}
 			.m24-hp-table tr.is-changed td{box-shadow:inset 0 0 0 9999px rgba(34,113,177,.06)}
-			.m24-hp-table .c-why{width:24%;font-size:12px;color:#50575e}
-			.m24-hp-table .c-status{width:110px}
+			.m24-hp-table .c-why{font-size:12px;color:#50575e}
+			/* WP-Core-Mobilregeln (< 782px) neutralisieren: keine versteckten Spalten, keine Label-Pseudoelemente. */
+			@media screen and (max-width:782px){
+				.m24-hp .wp-list-table.m24-hp-table tr th,.m24-hp .wp-list-table.m24-hp-table tr td{display:table-cell!important;position:static;padding:8px 10px}
+				.m24-hp .wp-list-table.m24-hp-table tr{display:table-row}
+				.m24-hp .wp-list-table.m24-hp-table td::before{content:none;display:none}
+				.m24-hp .wp-list-table.m24-hp-table .row-actions{display:block}
+			}
 			.m24-hp-artnr,.m24-hp-muted,.m24-hp-nothumb{color:#8c8f94}
 			.m24-hp-tag{display:inline-block;padding:1px 6px;border-radius:9px;background:#f0f0f1;font-size:11px}
 			.m24-hp-tag.is-rs{background:#fbe7e7;color:#8a1f1f}
