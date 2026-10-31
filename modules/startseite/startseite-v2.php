@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_2';
+	const CACHE_KEY = 'm24_startseite_v2_html_3';
 
 	private static $initialized = false;
 
@@ -114,13 +114,14 @@ class M24_Startseite_V2 {
 		$out = '';
 		foreach ( $ids as $id ) {
 			$out .= sprintf(
-				'<a class="m24s-ms__i" href="%1$s">%2$s<span class="m24s-sh"></span><b>%3$s</b></a>',
+				'<a class="m24s-ms__i" href="%1$s">%2$s<span class="m24s-ms__sh"></span><span class="m24s-ms__tx"><span class="m24s-ms__k">MOTORSPORT24</span><b>%3$s</b><span class="m24s-ms__more">Ansehen →</span></span></a>',
 				esc_url( get_permalink( $id ) ),
 				get_the_post_thumbnail( $id, 'large', array( 'alt' => esc_attr( get_the_title( $id ) ) ) ),
 				esc_html( get_the_title( $id ) )
 			);
 		}
-		return '<div class="m24s-ms"><div class="m24s-ms__track">' . $out . '</div></div>';
+		$dots = str_repeat( '<i></i>', count( $ids ) );
+		return '<div class="m24s-ms"><div class="m24s-ms__track">' . $out . '</div><div class="m24s-ms__dots">' . $dots . '</div></div>';
 	}
 
 	public static function shortcode() {
@@ -228,41 +229,39 @@ class M24_Startseite_V2 {
 		);
 	}
 
+	/** Modell-Chips + Artikel-Raster eines Teile-Typs (neu|gebraucht). */
 	private static function parts_panel( $typ, $active ) {
 		$archive = ( 'neu' === $typ ) ? '/rennsport-teile/' : '/gebrauchtteile/';
 		$models  = array(
-			'e30'   => array( 'M3 E30', 'E30', '/teile/bmw-m3-e30/' ),
-			'e36'   => array( 'M3 E36', 'E36', '/teile/bmw-m3-e36/' ),
-			'e46'   => array( 'M3 E46', 'E46', '/teile/bmw-m3-e46/' ),
-			'e9x'   => array( 'M3 E9x', 'E9', '/teile/bmw-m3-e9x/' ),
+			'e30' => array( 'M3 E30', 'E30', '/teile/bmw-m3-e30/' ),
+			'e36' => array( 'M3 E36', 'E36', '/teile/bmw-m3-e36/' ),
+			'e46' => array( 'M3 E46', 'E46', '/teile/bmw-m3-e46/' ),
+			'e9x' => array( 'M3 E9x', 'E9', '/teile/bmw-m3-e9x/' ),
 		);
-		$side  = '';
-		$grids = '';
+		$chips     = '';
+		$grids     = '';
 		$all_terms = array();
-		$first = true;
+		$first     = true;
+		$add = function ( $key, $label, $ids, $more_url, $more_label ) use ( &$chips, &$grids, &$first, $typ ) {
+			$k      = $typ . '-' . $key;
+			$chips .= sprintf( '<button type="button" class="m24s-opt m24s-opt--chip%1$s" data-model="%2$s">%3$s</button>', $first ? ' is-on' : '', esc_attr( $k ), esc_html( $label ) );
+			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $k ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $ids ) ) );
+			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>%4$s →</a>', esc_attr( $k ), esc_url( home_url( $more_url ) ), $first ? '' : ' hidden', esc_html( $more_label ) );
+			$first  = false;
+		};
 		foreach ( $models as $key => $m ) {
 			$terms     = self::model_terms( $m[1] );
 			$all_terms = array_merge( $all_terms, $terms );
 			$ids       = self::parts( $typ, $terms );
-			if ( ! $ids ) { continue; }
-			$side  .= sprintf( '<button type="button" class="m24s-model%1$s" data-model="%2$s">%3$s<span>→</span></button>', $first ? ' is-on' : '', esc_attr( $typ . '-' . $key ), esc_html( $m[0] ) );
-			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $typ . '-' . $key ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $ids ) ) );
-			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>Alle Teile für %4$s →</a>', esc_attr( $typ . '-' . $key ), esc_url( home_url( $m[2] ) ), $first ? '' : ' hidden', esc_html( $m[0] ) );
-			$first = false;
+			if ( $ids ) { $add( $key, $m[0], $ids, $m[2], 'Alle Teile für ' . $m[0] ); }
 		}
 		$other = self::parts( $typ, array_values( array_unique( $all_terms ) ), true );
-		if ( $other ) {
-			$side  .= sprintf( '<button type="button" class="m24s-model%1$s" data-model="%2$s">Sonstige BMW M<span>→</span></button>', $first ? ' is-on' : '', esc_attr( $typ . '-sonst' ) );
-			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $typ . '-sonst' ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $other ) ) );
-			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>Alle Teile ansehen →</a>', esc_attr( $typ . '-sonst' ), esc_url( home_url( $archive ) ), $first ? '' : ' hidden' );
-		}
+		if ( $other ) { $add( 'sonst', 'Sonstige BMW M', $other, $archive, ( 'neu' === $typ ) ? 'Alle Rennsport-Teile' : 'Alle Gebrauchtteile' ); }
 		return sprintf(
-			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-card m24s-models"><div class="m24s-models__h">Modelle</div>%3$s<a class="m24s-models__all" href="%4$s">Alle %5$s →</a></div><div>%6$s</div></div>',
+			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-finder__row m24s-finder__row--chips"><span class="m24s-step"><i>2</i>Modell wählen</span><div class="m24s-chips">%3$s</div></div><div class="m24s-parts__res">%4$s</div></div>',
 			esc_attr( $typ ),
 			$active ? '' : ' hidden',
-			$side,
-			esc_url( home_url( $archive ) ),
-			( 'neu' === $typ ) ? 'Rennsport-Teile' : 'Gebrauchtteile',
+			$chips,
 			$grids
 		);
 	}
@@ -270,8 +269,8 @@ class M24_Startseite_V2 {
 	// ── Render ─────────────────────────────────────────────────────────
 
 	private static function render() {
-		$J   = self::img( '2024/07/MOTORSPORT24-Rennsport-Teile-Online-Shop.jpg' );
-		$sig = 'https://s14.de/wp-content/themes/s14/assets/img/signet.png';
+		$J   = self::img( '2024/07/MOTORSPORT24-Rennsport-Teile-Online-Shop.jpg', 'full' );
+		$sig = plugin_dir_url( M24_PLATTFORM_FILE ) . 'assets/img/s14-signet.png';
 		$im  = array(
 			'e30b'   => self::img( '2026/09/BMW-M3-E30-Diamantschwarz-S14B25-07.webp' ),
 			'z4'     => self::img( '2026/05/BMW-Z4-GT3-Ex-Vita4One-For-Sale-32.jpg' ),
@@ -289,22 +288,27 @@ class M24_Startseite_V2 {
 			array( $im['s14eng'], 'Teile · Original BMW', 'Gebrauchte BMW Teile', '/gebrauchtteile/' ),
 		);
 		$svc = array(
-			array( '01', 'Fahrzeugbau aus einer Hand', 'Renn- und Clubsportfahrzeuge von der Konzeption bis zur Fertigung.' ),
-			array( '02', 'Sport- & Rennmotorenbau', 'Klassischer Motorenbau als Königsdisziplin – haltbar für jeden Einsatz.' ),
-			array( '03', 'Restauration & Neuaufbau', 'Historische Straßen- und Wettbewerbsfahrzeuge bis zur Vollrestauration.' ),
-			array( '04', 'Saisonbetreuung', 'Prüfstand, Abstimmung und Renn-Team-Betreuung auf Wunsch.' ),
+			array( '01', 'Fahrzeugbau aus einer Hand', 'Komplette Renn- und Clubsportfahrzeuge nach Kundenvorgaben – von der Konzeption bis zur Fertigung.' ),
+			array( '02', 'Sport- & Rennmotorenbau', 'Klassischer Motorenbau ist eine unserer Königsdisziplinen – langlebig aufgebaut für jeden Einsatzzweck.' ),
+			array( '03', 'Restauration & Neuaufbau', 'Historische Straßen- und Wettbewerbsfahrzeuge – sorgfältig wieder aufgebaut bis zur kompletten Vollrestauration.' ),
+			array( '04', 'Saisonbetreuung & Prüfstand', 'Abstimmung auf dem Leistungsprüfstand und auf Wunsch Renn-Team-Betreuung über die gesamte Saison.' ),
 		);
 		$tl = array(
-			array( '2001', 's14motorsport.de', 'Gründung von s14motorsport.de.' ),
-			array( '2006', 'MOTORSPORT24', 'Exklusiver Vertrieb der Rennsport-Teile von KK Automobile.' ),
-			array( 'Fahrzeugbau', 'Gruppe A · DTM · GTR', 'Aufbau und Restauration historischer Renn- und Straßenfahrzeuge.' ),
-			array( 'Weltweit', 'Versand', 'Teile in alle Welt, Fahrzeuge im Trailer oder Container.' ),
-			array( '2026', 's14.de', 'Gründungspartner des Marktplatzes für klassische BMW.' ),
+			array( '2001', 's14motorsport.de', 'Gründung von s14motorsport.de – der Ursprung, aus dem später MOTORSPORT24 und s14.de entstanden sind.' ),
+			array( '2006', 'MOTORSPORT24', 'Exklusiver Vertrieb der Rennsport-Teile von KK Automobile – für anspruchsvolle Kunden in aller Welt.' ),
+			array( 'Fahrzeugbau', 'BMW M · Gruppe A · DTM · GTR', 'Aufbau und Restauration historischer Renn- und Straßenfahrzeuge – von der Konzeption bis zur Fertigung.' ),
+			array( 'Weltweit', 'Verkauf & Versand', 'Teile und Fahrzeuge für Kunden weltweit – als Komplettlösung, im geschlossenen Trailer oder per Container.' ),
+			array( '2026', 's14.de', 'Gründungspartner von s14.de, dem Marktplatz für die klassischen BMW E-Baureihen von 1966 bis 2009.' ),
 		);
 		$feats = array(
 			array( 'Marktplatz', 'Fahrzeuge und Teile von geprüften Händlern und privaten Liebhabern – ausschließlich klassische BMW.' ),
-			array( 'Archiv', 'Wissen zu Modellen, Baureihen und Ausstattungen der E‑Modelle.' ),
+			array( 'Archiv', 'Wissen zu Modellen, Baureihen und Ausstattungen der BMW E‑Baureihen.' ),
 			array( 'Magazin', 'Fahrzeugporträts, Geschichten und Neuigkeiten aus der Szene.' ),
+		);
+		$fam = array(
+			array( '2001', 's14motorsport.de', 'Der Ursprung' ),
+			array( '2006', 'MOTORSPORT24', 'Fahrzeuge & Rennsport-Teile' ),
+			array( '2026', 's14.de', 'Marktplatz & Archiv' ),
 		);
 
 		ob_start();
@@ -332,10 +336,11 @@ class M24_Startseite_V2 {
 		<div class="m24s-track">
 			<?php foreach ( self::vehicles() as $v ) :
 				list( $vid, $st ) = $v;
-				$sub = array_filter( array( get_post_meta( $vid, '_m24fz_baujahr', true ), get_post_meta( $vid, '_m24fz_leistung_ps', true ) ? get_post_meta( $vid, '_m24fz_leistung_ps', true ) . ' PS' : '' ) );
+				$ps  = get_post_meta( $vid, '_m24fz_leistung_ps', true );
+				$sub = array_filter( array( get_post_meta( $vid, '_m24fz_baujahr', true ), $ps ? $ps . ' PS' : '' ) );
 				$tag = ( 'verkauft' === $st ) ? array( 'sold', 'Verkauft' ) : ( ( 'reserviert' === $st ) ? array( 'res', 'Reserviert' ) : array( '', 'Verfügbar' ) );
 				?>
-			<a class="m24s-car" href="<?php echo esc_url( get_permalink( $vid ) ); ?>"><span class="m24s-car__im"><?php echo get_the_post_thumbnail( $vid, 'large', array( 'loading' => 'lazy', 'alt' => esc_attr( get_the_title( $vid ) ) ) ); ?><span class="m24s-tag <?php echo esc_attr( $tag[0] ); ?>"><?php echo esc_html( $tag[1] ); ?></span></span><b><?php echo esc_html( get_the_title( $vid ) ); ?></b><span class="m24s-car__sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></span></a>
+			<a class="m24s-car" href="<?php echo esc_url( get_permalink( $vid ) ); ?>"><span class="m24s-car__im"><?php echo get_the_post_thumbnail( $vid, 'large', array( 'alt' => esc_attr( get_the_title( $vid ) ) ) ); ?><span class="m24s-tag <?php echo esc_attr( $tag[0] ); ?>"><?php echo esc_html( $tag[1] ); ?></span></span><b><?php echo esc_html( get_the_title( $vid ) ); ?></b><span class="m24s-car__sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></span></a>
 			<?php endforeach; ?>
 		</div>
 	</div>
@@ -343,26 +348,33 @@ class M24_Startseite_V2 {
 
 <section class="m24s-sec">
 	<div class="m24s-w">
-		<div class="m24s-center"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
-			<div class="m24s-tabs" role="tablist"><button type="button" class="m24s-tab is-on" data-tab="neu">Rennsport-Teile passend für BMW M</button><button type="button" class="m24s-tab" data-tab="gebraucht">Gebrauchte BMW M Teile</button></div></div>
-		<?php echo self::parts_panel( 'neu', true ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
-		<?php echo self::parts_panel( 'gebraucht', false ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<div class="m24s-intro"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
+			<p class="m24s-lead">Neue Rennsport-Teile von KK Automobile und gebrauchte Original-Teile – wählen Sie die Teile-Art und Ihr Modell, wir zeigen Ihnen passende Artikel aus unserem Katalog.</p></div>
+		<div class="m24s-finder m24s-card">
+			<div class="m24s-finder__row"><span class="m24s-step"><i>1</i>Teile-Art wählen</span>
+				<div class="m24s-types" role="tablist">
+					<button type="button" class="m24s-opt m24s-opt--type is-on" data-tab="neu"><b>Rennsport-Teile</b><span>neu · passend für BMW M</span></button>
+					<button type="button" class="m24s-opt m24s-opt--type" data-tab="gebraucht"><b>Gebrauchte BMW M Teile</b><span>Original-Teile · gebraucht</span></button>
+				</div>
+			</div>
+			<?php echo self::parts_panel( 'neu', true ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+			<?php echo self::parts_panel( 'gebraucht', false ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		</div>
 	</div>
 </section>
 
 <section class="m24s-sec m24s-sec--top0">
-	<div class="m24s-w m24s-bau">
-		<div>
-			<div class="m24s-eb">Fahrzeugbau · Rennsport · Restauration</div>
-			<h2 class="m24s-h2">Aufbau, Restauration und Vollrestauration.</h2>
-			<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
-			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb <b>KK Automobile</b> in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
-			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
-		</div>
+	<div class="m24s-w">
+		<div class="m24s-intro m24s-intro--left"><div class="m24s-eb">Fahrzeugbau · Motorenbau · Restauration</div><h2 class="m24s-h2">Fahrzeugbau, Motorenbau &amp; Restauration.</h2></div>
 		<div class="m24s-bau__img">
-			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>GTR · DTM · Gruppe A</span></span></div>
+			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>BMW M · Gruppe A · DTM · GTR</span></span></div>
 			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
 			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
+		</div>
+		<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
+		<div class="m24s-bau__foot">
+			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb <b>KK Automobile</b> in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
+			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
 		</div>
 	</div>
 </section>
@@ -370,7 +382,7 @@ class M24_Startseite_V2 {
 <section class="m24s-tl">
 	<div class="m24s-tl__bg25" aria-hidden="true">25</div>
 	<div class="m24s-w m24s-tl__grid">
-		<div><div class="m24s-gold m24s-tl__25">25</div><div class="m24s-eb">2001 – 2026</div><h2 class="m24s-h2">Jahre Erfahrung</h2><p class="m24s-lead">Ein Vierteljahrhundert BMW Rennsport und Klassik – Vertrauen, das man nachprüfen kann.</p></div>
+		<div><div class="m24s-gold m24s-tl__25">25</div><div class="m24s-eb">2001 – 2026</div><h2 class="m24s-h2">Jahre Erfahrung</h2><p class="m24s-lead">Seit 2001 setzen wir auf langfristige Zusammenarbeit – mit Kunden, Partnern und Fahrzeugen, die wir über viele Jahre begleiten. Vertrauen, das man nachprüfen kann.</p></div>
 		<div class="m24s-tl__list"><?php foreach ( $tl as $t ) : ?><div class="m24s-tl__i"><span class="m24s-tl__dot"></span><div class="m24s-tl__card"><b class="m24s-tl__y"><?php echo esc_html( $t[0] ); ?></b><div><b><?php echo esc_html( $t[1] ); ?></b><p><?php echo esc_html( $t[2] ); ?></p></div></div></div><?php endforeach; ?></div>
 	</div>
 </section>
@@ -378,16 +390,22 @@ class M24_Startseite_V2 {
 <section class="m24s-s14" style="--m24s-s14bg:url('<?php echo esc_url( $im['cab'] ); ?>')">
 	<div class="m24s-w m24s-s14__grid">
 		<div>
-			<a class="m24s-s14logo" href="https://s14.de/" target="_blank" rel="noopener"><img src="<?php echo esc_url( $sig ); ?>" alt="s14.de"><b>s14<i></i>de</b></a>
+			<a class="m24s-s14logo" href="https://s14.de/" target="_blank" rel="noopener" aria-label="s14.de"><img src="<?php echo esc_url( $sig ); ?>" alt="" width="53" height="53"><span class="m24s-s14logo__wm">s14<span class="m24s-s14logo__dot"></span><span class="m24s-s14logo__tld">de</span></span><span class="m24s-s14logo__sep"></span><span class="m24s-s14logo__tag">Marktplatz &amp; Archiv<br>für klassische BMW</span></a>
 			<div class="m24s-eb m24s-eb--light">MOTORSPORT24 ist Gründungspartner</div>
-			<h2 class="m24s-h2 m24s-h2--light">Der Marktplatz für klassische BMW E‑Modelle.</h2>
+			<h2 class="m24s-h2 m24s-h2--light">Der Marktplatz für klassische BMW E‑Baureihen.</h2>
 			<p class="m24s-s14__p">s14.de ist Archiv, Magazin und Marktplatz für die klassischen BMW E‑Baureihen von 1966 bis 2009 – vom 02er über E9, E21, E30 und E28 bis zum E46. Händler und Privatverkäufer bieten hier Fahrzeuge und Teile an, gelesen und gekauft von Menschen, die diese Autos wirklich kennen.</p>
 			<a class="m24s-btn" href="https://s14.de/" target="_blank" rel="noopener">s14.de entdecken</a>
 		</div>
 		<div class="m24s-s14__feats"><?php foreach ( $feats as $i => $f ) : ?><div class="m24s-s14__f"><span>0<?php echo (int) ( $i + 1 ); ?></span><div><b><?php echo esc_html( $f[0] ); ?></b><p><?php echo esc_html( $f[1] ); ?></p></div></div><?php endforeach; ?></div>
 	</div>
 </section>
-<div class="m24s-foot"><div class="m24s-w"><span>MOTORSPORT24 und s14.de sind Ableger von <b>s14motorsport.de</b> (seit 2001) – MOTORSPORT24 seit 2006.</span></div></div>
+
+<section class="m24s-fam">
+	<div class="m24s-w">
+		<div class="m24s-intro"><div class="m24s-eb">Eine Familie seit 2001</div><h2 class="m24s-h2">Aus s14motorsport.de entstanden.</h2><p class="m24s-lead">MOTORSPORT24 und s14.de sind Ableger von s14motorsport.de – gegründet 2001, mit derselben Leidenschaft für BMW Rennsport und klassische BMW.</p></div>
+		<div class="m24s-fam__row"><?php foreach ( $fam as $f ) : ?><div class="m24s-fam__i"><span class="m24s-fam__y"><?php echo esc_html( $f[0] ); ?></span><b><?php echo esc_html( $f[1] ); ?></b><span><?php echo esc_html( $f[2] ); ?></span></div><?php endforeach; ?></div>
+	</div>
+</section>
 </div>
 		<?php
 		return ob_get_clean();
