@@ -75,9 +75,9 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 
 /* Teile-Finder: ein Kasten, zwei Schritte, gleiche Bedienelemente */
 .m24s-finder{padding:22px 22px 24px;border-radius:18px}
-.m24s-finder__row{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:center}
+.m24s-finder__row{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:center}
 .m24s-finder__row--chips{margin-top:14px;padding-top:14px;border-top:1px solid #ece9e2}
-.m24s-step{display:flex;align-items:center;gap:10px;font:700 12px Saira,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8a8f98}
+.m24s-step{white-space:nowrap;display:flex;align-items:center;gap:10px;font:700 12px Saira,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8a8f98}
 .m24s-step i{font-style:normal;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--gold2);font:800 13px Saira,sans-serif;letter-spacing:0}
 .m24s-types{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .m24s-chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -104,7 +104,7 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 /* Fahrzeugbau: Überschrift → Bilder → 4 Punkte → Button */
 .m24s-bau__img{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:var(--gap)}
 .m24s-bau__img .m24s-ph{box-shadow:0 14px 30px rgba(0,0,0,.14);aspect-ratio:auto}
-.m24s-ph--wide{grid-row:span 2;aspect-ratio:3/2!important}
+.m24s-ph--wide{grid-row:span 2;aspect-ratio:16/9!important}
 .m24s-svc{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);margin-top:var(--gap)}
 .m24s-svc__i{padding:18px}
 .m24s-svc__n{font:800 28px Saira,sans-serif}
@@ -152,8 +152,9 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-fam__row::before{content:"";position:absolute;left:16%;right:16%;top:34px;height:2px;background:linear-gradient(90deg,#d8b45a,#e8e2d2,#d8b45a)}
 .m24s-fam__i{position:relative;text-align:center;padding:0 10px}
 .m24s-fam__y{display:inline-grid;place-items:center;width:68px;height:68px;border-radius:50%;background:var(--ink);color:var(--gold2);font:800 17px Saira,sans-serif;box-shadow:0 0 0 6px #fff,0 10px 24px rgba(0,0,0,.18);margin-bottom:12px}
-.m24s-fam__i b{display:block;font:800 19px Saira,sans-serif}
-.m24s-fam__i>span:last-child{display:block;font-size:14px;color:#6b717c}
+.m24s-fam__i b,.m24s-fam__i>span:last-child{position:relative;background:#fff;padding:0 6px;display:inline-block}
+.m24s-fam__i b{display:block;width:fit-content;margin:0 auto;font:800 19px Saira,sans-serif}
+.m24s-fam__i>span:last-child{display:block;width:fit-content;margin:0 auto;font-size:14px;color:#6b717c}
 
 /* Mobil-Hero-Slider (Mobil-Template, ersetzt den Desktop-Big-Grid) */
 .m24s-mobile-wrap{width:100%;overflow:hidden}
