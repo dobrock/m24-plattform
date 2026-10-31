@@ -20,7 +20,7 @@ class M24_Admin_Menu {
 			// ── Tagesgeschäft ──
 			'm24-anfragen', 'm24-offers', 'm24-interessenten', 'm24-garagen',
 			// ── Katalog ──
-			'm24fz-verwaltung', 'edit.php?post_type=m24_teil', 'edit.php?post_type=m24_modellhub',
+			'm24fz-verwaltung', 'edit.php?post_type=m24_teil', 'm24-teile-hinweise', 'edit.php?post_type=m24_modellhub',
 			// ── Kunden ──
 			'm24-haendler', 'm24-plattform-reviews',
 			// ── System ──  (Einstellungen liegt auf dem Dach-Slug m24-plattform)
@@ -44,6 +44,7 @@ class M24_Admin_Menu {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'reorganize' ), 9999 );
 		add_action( 'admin_menu', array( __CLASS__, 'register_parent_target' ), 9998 );
+		add_action( 'admin_menu', array( __CLASS__, 'fix_cpt_parent_pages' ), 10000 );
 		add_action( 'admin_init', array( __CLASS__, 'redirect_parent_menu' ), 1 ); // Sicherheitsnetz (läuft ggf. vor WPs nopriv-Check)
 		add_action( 'admin_head', array( __CLASS__, 'separator_css' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'separator_neutralize_js' ) );
@@ -75,6 +76,31 @@ class M24_Admin_Menu {
 	public static function register_parent_target() {
 		add_submenu_page( 'm24-plattform', 'MOTORSPORT24', 'MOTORSPORT24', 'manage_options', 'm24-sep-1', array( __CLASS__, 'redirect_to_offers' ) );
 		remove_submenu_page( 'm24-plattform', 'm24-sep-1' ); // Menüeintrag weg, Page-Hook (Redirect) bleibt
+	}
+
+	/**
+	 * Fix „Du hast keine Berechtigung" für Seiten, die unter einem CPT-Parent registriert sind, dessen CPT selbst
+	 * via show_in_menu unter dem Dach hängt (z. B. Shopware-Import / Bilder-Audit unter
+	 * edit.php?post_type=m24_teil).
+	 *
+	 * Ursache: add_submenu_page() bildet den Hook mit dem Parent 'edit.php?post_type=m24_teil'. Den gibt es aber
+	 * nicht als Top-Level-Menü (kein $admin_page_hooks-Eintrag) → registriert wird 'admin_page_<slug>'. Beim
+	 * Aufruf löst get_admin_page_parent() den Parent über $typenow auf das Dach 'm24-plattform' auf (dort steht
+	 * die Teile-Liste als Submenü) → user_can_access_admin_page() sucht 'm24-plattform_page_<slug>' in
+	 * $_registered_pages, findet ihn nicht → wp_die( 'Sorry, you are not allowed…' ), auch für Admins.
+	 *
+	 * Fix: zusätzlich den Hook-Namen unter dem Dach als registriert markieren. Der Seiten-Callback bleibt am
+	 * ursprünglichen Hook (admin.php löst ihn über "$pagenow?post_type=$typenow" korrekt auf). Danach greift die
+	 * normale Capability-Prüfung (Dach = manage_options).
+	 */
+	public static function fix_cpt_parent_pages() {
+		global $_parent_pages, $_registered_pages, $admin_page_hooks;
+		if ( empty( $_parent_pages ) || empty( $admin_page_hooks[ self::DACH ] ) ) { return; }
+		foreach ( (array) $_parent_pages as $slug => $parent ) {
+			if ( ! is_string( $parent ) || 0 !== strpos( $parent, 'edit.php?post_type=' ) ) { continue; }
+			if ( isset( $admin_page_hooks[ $parent ] ) ) { continue; } // echtes Top-Level → WP löst korrekt auf
+			$_registered_pages[ get_plugin_page_hookname( $slug, self::DACH ) ] = true;
+		}
 	}
 
 	public static function redirect_to_offers() {

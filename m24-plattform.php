@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.563
+ * Version:           0.11.564
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -213,6 +213,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-related-fields.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-fields.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-partnums.php'; // v3/C1: Teilenummern-Index (_m24_partnums)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-admin-list.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hinweise-pruefen.php'; // „Teile · Hinweise prüfen" (Zulassung/Original-Häkchen)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-artnr.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-gallery.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-detail.php';
@@ -351,6 +352,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_Fields::init();
     M24_Catalog_Partnums::init(); // v3/C1: save_post-Reindex + Backfill-Cron
     M24_Catalog_Admin_List::init();
+    M24_Catalog_Hinweise_Pruefen::init();
     M24_Catalog_Artnr::init();
     M24_Catalog_Gallery::init();
     M24_Catalog_Template_Detail::init();
