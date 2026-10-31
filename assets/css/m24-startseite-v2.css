@@ -1,5 +1,8 @@
 /* M24 Startseite v2 („Design 2b", 31.10.2026) – Shortcode [m24_startseite_v2] */
 body:has(#m24-startseite){overflow-x:hidden}
+/* tagDiv-Container schneidet sonst die Vollbreite ab */
+body:has(#m24-startseite) .td-main-content-wrap,body:has(#m24-startseite) .td-theme-wrap{overflow:visible}
+body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s{--gold:#a8842f;--gold2:#d8b45a;--ink:#15171b;--sand:#f4f3ef;position:relative;left:50%;width:100vw;margin-left:-50vw;background:var(--sand);color:var(--ink);font-family:Saira,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;line-height:1.5}
 .m24s *,.m24s *::before,.m24s *::after{box-sizing:border-box}
 .m24s h2,.m24s p{margin:0}
