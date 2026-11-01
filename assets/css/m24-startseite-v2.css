@@ -404,3 +404,8 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 @media (min-width:768px){.m24s-z4__det a{aspect-ratio:100/51}}
 /* Mobil: Motorenbau/Restauration im 3:2-Format (keine Mindesthöhe) */
 @media (max-width:980px){.m24s-bau__img .m24s-ph:not(.m24s-ph--wide){min-height:0!important;aspect-ratio:3/2!important}}
+/* Navi + Footer im gleichen Dunkelton wie die Startseite (#15171b statt #2c2c2c / #151515 / #4f4f4f) */
+body:has(#m24-startseite) .td-header-template-wrap .tdi_14_rand_style,
+body:has(#m24-startseite) .td-header-template-wrap .tdi_23_rand_style,
+body:has(#m24-startseite) .td-footer-wrapper{background-color:#15171b!important}
+body:has(#m24-startseite) .td-sub-footer-container{background-color:#0e1013!important}
