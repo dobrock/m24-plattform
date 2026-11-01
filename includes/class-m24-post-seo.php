@@ -80,7 +80,7 @@ class M24_Post_SEO {
 		}
 		$room = self::MAX_DESC - mb_strlen( $pre ) - mb_strlen( $suf );
 		$body = $room > 30 ? self::snippet( $id, $room, $name ) : '';
-		$out  = trim( $pre . $body . $suf );
+		$out  = trim( preg_replace( '/\s{2,}/u', ' ', $pre . $body . $suf ) );
 		return '' !== $out ? $out : $desc;
 	}
 
@@ -94,7 +94,7 @@ class M24_Post_SEO {
 		$txt = html_entity_decode( wp_strip_all_tags( $raw ), ENT_QUOTES, 'UTF-8' );
 		$txt = trim( preg_replace( '/\s+/u', ' ', $txt ) );
 		$txt = preg_replace( '/(\.\s*){2,}/u', '. ', $txt );
-		$skip = '/(Als Spezialist für klassische BMW|Nicht nur das Fachwissen|Senden Sie uns eine Nachricht|Kontaktieren Sie uns|^\s*Verkauft wird\s*$)/iu';
+		$skip = '/(Als Spezialist für|Nicht nur das Fachwissen|Senden Sie uns eine Nachricht|Kontaktieren Sie uns|^\s*Verkauft wird\s*$)/iu';
 		$out  = '';
 		foreach ( preg_split( '/(?<=[.!?])\s+/u', $txt ) as $s ) {
 			$s = trim( $s, " .\t\n" );
