@@ -411,3 +411,5 @@ body:has(#m24-startseite) .td-footer-wrapper{background-color:#15171b!important}
 body:has(#m24-startseite) .td-sub-footer-container{background-color:#0e1013!important}
 /* Mobil: Z4-Bodykit-Bild volle Bildschirmbreite */
 @media (max-width:767px){.m24s-z4__pic{margin-left:calc(-1 * var(--pad));margin-right:calc(-1 * var(--pad))}}
+/* Mobil: kein dunkler Rand über dem Z4-Bild */
+@media (max-width:767px){.m24s-z4{padding-top:0!important}}
