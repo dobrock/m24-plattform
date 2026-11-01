@@ -304,3 +304,6 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 #m24s-angebot,#m24s-teile{scroll-margin-top:60px}
 .m24s-btn--hero{box-shadow:0 0 0 1px rgba(255,255,255,.08),0 10px 34px rgba(214,220,228,.30)}
 .m24s-btn--hero:hover{box-shadow:0 0 0 1px rgba(255,255,255,.14),0 14px 40px rgba(214,220,228,.42)}
+/* Kategorie „Rennsport-Fahrzeuge": Bild 10 % näher */
+.m24s-cat--zoom img{transform:scale(1.1)}
+.m24s-cat--zoom:hover img{transform:scale(1.14)}
