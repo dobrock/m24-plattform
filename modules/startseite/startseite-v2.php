@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_10';
+	const CACHE_KEY = 'm24_startseite_v2_html_11';
 
 	private static $initialized = false;
 
@@ -251,29 +251,31 @@ class M24_Startseite_V2 {
 		);
 		$chips     = '';
 		$grids     = '';
+		$mores     = '';
 		$all_terms = array();
 		$first     = true;
-		$add = function ( $key, $label, $ids, $more_url, $more_label ) use ( &$chips, &$grids, &$first, $typ ) {
+		$add = function ( $key, $label, $ids, $more_url, $more_label ) use ( &$chips, &$grids, &$mores, &$first, $typ ) {
 			$k      = $typ . '-' . $key;
 			$chips .= sprintf( '<button type="button" class="m24s-opt m24s-opt--chip%1$s" data-model="%2$s">%3$s</button>', $first ? ' is-on' : '', esc_attr( $k ), esc_html( $label ) );
 			$grids .= sprintf( '<div class="m24s-grid" data-grid="%1$s"%2$s>%3$s</div>', esc_attr( $k ), $first ? '' : ' hidden', implode( '', array_map( array( __CLASS__, 'part_card' ), $ids ) ) );
-			$grids .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>%4$s →</a>', esc_attr( $k ), esc_url( home_url( $more_url ) ), $first ? '' : ' hidden', esc_html( $more_label ) );
+			$mores .= sprintf( '<a class="m24s-more" data-grid="%1$s" href="%2$s"%3$s>%4$s →</a>', esc_attr( $k ), esc_url( home_url( $more_url ) ), $first ? '' : ' hidden', esc_html( $more_label ) );
 			$first  = false;
 		};
 		foreach ( $models as $key => $m ) {
 			$terms     = self::model_terms( $m[1] );
 			$all_terms = array_merge( $all_terms, $terms );
-			$ids       = self::parts( $typ, $terms );
+			$ids       = self::parts( $typ, $terms, false, 9 );
 			if ( $ids ) { $add( $key, $m[0], $ids, $m[2], 'Alle Teile für ' . $m[0] ); }
 		}
 		// M3/M4 G8x: Artikel folgen – Chip sichtbar, aber noch nicht klickbar.
 		$chips .= '<span class="m24s-opt m24s-opt--chip is-soon" aria-disabled="true" title="Artikel folgen in Kürze">M3/M4 G8x</span>';
 		return sprintf(
-			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-finder__row m24s-finder__row--chips"><span class="m24s-step"><i>2</i>Modell wählen</span><div class="m24s-chips">%3$s</div></div><div class="m24s-parts__res">%4$s</div></div>',
+			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-fb__side"><div class="m24s-fb__lbl">2 · Modell</div><div class="m24s-chips">%3$s</div><div class="m24s-fb__more">%5$s</div></div><div class="m24s-parts__res">%4$s</div></div>',
 			esc_attr( $typ ),
 			$active ? '' : ' hidden',
 			$chips,
-			$grids
+			$grids,
+			$mores
 		);
 	}
 
@@ -296,7 +298,7 @@ class M24_Startseite_V2 {
 	private static function z4_band() {
 		$n      = self::z4_count();
 		$bodykit = self::img( '2025/02/BMW-Z4-GT3-Body-Parts-23.jpg', 'large' );
-		$det    = array_map( array( __CLASS__, 'img' ), array( '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-22.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-28.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-24.webp', '2026/06/BMW-Z4-GT3-Ex-Vita4One-For-Sale-15.webp' ) );
+		$det    = array_map( array( __CLASS__, 'img' ), array( '2026/11/Z4-GT3_2295.webp', '2017/03/BMW-Z4-GT3_3049.jpg', '2023/06/IMG_6896.jpg' ) );
 		$pts    = array(
 			array( 'Komplettfahrzeuge', 'Aufbau kompletter BMW Z4 GT3 – vom Chassis bis zum rennfertigen Fahrzeug.' ),
 			array( 'P65-Motoren', 'Revision und komplette Motoren, Hubraum-Kit 4,4 l, Nockenwellen, Ölpumpen.' ),
@@ -311,10 +313,10 @@ class M24_Startseite_V2 {
 		<div class="m24s-z4__body">
 			<div class="m24s-eb m24s-eb--light">Spezialist · BMW Z4 GT3</div>
 			<h2 class="m24s-h2 m24s-h2--light">BMW Z4 GT3 – Teile, Motoren, Getriebe und Fahrzeugbau.</h2>
-			<p class="m24s-z4__p">Aus unserem umfangreichen Sortiment an BMW Z4 GT3 Neu- und Gebrauchtteilen liefern wir vom einzelnen Längsträger bis zum kompletten Fahrzeug. Gemeinsam mit KK Automobile – selbst mit dem Z4 GT3 im Rennsport unterwegs – bauen und revidieren wir Fahrzeuge, Motoren und Getriebe.</p>
+			<p class="m24s-z4__p">Aus unserem umfangreichen Sortiment an BMW Z4 GT3 Neu- und Gebrauchtteilen liefern wir vom einzelnen Karosserieteil bis zum kompletten Fahrzeug. Den Aufbau kompletter Fahrzeuge sowie die Revision von Motoren und Getrieben übernehmen wir gemeinsam mit unserem Partner KK Automobile, der selbst mit dem Z4 GT3 im Rennsport aktiv ist.</p>
 			<div class="m24s-z4__pts"><?php foreach ( $pts as $i => $p ) : ?><div class="m24s-z4__pt<?php echo $i % 2 ? ' is-blue' : ''; ?>"><b><?php echo esc_html( $p[0] ); ?></b><span><?php echo esc_html( $p[1] ); ?></span></div><?php endforeach; ?></div>
-			<div class="m24s-z4__det"><?php foreach ( $det as $d ) : ?><a href="<?php echo esc_url( home_url( '/fahrzeuge/bmw-z4-gt3-ex-bartels-1033/' ) ); ?>"><img src="<?php echo esc_url( $d ); ?>" alt="BMW Z4 GT3 Detail" decoding="async"></a><?php endforeach; ?></div>
-			<div class="m24s-z4__cta"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><?php echo $n ? esc_html( 'Alle ' . $n . ' Z4 GT3 Teile ansehen' ) : 'Alle Z4 GT3 Teile ansehen'; ?></a><a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Z4 GT3 Projekt anfragen</a><span class="m24s-z4__src">Bilder: BMW Z4 GT3 Ex-Bartels #1033</span></div>
+			<div class="m24s-z4__det"><?php foreach ( $det as $d ) : ?><a href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><img src="<?php echo esc_url( $d ); ?>" alt="BMW Z4 GT3" decoding="async"></a><?php endforeach; ?></div>
+			<div class="m24s-z4__cta"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><?php echo $n ? esc_html( 'Alle ' . $n . ' Z4 GT3 Teile ansehen' ) : 'Alle Z4 GT3 Teile ansehen'; ?></a><a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Z4 GT3 Projekt anfragen</a></div>
 		</div>
 	</div>
 </section>
@@ -406,11 +408,13 @@ class M24_Startseite_V2 {
 	<div class="m24s-w">
 		<div class="m24s-intro"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
 			<p class="m24s-lead">Neue Rennsport-Teile von KK Automobile und gebrauchte Original-Teile – wählen Sie die Teile-Art und Ihr Modell, wir zeigen Ihnen passende Artikel aus unserem Katalog.</p></div>
-		<div class="m24s-finder m24s-card">
-			<div class="m24s-finder__row"><span class="m24s-step"><i>1</i>Teile-Art wählen</span>
+		<div class="m24s-finder m24s-fb">
+			<div class="m24s-fb__head">
+				<div class="m24s-eb">Teile-Finder</div><div class="m24s-fb__ti">Ihr Teil in zwei Schritten</div>
+				<div class="m24s-fb__lbl">1 · Teile-Art</div>
 				<div class="m24s-types" role="tablist">
-					<button type="button" class="m24s-opt m24s-opt--type is-on" data-tab="neu"><b>Rennsport-Teile</b><span>neu · passend für BMW M</span></button>
-					<button type="button" class="m24s-opt m24s-opt--type" data-tab="gebraucht"><b>Gebrauchte BMW M Teile</b><span>Original-Teile · gebraucht</span></button>
+					<button type="button" class="m24s-opt m24s-opt--type is-on" data-tab="neu"><b>Rennsport-Teile</b><span>neu</span></button>
+					<button type="button" class="m24s-opt m24s-opt--type" data-tab="gebraucht"><b>Gebrauchte Teile</b><span>original</span></button>
 				</div>
 			</div>
 			<?php echo self::parts_panel( 'neu', true ); // phpcs:ignore WordPress.Security.EscapeOutput ?>

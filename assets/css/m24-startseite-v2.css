@@ -314,3 +314,37 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-opt--chip{flex:1 1 0;min-width:0;white-space:nowrap;text-align:center;padding-left:8px;padding-right:8px}
 .m24s-opt--chip.is-soon{opacity:.45;cursor:default;pointer-events:none;border-style:dashed}
 @media (max-width:1180px){.m24s-chips{overflow-x:auto;scrollbar-width:none}.m24s-chips::-webkit-scrollbar{display:none}.m24s-opt--chip{flex:none;padding-left:14px;padding-right:14px}}
+/* Teile-Finder Vorschlag B: blaue Seitenleiste + 3×3 Artikel (01.11.2026) */
+.m24s-finder.m24s-fb{display:grid;grid-template-columns:330px 1fr;grid-template-rows:auto 1fr;gap:0 3px;padding:0;background:transparent;box-shadow:none;border:0}
+.m24s-fb__head,.m24s-fb__side{grid-column:1;background:linear-gradient(160deg,#1f74c4,#0e447e);color:#fff}
+.m24s-fb__head{grid-row:1;padding:28px 26px 0}
+.m24s-fb__side{grid-row:2;padding:0 26px 26px;display:flex;flex-direction:column}
+.m24s-parts:not([hidden]){display:contents}
+.m24s-parts[hidden]{display:none!important}
+.m24s-fb .m24s-parts__res{grid-column:2;grid-row:1/3;margin:0}
+.m24s-fb .m24s-eb{color:#cfe3f6}
+.m24s-fb__ti{font:800 26px/1.1 Saira,sans-serif;margin:6px 0 22px}
+.m24s-fb__lbl{font:700 11px Saira,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#cfe3f6;margin:0 0 8px}
+.m24s-fb .m24s-types{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;background:rgba(0,0,0,.22);margin-bottom:22px}
+.m24s-fb .m24s-opt--type{border:0;background:transparent;color:#dce9f6;text-align:center;padding:9px 8px}
+.m24s-fb .m24s-opt--type b{font-size:14px}
+.m24s-fb .m24s-opt--type span{color:#a9c4e0;font-size:11px}
+.m24s-fb .m24s-opt--type.is-on{background:#fff;color:#0e447e}
+.m24s-fb .m24s-opt--type.is-on span{color:#5a7ea6}
+.m24s-fb .m24s-chips{display:grid;grid-template-columns:1fr 1fr;gap:3px;overflow:visible;margin:0;padding:0}
+.m24s-fb .m24s-opt--chip{display:flex;justify-content:space-between;align-items:center;flex:none;border:0;background:rgba(255,255,255,.1);color:#fff;text-align:left;padding:9px 12px;font:800 15px Saira,sans-serif;white-space:nowrap}
+.m24s-fb .m24s-opt--chip::after{content:'›';font-weight:600;opacity:.7}
+.m24s-fb .m24s-opt--chip:hover{background:rgba(255,255,255,.18)}
+.m24s-fb .m24s-opt--chip.is-on{background:linear-gradient(135deg,#e2bf66,#a8842f);color:#15171b}
+.m24s-fb .m24s-opt--chip.is-on::after{content:'✓'}
+.m24s-fb .m24s-opt--chip.is-soon{opacity:.4;border:0;font-size:13.5px}
+.m24s-fb .m24s-opt--chip.is-soon::after{content:'bald';font-size:12px}
+.m24s-fb__more{margin-top:auto;padding-top:22px}
+.m24s-fb .m24s-more{margin:0;color:#fff!important;text-decoration:underline;text-underline-offset:4px}
+.m24s-fb .m24s-grid{grid-template-columns:repeat(3,1fr)}
+@media (max-width:980px){.m24s-finder.m24s-fb{grid-template-columns:270px 1fr}.m24s-fb .m24s-grid{grid-template-columns:repeat(2,1fr)}.m24s-fb .m24s-grid>:nth-child(9){display:none}}
+@media (max-width:767px){.m24s-finder.m24s-fb{grid-template-columns:1fr;grid-template-rows:auto;padding:0}.m24s-fb__head{padding:22px 18px 0}.m24s-fb__side{grid-row:auto;padding:0 18px 20px}.m24s-fb .m24s-parts__res{grid-column:1;grid-row:auto;margin-top:3px}.m24s-fb__ti{font-size:22px;margin-bottom:16px}.m24s-fb__more{padding-top:16px}}
+/* Z4-Band: 3 Bilder, oben/unten ca. 15 % beschnitten */
+.m24s-z4__det{grid-template-columns:repeat(3,1fr)}
+.m24s-z4__det a{aspect-ratio:30/17}
+@media (max-width:767px){.m24s-z4__det{grid-template-columns:repeat(3,1fr)}}
