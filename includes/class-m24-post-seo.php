@@ -10,8 +10,8 @@
  *
  * Regeln – NUR wenn im wpSEO-Feld des Beitrags nichts eingetragen ist
  * (_wpseo_edit_title / _wpseo_edit_description); manuelle Eingaben haben immer Vorrang:
- *  - Verkauf (Titel beginnt mit FOR SALE/ZU VERKAUFEN/RESERVIERT … oder Kategorie
- *    „Classic Cars For Sale"):  Titel „{Fahrzeug} kaufen | MOTORSPORT24",
+ *  - Verkauf (Titel beginnt mit FOR SALE/COMING UP FOR SALE/RESERVIERT … oder Text enthält
+ *    „Verkauft wird"/„Zum Verkauf steht"/„Wir verkaufen"):  Titel „{Fahrzeug} kaufen | MOTORSPORT24",
  *    Beschreibung „Zu verkaufen: {Fahrzeug}. {Inhalt} Jetzt anfragen – Händler seit 2006 …"
  *  - Verkauft (SOLD/VERKAUFT):  Titel „{Fahrzeug} – verkauft | MOTORSPORT24",
  *    Beschreibung „Verkauft: {Fahrzeug}. {Inhalt} Ähnliches Fahrzeug gesucht? Jetzt anfragen."
@@ -27,7 +27,6 @@ class M24_Post_SEO {
 	const BRAND     = ' | MOTORSPORT24';
 	const MAX_TITLE = 65;
 	const MAX_DESC  = 158;
-	const CAT_SALE  = 443; // „Classic Cars For Sale"
 
 	public static function init() {
 		add_filter( 'wpseo_set_title', array( __CLASS__, 'title' ), 50 );
@@ -44,8 +43,10 @@ class M24_Post_SEO {
 	private static function kind( $id ) {
 		$t = trim( wp_strip_all_tags( html_entity_decode( get_the_title( $id ), ENT_QUOTES, 'UTF-8' ) ) );
 		if ( preg_match( '/^\s*(SOLD|VERKAUFT)\s*[:\-–]\s*(.+)$/iu', $t, $m ) ) { return array( 'sold', trim( $m[2] ) ); }
-		if ( preg_match( '/^\s*(FOR SALE|ZU VERKAUFEN|RESERVED|RESERVIERT)\s*[:\-–]\s*(.+)$/iu', $t, $m ) ) { return array( 'sale', trim( $m[2] ) ); }
-		if ( has_category( self::CAT_SALE, $id ) ) { return array( 'sale', $t ); }
+		if ( preg_match( '/^\s*(COMING UP FOR SALE|FOR SALE|ZU VERKAUFEN|RESERVED|RESERVIERT)\s*[:\-–]\s*(.+)$/iu', $t, $m ) ) { return array( 'sale', trim( $m[2] ) ); }
+		// Ohne Präfix: nur wenn der Text selbst ein Verkaufsangebot ist (Kategorie allein ist zu unzuverlässig).
+		$c = wp_strip_all_tags( (string) get_post_field( 'post_content', $id ) );
+		if ( preg_match( '/\b(Verkauft wird|Zum Verkauf steht|Wir verkaufen)\b/iu', $c ) ) { return array( 'sale', $t ); }
 		return array( 'blog', $t );
 	}
 
