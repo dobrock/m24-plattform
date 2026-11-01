@@ -358,4 +358,4 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-z4__det a:nth-child(1) img{object-position:50% calc(50% + 3px)}
 .m24s-z4__det a:nth-child(2) img{object-position:50% calc(50% - 3px)}
 /* Hero-Slider im Rennstrecken-Hintergrund: unten gleicher Abstand wie oben (25 px statt 48 px) */
-@media (min-width:768px){body:has(#m24-startseite) .td-big-grid-slide .td_block_big_grid_2{margin-bottom:25px!important}}
+@media (min-width:768px){body:has(#m24-startseite) .td-big-grid-slide{margin-bottom:-23px!important}}
