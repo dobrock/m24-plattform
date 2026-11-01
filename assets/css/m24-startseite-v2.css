@@ -354,3 +354,6 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-finder.m24s-fb::before{content:'';grid-column:1;grid-row:1/3;background:linear-gradient(160deg,#1f74c4,#0e447e)}
 .m24s-fb__head,.m24s-fb__side{background:none;position:relative;z-index:1}
 @media (max-width:767px){.m24s-finder.m24s-fb::before{display:none}.m24s-fb__head,.m24s-fb__side{background:#1763ad}}
+/* Z4-Bilder: Fahrzeuge auf eine Flucht ausrichten */
+.m24s-z4__det a:nth-child(1) img{object-position:50% calc(50% + 3px)}
+.m24s-z4__det a:nth-child(2) img{object-position:50% calc(50% - 3px)}
