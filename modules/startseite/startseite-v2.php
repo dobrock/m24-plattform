@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_6';
+	const CACHE_KEY = 'm24_startseite_v2_html_7';
 
 	private static $initialized = false;
 
@@ -330,7 +330,7 @@ class M24_Startseite_V2 {
 			'cab'    => self::img( '2024/03/BMW-320i-E30-Cabrio-Sterlingsilber-For-Sale_8776.jpg' ),
 		);
 		$cats = array(
-			array( $im['e30b'], 'Fahrzeuge', 'Klassische Fahrzeuge', '/classic-cars-for-sale/' ),
+			array( self::img( '2026/06/FOR-SALE-BMW-M3-E30-1989-72.webp' ), 'Fahrzeuge', 'Klassische Fahrzeuge', '/classic-cars-for-sale/' ),
 			array( $im['z4'], 'Fahrzeuge', 'Rennsport-Fahrzeuge', '/racecars-for-sale/' ),
 			array( $im['carbon'], 'Teile · passend für BMW M', 'Rennsport-Teile', '/rennsport-teile/' ),
 			array( $im['s14eng'], 'Teile · Original BMW', 'Gebrauchte BMW Teile', '/gebrauchtteile/' ),
@@ -373,7 +373,7 @@ class M24_Startseite_V2 {
 </section>
 <div class="m24s-w m24s-cats">
 	<?php foreach ( $cats as $c ) : ?>
-	<a class="m24s-ph m24s-cat" href="<?php echo esc_url( home_url( $c[3] ) ); ?>"><img src="<?php echo esc_url( $c[0] ); ?>" alt="<?php echo esc_attr( $c[2] ); ?>" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k"><?php echo esc_html( $c[1] ); ?></span><b><?php echo esc_html( $c[2] ); ?></b></span></a>
+	<a class="m24s-ph m24s-cat<?php echo 'Rennsport-Fahrzeuge' === $c[2] ? ' m24s-cat--zoom' : ''; ?>" href="<?php echo esc_url( home_url( $c[3] ) ); ?>"><img src="<?php echo esc_url( $c[0] ); ?>" alt="<?php echo esc_attr( $c[2] ); ?>" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><span class="m24s-tx__k"><?php echo esc_html( $c[1] ); ?></span><b><?php echo esc_html( $c[2] ); ?></b></span></a>
 	<?php endforeach; ?>
 </div>
 
