@@ -359,3 +359,14 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-z4__det a:nth-child(2) img{object-position:50% calc(50% - 3px)}
 /* Hero-Slider im Rennstrecken-Hintergrund: unten gleicher Abstand wie oben (25 px statt 48 px) */
 @media (min-width:768px){body:has(#m24-startseite) .td-big-grid-slide{margin-bottom:-23px!important}}
+/* Mobil (01.11.2026): Hero-Slider quer (Bild 3:2, Text darunter), Kategorie-Kacheln breiter, Z4-Bilder untereinander */
+.m24s-ms__i{height:auto;min-height:0;display:flex;flex-direction:column;background:#15171b}
+.m24s-ms__i img{height:auto;aspect-ratio:3/2;flex:none}
+.m24s-ms__sh{display:none}
+.m24s-ms__tx{position:static;padding:16px 16px 40px}
+.m24s-ms__tx b{font-size:22px}
+@media (max-width:767px){
+	.m24s-cats{margin-left:calc(10px - var(--pad));margin-right:calc(10px - var(--pad))}
+	.m24s-z4__det{grid-template-columns:1fr}
+	.m24s-z4__det a{aspect-ratio:75/34}
+}
