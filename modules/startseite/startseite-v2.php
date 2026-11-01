@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_14';
+	const CACHE_KEY = 'm24_startseite_v2_html_15';
 
 	private static $initialized = false;
 
@@ -313,7 +313,7 @@ class M24_Startseite_V2 {
 		<div class="m24s-z4__body">
 			<div class="m24s-eb m24s-eb--light">Spezialist · BMW Z4 GT3</div>
 			<h2 class="m24s-h2 m24s-h2--light">BMW Z4 GT3 – Teile, Motoren, Getriebe und Fahrzeugbau.</h2>
-			<p class="m24s-z4__p">Aus unserem umfangreichen Sortiment an BMW Z4 GT3 Neu- und Gebrauchtteilen liefern wir vom einzelnen Karosserieteil bis zum kompletten Fahrzeug. Den Aufbau kompletter Fahrzeuge sowie die Revision von Motoren und Getrieben übernehmen wir gemeinsam mit unserem Partner KK Automobile, der selbst mit dem Z4 GT3 im Rennsport aktiv ist.</p>
+			<p class="m24s-z4__p">Aus unserem umfangreichen Sortiment an BMW Z4 GT3 Neu- und Gebrauchtteilen liefern wir vom einzelnen Karosserieteil bis zum kompletten Fahrzeug. Den Aufbau kompletter Fahrzeuge sowie die Revision von Motoren und Getrieben übernehmen wir gemeinsam mit unserem Partner KK Automobile, der selbst lange Zeit mit dem Z4 GT3 im Rennsport aktiv war.</p>
 			<div class="m24s-z4__pts"><?php foreach ( $pts as $i => $p ) : ?><div class="m24s-z4__pt<?php echo $i % 2 ? ' is-blue' : ''; ?>"><b><?php echo esc_html( $p[0] ); ?></b><span><?php echo esc_html( $p[1] ); ?></span></div><?php endforeach; ?></div>
 			<div class="m24s-z4__det"><?php foreach ( $det as $d ) : ?><a href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><img src="<?php echo esc_url( $d ); ?>" alt="BMW Z4 GT3" decoding="async"></a><?php endforeach; ?></div>
 			<div class="m24s-z4__cta"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/teile/bmw-z4-gt3/' ) ); ?>"><?php echo $n ? esc_html( 'Alle ' . $n . ' Z4 GT3 Teile ansehen' ) : 'Alle Z4 GT3 Teile ansehen'; ?></a><a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Z4 GT3 Projekt anfragen</a></div>
