@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_5';
+	const CACHE_KEY = 'm24_startseite_v2_html_6';
 
 	private static $initialized = false;
 
@@ -368,7 +368,7 @@ class M24_Startseite_V2 {
 		<div class="m24s-hero__25 m24s-gold">25</div>
 		<h2 class="m24s-hero__h">Jahre Erfahrung in BMW Rennsport &amp; Klassik</h2>
 		<p class="m24s-hero__lead">Klassische BMW, Rennfahrzeuge und Rennsport-Teile passend für BMW M Modelle – international seit 2006.</p>
-		<div class="m24s-hero__btns"><a class="m24s-btn" href="<?php echo esc_url( home_url( '/classic-cars-for-sale/' ) ); ?>">Fahrzeuge ansehen</a><a class="m24s-btn m24s-btn--glass" href="<?php echo esc_url( home_url( '/rennsport-teile/' ) ); ?>">Teile finden</a></div>
+		<div class="m24s-hero__btns"><a class="m24s-btn m24s-btn--hero" href="#m24s-angebot">Fahrzeuge ansehen</a><a class="m24s-btn m24s-btn--glass m24s-btn--hero" href="#m24s-teile">Teile finden</a></div>
 	</div>
 </section>
 <div class="m24s-w m24s-cats">
@@ -377,7 +377,7 @@ class M24_Startseite_V2 {
 	<?php endforeach; ?>
 </div>
 
-<section class="m24s-dark m24s-slider">
+<section class="m24s-dark m24s-slider" id="m24s-angebot">
 	<div class="m24s-w">
 		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Fahrzeuge mit Geschichte</h2></div>
 			<div class="m24s-arrows"><button type="button" class="m24s-arr" data-dir="-1" aria-label="Zurück">←</button><button type="button" class="m24s-arr m24s-arr--gold" data-dir="1" aria-label="Weiter">→</button></div></div>
@@ -394,7 +394,7 @@ class M24_Startseite_V2 {
 	</div>
 </section>
 
-<section class="m24s-sec">
+<section class="m24s-sec" id="m24s-teile">
 	<div class="m24s-w">
 		<div class="m24s-intro"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
 			<p class="m24s-lead">Neue Rennsport-Teile von KK Automobile und gebrauchte Original-Teile – wählen Sie die Teile-Art und Ihr Modell, wir zeigen Ihnen passende Artikel aus unserem Katalog.</p></div>
