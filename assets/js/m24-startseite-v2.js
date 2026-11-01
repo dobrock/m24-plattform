@@ -43,11 +43,14 @@
 		var mark = function () { var i = idx(); dots.forEach(function (d, n) { d.classList.toggle('is-on', n === i); }); };
 		mark();
 		mt.addEventListener('scroll', function () { window.requestAnimationFrame(mark); }, { passive: true });
-		var auto = setInterval(function () {
+		/* Alle 5 s weiter; bei Berührung kurz pausieren, danach automatisch weiter */
+		var pause = 0;
+		setInterval(function () {
+			if (Date.now() < pause || document.hidden) { return; }
 			var n = idx() + 1; if (n >= dots.length) { n = 0; }
 			mt.scrollTo({ left: n * mt.clientWidth, behavior: 'smooth' });
 		}, 5000);
-		mt.addEventListener('touchstart', function () { clearInterval(auto); }, { passive: true });
+		mt.addEventListener('touchstart', function () { pause = Date.now() + 8000; }, { passive: true });
 	}
 })();
 /* Hero-Buttons: weich zum Ziel scrollen (01.11.2026) */
