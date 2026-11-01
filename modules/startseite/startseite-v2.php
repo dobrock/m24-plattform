@@ -39,21 +39,28 @@ class M24_Startseite_V2 {
 	}
 
 	public static function enqueue_on_preview() {
-		if ( self::is_preview() ) {
+		if ( self::is_v2_page() ) {
 			wp_enqueue_style( 'm24-startseite-v2' );
 			wp_enqueue_script( 'm24-startseite-v2' );
 		}
 	}
 
 	public static function mobile_template( $template ) {
-		if ( self::is_preview() && ( wp_is_mobile() || isset( $_GET['m24_mobil'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification — ?m24_mobil = Testansicht
+		if ( self::is_v2_page() && ( wp_is_mobile() || isset( $_GET['m24_mobil'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification — ?m24_mobil = Testansicht
 			$t = __DIR__ . '/startseite-v2-mobile-template.php';
 			if ( file_exists( $t ) ) { return $t; }
 		}
 		return $template;
 	}
 
-	/** Seite mit dem Shortcode, die NICHT die Startseite ist (= Vorschau). */
+	/** Seite mit dem Shortcode – Vorschau ODER echte Startseite (Assets + Mobil-Template). */
+	private static function is_v2_page() {
+		if ( ! is_singular( 'page' ) && ! is_front_page() ) { return false; }
+		$p = get_queried_object();
+		return $p && isset( $p->post_content ) && has_shortcode( $p->post_content, 'm24_startseite_v2' );
+	}
+
+	/** Seite mit dem Shortcode, die NICHT die Startseite ist (= Vorschau, noindex). */
 	private static function is_preview() {
 		if ( ! is_singular( 'page' ) || is_front_page() ) { return false; }
 		$p = get_queried_object();
