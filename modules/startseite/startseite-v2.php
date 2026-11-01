@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_20';
+	const CACHE_KEY = 'm24_startseite_v2_html_21';
 
 	private static $initialized = false;
 
@@ -302,7 +302,7 @@ class M24_Startseite_V2 {
 		$pts    = array(
 			array( 'Komplettfahrzeuge', 'Kompletter BMW Z4 GT3 aus unserem Teilebestand aufgebaut – bis zum rennfertigen Fahrzeug.' ),
 			array( 'P65-Motor & Xtrac-Getriebe', 'Revision oder komplette Aggregate – Hubraum-Kit 4,4 l, Nockenwellen, Ölpumpen und Getriebe-Ersatzteile.' ),
-			array( 'Karosserie & Bodykit', 'Alle Karosserieteile für den BMW Z4 GT3 – vom einzelnen Längsträger, Kotflügel oder der Motorhaube bis zum kompletten Bodykit-Paket. Neu- und Gebrauchtteile ab Lager, sofort verfügbar und weltweit versandbereit.' ),
+			array( 'Karosserie & Bodykit', 'Alle Karosserieteile – vom einzelnen Längsträger, Kotflügel oder der Motorhaube bis zum kompletten Bodykit-Paket. Neu- und Gebrauchtteile ab Lager, sofort verfügbar und weltweit versandbereit.' ),
 		);
 		ob_start();
 		?>
