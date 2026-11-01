@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_7';
+	const CACHE_KEY = 'm24_startseite_v2_html_8';
 
 	private static $initialized = false;
 
@@ -153,15 +153,23 @@ class M24_Startseite_V2 {
 		$sold  = array();
 		foreach ( $ids as $id ) {
 			if ( ! has_post_thumbnail( $id ) ) { continue; }
+			if ( ! self::is_bmw( $id ) ) { continue; } // Startseite: nur BMW (keine Fremdmarken)
 			$st = class_exists( 'M24FZ_CPT' ) ? M24FZ_CPT::status( $id ) : 'gelistet';
 			if ( 'verkauft' === $st ) { $sold[] = array( $id, $st ); }
 			elseif ( in_array( $st, array( 'gelistet', 'reserviert' ), true ) ) { $avail[] = array( $id, $st ); }
 		}
-		$list = array_slice( $avail, 0, 10 );
+		$list = array_slice( $avail, 0, 16 ); // Reihenfolge mischt das JS bei jedem Laden
 		if ( count( $list ) < 8 ) {
 			$list = array_merge( $list, array_slice( $sold, 0, 8 - count( $list ) ) );
 		}
 		return $list;
+	}
+
+	/** BMW-Fahrzeug? Marke-Feld, sonst Titel. */
+	private static function is_bmw( $id ) {
+		$marke = strtolower( trim( (string) get_post_meta( $id, '_m24fz_marke', true ) ) );
+		if ( '' !== $marke ) { return false !== strpos( $marke, 'bmw' ) || false !== strpos( $marke, 'alpina' ); }
+		return (bool) preg_match( '/\b(bmw|alpina)\b/i', get_the_title( $id ) );
 	}
 
 	/** Term-IDs der Modell-Taxonomie, deren Name den Schlüssel enthält (z. B. „E30"). */
@@ -388,7 +396,7 @@ class M24_Startseite_V2 {
 				$sub = array_filter( array( get_post_meta( $vid, '_m24fz_baujahr', true ), $ps ? $ps . ' PS' : '' ) );
 				$tag = ( 'verkauft' === $st ) ? array( 'sold', 'Verkauft' ) : ( ( 'reserviert' === $st ) ? array( 'res', 'Reserviert' ) : array( '', 'Verfügbar' ) );
 				?>
-			<a class="m24s-car" href="<?php echo esc_url( get_permalink( $vid ) ); ?>"><span class="m24s-car__im"><?php echo get_the_post_thumbnail( $vid, 'large', array( 'alt' => esc_attr( get_the_title( $vid ) ) ) ); ?><span class="m24s-tag <?php echo esc_attr( $tag[0] ); ?>"><?php echo esc_html( $tag[1] ); ?></span></span><b><?php echo esc_html( get_the_title( $vid ) ); ?></b><span class="m24s-car__sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></span></a>
+			<a class="m24s-car<?php echo 'verkauft' === $st ? ' is-sold' : ''; ?>" href="<?php echo esc_url( get_permalink( $vid ) ); ?>"><span class="m24s-car__im"><?php echo get_the_post_thumbnail( $vid, 'large', array( 'alt' => esc_attr( get_the_title( $vid ) ) ) ); ?><span class="m24s-tag <?php echo esc_attr( $tag[0] ); ?>"><?php echo esc_html( $tag[1] ); ?></span></span><b><?php echo esc_html( get_the_title( $vid ) ); ?></b><span class="m24s-car__sub"><?php echo esc_html( implode( ' · ', $sub ) ); ?></span></a>
 			<?php endforeach; ?>
 		</div>
 	</div>
