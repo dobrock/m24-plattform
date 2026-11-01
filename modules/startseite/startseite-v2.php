@@ -33,6 +33,8 @@ class M24_Startseite_V2 {
 		add_action( 'template_redirect', array( __CLASS__, 'noindex_header' ) );
 		add_filter( 'wp_robots', array( __CLASS__, 'noindex_meta' ), PHP_INT_MAX );
 		add_filter( 'm24_sitemap_exclude_urls', array( __CLASS__, 'sitemap_exclude' ) );
+		// Live seit 01.11.2026: Meta-Beschreibung der bisherigen Startseite (Seite 15053) übernehmen, solange die neue keine eigene hat.
+		add_filter( 'wpseo_set_desc', array( __CLASS__, 'front_desc' ), 60 );
 		// tagDiv-Mobil-Theme gibt Composer-Seiten ohne Inhalt aus → auf Mobilgeräten eigenes Mini-Template.
 		add_filter( 'template_include', array( __CLASS__, 'mobile_template' ), 99 );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_on_preview' ), 20 );
@@ -78,6 +80,14 @@ class M24_Startseite_V2 {
 			$robots['nofollow'] = true;
 		}
 		return $robots;
+	}
+
+	public static function front_desc( $desc ) {
+		if ( ! is_front_page() ) { return $desc; }
+		$own = trim( (string) get_post_meta( (int) get_option( 'page_on_front' ), '_wpseo_edit_description', true ) );
+		if ( '' !== $own ) { return $desc; }
+		$old = trim( (string) get_post_meta( 15053, '_wpseo_edit_description', true ) );
+		return '' !== $old ? $old : $desc;
 	}
 
 	public static function sitemap_exclude( $urls ) {
