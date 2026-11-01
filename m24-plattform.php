@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.609
+ * Version:           0.11.610
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -236,6 +236,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-feed.php';     // Teil
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-plattformen.php'; // Veroeffentlicht auf: m24 / s14 / Kleinanzeigen (30.10.2026)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-og.php';       // Open-Graph/Twitter (eine Quelle, ersetzt WPCode-Snippets)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-post-og.php';    // Open-Graph/Twitter fuer regulaere Beitraege (wpSEO liefert dort keins)
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-post-seo.php';   // SEO-Titel/-Beschreibung für Beiträge (Verkauf vs. Blog), nur ohne wpSEO-Eingabe
 require_once M24_PLATTFORM_DIR . 'inc/detail-original-badge.php';        // „Original BMW-Teil"-Badge (Markenrecht), reiner Helfer
 
 // Gemeinsames Anfrage-Formular-Partial (eine Quelle für beide Modals — Teile + Fahrzeug).
@@ -380,6 +381,7 @@ add_action( 'plugins_loaded', function() {
     M24_Catalog_OG::init();
     M24_Catalog_Feed::init();
     M24_Post_OG::init();
+    M24_Post_SEO::init();
     M24_Inquiry_Submit::init();
     M24_Inquiry_Recorder::init(); // beobachtet POST /inquiry, aendert die Verarbeitung nicht
     M24_Inquiry_Frontend::init();
