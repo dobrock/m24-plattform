@@ -375,3 +375,5 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-z4__pt{border-left:0;border-top:3px solid var(--gold2);padding:16px 16px 18px}
 .m24s-z4__pt.is-blue{border-top-color:#1f74c4}
 @media (max-width:767px){.m24s-z4__pts{grid-template-columns:1fr}}
+/* Mobil: Kategorie-Kacheln größer, Randabstand = Fuge (3 px) */
+@media (max-width:767px){.m24s-cats{padding-left:3px;padding-right:3px}.m24s-cats .m24s-cat{aspect-ratio:4/3}}
