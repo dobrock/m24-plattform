@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_15';
+	const CACHE_KEY = 'm24_startseite_v2_html_16';
 
 	private static $initialized = false;
 
@@ -300,9 +300,8 @@ class M24_Startseite_V2 {
 		$bodykit = self::img( '2025/02/BMW-Z4-GT3-Body-Parts-23.jpg', 'large' );
 		$det    = array_map( array( __CLASS__, 'img' ), array( '2026/11/Z4-GT3_2295.webp', '2017/03/BMW-Z4-GT3_3049.jpg', '2023/06/IMG_6896.jpg' ) );
 		$pts    = array(
-			array( 'Komplettfahrzeuge', 'Aufbau kompletter BMW Z4 GT3 – vom Chassis bis zum rennfertigen Fahrzeug.' ),
-			array( 'P65-Motoren', 'Revision und komplette Motoren, Hubraum-Kit 4,4 l, Nockenwellen, Ölpumpen.' ),
-			array( 'Getriebe', 'Xtrac-Getriebe revidiert oder komplett – inklusive Ersatzteile.' ),
+			array( 'Komplettfahrzeuge', 'Kompletter BMW Z4 GT3 aus unserem Teilebestand aufgebaut – bis zum rennfertigen Fahrzeug.' ),
+			array( 'P65-Motor & Xtrac-Getriebe', 'Revision oder komplette Aggregate – Hubraum-Kit 4,4 l, Nockenwellen, Ölpumpen und Getriebe-Ersatzteile.' ),
 			array( 'Karosserie & Bodykit', 'Alle Karosserieteile bis zum kompletten Bodykit-Paket ab Lager.' ),
 		);
 		ob_start();
@@ -336,7 +335,7 @@ class M24_Startseite_V2 {
 			's14eng' => self::img( '2025/09/BMW-M3-E30-S14-Engine-For-Sale-24.jpg' ),
 			'gtr'    => self::img( '2025/07/BMW-E36-GTR-M3-E46-GTR-M4-GTR-12.jpg' ),
 			'dtmeng' => self::img( '2025/10/S14-DTM-1992-12.jpg' ),
-			'dtm'    => self::img( '2025/11/BMW-E36-DTM-Tourenwagen-Jaegermeister-57.jpg' ),
+			'resto'  => self::img( '2024/02/Alpina-B6-E21_4205.jpg' ),
 			'cab'    => self::img( '2024/03/BMW-320i-E30-Cabrio-Sterlingsilber-For-Sale_8776.jpg' ),
 		);
 		$cats = array(
@@ -432,7 +431,7 @@ class M24_Startseite_V2 {
 		<div class="m24s-bau__img">
 			<div class="m24s-ph m24s-ph--wide"><img src="<?php echo esc_url( $im['gtr'] ); ?>" alt="Fahrzeugbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b>Fahrzeugbau</b><span>BMW M · Gruppe A · DTM · GTR</span></span></div>
 			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtmeng'] ); ?>" alt="Motorenbau" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Motorenbau</b></span></div>
-			<div class="m24s-ph"><img src="<?php echo esc_url( $im['dtm'] ); ?>" alt="Restauration" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
+			<div class="m24s-ph"><img src="<?php echo esc_url( $im['resto'] ); ?>" alt="Restauration BMW E21 Alpina B6" decoding="async"><span class="m24s-sh"></span><span class="m24s-tx"><b class="m24s-sm">Restauration</b></span></div>
 		</div>
 		<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
 		</div>

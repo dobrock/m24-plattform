@@ -370,3 +370,8 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 	.m24s-z4__det{grid-template-columns:1fr}
 	.m24s-z4__det a{aspect-ratio:75/34}
 }
+/* Z4-Band: 3 Punkte nebeneinander, Linie oben (bewusst anders als der Fahrzeugbau-Block) */
+.m24s-z4__pts{grid-template-columns:repeat(3,1fr)}
+.m24s-z4__pt{border-left:0;border-top:3px solid var(--gold2);padding:16px 16px 18px}
+.m24s-z4__pt.is-blue{border-top-color:#1f74c4}
+@media (max-width:767px){.m24s-z4__pts{grid-template-columns:1fr}}
