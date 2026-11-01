@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_16';
+	const CACHE_KEY = 'm24_startseite_v2_html_17';
 
 	private static $initialized = false;
 
@@ -436,7 +436,7 @@ class M24_Startseite_V2 {
 		<div class="m24s-svc"><?php foreach ( $svc as $s ) : ?><div class="m24s-card m24s-svc__i"><span class="m24s-gold m24s-svc__n"><?php echo esc_html( $s[0] ); ?></span><b><?php echo esc_html( $s[1] ); ?></b><p><?php echo esc_html( $s[2] ); ?></p></div><?php endforeach; ?></div>
 		</div>
 		<div class="m24s-bau__foot">
-			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb <b>KK Automobile</b> in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
+			<p class="m24s-kk">Ausgeführt von unserem langjährigen Partnerbetrieb KK Automobile in Kalefeld – MOTORSPORT24 ist Ihr Ansprechpartner für Beratung, Angebot und Abwicklung.</p>
 			<a class="m24s-btn m24s-btn--dark" href="<?php echo esc_url( home_url( '/kontakt/' ) ); ?>">Projekt anfragen</a>
 		</div>
 	</div>
