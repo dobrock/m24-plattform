@@ -348,3 +348,5 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-z4__det{grid-template-columns:repeat(3,1fr)}
 .m24s-z4__det a{aspect-ratio:30/17}
 @media (max-width:767px){.m24s-z4__det{grid-template-columns:repeat(3,1fr)}}
+/* Artikel-Titel max. 2 Zeilen mit … */
+.m24s-prod b{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
