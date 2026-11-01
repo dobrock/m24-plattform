@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_17';
+	const CACHE_KEY = 'm24_startseite_v2_html_18';
 
 	private static $initialized = false;
 
@@ -351,10 +351,10 @@ class M24_Startseite_V2 {
 			array( '04', 'Saisonbetreuung & Prüfstand', 'Abstimmung auf dem Leistungsprüfstand und auf Wunsch Renn-Team-Betreuung über die gesamte Saison.' ),
 		);
 		$tl = array(
-			array( '2001', 's14motorsport.de', 'Gründung von s14motorsport.de – der Ursprung, aus dem später MOTORSPORT24 und s14.de entstanden sind.' ),
+			array( '2001', 's14motorsport.de', 'Mit s14motorsport.de fängt alles an – heute sind MOTORSPORT24 und s14.de daraus gewachsen.' ),
 			array( '2006', 'MOTORSPORT24', 'Exklusiver Vertrieb der Rennsport-Teile von KK Automobile – für anspruchsvolle Kunden in aller Welt.' ),
 			array( 'Fahrzeugbau', 'BMW M · Gruppe A · DTM · GTR', 'Aufbau und Restauration historischer Renn- und Straßenfahrzeuge – von der Konzeption bis zur Fertigung.' ),
-			array( 'Weltweit', 'Verkauf & Versand', 'Teile und Fahrzeuge für Kunden weltweit – als Komplettlösung, im geschlossenen Trailer oder per Container.' ),
+			array( 'Weltweit', 'Verkauf & Versand', 'Internationaler Verkauf von Teilen und Fahrzeugen – inklusive weltweiter Logistik- und Zoll-Lösungen.' ),
 			array( '2026', 's14.de', 'Gründungspartner von s14.de, dem Marktplatz für die klassischen BMW E-Baureihen von 1966 bis 2009.' ),
 		);
 		$feats = array(
