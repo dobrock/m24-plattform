@@ -388,3 +388,7 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 }
 /* iOS Safari: aspect-ratio greift im Grid nicht → Höhe über padding-top (4:5) */
 @media (max-width:767px){.m24s-z4__pic{aspect-ratio:auto!important;height:0!important;min-height:0!important;padding-top:125%!important;align-self:start}}
+/* Fahrzeugbau-Bilder: Spalten dürfen nicht durch große Bilder breiter werden (Restaurationsbild lief rechts raus) */
+.m24s-bau__img{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.m24s-bau__img .m24s-ph{min-width:0}
+.m24s-bau__img .m24s-ph img{max-width:100%}
