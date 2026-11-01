@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_13';
+	const CACHE_KEY = 'm24_startseite_v2_html_14';
 
 	private static $initialized = false;
 
@@ -264,7 +264,7 @@ class M24_Startseite_V2 {
 		foreach ( $models as $key => $m ) {
 			$terms     = self::model_terms( $m[1] );
 			$all_terms = array_merge( $all_terms, $terms );
-			$ids       = self::parts( $typ, $terms, false, 9 );
+			$ids       = self::parts( $typ, $terms, false, ( 'neu' === $typ ) ? 9 : 6 ); // Gebrauchtteile: 2 Zeilen
 			if ( $ids ) { $add( $key, $m[0], $ids, $m[2], 'Alle Teile für ' . $m[0] ); }
 		}
 		// M3/M4 G8x: Artikel folgen – Chip sichtbar, aber noch nicht klickbar.
