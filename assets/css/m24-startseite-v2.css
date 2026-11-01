@@ -366,7 +366,7 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-ms__tx{position:static;padding:16px 16px 40px}
 .m24s-ms__tx b{font-size:22px}
 @media (max-width:767px){
-	.m24s-cats{margin-left:calc(10px - var(--pad));margin-right:calc(10px - var(--pad))}
+	.m24s-cats{padding-left:10px;padding-right:10px}
 	.m24s-z4__det{grid-template-columns:1fr}
 	.m24s-z4__det a{aspect-ratio:75/34}
 }
