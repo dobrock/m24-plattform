@@ -215,17 +215,100 @@ class M24FZ_SEO {
 		return M24FZ_CPT::is_disabled( get_queried_object_id() ) ? 'noindex, follow' : 'index, follow';
 	}
 
-	/** Title/Desc über die bestehende M24-Pipeline (post_title, 75-Limit, Cascade). */
+	/**
+	 * Verkaufsinserate kaufoptimiert (01.11.2026): Kaufabsicht („kaufen"/„Zu verkaufen") in Title +
+	 * Description, Eckdaten + Preis + Handlungsaufforderung. Status reserviert/verkauft ohne Kaufwort.
+	 */
 	public static function title( $title ) {
-		if ( ! is_singular( M24FZ_CPT::PT ) || ! class_exists( 'M24_Catalog_SEO' ) ) { return $title; }
-		return M24_Catalog_SEO::build_title( get_the_title( get_queried_object_id() ), 'neu' );
+		if ( ! is_singular( M24FZ_CPT::PT ) ) { return $title; }
+		return self::sale_title( get_queried_object_id() );
 	}
 	public static function desc( $desc ) {
-		if ( ! is_singular( M24FZ_CPT::PT ) || ! class_exists( 'M24_Catalog_SEO' ) ) { return $desc; }
-		$id  = get_queried_object_id();
-		$sum = trim( wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) ) );
-		if ( '' !== $sum ) { $sum = preg_replace( '/\s+/', ' ', $sum ); return mb_strlen( $sum ) > 155 ? rtrim( mb_substr( $sum, 0, 154 ) ) . '…' : $sum; }
-		return M24_Catalog_SEO::build_desc( get_the_title( $id ), 'neu' );
+		if ( ! is_singular( M24FZ_CPT::PT ) ) { return $desc; }
+		return self::sale_desc( get_queried_object_id() );
+	}
+
+	private static function clean_title( $id ) {
+		return trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( html_entity_decode( (string) get_the_title( $id ), ENT_QUOTES, 'UTF-8' ) ) ) );
+	}
+
+	/** Effektiver Preis als „129.900 €" oder '' (auf Anfrage / kein Preis). */
+	private static function price_label( $id ) {
+		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) { return ''; }
+		$preis = (int) get_post_meta( $id, '_m24fz_preis', true );
+		$red   = (int) get_post_meta( $id, '_m24fz_preis_reduziert', true );
+		$eff   = ( $red > 0 && $red < $preis ) ? $red : $preis;
+		if ( $eff <= 0 ) { return ''; }
+		$cur = ( 'CHF' === strtoupper( (string) get_post_meta( $id, '_m24fz_waehrung', true ) ) ) ? 'CHF' : '€';
+		return number_format( $eff, 0, ',', '.' ) . ' ' . $cur;
+	}
+
+	public static function sale_title( $id ) {
+		$t  = self::clean_title( $id );
+		$st = (string) M24FZ_CPT::status( $id );
+		$bj = trim( (string) get_post_meta( $id, '_m24fz_baujahr', true ) );
+		if ( 'verkauft' === $st ) {
+			$variants = array( $t . ' – verkauft | MOTORSPORT24', $t . ' – verkauft', $t );
+		} elseif ( 'reserviert' === $st ) {
+			$variants = array( $t . ' – reserviert | MOTORSPORT24', $t . ' – reserviert', $t );
+		} else {
+			$variants = array();
+			if ( '' !== $bj && false === strpos( $t, $bj ) ) { $variants[] = $t . ' (' . $bj . ') kaufen | MOTORSPORT24'; }
+			$variants[] = $t . ' kaufen | MOTORSPORT24';
+			$variants[] = $t . ' kaufen';
+			$variants[] = $t;
+		}
+		foreach ( $variants as $v ) {
+			if ( mb_strlen( $v ) <= 62 ) { return $v; }
+		}
+		return end( $variants );
+	}
+
+	public static function sale_desc( $id ) {
+		$t   = self::clean_title( $id );
+		$st  = (string) M24FZ_CPT::status( $id );
+		$max = 158;
+		$g   = function ( $k ) use ( $id ) { return trim( wp_strip_all_tags( (string) get_post_meta( $id, $k, true ) ) ); };
+		$facts = array();
+		$bj = $g( '_m24fz_baujahr' );
+		if ( '' === $bj ) { $bj = $g( '_m24fz_erstzulassung' ); }
+		if ( '' !== $bj ) { $facts[] = 'Baujahr ' . $bj; }
+		if ( class_exists( 'M24FZ_Telemetry' ) ) {
+			$lauf = M24FZ_Telemetry::laufleistung( $g( '_m24fz_laufleistung' ), $g( '_m24fz_laufleistung_einheit' ) );
+			if ( '' !== $lauf ) { $facts[] = $lauf; }
+			$leis = M24FZ_Telemetry::leistung_label( $g( '_m24fz_leistung_ps' ) );
+			if ( '' !== $leis ) { $facts[] = $leis; }
+		}
+		if ( (int) get_post_meta( $id, '_m24fz_matching_numbers', true ) ) { $facts[] = 'Matching Numbers'; }
+		$kf = get_post_meta( $id, '_m24fz_keyfacts', true );
+		if ( is_array( $kf ) ) {
+			foreach ( $kf as $fact ) {
+				$fact = trim( wp_strip_all_tags( (string) $fact ) );
+				if ( '' !== $fact ) { $facts[] = $fact; }
+				if ( count( $facts ) >= 6 ) { break; }
+			}
+		}
+		if ( 'verkauft' === $st ) {
+			$lead = 'Verkauft: ' . $t . '.';
+			$tail = ' Ähnliche Fahrzeuge gesucht? MOTORSPORT24 – seit 2006.';
+		} elseif ( 'reserviert' === $st ) {
+			$lead = 'Reserviert: ' . $t . '.';
+			$tail = ' Jetzt auf die Warteliste setzen lassen – MOTORSPORT24.';
+		} else {
+			$p    = self::price_label( $id );
+			$lead = 'Zu verkaufen: ' . $t . ( '' !== $p ? ' für ' . $p : '' ) . '.';
+			$tail = ' Jetzt anfragen – Händler seit 2006, weltweiter Transport.';
+		}
+		// Fakten von hinten opfern, bis Lead + Fakten + CTA passen; dann CTA kürzen.
+		while ( true ) {
+			$mid = $facts ? ' ' . implode( ' · ', $facts ) . '.' : '';
+			$out = $lead . $mid . $tail;
+			if ( mb_strlen( $out ) <= $max || ! $facts ) { break; }
+			array_pop( $facts );
+		}
+		if ( mb_strlen( $out ) > $max ) { $out = $lead . ' Jetzt anfragen.'; }
+		if ( mb_strlen( $out ) > $max ) { $out = rtrim( mb_substr( $out, 0, $max - 1 ) ) . '…'; }
+		return $out;
 	}
 
 	/** JSON-LD Vehicle/Car + Offer + BreadcrumbList. */
