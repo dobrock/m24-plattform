@@ -386,3 +386,5 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 	.m24s-z4__det a:not(:nth-child(3)){display:none}
 	.m24s-z4__det a{aspect-ratio:3/2}
 }
+/* iOS Safari: aspect-ratio greift im Grid nicht → Höhe über padding-top (4:5) */
+@media (max-width:767px){.m24s-z4__pic{aspect-ratio:auto!important;height:0!important;min-height:0!important;padding-top:125%!important;align-self:start}}
