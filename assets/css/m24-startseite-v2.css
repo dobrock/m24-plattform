@@ -392,3 +392,6 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 .m24s-bau__img{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 .m24s-bau__img .m24s-ph{min-width:0}
 .m24s-bau__img .m24s-ph img{max-width:100%}
+/* Ursache: min-height 140 px × Seitenverhältnis 3:2 erzwang 210 px Breite → Breite fest auf die Spalte */
+.m24s-bau__img .m24s-ph{width:100%!important;align-self:start}
+@media (max-width:980px){.m24s-bau__img .m24s-ph{height:auto!important}}
