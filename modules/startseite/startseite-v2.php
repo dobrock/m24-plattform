@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_12';
+	const CACHE_KEY = 'm24_startseite_v2_html_13';
 
 	private static $initialized = false;
 
@@ -407,7 +407,7 @@ class M24_Startseite_V2 {
 <section class="m24s-sec" id="m24s-teile">
 	<div class="m24s-w">
 		<div class="m24s-intro"><div class="m24s-eb">Teile</div><h2 class="m24s-h2">Rennsport-Teile &amp; gebrauchte BMW M Teile</h2>
-			<p class="m24s-lead">Neue Rennsport-Teile und gebrauchte Original-Teile – wählen Sie die Teile-Art und Ihr Modell, wir zeigen Ihnen passende Artikel aus unserem Katalog.</p></div>
+			<p class="m24s-lead">Neue Rennsport-Teile passend für BMW M Modelle und ausgewählte gebrauchte Original-Teile – wählen Sie die Teile-Art und Ihr Modell, wir zeigen Ihnen passende Artikel aus unserem Katalog.</p></div>
 		<div class="m24s-finder m24s-fb">
 			<div class="m24s-fb__head">
 				<div class="m24s-eb">Teile-Finder</div><div class="m24s-fb__ti">Ihr Teil in zwei Schritten</div>
