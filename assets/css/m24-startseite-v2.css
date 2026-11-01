@@ -309,3 +309,8 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 /* Kategorie „Rennsport-Fahrzeuge": Bild 10 % näher */
 .m24s-cat--zoom img{transform:scale(1.1)}
 .m24s-cat--zoom:hover img{transform:scale(1.14)}
+/* Modell-Chips in einer Zeile, G8x noch inaktiv (01.11.2026) */
+.m24s-chips{flex-wrap:nowrap}
+.m24s-opt--chip{flex:1 1 0;min-width:0;white-space:nowrap;text-align:center;padding-left:8px;padding-right:8px}
+.m24s-opt--chip.is-soon{opacity:.45;cursor:default;pointer-events:none;border-style:dashed}
+@media (max-width:1180px){.m24s-chips{overflow-x:auto;scrollbar-width:none}.m24s-chips::-webkit-scrollbar{display:none}.m24s-opt--chip{flex:none;padding-left:14px;padding-right:14px}}

@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_9';
+	const CACHE_KEY = 'm24_startseite_v2_html_10';
 
 	private static $initialized = false;
 
@@ -245,9 +245,9 @@ class M24_Startseite_V2 {
 			'e36' => array( 'M3 E36', 'E36', '/teile/bmw-m3-e36/' ),
 			'e46' => array( 'M3 E46', 'E46', '/teile/bmw-m3-e46/' ),
 			'e9x' => array( 'M3 E9x', 'E9', '/teile/bmw-m3-e9x/' ),
+			'z4'  => array( 'Z4 GT3', 'GT3', '/teile/bmw-z4-gt3/' ),
 			'f82' => array( 'M4 F82', 'F82', '/rennsport-teile-passend-fur-f82/' ),
 			'f87' => array( 'M2 F87', 'F87', '/rennsport-teile-passend-fur-f87-f22/' ),
-			'z4'  => array( 'Z4 GT3', 'GT3', '/teile/bmw-z4-gt3/' ),
 		);
 		$chips     = '';
 		$grids     = '';
@@ -266,8 +266,8 @@ class M24_Startseite_V2 {
 			$ids       = self::parts( $typ, $terms );
 			if ( $ids ) { $add( $key, $m[0], $ids, $m[2], 'Alle Teile für ' . $m[0] ); }
 		}
-		$other = self::parts( $typ, array_values( array_unique( $all_terms ) ), true );
-		if ( $other ) { $add( 'sonst', 'Sonstige BMW M', $other, $archive, ( 'neu' === $typ ) ? 'Alle Rennsport-Teile' : 'Alle Gebrauchtteile' ); }
+		// M3/M4 G8x: Artikel folgen – Chip sichtbar, aber noch nicht klickbar.
+		$chips .= '<span class="m24s-opt m24s-opt--chip is-soon" aria-disabled="true" title="Artikel folgen in Kürze">M3/M4 G8x</span>';
 		return sprintf(
 			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-finder__row m24s-finder__row--chips"><span class="m24s-step"><i>2</i>Modell wählen</span><div class="m24s-chips">%3$s</div></div><div class="m24s-parts__res">%4$s</div></div>',
 			esc_attr( $typ ),
@@ -387,7 +387,7 @@ class M24_Startseite_V2 {
 
 <section class="m24s-dark m24s-slider" id="m24s-angebot">
 	<div class="m24s-w">
-		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Unsere Auswahl an BMW Klassikern, Rennfahrzeugen und Sportwagen</h2></div>
+		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Klassische BMW, Rennfahrzeuge &amp; Sportwagen</h2></div>
 			<div class="m24s-arrows"><button type="button" class="m24s-arr" data-dir="-1" aria-label="Zurück">←</button><button type="button" class="m24s-arr m24s-arr--gold" data-dir="1" aria-label="Weiter">→</button></div></div>
 		<div class="m24s-track">
 			<?php foreach ( self::vehicles() as $v ) :
