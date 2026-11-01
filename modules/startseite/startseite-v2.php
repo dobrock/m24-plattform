@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_8';
+	const CACHE_KEY = 'm24_startseite_v2_html_9';
 
 	private static $initialized = false;
 
@@ -387,7 +387,7 @@ class M24_Startseite_V2 {
 
 <section class="m24s-dark m24s-slider" id="m24s-angebot">
 	<div class="m24s-w">
-		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Fahrzeuge mit Geschichte</h2></div>
+		<div class="m24s-head"><div><div class="m24s-eb m24s-eb--light">Aktuell im Angebot</div><h2 class="m24s-h2 m24s-h2--light">Unsere Auswahl an BMW Klassikern, Rennfahrzeugen und Sportwagen</h2></div>
 			<div class="m24s-arrows"><button type="button" class="m24s-arr" data-dir="-1" aria-label="Zurück">←</button><button type="button" class="m24s-arr m24s-arr--gold" data-dir="1" aria-label="Weiter">→</button></div></div>
 		<div class="m24s-track">
 			<?php foreach ( self::vehicles() as $v ) :
