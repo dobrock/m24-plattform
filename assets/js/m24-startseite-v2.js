@@ -3,6 +3,13 @@
 	var root = document.getElementById('m24-startseite');
 	if (root) {
 		var track = root.querySelector('.m24s-track');
+		/* Fahrzeuge bei jedem Laden zufällig mischen; verkaufte bleiben hinten */
+		if (track) {
+			var cars = Array.prototype.slice.call(track.querySelectorAll('.m24s-car'));
+			var frei = cars.filter(function (c) { return !c.classList.contains('is-sold'); });
+			for (var i = frei.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = frei[i]; frei[i] = frei[j]; frei[j] = t; }
+			frei.concat(cars.filter(function (c) { return c.classList.contains('is-sold'); })).forEach(function (c) { track.appendChild(c); });
+		}
 		root.querySelectorAll('.m24s-arr').forEach(function (b) {
 			b.addEventListener('click', function () {
 				if (!track) { return; }
