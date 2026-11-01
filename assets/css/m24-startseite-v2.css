@@ -350,3 +350,7 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 @media (max-width:767px){.m24s-z4__det{grid-template-columns:repeat(3,1fr)}}
 /* Artikel-Titel max. 2 Zeilen mit … */
 .m24s-prod b{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
+/* Seitenleiste: ein durchgehender Verlauf (keine Kante zwischen Schritt 1 und 2) */
+.m24s-finder.m24s-fb::before{content:'';grid-column:1;grid-row:1/3;background:linear-gradient(160deg,#1f74c4,#0e447e)}
+.m24s-fb__head,.m24s-fb__side{background:none;position:relative;z-index:1}
+@media (max-width:767px){.m24s-finder.m24s-fb::before{display:none}.m24s-fb__head,.m24s-fb__side{background:#1763ad}}
