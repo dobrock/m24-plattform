@@ -276,9 +276,9 @@ class M24FZ_SEO {
 		if ( class_exists( 'M24FZ_Telemetry' ) ) {
 			$lauf = M24FZ_Telemetry::laufleistung( $g( '_m24fz_laufleistung' ), $g( '_m24fz_laufleistung_einheit' ) );
 			if ( '' !== $lauf ) { $facts[] = $lauf; }
-			$leis = M24FZ_Telemetry::leistung_label( $g( '_m24fz_leistung_ps' ) );
-			if ( '' !== $leis ) { $facts[] = $leis; }
 		}
+		$ps = (int) preg_replace( '/[^\d]/', '', $g( '_m24fz_leistung_ps' ) );
+		if ( $ps > 0 ) { $facts[] = $ps . ' PS'; }
 		if ( (int) get_post_meta( $id, '_m24fz_matching_numbers', true ) ) { $facts[] = 'Matching Numbers'; }
 		$kf = get_post_meta( $id, '_m24fz_keyfacts', true );
 		if ( is_array( $kf ) ) {
