@@ -299,3 +299,8 @@ body:has(#m24-startseite) .vc_row:has(> .vc_column .td-big-grid-slide){margin-to
 .m24s-z4__src{margin-left:auto;font-size:12.5px;color:#8d949e}
 @media (max-width:980px){.m24s-z4__grid{grid-template-columns:1fr}.m24s-z4__pic{min-height:0;aspect-ratio:3/4;max-height:620px}}
 @media (max-width:767px){.m24s-z4__body{padding:20px 16px}.m24s-z4__pts{grid-template-columns:1fr}.m24s-z4__det{grid-template-columns:1fr 1fr}.m24s-z4__src{margin-left:0;width:100%}}
+/* Hero-Buttons: silberner statt goldener Schimmer; Sprungziele weich anfahren */
+html:has(#m24-startseite){scroll-behavior:smooth}
+#m24s-angebot,#m24s-teile{scroll-margin-top:60px}
+.m24s-btn--hero{box-shadow:0 0 0 1px rgba(255,255,255,.08),0 10px 34px rgba(214,220,228,.30)}
+.m24s-btn--hero:hover{box-shadow:0 0 0 1px rgba(255,255,255,.14),0 14px 40px rgba(214,220,228,.42)}
