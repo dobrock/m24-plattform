@@ -43,3 +43,13 @@
 		mt.addEventListener('touchstart', function () { clearInterval(auto); }, { passive: true });
 	}
 })();
+/* Hero-Buttons: weich zum Ziel scrollen (01.11.2026) */
+document.addEventListener('click', function (e) {
+	var a = e.target.closest && e.target.closest('a.m24s-btn--hero[href^="#"]');
+	if (!a) { return; }
+	var ziel = document.getElementById(a.getAttribute('href').slice(1));
+	if (!ziel) { return; }
+	e.preventDefault();
+	var y = ziel.getBoundingClientRect().top + window.pageYOffset - 70;
+	window.scrollTo({ top: y < 0 ? 0 : y, behavior: 'smooth' });
+});
