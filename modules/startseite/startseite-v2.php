@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_18';
+	const CACHE_KEY = 'm24_startseite_v2_html_19';
 
 	private static $initialized = false;
 
@@ -453,7 +453,7 @@ class M24_Startseite_V2 {
 <section class="m24s-s14" style="--m24s-s14bg:url('<?php echo esc_url( $im['cab'] ); ?>')">
 	<div class="m24s-w m24s-s14__grid">
 		<div>
-			<a class="m24s-s14logo" href="https://s14.de/" target="_blank" rel="noopener" aria-label="s14.de"><img src="<?php echo esc_url( $sig ); ?>" alt="" width="53" height="53"><span class="m24s-s14logo__wm">s14<span class="m24s-s14logo__dot"></span><span class="m24s-s14logo__tld">de</span></span><span class="m24s-s14logo__sep"></span><span class="m24s-s14logo__tag">Marktplatz &amp; Archiv<br>für klassische BMW</span></a>
+			<a class="m24s-s14logo" href="https://s14.de/" target="_blank" rel="noopener" aria-label="s14.de"><img class="m24s-s14logo__img" src="<?php echo esc_url( content_url( 'rennsport-teile-bilder/2026/11/s14de-wortmarke-weiss-400px.png' ) ); ?>" alt="s14.de" width="400" height="113"><span class="m24s-s14logo__sep"></span><span class="m24s-s14logo__tag">Marktplatz &amp; Archiv<br>für klassische BMW</span></a>
 			<div class="m24s-eb m24s-eb--light">MOTORSPORT24 ist Gründungspartner</div>
 			<h2 class="m24s-h2 m24s-h2--light">Der Marktplatz für klassische BMW E‑Baureihen.</h2>
 			<p class="m24s-s14__p">s14.de ist Archiv, Magazin und Marktplatz für die klassischen BMW E‑Baureihen von 1966 bis 2009 – vom 02er über E9, E21, E30 und E28 bis zum E46. Händler und Privatverkäufer bieten hier Fahrzeuge und Teile an, gelesen und gekauft von Menschen, die diese Autos wirklich kennen.</p>

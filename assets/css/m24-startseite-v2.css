@@ -397,3 +397,10 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 @media (max-width:980px){.m24s-bau__img .m24s-ph{height:auto!important}}
 /* Desktop: Teile-Finder nur 2 Zeilen (6 Artikel); mobil bleiben 8 */
 @media (min-width:981px){.m24s-fb .m24s-grid>:nth-child(n+7){display:none}}
+/* s14.de-Wortmarke (Bild) statt Signet + Schrift */
+.m24s-s14logo img.m24s-s14logo__img{width:auto;height:40px}
+@media (max-width:767px){.m24s-s14logo img.m24s-s14logo__img{width:auto;height:32px}}
+/* Desktop: Z4-Bilder oben/unten je weitere 5 % beschnitten (alte Signatur verschwindet) */
+@media (min-width:768px){.m24s-z4__det a{aspect-ratio:100/51}}
+/* Mobil: Motorenbau/Restauration im 3:2-Format (keine Mindesthöhe) */
+@media (max-width:980px){.m24s-bau__img .m24s-ph:not(.m24s-ph--wide){min-height:0!important;aspect-ratio:3/2!important}}
