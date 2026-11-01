@@ -377,3 +377,12 @@ html:has(#m24-startseite){scroll-behavior:smooth}
 @media (max-width:767px){.m24s-z4__pts{grid-template-columns:1fr}}
 /* Mobil: Kategorie-Kacheln größer, Randabstand = Fuge (3 px) */
 @media (max-width:767px){.m24s-cats{padding-left:3px;padding-right:3px}.m24s-cats .m24s-cat{aspect-ratio:4/3}}
+/* Z4-Band mobil (Vorschlag B): Bodykit-Bild oben, blendet in den Text aus; nur ein Fahrzeugbild */
+@media (max-width:767px){
+	.m24s-z4__pic{aspect-ratio:4/5!important;max-height:none!important;background:transparent!important;box-shadow:none!important}
+	.m24s-z4__pic img{-webkit-mask-image:linear-gradient(180deg,#000 30%,rgba(0,0,0,.35) 70%,transparent 100%);mask-image:linear-gradient(180deg,#000 30%,rgba(0,0,0,.35) 70%,transparent 100%)}
+	.m24s-z4__pic .m24s-sh,.m24s-z4__pic .m24s-tx{display:none}
+	.m24s-z4__body{position:relative;z-index:1;margin-top:-170px;background:transparent!important}
+	.m24s-z4__det a:not(:nth-child(3)){display:none}
+	.m24s-z4__det a{aspect-ratio:3/2}
+}
