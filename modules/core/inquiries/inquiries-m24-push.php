@@ -232,6 +232,9 @@ class M24_Inquiries_Push {
         // dicht hintereinander, dass der zweite startet, bevor der erste den Status geschrieben hat.
         // Genau so sind 2026-1047 und 2026-1048 fuer denselben Formidable-Eintrag entstanden.
         $have_num = trim( (string) get_post_meta( $post_id, '_m24_desk_order_num', true ) );
+        if ( '' === $have_num && (int) get_post_meta( $post_id, '_m24_desk_anfrage_id', true ) > 0 ) {
+            $have_num = 'A-' . (int) get_post_meta( $post_id, '_m24_desk_anfrage_id', true );
+        }
         if ( '' !== $have_num ) {
             self::log_info( $post_id, 'Push uebersprungen — Eintrag ist bereits im Desk angelegt', [
                 'desk_order_num' => $have_num,
@@ -296,9 +299,21 @@ class M24_Inquiries_Push {
         $idem_key = self::build_idempotency_key( $post );
         update_post_meta( $post_id, '_m24_idempotency_key', $idem_key );
 
-        $result = M24_REST_Client::request( 'POST', '/api/orders', $payload, [
+        // Anfragenstelle (02.11.2026): Anfragen gehen als ANFRAGE in den Desk, nicht mehr als Auftrag.
+        // Daniel beantwortet sie dort; erst „In Auftrag übernehmen“ legt den Auftrag an. Kennt der Desk
+        // den Endpunkt noch nicht (404), bleibt es beim bisherigen Weg.
+        $result = M24_REST_Client::request( 'POST', '/api/anfragen', $payload, [
             'headers' => [ 'X-Idempotency-Key' => $idem_key ],
         ] );
+        if ( 404 === (int) $result['status'] ) {
+            $result = M24_REST_Client::request( 'POST', '/api/orders', $payload, [
+                'headers' => [ 'X-Idempotency-Key' => $idem_key ],
+            ] );
+        } elseif ( in_array( (int) $result['status'], [ 200, 201 ], true ) && is_array( $result['data'] ) && ! empty( $result['data']['anfrage_id'] ) ) {
+            update_post_meta( $post_id, '_m24_push_last_status', (int) $result['status'] );
+            self::handle_anfrage( $post_id, $result, $attempts );
+            return;
+        }
 
         update_post_meta( $post_id, '_m24_push_last_status', (int) $result['status'] );
 
@@ -324,6 +339,22 @@ class M24_Inquiries_Push {
     // ────────────────────────────────────────────────────────────────────
     // Result-Handler
     // ────────────────────────────────────────────────────────────────────
+
+    /**
+     * Desk hat die Anfrage in der Anfragenstelle angelegt (kein Auftrag). Bewusst NICHT in
+     * _m24_desk_order_id schreiben: das Angebots-Tool haengt sonst Angebote an „Auftrag“ = Anfrage-ID.
+     */
+    private static function handle_anfrage( $post_id, $result, $attempts ) {
+        $id = (int) $result['data']['anfrage_id'];
+        update_post_meta( $post_id, '_m24_desk_anfrage_id', $id );
+        // Nummer „A-<id>“ als Zustand fuer Watchdog/Dublettenschutz; _m24_desk_order_id bleibt leer.
+        update_post_meta( $post_id, '_m24_desk_order_num', 'A-' . $id );
+        delete_post_meta( $post_id, '_m24_push_last_error' );
+        delete_post_meta( $post_id, '_m24_push_next_retry' );
+        wp_update_post( [ 'ID' => $post_id, 'post_status' => M24_Inquiries::STATUS_SYNCED ] );
+        self::log_info( $post_id, 'Push erfolgreich — als Anfrage in der Anfragenstelle', [ 'attempts' => $attempts, 'anfrage_id' => $id ] );
+        do_action( 'm24_inquiry_pushed_ok', $post_id, 0, 'A-' . $id );
+    }
 
     private static function handle_success( $post_id, $result, $idem_key, $attempts ) {
         $data      = is_array( $result['data'] ) ? $result['data'] : [];

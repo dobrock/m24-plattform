@@ -181,7 +181,8 @@ if ( ! function_exists( 'm24_anfrage_mail_html' ) ) {
 		// Kontaktzeile + Fuß
 		$h .= '<tr><td style="padding:12px 14px 14px;"><div style="border-top:1px solid #eef0f3;padding-top:10px;font-size:13px;color:#56636f;">Antwort an: ' . $mailz . $tel . '</div></td></tr>';
 		$h .= '</table>';
-		$h .= '<div style="font-size:11px;color:#8a95a1;padding:8px;">Anfrage ' . (int) ( $data['post_id'] ?? 0 ) . ' · motorsport24.de</div>';
+		$m24_aid = (int) ( $data['post_id'] ?? 0 );
+		$h .= '<div style="font-size:11px;color:#8a95a1;padding:8px;">' . ( $m24_aid ? 'Anfrage ' . $m24_aid . ' · ' : '' ) . 'motorsport24.de</div>';
 		$h .= '</td></tr></table></body></html>';
 		return $h;
 	}
