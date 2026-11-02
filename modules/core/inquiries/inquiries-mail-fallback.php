@@ -78,6 +78,20 @@ class M24_Inquiries_Mail_Fallback {
         // Benachrichtigungs-Mail bei JEDER Anfrage (Push bleibt primaer). Teilt das
         // Idempotenz-Flag mit handle() -> im echten Fallback-Fall keine zweite Mail.
         add_action( 'm24_inquiry_created', [ __CLASS__, 'notify' ], 10, 1 );
+        // Betreff-Vorschlag A (Daniel 02.11.2026): Info-Mail erst NACH dem Desk-Push schicken, damit die
+        // Vorgangsnummer [A-1xx] im Betreff stehen kann. Rückfall nach 10 Minuten, falls der Push hängt.
+        add_action( 'm24_inquiry_pushed_ok', [ __CLASS__, 'notify_jetzt' ], 10, 1 );
+        add_action( 'm24_inquiry_notify_spaet', [ __CLASS__, 'notify_jetzt' ], 10, 1 );
+        // Altes Präfix „[M24 Plattform] “ (Quelle außerhalb dieses Moduls) aus allen Betreffs nehmen.
+        add_filter( 'wp_mail', static function ( $a ) {
+            if ( isset( $a['subject'] ) ) { $a['subject'] = preg_replace( '/^\[M24 Plattform\]\s*/u', '', (string) $a['subject'] ); }
+            return $a;
+        }, PHP_INT_MAX );
+    }
+
+    /** Desk angebunden? Dann wartet die Info-Mail auf die Vorgangsnummer. */
+    private static function mit_desk() {
+        return defined( 'M24_DESK_API_TOKEN' ) && '' !== (string) M24_DESK_API_TOKEN;
     }
 
     /**
@@ -88,6 +102,16 @@ class M24_Inquiries_Mail_Fallback {
      * @param int $post_id
      */
     public static function notify( $post_id ) {
+        $post_id = (int) $post_id;
+        if ( self::mit_desk() ) {
+            if ( ! wp_next_scheduled( 'm24_inquiry_notify_spaet', [ $post_id ] ) ) { wp_schedule_single_event( time() + 600, 'm24_inquiry_notify_spaet', [ $post_id ] ); }
+            return;
+        }
+        self::notify_jetzt( $post_id );
+    }
+
+    /** Info-Mail tatsächlich senden (einmal je Anfrage). */
+    public static function notify_jetzt( $post_id ) {
         $post_id = (int) $post_id;
         $post    = get_post( $post_id );
         if ( ! $post || $post->post_type !== 'm24_inquiry' ) {
@@ -306,6 +330,7 @@ class M24_Inquiries_Mail_Fallback {
             return (string) get_post_meta( $post_id, '_m24_' . $key, true );
         };
 
+        $desk_id   = (int) get_post_meta( $post_id, '_m24_desk_anfrage_id', true );
         $items_raw = get_post_meta( $post_id, '_m24_items', true );
         if ( ! is_array( $items_raw ) ) {
             $items_raw = [];
@@ -321,6 +346,7 @@ class M24_Inquiries_Mail_Fallback {
         }
 
         return [
+            'desk_id'      => $desk_id,
             'post_id'      => $post_id,
             'post_title'   => (string) $post->post_title,
             'post_date'    => (string) $post->post_date,
@@ -364,9 +390,13 @@ class M24_Inquiries_Mail_Fallback {
         if ( $name === '' ) {
             $name = $data['email'] !== '' ? $data['email'] : sprintf( 'Anfrage #%d', $data['post_id'] );
         }
+        // Vorschlag A (Daniel 02.11.2026): „M24: <Artikel> – Name [A-1xx]“ / „M24: Kontaktanfrage – Name [A-1xx]“.
+        $desk = (int) ( $data['desk_id'] ?? 0 );
+        $nr   = $desk > 0 ? ' [A-' . ( $desk + 99 ) . ']' : '';
+        $arts = array_values( array_filter( array_map( static function ( $it ) { return trim( (string) ( $it['art'] ?? '' ) ); }, (array) ( $data['items'] ?? [] ) ), static function ( $t ) { return '' !== $t && 0 !== strpos( $t, 'Kontaktanfrage' ); } ) );
+        $artikel = $arts ? $arts[0] . ( count( $arts ) > 1 ? ' (+' . ( count( $arts ) - 1 ) . ')' : '' ) : '';
         if ( self::REASON_PRODUCT === $reason ) {
-            $pt = isset( $data['items'][0]['art'] ) ? trim( (string) $data['items'][0]['art'] ) : '';
-            return 'Neue Frage zu ' . ( '' !== $pt ? $pt : 'einem Artikel' );
+            return 'M24: ' . ( '' !== $artikel ? $artikel : 'Frage zu einem Artikel' ) . ' – ' . $name . $nr;
         }
         if ( self::REASON_MERKZETTEL === $reason ) {
             return sprintf( 'Merkzettel von %s', $name );
@@ -375,12 +405,11 @@ class M24_Inquiries_Mail_Fallback {
             // Kontaktformular [m24_kontakt]: Position 1 heißt „Kontaktanfrage: <Thema>".
             $art = isset( $data['items'][0]['art'] ) ? trim( (string) $data['items'][0]['art'] ) : '';
             // „Kontaktanfrage: Teile-Anfrage — E82 1M Hood“ → „Teile-Anfrage: E82 1M Hood“
-            $art = preg_replace( '/^Kontaktanfrage:\s*/u', '', $art );
-            $art = preg_replace( '/\s+—\s+/u', ': ', $art, 1 );
-            return sprintf( '%s — %s', '' !== $art ? $art : 'Kontaktanfrage', $name );
+            unset( $art );
+            return 'M24: Kontaktanfrage – ' . $name . $nr;
         }
         if ( self::REASON_NOTIFY === $reason ) {
-            return sprintf( 'Neue Anfrage von %s', $name );
+            return 'M24: ' . ( '' !== $artikel ? $artikel : 'Anfrage' ) . ' – ' . $name . $nr;
         }
         return sprintf( '[M24 Plattform] Sammelanfrage von %s — %s', $name, $reason );
     }

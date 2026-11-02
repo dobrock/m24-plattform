@@ -146,7 +146,7 @@ class M24FZ_Anfrage {
 			'From: ' . self::from_header( $name, self::from_email() ),
 			'Reply-To: ' . $name . ' <' . $mail . '>',
 		);
-		$sent    = wp_mail( $to, 'Fahrzeug-Anfrage: ' . $title, $body, $headers );
+		$sent    = wp_mail( $to, 'M24: Fahrzeug ' . $title . ( '' !== trim( (string) $name ) ? ' – ' . $name : '' ), $body, $headers ); // Betreff-Vorschlag A (02.11.2026)
 
 		// Desk/Brevo-Payload (Migration ohne Bruch): NAME + KUNDENTYP neu; abwärtskompatibel vorname = voller Name, nachname = "".
 		do_action( 'm24fz_anfrage_submitted', $pid, array(
