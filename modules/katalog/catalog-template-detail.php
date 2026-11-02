@@ -163,7 +163,8 @@ class M24_Catalog_Template_Detail {
 		// „Weitere Teile" = manuelle Pins zuerst, dann Auto-Auffuellung (Modell → Baugruppe),
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
 		// Bis zu 6, wenn so viele Pins gesetzt sind (Daniel 02.11.: Bodykit E30 mit 6 Karosserieteilen) – sonst wie bisher 5.
-		$rel_limit = ( class_exists( 'M24_Catalog_Related' ) && count( M24_Catalog_Related::valid_pins( $id ) ) >= 6 ) ? 6 : 5;
+		// Daniel 02.11.: alle Kit-Teile zeigen – so viele wie Pins gesetzt sind (mind. 5, höchstens 15).
+		$rel_limit = class_exists( 'M24_Catalog_Related' ) ? max( 5, min( 15, count( M24_Catalog_Related::valid_pins( $id ) ) ) ) : 5;
 		$related   = class_exists( 'M24_Catalog_Related' ) ? M24_Catalog_Related::get( $id, $rel_limit ) : array();
 
 		// Passende Fahrzeuge (kategoriegekoppelt übers Chassis) — zum Verkauf zuerst, dann verkauft.
