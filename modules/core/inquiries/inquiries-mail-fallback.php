@@ -35,6 +35,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/inquiries-mail-neu.php'; // neue Betreiber-Mail (02.11.2026)
+
 class M24_Inquiries_Mail_Fallback {
 
     const HOOK_NAME = 'm24_inquiry_mail_fallback';
@@ -207,33 +209,7 @@ class M24_Inquiries_Mail_Fallback {
             $rn = $clean_name( $data['vorname'] . ' ' . $data['nachname'] );
             $headers[] = 'Reply-To: ' . ( '' !== $rn ? $rn . ' <' . $data['email'] . '>' : $data['email'] );
         }
-        // Angebots-Workflow: Operator-CTA („Angebot erstellen") in die interne Mail — nur wenn Angebote aktiv.
-        if ( class_exists( 'M24_Offers' ) && M24_Offers::enabled() ) {
-            $first   = ( ! empty( $data['items'] ) && is_array( $data['items'] ) ) ? (array) reset( $data['items'] ) : array();
-            $op_data = array(
-                'inquiry_id' => (int) ( $data['post_id'] ?? 0 ), // → Operator lädt die Positionen via ?from_inquiry
-                'email'      => (string) $data['email'],
-                'name'       => trim( (string) $data['vorname'] . ' ' . (string) $data['nachname'] ),
-                // Kundentyp aus 'biz' (1/0 — so speichert die Anfrage) ableiten; 'kundentyp' existiert im Anfrage-
-                // Datensatz nicht → sonst fiele der CTA-Link (ohne from_inquiry) fälschlich auf b2c.
-                'kundentyp'  => ( '1' === (string) ( $data['biz'] ?? '' ) || in_array( (string) ( $data['kundentyp'] ?? '' ), array( 'Geschäftskunde', 'b2b' ), true ) ) ? 'b2b' : 'b2c',
-                'land'       => (string) ( $data['land'] ?? '' ),
-                'src_modell' => (string) ( $first['src_modell'] ?? '' ),
-                'src_pid'    => (string) ( $first['src_pid'] ?? '' ),
-                'src_pillar' => (string) ( $first['src_pillar'] ?? '' ),
-                'src_url'    => (string) ( $first['src_url'] ?? '' ),
-                'src_lang'   => (string) ( $data['lang'] ?? '' ),
-            );
-            $links = apply_filters( 'm24_inquiry_operator_links', array(), $op_data );
-            if ( ! empty( $links ) ) {
-                $cta = '<div style="text-align:center;margin:18px 0;">';
-                foreach ( $links as $l ) {
-                    $cta .= '<a href="' . esc_url( $l['url'] ) . '" style="display:inline-block;background:#9a6b25;color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:8px;margin:4px;">' . esc_html( $l['label'] ) . '</a>';
-                }
-                $cta .= '</div>';
-                $body = ( false !== strpos( $body, '</body>' ) ) ? str_replace( '</body>', $cta . '</body>', $body ) : $body . $cta;
-            }
-        }
+        // Knopf „Angebot erstellen“ entfernt (Daniel, 02.11.2026): wurde beim Antworten mit an den Kunden zitiert.
         return (bool) wp_mail( $to, $subject, $body, $headers );
     }
 
@@ -393,15 +369,18 @@ class M24_Inquiries_Mail_Fallback {
             return 'Neue Frage zu ' . ( '' !== $pt ? $pt : 'einem Artikel' );
         }
         if ( self::REASON_MERKZETTEL === $reason ) {
-            return sprintf( '[M24 Plattform] Merkzettel-Anfrage von %s', $name );
+            return sprintf( 'Merkzettel von %s', $name );
         }
         if ( self::REASON_NOTIFY === $reason && M24_Inquiries::SOURCE_CONTACT === (string) ( $data['source'] ?? '' ) ) {
             // Kontaktformular [m24_kontakt]: Position 1 heißt „Kontaktanfrage: <Thema>".
             $art = isset( $data['items'][0]['art'] ) ? trim( (string) $data['items'][0]['art'] ) : '';
+            // „Kontaktanfrage: Teile-Anfrage — E82 1M Hood“ → „Teile-Anfrage: E82 1M Hood“
+            $art = preg_replace( '/^Kontaktanfrage:\s*/u', '', $art );
+            $art = preg_replace( '/\s+—\s+/u', ': ', $art, 1 );
             return sprintf( '%s — %s', '' !== $art ? $art : 'Kontaktanfrage', $name );
         }
         if ( self::REASON_NOTIFY === $reason ) {
-            return sprintf( '[M24 Plattform] Neue Anfrage von %s', $name );
+            return sprintf( 'Neue Anfrage von %s', $name );
         }
         return sprintf( '[M24 Plattform] Sammelanfrage von %s — %s', $name, $reason );
     }
@@ -440,7 +419,22 @@ class M24_Inquiries_Mail_Fallback {
         ) );
     }
 
+    /** Beschriftung oben rechts in der neuen Mail. */
+    private static function art_label( $data, $reason ) {
+        if ( self::REASON_PRODUCT === $reason ) { return 'Frage zum Artikel'; }
+        if ( self::REASON_MERKZETTEL === $reason ) { return 'Merkzettel'; }
+        if ( M24_Inquiries::SOURCE_CONTACT === (string) ( $data['source'] ?? '' ) ) {
+            if ( preg_match( '/^Thema:\s*(.+)$/mu', (string) ( $data['notes'] ?? '' ), $m ) ) { return trim( $m[1] ); }
+            return 'Kontaktanfrage';
+        }
+        return 'Anfrage';
+    }
+
     private static function build_html_body( $data, $reason ) {
+        // Neue Betreiber-Mail (02.11.2026) für alle Front-End-Benachrichtigungen; Push-Fallback behält die Diagnose.
+        if ( self::is_notification( $reason ) && function_exists( 'm24_anfrage_mail_html' ) ) {
+            return m24_anfrage_mail_html( $data, self::art_label( $data, $reason ) );
+        }
         // Produktanfrage: „Variante A"-Template (kundenfrontend, separater Zweck — bleibt).
         if ( self::REASON_PRODUCT === $reason && function_exists( 'm24_render_inquiry_email' ) ) {
             return self::render_product_email( $data );
