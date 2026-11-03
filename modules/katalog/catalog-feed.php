@@ -38,6 +38,11 @@ class M24_Catalog_Feed {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ), 40 );
 		add_action( 'admin_post_m24_feed_token', array( __CLASS__, 'token_erneuern' ) );
 		add_action( 'admin_post_m24_ka_auswahl', array( __CLASS__, 'auswahl_speichern' ) );
+		// Desk-Abgleich (03.11.2026): alle Teile (neu + gebraucht, auch ausgeblendet/verkauft) an den Desk schicken –
+		// Knopf auf der Feed-Seite und täglich per Cron. Nutzt die bestehende Desk-Verbindung (M24_Rest_Client, X-API-Key).
+		add_action( 'admin_post_m24_feed_desk', array( __CLASS__, 'an_desk_jetzt' ) );
+		add_action( 'm24_feed_desk_cron', array( __CLASS__, 'an_desk' ) );
+		add_action( 'init', function () { if ( ! wp_next_scheduled( 'm24_feed_desk_cron' ) ) { wp_schedule_event( strtotime( 'tomorrow 04:20' ), 'daily', 'm24_feed_desk_cron' ); } } );
 		// Desk-Import (03.11.2026): intern.motorsport24.de darf den Feed mit dem WP-Login-Cookie abrufen (CORS mit Credentials).
 		add_filter( 'allowed_http_origins', function ( $o ) { $o[] = 'https://intern.motorsport24.de'; return $o; } );
 	}
@@ -71,6 +76,23 @@ class M24_Catalog_Feed {
 		if ( current_user_can( 'manage_options' ) ) { return true; }
 		$t = (string) $r->get_param( 'token' );
 		return '' !== $t && hash_equals( self::token(), $t );
+	}
+
+	/** Alle Teile an den Desk (POST /api/teile/import). Rückgabe: Antwort des Desks oder Fehler. */
+	public static function an_desk(): array {
+		if ( ! class_exists( 'M24_Rest_Client' ) || ! M24_Rest_Client::is_configured() ) { return array( 'ok' => false, 'message' => 'Desk nicht konfiguriert.' ); }
+		self::$alles = true;
+		$items = self::items( 'alle', '', 2000 );
+		self::$alles = false;
+		$res = M24_Rest_Client::request( 'POST', '/api/teile/import', array( 'items' => $items, 'quelle' => 'm24-cron' ), array( 'timeout' => 120 ) );
+		update_option( 'm24_feed_desk_letzter', array( 'zeit' => current_time( 'mysql' ), 'n' => count( $items ), 'ok' => ! empty( $res['ok'] ), 'status' => (int) ( $res['status'] ?? 0 ), 'antwort' => is_array( $res['data'] ?? null ) ? $res['data'] : (string) ( $res['error'] ?? $res['message'] ?? '' ) ), false );
+		return $res;
+	}
+	public static function an_desk_jetzt() {
+		if ( ! current_user_can( 'manage_options' ) || ! check_admin_referer( 'm24_feed_desk' ) ) { wp_die( 'Nicht erlaubt.' ); }
+		self::an_desk();
+		wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG . '&desk=1' ) );
+		exit;
 	}
 
 	public static function token_erneuern() {
@@ -384,6 +406,9 @@ class M24_Catalog_Feed {
 		echo '<nav class="nav-tab-wrapper" style="margin-bottom:12px"><a class="nav-tab' . ( 'feed' === $tab ? ' nav-tab-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">Feed</a><a class="nav-tab' . ( 'auswahl' === $tab ? ' nav-tab-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG . '&tab=auswahl' ) ) . '">Kleinanzeigen-Auswahl</a></nav>';
 		if ( 'auswahl' === $tab ) { self::auswahl_seite(); echo '</div>'; return; }
 		if ( ! empty( $_GET['erneuert'] ) ) { echo '<div class="notice notice-success"><p>Token erneuert – alte Feed-URLs sind ungültig.</p></div>'; } // phpcs:ignore
+		$dl = (array) get_option( 'm24_feed_desk_letzter', array() );
+		if ( ! empty( $_GET['desk'] ) ) { echo '<div class="notice notice-' . ( ! empty( $dl['ok'] ) ? 'success' : 'error' ) . '"><p>Desk-Abgleich: ' . esc_html( wp_json_encode( $dl['antwort'] ?? '', JSON_UNESCAPED_UNICODE ) ) . ' (HTTP ' . (int) ( $dl['status'] ?? 0 ) . ')</p></div>'; } // phpcs:ignore
+		echo '<p><a class="button button-primary" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=m24_feed_desk' ), 'm24_feed_desk' ) ) . '">Alle Teile jetzt an den Desk schicken</a> <span style="color:#666">Täglich 04:20 automatisch' . ( ! empty( $dl['zeit'] ) ? ' · zuletzt ' . esc_html( $dl['zeit'] ) . ' (' . (int) ( $dl['n'] ?? 0 ) . ' Teile, ' . ( ! empty( $dl['ok'] ) ? 'ok' : 'Fehler' ) . ')' : '' ) . '</span></p>';
 		echo '<p>Aktive Gebrauchtteile mit Preis und Bild im Kleinanzeigen-Zuschnitt (Titel ≤ 65 Zeichen, Klartext, Festpreis in ganzen Euro, max. 20 Bilder). Der Feed ist die eine Quelle für Kleinanzeigen-Tools, eBay & Co. – Preis und Bestand kommen immer aus dem Katalog.</p>';
 		echo '<p><strong>' . (int) $n . '</strong> Teile für Kleinanzeigen freigegeben (Häkchen „Für Kleinanzeigen freigeben" im Teil) von ' . (int) $n_alle . ' aktiven Gebrauchtteilen. Die URLs unten liefern nur die freigegebenen (<code>ka=1</code>); ohne <code>ka=1</code> kommen alle. Varianten: <code>&amp;typ=neu</code>, <code>&amp;typ=alle</code>, <code>&amp;seit=2026-11-01</code> (nur seitdem geändert).</p>';
 		echo '<table class="widefat striped" style="max-width:980px"><tbody>';
