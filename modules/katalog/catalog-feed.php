@@ -38,6 +38,8 @@ class M24_Catalog_Feed {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ), 40 );
 		add_action( 'admin_post_m24_feed_token', array( __CLASS__, 'token_erneuern' ) );
 		add_action( 'admin_post_m24_ka_auswahl', array( __CLASS__, 'auswahl_speichern' ) );
+		// Desk-Import (03.11.2026): intern.motorsport24.de darf den Feed mit dem WP-Login-Cookie abrufen (CORS mit Credentials).
+		add_filter( 'allowed_http_origins', function ( $o ) { $o[] = 'https://intern.motorsport24.de'; return $o; } );
 	}
 
 	public static function routes() {
