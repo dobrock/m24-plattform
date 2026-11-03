@@ -41,6 +41,10 @@ class M24_B2B_Auth {
         add_action( 'admin_post_m24_haendler_register', array( __CLASS__, 'handle_register' ) );
         add_action( 'admin_post_nopriv_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
         add_action( 'admin_post_m24_haendler_login', array( __CLASS__, 'handle_login' ) );
+        // Passwort-Login als Zusatz zum Magic-Link (Daniel, 03.11.2026, Variante A): Entwicklung/Alltag ohne Mail-Wartezeit.
+        add_action( 'admin_post_nopriv_m24_haendler_login_pw', array( __CLASS__, 'handle_login_pw' ) );
+        add_action( 'admin_post_m24_haendler_login_pw', array( __CLASS__, 'handle_login_pw' ) );
+        add_filter( 'auth_cookie_expiration', array( __CLASS__, 'cookie_30_tage' ), 10, 3 );
 
         add_action( 'wp_ajax_nopriv_m24_vies', array( __CLASS__, 'ajax_vies' ) );
         add_action( 'wp_ajax_m24_vies', array( __CLASS__, 'ajax_vies' ) );
@@ -278,7 +282,10 @@ class M24_B2B_Auth {
             . '.m24b2b-btn{margin-top:20px;width:100%;background:#1f74c4;color:#fff;border:0;border-radius:8px;padding:14px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;background-image:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%)}'
             . '.m24b2b-note{color:#5a6474;font-size:15px;line-height:1.6;margin:0}' // CI-konform: kein blauer Kasten, schlichter Text auf weißer Karte
             . '.m24b2b-err{background:#fdf1f3;border:1px solid #f0c4cc;color:#9a2530;border-radius:8px;padding:10px 14px;font-size:13.5px;margin:0 0 16px}'
-            . '.m24b2b-ok{font-size:24px;font-weight:800;color:#14161a;margin:0 0 10px}' // CI-konform: anthrazit statt Messing/braun
+            . '.m24b2b-ok{font-size:24px;font-weight:800;color:#14161a;margin:0 0 10px}'
+            . '.m24b2b-pwlink{display:block;text-align:center;margin-top:16px;font-size:14px;color:#1f74c4;text-decoration:underline}'
+            . '.m24b2b-pw[hidden],.m24b2b-pwlink[hidden],.m24b2b .sub[hidden],.m24b2b form[hidden]{display:none}'
+            . '.m24b2b input[type=password]{width:100%;font-size:17px;height:auto!important;min-height:56px!important;padding:14px 18px;line-height:1.4;border:1px solid #d6dae0;border-radius:12px;background:#fff;box-sizing:border-box;font-family:inherit}' // CI-konform: anthrazit statt Messing/braun
             . '.m24-uid-fb{font-size:12px;margin-top:5px;min-height:16px}'
             . '.m24-uid-fb.checking{color:#5a6474}.m24-uid-fb.ok{color:#1a7a3c;font-weight:600}.m24-uid-fb.bad{color:#c8102e;font-weight:600}.m24-uid-fb.neutral{color:#9aa3b0}'
             // Variante 2 — Anfrageformular-Optik: große Felder, Label als Placeholder INNEN.
@@ -537,9 +544,60 @@ class M24_B2B_Auth {
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_login' ) ); ?></button>
         </form>
+        <?php $pw_auf = isset( $_GET['fehler'] ) && 'pw' === $_GET['fehler']; // phpcs:ignore WordPress.Security.NonceVerification ?>
+        <a href="#" class="m24b2b-pwlink" id="m24pwAuf"<?php echo $pw_auf ? ' hidden' : ''; ?>><?php echo esc_html( $t( 'login_pw_link' ) ); ?></a>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="m24pwForm" class="m24b2b-pw"<?php echo $pw_auf ? '' : ' hidden'; ?>>
+            <input type="hidden" name="action" value="m24_haendler_login_pw">
+            <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
+            <?php wp_nonce_field( 'm24_haendler_login_pw' ); ?>
+            <?php if ( $pw_auf ) : ?><div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_pw' ) ); ?></div><?php endif; ?>
+            <label for="m24pwmail"><?php echo esc_html( $t( 'f_email' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
+            <input type="email" id="m24pwmail" name="email" required autocomplete="username">
+            <label for="m24pw"><?php echo esc_html( $t( 'f_passwort' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
+            <input type="password" id="m24pw" name="pw" required autocomplete="current-password">
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <label class="chk"><input type="checkbox" name="bleiben" value="1" checked> <?php echo esc_html( $t( 'login_bleiben' ) ); ?></label>
+            <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_pw' ) ); ?></button>
+            <a href="#" class="m24b2b-pwlink" id="m24pwZu"><?php echo esc_html( $t( 'login_pw_zu' ) ); ?></a>
+        </form>
+        <script>(function(){var a=document.getElementById('m24pwAuf'),z=document.getElementById('m24pwZu'),f=document.getElementById('m24pwForm'),l=document.querySelector('.m24b2b-card form:not(#m24pwForm)');
+        function auf(e){if(e){e.preventDefault();}f.hidden=false;a.hidden=true;if(l){l.hidden=true;}try{localStorage.setItem('m24_login_pw','1');}catch(x){}var m=document.getElementById('m24loginmail');if(m&&m.value){document.getElementById('m24pwmail').value=m.value;}document.getElementById('m24pwmail').focus();}
+        function zu(e){e.preventDefault();f.hidden=true;a.hidden=false;if(l){l.hidden=false;}try{localStorage.removeItem('m24_login_pw');}catch(x){}}
+        if(a){a.addEventListener('click',auf);}if(z){z.addEventListener('click',zu);}
+        try{if(!f.hidden){return;}if(localStorage.getItem('m24_login_pw')==='1'){auf();}}catch(x){}})();</script>
         <?php
         echo '</div></div>';
         return (string) ob_get_clean();
+    }
+
+    /** Passwort-Login: normales WP-Passwort, gleiche Schutzregeln wie der Link (Nonce, Honeypot, Rate-Limit, keine Enumeration). */
+    public static function handle_login_pw() {
+        check_admin_referer( 'm24_haendler_login_pw' );
+        $login = self::login_page_url();
+        $lang  = self::posted_lang();
+        if ( ! empty( $_POST['website'] ) || ! self::rate_ok() ) {
+            wp_safe_redirect( add_query_arg( array( 'fehler' => 'pw', 'lang' => $lang ), $login ) );
+            exit;
+        }
+        $email = strtolower( sanitize_email( wp_unslash( $_POST['email'] ?? '' ) ) );
+        $pw    = (string) wp_unslash( $_POST['pw'] ?? '' );
+        $user  = is_email( $email ) ? get_user_by( 'email', $email ) : false;
+        if ( ! $user || '' === $pw || ! wp_check_password( $pw, $user->user_pass, $user->ID ) ) {
+            wp_safe_redirect( add_query_arg( array( 'fehler' => 'pw', 'lang' => $lang ), $login ) );
+            exit;
+        }
+        $bleiben = ! empty( $_POST['bleiben'] );
+        wp_set_current_user( (int) $user->ID );
+        wp_set_auth_cookie( (int) $user->ID, $bleiben );
+        do_action( 'wp_login', $user->user_login, $user );
+        $ziel = ( class_exists( 'M24_Login' ) && ! self::user_is_haendler( $user ) && ! user_can( $user, 'edit_posts' ) ) ? home_url( '/meine-garage/' ) : home_url( '/?willkommen=1' );
+        wp_safe_redirect( $ziel );
+        exit;
+    }
+
+    /** „Angemeldet bleiben" = 30 Tage statt WP-Standard 14. */
+    public static function cookie_30_tage( $laenge, $user_id, $remember ) {
+        return $remember ? 30 * DAY_IN_SECONDS : $laenge;
     }
 
     /* ── Handler ─────────────────────────────────────────────────────────── */
