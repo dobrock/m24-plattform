@@ -30,6 +30,8 @@ class M24_Catalog_Feed {
 	const SLUG    = 'm24-teile-feed';
 	const TITEL_MAX = 65;   // Kleinanzeigen: Titel max. 65 Zeichen
 	const BILDER_MAX = 20;  // Kleinanzeigen: max. 20 Bilder je Anzeige
+	/** alles=1 (Desk-Import): keine Filter nach Status/Preis. */
+	public static $alles = false;
 
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
@@ -50,6 +52,7 @@ class M24_Catalog_Feed {
 				'seit'   => array( 'default' => '' ),
 				'limit'  => array( 'default' => 500 ),
 				'ka'     => array( 'default' => '' ),
+				'alles'  => array( 'default' => '' ),
 			),
 		) );
 	}
@@ -87,6 +90,8 @@ class M24_Catalog_Feed {
 				array( 'key' => '_m24_preis_auf_anfrage', 'value' => '1', 'compare' => '!=' ),
 				array( 'key' => '_m24_preis_auf_anfrage', 'compare' => 'NOT EXISTS' ) ),
 		);
+		// Desk-Import (03.11.2026): alles=1 liefert auch ausgeblendete/verkaufte Teile und „Preis auf Anfrage".
+		if ( self::$alles ) { $mq = array( 'relation' => 'AND' ); }
 		if ( $nur_ka ) { $mq[] = array( 'key' => '_m24_kleinanzeigen', 'value' => '1' ); }
 		if ( 'alle' !== $typ ) {
 			$mq[] = ( 'gebraucht' === $typ )
@@ -113,7 +118,7 @@ class M24_Catalog_Feed {
 		$id    = (int) $p->ID;
 		$preis = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::get( $id ) : array( 'brutto' => 0, 'modus' => 'regel' );
 		$brutto = (float) ( $preis['brutto'] ?? 0 );
-		if ( $brutto <= 0 ) { return null; }
+		if ( $brutto <= 0 && ! self::$alles ) { return null; }
 
 		$g = function ( $k ) use ( $id ) { return trim( (string) get_post_meta( $id, $k, true ) ); };
 		$bilder = array();
@@ -236,6 +241,14 @@ class M24_Catalog_Feed {
 			'url'           => $url,
 			'link'          => $link,
 			'geaendert'     => get_post_modified_time( 'c', true, $p ),
+			// Für den Desk-Import (03.11.2026): Rohtext ohne Kleinanzeigen-Blöcke, Baureihen-Slugs, Plattform-Stand, Status.
+			'beschreibung_roh' => $beschr,
+			'modelle_slugs' => array_values( array_filter( (array) wp_get_post_terms( $id, M24_Catalog_CPT::TAXONOMY, array( 'fields' => 'slugs' ) ), 'is_string' ) ),
+			's14'           => '1' === (string) get_post_meta( $id, '_m24_pub_s14', true ),
+			's14_url'       => (string) get_post_meta( $id, '_m24_s14_url', true ),
+			'ka_url'        => (string) get_post_meta( $id, '_m24_ka_url', true ),
+			'status'        => $g( '_m24_status' ) ?: 'aktiv',
+			'preis_auf_anfrage' => '1' === $g( '_m24_preis_auf_anfrage' ),
 		);
 	}
 
@@ -327,6 +340,7 @@ class M24_Catalog_Feed {
 
 	public static function rest( WP_REST_Request $r ) {
 		$typ   = sanitize_key( (string) $r->get_param( 'typ' ) ) ?: 'gebraucht';
+		self::$alles = '1' === (string) $r->get_param( 'alles' );
 		$nur_ka = in_array( (string) $r->get_param( 'ka' ), array( '1', 'true', 'ja' ), true );
 		$items = self::items( in_array( $typ, array( 'gebraucht', 'neu', 'alle' ), true ) ? $typ : 'gebraucht', sanitize_text_field( (string) $r->get_param( 'seit' ) ), (int) $r->get_param( 'limit' ), $nur_ka );
 		if ( 'csv' === strtolower( (string) $r->get_param( 'format' ) ) ) {
