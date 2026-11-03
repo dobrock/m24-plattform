@@ -224,9 +224,18 @@ class M24_Catalog_Template_Detail {
 		if ( $imgs ) {
 			$product_ld['image'] = wp_list_pluck( $imgs, 'full' );
 		}
-		if ( $desc ) {
-			$product_ld['description'] = mb_substr( wp_strip_all_tags( $desc ), 0, 2000 );
+		// description ist für Googles Händlereinträge Pflicht (Search Console, 03.11.2026: „Feld description fehlt").
+		// Ohne gepflegte Beschreibung: Inhalt → Auszug → aus Titel, Baureihe und Art.-Nr. gebildeter Satz.
+		$desc_ld = trim( wp_strip_all_tags( (string) $desc ) );
+		if ( '' === $desc_ld ) { $desc_ld = trim( wp_strip_all_tags( (string) get_post_field( 'post_content', $id ) ) ); }
+		if ( '' === $desc_ld ) { $desc_ld = trim( wp_strip_all_tags( (string) get_post_field( 'post_excerpt', $id ) ) ); }
+		if ( '' === $desc_ld ) {
+			$desc_ld = get_the_title( $id )
+				. ( $primary_term ? ' – passend für BMW ' . $primary_term->name : '' )
+				. ( $artnr ? ', Art.-Nr. ' . $artnr : '' )
+				. '. ' . ( $is_neu ? 'Neuteil' : 'Gebrauchtteil' ) . ' von MOTORSPORT24, Versand weltweit.';
 		}
+		$product_ld['description'] = mb_substr( preg_replace( '/\s+/', ' ', $desc_ld ), 0, 2000 );
 		if ( $preis['brutto'] > 0 && ! $preis_auf_anfrage ) {
 			$avail  = $verkauft ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock';
 			$cond   = $is_neu ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition';
