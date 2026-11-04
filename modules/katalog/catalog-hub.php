@@ -206,6 +206,11 @@ class M24_Catalog_Hub {
 			'bmw-m3/bmw-m3-e92'         => '/teile/e9x/',
 			'bmw-m3/bmw-m3-f80'         => '/bmw-m3/',
 			'bmw-1er/bmw-m135i-f20-f21' => '/bmw-1er/',
+			// Tote Alt-Links von kk-automobile.de (Daniel 04.11.2026): Zentralverschluss → Teil, Rest → Hub/Modellseite.
+			'zentralverschluss-fuer-bmw-m4-m3-m2'                       => '/rennsport-teile/zentralverschluss-kit-passend-fuer-bmw-m3-e46-e92-f80-f82-f87/',
+			'bmw-m2-f87-paddle-shift-lenkrad-plug-drive'                => '/bmw-m2-f87/',
+			'montagehinweis-bmw-m4-f82-m3-f80-kuehlmittelkuehler-race'  => '/rennsport-teile/?m24_modell=m4-f82',
+			'montagehinweis-bmw-m4-f82-m3-f80-oelkuehler-race'          => '/rennsport-teile/?m24_modell=m4-f82',
 		) );
 	}
 
