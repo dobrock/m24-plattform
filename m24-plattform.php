@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.636
+ * Version:           0.11.637
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -220,6 +220,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-detail.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-lucid.php'; // Verpackungsregister LUCID (Option + [m24_lucid])
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seed-terms.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-rewrites.php';
+require_once M24_PLATTFORM_DIR . 'modules/katalog/shop-redirects.php';    // 301-Weiche motorsport24.shop → .de (Shop-Abschaltung, 04.11.2026)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-assets.php';      // Zentrales CI-Stylesheet (Tokens + geteilte Karte)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-hub-cpt.php';     // Modell-Hubs: CPT m24_modellhub (backend-editierbare Quelle + Seeder)
