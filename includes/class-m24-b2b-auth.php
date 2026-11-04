@@ -70,6 +70,9 @@ class M24_B2B_Auth {
         return $id ? (string) get_permalink( $id ) : home_url( '/haendler-registrierung-2/' );
     }
 
+    /** Öffentlich für andere Module (wp-login-Umleitung). */
+    public static function login_page_url_public(): string { return self::login_page_url(); }
+
     private static function login_page_url(): string {
         $id = (int) get_option( self::OPT_LOGIN_PAGE, 0 );
         return $id ? (string) get_permalink( $id ) : home_url( '/haendler-login/' );
@@ -544,11 +547,17 @@ class M24_B2B_Auth {
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_login' ) ); ?></button>
         </form>
-        <?php $pw_auf = isset( $_GET['fehler'] ) && 'pw' === $_GET['fehler']; // phpcs:ignore WordPress.Security.NonceVerification ?>
+        <?php // phpcs:disable WordPress.Security.NonceVerification
+        // ?pw=1 (z. B. von wp-login.php) öffnet das Passwort-Formular direkt; redirect_to (nur eigene Seite) wird nach dem Login angesteuert.
+        $pw_auf = ( isset( $_GET['fehler'] ) && 'pw' === $_GET['fehler'] ) || ! empty( $_GET['pw'] );
+        $rt     = isset( $_GET['redirect_to'] ) ? (string) wp_unslash( $_GET['redirect_to'] ) : '';
+        $rt     = ( '' !== $rt && wp_validate_redirect( $rt, '' ) ) ? $rt : '';
+        // phpcs:enable ?>
         <a href="#" class="m24b2b-pwlink" id="m24pwAuf"<?php echo $pw_auf ? ' hidden' : ''; ?>><?php echo esc_html( $t( 'login_pw_link' ) ); ?></a>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="m24pwForm" class="m24b2b-pw"<?php echo $pw_auf ? '' : ' hidden'; ?>>
             <input type="hidden" name="action" value="m24_haendler_login_pw">
             <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
+            <?php if ( $rt ) : ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $rt ); ?>"><?php endif; ?>
             <?php wp_nonce_field( 'm24_haendler_login_pw' ); ?>
             <?php if ( $pw_auf ) : ?><div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_pw' ) ); ?></div><?php endif; ?>
             <label for="m24pwmail"><?php echo esc_html( $t( 'f_email' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
@@ -591,6 +600,9 @@ class M24_B2B_Auth {
         wp_set_auth_cookie( (int) $user->ID, $bleiben );
         do_action( 'wp_login', $user->user_login, $user );
         $ziel = ( class_exists( 'M24_Login' ) && ! self::user_is_haendler( $user ) && ! user_can( $user, 'edit_posts' ) ) ? home_url( '/meine-garage/' ) : home_url( '/?willkommen=1' );
+        // Kam der Aufruf von wp-login.php (redirect_to, z. B. /wp-admin/…), geht es für Redaktion/Admin direkt dorthin.
+        $rt = isset( $_POST['redirect_to'] ) ? (string) wp_unslash( $_POST['redirect_to'] ) : '';
+        if ( '' !== $rt && user_can( $user, 'edit_posts' ) && wp_validate_redirect( $rt, '' ) ) { $ziel = $rt; }
         wp_safe_redirect( $ziel );
         exit;
     }

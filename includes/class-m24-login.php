@@ -283,6 +283,15 @@ class M24_Login {
 		if ( 'GET' !== $method ) { return; }
 		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		if ( '' !== $action && 'login' !== $action ) { return; }
+		// Daniel 04.11.2026: wp-login.php führt auf die Login-Seite mit geöffnetem PASSWORT-Formular (Magic-Link bleibt
+		// dort als Alternative), redirect_to (z. B. /wp-admin/) wird nach der Anmeldung angesteuert.
+		if ( class_exists( 'M24_B2B_Auth' ) ) {
+			$rt   = isset( $_GET['redirect_to'] ) ? (string) wp_unslash( $_GET['redirect_to'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+			$args = array( 'pw' => 1 );
+			if ( '' !== $rt && wp_validate_redirect( $rt, '' ) ) { $args['redirect_to'] = $rt; }
+			wp_safe_redirect( add_query_arg( $args, M24_B2B_Auth::login_page_url_public() ) );
+			exit;
+		}
 		wp_safe_redirect( home_url( '/?m24_login=1' ) ); // Startseite mit geöffnetem Magic-Link-Modal
 		exit;
 	}
