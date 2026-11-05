@@ -144,8 +144,12 @@ class M24_Catalog_OG {
 	 * Masse; sonst filterbares Default-Social-Bild.
 	 */
 	private static function og_image( $id ) {
-		if ( has_post_thumbnail( $id ) ) {
-			$src = M24_Share_Image::for_attachment( get_post_thumbnail_id( $id ) );
+		// Featured Image zuerst, sonst erstes Galerie-Bild (Daniel 05.11.: Vorschaubild = Artikelbild).
+		$cands = array();
+		if ( has_post_thumbnail( $id ) ) { $cands[] = (int) get_post_thumbnail_id( $id ); }
+		foreach ( array_filter( array_map( 'absint', explode( ',', (string) get_post_meta( $id, '_m24_galerie', true ) ) ) ) as $gid ) { $cands[] = (int) $gid; }
+		foreach ( array_unique( $cands ) as $att ) {
+			$src = M24_Share_Image::for_attachment( $att );
 			if ( $src ) { return array( 'url' => esc_url_raw( $src[0] ), 'w' => (int) $src[1], 'h' => (int) $src[2] ); }
 		}
 		// Default-Social-Bild = zentraler Platzhalter (eine Quelle). Zusatz-Override via m24_og_default_image.
