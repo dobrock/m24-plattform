@@ -18,6 +18,7 @@ class M24_Catalog_Gallery {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_box' ) );
 		add_action( 'save_post_' . M24_Catalog_CPT::POST_TYPE, array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
+		add_action( 'admin_init', array( __CLASS__, 'backfill_thumbs' ) );
 	}
 
 	public static function enqueue( $hook ) {
@@ -145,5 +146,35 @@ class M24_Catalog_Gallery {
 		}
 		$raw = isset( $_POST['m24_galerie'] ) ? wp_unslash( $_POST['m24_galerie'] ) : '';
 		update_post_meta( $post_id, '_m24_galerie', M24_Catalog_CPT::sanitize_id_list( $raw ) );
+		self::thumb_aus_galerie( $post_id );
+	}
+
+	/**
+	 * Daniel 05.11.: nie Platzhalter, wenn ein Foto da ist. Ohne Beitragsbild wird das erste
+	 * Galerie-Bild als Beitragsbild gesetzt (Liste, Kachel, Link-Vorschau nutzen es).
+	 */
+	public static function thumb_aus_galerie( $post_id ) {
+		if ( has_post_thumbnail( $post_id ) ) { return; }
+		$ids = array_filter( array_map( 'absint', explode( ',', (string) get_post_meta( $post_id, '_m24_galerie', true ) ) ) );
+		foreach ( $ids as $gid ) {
+			if ( wp_attachment_is_image( $gid ) ) { set_post_thumbnail( $post_id, $gid ); return; }
+		}
+	}
+
+	/** Einmaliger Nachlauf für Bestands-Teile ohne Beitragsbild (Option-Flag). */
+	public static function backfill_thumbs() {
+		if ( get_option( 'm24_thumb_aus_galerie_v1' ) ) { return; }
+		update_option( 'm24_thumb_aus_galerie_v1', 1, false );
+		$ids = get_posts( array(
+			'post_type'      => M24_Catalog_CPT::POST_TYPE,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array( 'key' => '_thumbnail_id', 'compare' => 'NOT EXISTS' ),
+				array( 'key' => '_m24_galerie', 'value' => '', 'compare' => '!=' ),
+			),
+		) );
+		foreach ( $ids as $pid ) { self::thumb_aus_galerie( (int) $pid ); }
 	}
 }
