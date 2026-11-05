@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.641
+ * Version:           0.11.642
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -483,3 +483,8 @@ function m24_purge_cache_on_version_change() {
         rocket_clean_minify(); // minifizierte/kombinierte CSS-Caches mit
     }
 }
+
+// Admin-Leiste (Daniel 05.11.2026): Der Jetpack-Hinweis „Bedrohungen gefunden“ legte sich über das
+// M24-Status-Menü (Verkauft/Aktivieren/Ausblenden). Scan-Ergebnisse bleiben unter Jetpack → Protect.
+add_action( 'admin_bar_menu', function ( $bar ) { $bar->remove_node( 'jetpack-scan-notice' ); }, 9999 );
+
