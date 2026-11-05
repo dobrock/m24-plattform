@@ -169,7 +169,7 @@ $ld = array(
 
 	<div class="m24hub-wrap">
 		<div class="m24hub-hg">
-			<div class="m24hub-eyebrow">Gebrauchte Teile · seit 2006</div>
+			<div class="m24hub-eyebrow"><?php echo 'rennsport' === ( $cfg['default_kat'] ?? '' ) ? 'Rennsportteile · seit 2006' : 'Gebrauchte Teile · seit 2006'; ?></div>
 			<h1><?php echo esc_html( $h1 ); ?></h1>
 			<?php if ( ! empty( $cfg['sub'] ) ) : ?><p class="sub"><?php echo esc_html( $cfg['sub'] ); ?></p><?php endif; ?>
 		</div>
