@@ -28,7 +28,9 @@ $lsort  = $list['sort'];
 $lkat   = $list['kat'] ?? 'alle';
 $kcounts = M24_Catalog_Hub::kat_counts( $hub ); // [rennsport,gebraucht,alle] — Switch-Mengen
 // Dropdown-Reihenfolge/-Labels: Alle · Karosserie · Neuteile(=rennsport) · Gebrauchtteile(=gebraucht).
-$kat_labels = array( 'alle' => 'Alle', 'karosserie' => 'Karosserie', 'rennsport' => 'Neuteile', 'gebraucht' => 'Gebrauchtteile' );
+// Daniel 05.11.2026: Bei allen Modellen heißt der Schalter „Rennsportteile“ (entspricht dem Bestand) – nur beim
+// Z4 GT3 bleibt „Neuteile“, dort gibt es echte Neuteile neben Karosserie.
+$kat_labels = array( 'alle' => 'Alle', 'karosserie' => 'Karosserie', 'rennsport' => ( 'z4-gt3' === $hub ? 'Neuteile' : 'Rennsportteile' ), 'gebraucht' => 'Gebrauchtteile' );
 $cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array();
 
 // Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
