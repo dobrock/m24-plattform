@@ -97,6 +97,7 @@ class M24_Catalog_Hub {
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_flush' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'legacy_redirect' ), 1 ); // umbenannte Slugs 301
+		add_filter( 'nav_menu_link_attributes', array( __CLASS__, 'nav_rennsport_link' ), 10, 2 ); // Menü „Rennsport Teile …“ → ?kat=rennsport
 		add_action( 'wp', array( __CLASS__, 'fix_status' ) ); // 404/Canonical-Schutz fuer /seite/N/
 		add_action( 'rest_api_init', array( __CLASS__, 'register_rest' ) ); // AJAX-Trefferliste
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
@@ -196,9 +197,47 @@ class M24_Catalog_Hub {
 	 * KEINE Hub-Slug-Renames (die laufen über die Option m24_hub_slug_redirects / legacy_paths),
 	 * sondern feste 1:1-Umleitungen. Schlüssel normalisiert (lowercase, ohne Rand-Slashes). Filterbar.
 	 */
+	/**
+	 * Menü (Daniel 05.11.2026): Wer über „Rennsport Teile passend für …“ kommt, sieht die Übersicht mit vorgewählten
+	 * Rennsportteilen. Gilt für Menüpunkte, die auf einen Hub zeigen (/teile/… oder die alten F82/F87-Seiten).
+	 * Hubs mit Standard „rennsport“ (Z4 GT3, F82, F87) brauchen keinen Parameter.
+	 */
+	public static function nav_rennsport_link( $atts, $item ) {
+		if ( empty( $atts['href'] ) || ! self::unter_rennsport_menue( $item ) ) { return $atts; }
+		$href = (string) $atts['href'];
+		$path = (string) wp_parse_url( $href, PHP_URL_PATH );
+		$alt  = array( '/rennsport-teile-passend-fur-f82/' => '/teile/f82/', '/rennsport-teile-passend-fur-f87-f22/' => '/teile/f87/' );
+		if ( isset( $alt[ $path ] ) ) { $atts['href'] = home_url( $alt[ $path ] ); return $atts; }
+		if ( ! preg_match( '#^/' . self::BASE . '/([^/]+)/?$#', $path, $m ) ) { return $atts; }
+		$slug = $m[1];
+		$map  = (array) apply_filters( 'm24_hub_legacy_paths', array() );
+		foreach ( $map as $old => $new ) { if ( rtrim( $old, '/' ) === rtrim( $path, '/' ) ) { $slug = trim( preg_replace( '#^/' . self::BASE . '/#', '', $new ), '/' ); } }
+		$c = self::config( $slug );
+		if ( $c && 'rennsport' === ( $c['default_kat'] ?? '' ) ) { return $atts; }
+		$atts['href'] = add_query_arg( 'kat', 'rennsport', $href );
+		return $atts;
+	}
+
+	/** Menüpunkt selbst oder ein Elternpunkt heißt „Rennsport Teile passend …“ (Untermenü: Z4 GT3, F82, E46 …). */
+	private static function unter_rennsport_menue( $item ) {
+		$tiefe = 0;
+		while ( $item && $tiefe++ < 4 ) {
+			$titel = isset( $item->title ) ? wp_strip_all_tags( (string) $item->title ) : '';
+			if ( preg_match( '/Rennsport[\s-]*Teile\s+passend/iu', $titel ) ) { return true; }
+			$pid = isset( $item->menu_item_parent ) ? (int) $item->menu_item_parent : 0;
+			if ( ! $pid ) { return false; }
+			$p = get_post( $pid );
+			$item = $p ? wp_setup_nav_menu_item( $p ) : null;
+		}
+		return false;
+	}
+
 	public static function legacy_reclaims() {
 		return apply_filters( 'm24_legacy_reclaims', array(
 			'datenschutz'               => '/datenschutzerklaerung/',
+			// Daniel 05.11.2026: alte Rennsport-Listen F82 / F87 → neue Teile-Übersichten (Standard: Rennsportteile)
+			'rennsport-teile-passend-fur-f82'     => '/teile/f82/',
+			'rennsport-teile-passend-fur-f87-f22' => '/teile/f87/',
 			'bmw-m3/bmw-m3-e30'         => '/teile/e30/',
 			'bmw-m3/bmw-m3-e36'         => '/teile/e36/',
 			'bmw-m3/bmw-m3-e46'         => '/teile/e46/',

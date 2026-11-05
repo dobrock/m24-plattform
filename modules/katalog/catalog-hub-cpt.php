@@ -42,6 +42,7 @@ class M24_Catalog_Hub_CPT {
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_teile' ), 19 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_dual_intro' ), 20 );
 		add_action( 'init', array( __CLASS__, 'maybe_migrate_brandfree' ), 21 );
+		add_action( 'init', array( __CLASS__, 'maybe_seed_f82_f87' ), 22 );
 		add_filter( 'm24_hub_legacy_paths', array( __CLASS__, 'inject_slug_redirects' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_box' ) );
 		add_action( 'save_post_' . self::CPT, array( __CLASS__, 'save' ), 10, 2 );
@@ -767,6 +768,46 @@ class M24_Catalog_Hub_CPT {
 			update_post_meta( $pid, self::META . 'cross_links', $d['cross_links'] ?? array() );
 			update_post_meta( $pid, self::META . 'default_kat', $d['default_kat'] ?? 'gebraucht' );
 		}
+	}
+
+	/**
+	 * Hubs F82 (4er/M4) und F87 (2er/M2) – Daniel 05.11.2026: „Rennsport Teile passend für F82 / F87“ zeigten noch die
+	 * alte Liste; jetzt eine Teile-Übersicht wie bei den 3er-Modellen, mit den gestern umgezogenen Teilen. Standard-
+	 * Ansicht Rennsportteile. Terme: Baureihen-Term (4er/2er, Hauptbestand) + Modell-Term (m4-f82 / m2-f87).
+	 */
+	public static function maybe_seed_f82_f87() {
+		if ( get_option( 'm24_modellhub_f82_f87_v1' ) ) { return; }
+		if ( ! taxonomy_exists( self::TAX ) ) { return; }
+		update_option( 'm24_modellhub_f82_f87_v1', gmdate( 'c' ) );
+		$p = function ( $s ) { return '<p>' . $s . '</p>'; };
+		$hubs = array(
+			array( 'slug' => 'f82', 'terms' => array( '4er', 'm4-f82' ), 'modell' => 'M4 F82 / 4er', 'motor' => 'S55 3,0 L Biturbo', 'baujahre' => '2014–2020',
+				'h1' => 'Teile passend für BMW M4 F82 und 4er',
+				'sub' => 'Rennsportteile aus dem Bestand von KK Automobile – dazu Gebrauchtteile für die 4er-Baureihe.',
+				'intro' => $p( 'Rennsportteile passend für den BMW M4 F82 und die 4er-Baureihe: Karosserie- und Leichtbauteile, Fahrwerk, Antrieb und Zubehör für Trackday und Rennsport – dazu Gebrauchtteile. Seit 2006 beliefern wir Werkstätten und Rennsport-Teams weltweit. Ein bestimmtes Teil ist hier nicht gelistet? Fragen Sie gezielt an.' ),
+				'seo_title' => 'Rennsportteile passend für BMW M4 F82 | MOTORSPORT24 seit 2006' ),
+			array( 'slug' => 'f87', 'terms' => array( '2er', 'm2-f87' ), 'modell' => 'M2 F87 / 2er F22', 'motor' => 'N55 / S55 3,0 L', 'baujahre' => '2014–2021',
+				'h1' => 'Teile passend für BMW M2 F87 und 2er F22',
+				'sub' => 'Rennsportteile aus dem Bestand von KK Automobile – dazu Gebrauchtteile für die 2er-Baureihe.',
+				'intro' => $p( 'Rennsportteile passend für den BMW M2 F87, M2 Competition, M2 CS sowie M235i/M240i F22: Karosserie- und Leichtbauteile, Fahrwerk, Antrieb und Zubehör für Trackday und Rennsport – dazu Gebrauchtteile. Seit 2006 beliefern wir Werkstätten und Rennsport-Teams weltweit. Ein bestimmtes Teil ist hier nicht gelistet? Fragen Sie gezielt an.' ),
+				'seo_title' => 'Rennsportteile passend für BMW M2 F87 und F22 | MOTORSPORT24 seit 2006' ),
+		);
+		foreach ( $hubs as $i => $d ) {
+			if ( self::find_by_slug( $d['slug'] ) ) { continue; }
+			$pid = wp_insert_post( array( 'post_type' => self::CPT, 'post_status' => 'publish', 'post_title' => $d['h1'], 'post_name' => $d['slug'], 'menu_order' => 20 + $i ) );
+			if ( ! $pid || is_wp_error( $pid ) ) { continue; }
+			update_post_meta( $pid, self::META . 'terms', self::term_ids_from_slugs( $d['terms'] ) );
+			foreach ( array( 'modell', 'motor', 'baujahre', 'h1', 'sub', 'seo_title' ) as $k ) { update_post_meta( $pid, self::META . $k, $d[ $k ] ?? '' ); }
+			update_post_meta( $pid, self::META . 'intro_h2', '' );
+			update_post_meta( $pid, self::META . 'seo_desc', '' );
+			update_post_meta( $pid, self::META . 'intro', $d['intro'] );
+			update_post_meta( $pid, self::META . 'seo_text', '' );
+			update_post_meta( $pid, self::META . 'images', '' );
+			update_post_meta( $pid, self::META . 'cross_links', array() );
+			update_post_meta( $pid, self::META . 'default_kat', 'rennsport' );
+		}
+		if ( class_exists( 'M24_Catalog_Hub' ) ) { M24_Catalog_Hub::flush_registry(); }
+		flush_rewrite_rules( false );
 	}
 
 	/** Z4-GT3 Startwerte (Rennsport-Hub). Quelle fuer ensure_z4_hub(). */
