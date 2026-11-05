@@ -164,8 +164,17 @@ class M24_Catalog_Template_Detail {
 		// stabile Reihenfolge, nur verfuegbare Teile. Siehe M24_Catalog_Related.
 		// Bis zu 6, wenn so viele Pins gesetzt sind (Daniel 02.11.: Bodykit E30 mit 6 Karosserieteilen) – sonst wie bisher 5.
 		// Daniel 02.11.: alle Kit-Teile zeigen – so viele wie Pins gesetzt sind (mind. 5, höchstens 15).
-		$rel_limit = class_exists( 'M24_Catalog_Related' ) ? max( 5, min( 15, count( M24_Catalog_Related::valid_pins( $id ) ) ) ) : 5;
+		$rel_limit = class_exists( 'M24_Catalog_Related' ) ? max( 6, min( 15, count( M24_Catalog_Related::valid_pins( $id ) ) ) ) : 6;
 		$related   = class_exists( 'M24_Catalog_Related' ) ? M24_Catalog_Related::get( $id, $rel_limit ) : array();
+		// Daniel 05.11.: keine freien Felder – immer 4 oder 6 (bzw. 8/12) Kacheln, nie ungerade.
+		$rel_n = count( $related );
+		if ( $rel_n >= 4 ) {
+			$rel_n = max( 4 * intdiv( $rel_n, 4 ), 6 * intdiv( $rel_n, 6 ) );
+		} else {
+			$rel_n = 2 * intdiv( $rel_n, 2 );
+		}
+		$related  = array_slice( $related, 0, $rel_n );
+		$rel_cols = ( 0 === $rel_n % 4 ) ? 4 : ( 0 === $rel_n % 3 ? 3 : 2 );
 
 		// Passende Fahrzeuge (kategoriegekoppelt übers Chassis) — zum Verkauf zuerst, dann verkauft.
 		$fahrzeuge = array();
@@ -415,6 +424,7 @@ class M24_Catalog_Template_Detail {
 		   ausgeblendet. MOBIL (<=760px, siehe Media-Query): umschalten auf ¼/¾-Listenzeilen. */
 		/* „Weitere Teile": einreihiges Grid — Desktop 5 Spalten, ≤900px 2 Spalten (kein Umbruch/keine Liste). */
 		.m24det .related-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:12px}
+		.m24det .related-cols-4{grid-template-columns:repeat(4,1fr)}.m24det .related-cols-3{grid-template-columns:repeat(3,1fr)}.m24det .related-cols-2{grid-template-columns:repeat(2,1fr)}
 		.m24det .ritem{border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;display:block}
 		.m24det .ritem .rimg{position:relative;overflow:hidden;aspect-ratio:4/3;background:#ededea}
 		.m24det .ritem .rimg img{width:100%;height:100%;object-fit:cover;display:block}
@@ -680,7 +690,7 @@ class M24_Catalog_Template_Detail {
 							echo esc_html__( 'WEITERE TEILE', 'm24-plattform' );
 						}
 					?></div>
-					<div class="related-grid">
+					<div class="related-grid related-cols-<?php echo (int) $rel_cols; ?>">
 						<?php
 						foreach ( $related as $rp ) :
 							$rp_id    = (int) $rp;
