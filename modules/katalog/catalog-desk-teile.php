@@ -169,10 +169,10 @@ class M24_Catalog_Desk_Teile {
 		// Inhalte
 		update_post_meta( $id, '_m24_typ', 'neu' === ( $b['typ'] ?? '' ) ? 'neu' : 'gebraucht' );
 		$beschr = (string) ( $b['beschreibung'] ?? '' );
-		// Verkauf nur an Gewerbetreibende (Daniel, 11.11.2026): Satz im Text (m24 + s14), Zeile im Kleinanzeigen-Block (Feed)
+		// Verkauf nur an Gewerbetreibende (Daniel, 11.11.2026): Zeile im Kleinanzeigen-Block (Feed)
 		$gewerbe = ! empty( $b['nur_gewerbe'] );
 		update_post_meta( $id, '_m24_nur_gewerbe', $gewerbe ? '1' : '0' );
-		if ( $gewerbe ) { $beschr = rtrim( $beschr ) . "\n\n" . self::GEWERBE_DE; }
+		// Daniel 11.11.2026 abends: Gewerbe-Satz vorerst nicht in die Beschreibung (m24/s14), nur Kleinanzeigen-Zeile VERKAUF
 		update_post_meta( $id, '_m24_beschreibung_de', wp_kses_post( wpautop( esc_html( $beschr ) ) ) );
 		if ( isset( $b['teilenummer'] ) ) { update_post_meta( $id, '_m24_bmw_teilenummer', sanitize_text_field( (string) $b['teilenummer'] ) ); }
 		if ( ! empty( $b['lagernr'] ) ) { update_post_meta( $id, '_m24_desk_lagernr', sanitize_text_field( (string) $b['lagernr'] ) ); }
