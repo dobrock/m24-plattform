@@ -201,7 +201,7 @@ class M24_Catalog_Feed {
 			'VERSAND · weltweit – Lieferanschrift senden, wir nennen die genauen Transportkosten.' . ( $abholung ? ' ABHOLUNG · optional in 37589 Kalefeld.' : '' ),
 			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtware 1 Jahr (siehe Zustandshinweise).' : '',
 			'gebraucht' === $typ ? 'EINBAU · Fachwerkstatt empfohlen.' : '',
-			'1' === $g( '_m24_nur_gewerbe' ) ? 'VERKAUF · ausschließlich an Gewerbetreibende, nicht an Privatpersonen.' : '',
+			'1' === $g( '_m24_nur_gewerbe' ) && false === mb_stripos( $beschr, 'an Gewerbetreibende' ) ? 'VERKAUF · ausschließlich an Gewerbetreibende, nicht an Privatpersonen.' : '',
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 für ein Angebot inkl. Verpackung und versichertem Versand.' : '',
 		) );
 		$block_en = array_filter( array(
