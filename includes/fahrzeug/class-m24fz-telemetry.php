@@ -102,9 +102,17 @@ class M24FZ_Telemetry {
 	}
 
 	/** Währungssymbol/-kürzel. EUR → „€", CHF → „CHF". */
-	public static function currency_symbol( $code ) {
+	/** Erlaubte Inserats-Währungen: Code → Anzeige (EUR als Symbol, alle anderen als ISO-Code). */
+	public static function currencies() {
+		return array( 'EUR' => '€', 'GBP' => 'GBP', 'USD' => 'USD', 'CHF' => 'CHF', 'SEK' => 'SEK', 'NOK' => 'NOK', 'DKK' => 'DKK', 'PLN' => 'PLN', 'CZK' => 'CZK', 'HUF' => 'HUF' );
+	}
+	/** ISO-Code aus beliebiger Eingabe; Unbekanntes → EUR. */
+	public static function currency_code( $code ) {
 		$code = strtoupper( trim( (string) $code ) );
-		return 'CHF' === $code ? 'CHF' : '€';
+		return isset( self::currencies()[ $code ] ) ? $code : 'EUR';
+	}
+	public static function currency_symbol( $code ) {
+		return self::currencies()[ self::currency_code( $code ) ];
 	}
 
 	private static function v( $id, $key ) { return trim( (string) get_post_meta( (int) $id, $key, true ) ); }
