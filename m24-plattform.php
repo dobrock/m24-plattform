@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.646
+ * Version:           0.11.647
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -235,6 +235,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-seo.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-share-image.php';   // OG-Share-Bild: garantiert JPEG (WhatsApp), ohne Photon — eine Quelle fuer alle OG-Module
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-feed.php';     // Teile-Feed (JSON/CSV) für Kleinanzeigen-Tools & Co. (28.10.2026)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-plattformen.php'; // Veroeffentlicht auf: m24 / s14 / Kleinanzeigen (30.10.2026)
+require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-desk-teile.php';  // Teile aus dem M24 Desk (KK) → m24 → s14/Kleinanzeigen (Etappe 4, 11.11.2026)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-og.php';       // Open-Graph/Twitter (eine Quelle, ersetzt WPCode-Snippets)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-post-og.php';    // Open-Graph/Twitter fuer regulaere Beitraege (wpSEO liefert dort keins)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-post-seo.php';   // SEO-Titel/-Beschreibung für Beiträge (Verkauf vs. Blog), nur ohne wpSEO-Eingabe
