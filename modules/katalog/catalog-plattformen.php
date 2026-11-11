@@ -92,6 +92,7 @@ class M24_Catalog_Plattformen {
 			'preis_auf_anfrage' => $brutto <= 0,
 			'steuer'        => 'paragraf25a' === ( $preis['modus'] ?? '' ) ? '25a' : 'regel',
 			'status'        => self::status( $id ),                                   // aktiv | ausgeblendet | verkauft | entwurf
+			'reserviert'    => '1' === (string) self::m( $id, '_m24_reserviert', '0' ),
 			'zustand'       => 'neu' === (string) self::m( $id, '_m24_typ', 'gebraucht' ) ? 'neu' : 'gebraucht',
 			'artikelnummer' => (string) self::m( $id, '_m24_artikelnummer' ),
 			'teilenummer'   => (string) self::m( $id, '_m24_bmw_teilenummer' ),
@@ -102,7 +103,7 @@ class M24_Catalog_Plattformen {
 	}
 
 	public static function hash( array $n ): string {
-		return sha1( wp_json_encode( array( $n['titel'], $n['beschreibung'], $n['preis'], $n['status'], $n['zustand'], $n['steuer'] ) ) );
+		return sha1( wp_json_encode( array( $n['titel'], $n['beschreibung'], $n['preis'], $n['status'], $n['zustand'], $n['steuer'], ! empty( $n['reserviert'] ) ) ) );
 	}
 
 	public static function log( int $id, string $text ): void {
