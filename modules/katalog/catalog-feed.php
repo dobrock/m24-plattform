@@ -201,6 +201,7 @@ class M24_Catalog_Feed {
 			'VERSAND · weltweit – Lieferanschrift senden, wir nennen die genauen Transportkosten.' . ( $abholung ? ' ABHOLUNG · optional in 37589 Kalefeld.' : '' ),
 			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtware 1 Jahr (siehe Zustandshinweise).' : '',
 			'gebraucht' === $typ ? 'EINBAU · Fachwerkstatt empfohlen.' : '',
+			'1' === $g( '_m24_nur_gewerbe' ) ? 'VERKAUF · ausschließlich an Gewerbetreibende, nicht an Privatpersonen.' : '',
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 für ein Angebot inkl. Verpackung und versichertem Versand.' : '',
 		) );
 		$block_en = array_filter( array(
@@ -211,6 +212,7 @@ class M24_Catalog_Feed {
 			'SHIPPING · worldwide – send your delivery address for an exact quote.' . ( $abholung ? ' PICKUP · optional in 37589 Kalefeld, Germany.' : '' ),
 			'gebraucht' === $typ ? 'WARRANTY · used items 1 year (see condition notes).' : '',
 			'gebraucht' === $typ ? 'INSTALLATION · by a specialist workshop recommended.' : '',
+			'1' === $g( '_m24_nur_gewerbe' ) ? 'SALE · to businesses only, not to private individuals.' : '',
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 for a quote including packaging and insured shipping.' : '',
 		) );
 		$s14_de = '► s14.de – Der Marktplatz für klassische BMW: Fahrzeuge und Teile für die E-Baureihen 1966–2009. Weitere Teile von uns: https://s14.de/m24' . "\n\nAlle Details und Bilder: " . $link;
