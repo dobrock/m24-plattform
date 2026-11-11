@@ -32,7 +32,7 @@ class M24_Catalog_Hinweise_Pruefen {
 	const META_GEPRUEFT = '_m24_hinweis_geprueft';
 
 	/** Text für die Detailseite (Englisch via GTranslate). */
-	const TEXT_KEIN_ORIGINAL = 'Kein Original-BMW-Teil – Zubehör/Nachbau, die Angabe ‚passend für‘ beschreibt nur die Verwendbarkeit.';
+	const TEXT_KEIN_ORIGINAL = 'Kein Original BMW-Teil';
 
 	/** @var string Page-Hook von add_submenu_page(). */
 	private static $hook = '';
