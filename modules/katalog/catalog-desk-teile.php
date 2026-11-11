@@ -23,6 +23,8 @@ class M24_Catalog_Desk_Teile {
 	const NS   = 'm24/v1';
 	const PT   = 'm24_teil';
 	const BILD_MAX_BYTES = 12582912; // 12 MB je Bild
+	const GEWERBE_DE = 'Verkauf dieses Teils ausschließlich an Gewerbetreibende, nicht an Privatpersonen.';
+	const GEWERBE_EN = 'This part is sold to businesses only, not to private individuals.';
 
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
@@ -119,6 +121,8 @@ class M24_Catalog_Desk_Teile {
 		// Stücke aus dem m24-Import: nur Preis, Plattformen und Sichtbarkeit zurückschreiben – Texte/Bilder pflegt der Editor
 		if ( 'speichern' === $aktion && ! empty( $b['nur_preis_plattformen'] ) ) {
 			if ( ! $id ) { return new WP_REST_Response( array( 'ok' => false, 'meldung' => 'Teil nicht gefunden' ), 404 ); }
+			self::modus_setzen( $id, $b['mwst'] ?? null );
+			if ( isset( $b['nur_gewerbe'] ) ) { update_post_meta( $id, '_m24_nur_gewerbe', ! empty( $b['nur_gewerbe'] ) ? '1' : '0' ); }
 			if ( (float) ( $b['preis_brutto'] ?? 0 ) > 0 ) { M24_Catalog_Pricing::set_brutto( $id, (float) $b['preis_brutto'] ); }
 			$s14 = ! empty( $b['s14'] ) ? '1' : '0';
 			if ( (string) get_post_meta( $id, '_m24_pub_s14', true ) !== $s14 ) { update_post_meta( $id, '_m24_pub_s14', $s14 ); delete_post_meta( $id, '_m24_sync_hash' ); }
@@ -165,9 +169,14 @@ class M24_Catalog_Desk_Teile {
 		// Inhalte
 		update_post_meta( $id, '_m24_typ', 'neu' === ( $b['typ'] ?? '' ) ? 'neu' : 'gebraucht' );
 		$beschr = (string) ( $b['beschreibung'] ?? '' );
+		// Verkauf nur an Gewerbetreibende (Daniel, 11.11.2026): Satz im Text (m24 + s14), Zeile im Kleinanzeigen-Block (Feed)
+		$gewerbe = ! empty( $b['nur_gewerbe'] );
+		update_post_meta( $id, '_m24_nur_gewerbe', $gewerbe ? '1' : '0' );
+		if ( $gewerbe ) { $beschr = rtrim( $beschr ) . "\n\n" . self::GEWERBE_DE; }
 		update_post_meta( $id, '_m24_beschreibung_de', wp_kses_post( wpautop( esc_html( $beschr ) ) ) );
 		if ( isset( $b['teilenummer'] ) ) { update_post_meta( $id, '_m24_bmw_teilenummer', sanitize_text_field( (string) $b['teilenummer'] ) ); }
 		if ( ! empty( $b['lagernr'] ) ) { update_post_meta( $id, '_m24_desk_lagernr', sanitize_text_field( (string) $b['lagernr'] ) ); }
+		self::modus_setzen( $id, $b['mwst'] ?? null );
 		M24_Catalog_Pricing::set_brutto( $id, $preis );
 		if ( ! empty( $b['baureihe'] ) ) {
 			$terms = array();
@@ -235,6 +244,20 @@ class M24_Catalog_Desk_Teile {
 		$out['bilder'] = $map;
 		if ( $fehler ) { $out['bildfehler'] = $fehler; }
 		return new WP_REST_Response( $out, 200 );
+	}
+
+	/** Besteuerung aus dem Desk: '25a' → paragraf25a, sonst regel (inkl. 19 % MwSt.). Netto der Preisoption nachziehen. */
+	private static function modus_setzen( int $id, $mwst ): void {
+		if ( null === $mwst || '' === (string) $mwst ) { return; }
+		$neu = '25a' === (string) $mwst ? 'paragraf25a' : 'regel';
+		if ( (string) get_post_meta( $id, '_m24_mwst_modus', true ) === $neu ) { return; }
+		update_post_meta( $id, '_m24_mwst_modus', $neu );
+		$opts = json_decode( (string) get_post_meta( $id, '_m24_preisoptionen', true ), true );
+		if ( is_array( $opts ) && $opts ) {
+			foreach ( $opts as &$o ) { $b = (float) ( $o['brutto'] ?? 0 ); $o['netto'] = 'paragraf25a' === $neu ? null : ( $b > 0 ? round( $b / 1.19, 2 ) : null ); }
+			unset( $o );
+			update_post_meta( $id, '_m24_preisoptionen', wp_json_encode( $opts, JSON_UNESCAPED_UNICODE ) );
+		}
 	}
 
 	private static function antwort( int $id ): array {
