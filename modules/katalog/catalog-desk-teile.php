@@ -123,6 +123,7 @@ class M24_Catalog_Desk_Teile {
 			if ( ! $id ) { return new WP_REST_Response( array( 'ok' => false, 'meldung' => 'Teil nicht gefunden' ), 404 ); }
 			self::modus_setzen( $id, $b['mwst'] ?? null );
 			if ( isset( $b['nur_gewerbe'] ) ) { update_post_meta( $id, '_m24_nur_gewerbe', ! empty( $b['nur_gewerbe'] ) ? '1' : '0' ); }
+			if ( isset( $b['reserviert'] ) ) { if ( ! empty( $b['reserviert'] ) ) { update_post_meta( $id, '_m24_reserviert', '1' ); } else { delete_post_meta( $id, '_m24_reserviert' ); } }
 			if ( (float) ( $b['preis_brutto'] ?? 0 ) > 0 ) { M24_Catalog_Pricing::set_brutto( $id, (float) $b['preis_brutto'] ); }
 			$s14 = ! empty( $b['s14'] ) ? '1' : '0';
 			if ( (string) get_post_meta( $id, '_m24_pub_s14', true ) !== $s14 ) { update_post_meta( $id, '_m24_pub_s14', $s14 ); delete_post_meta( $id, '_m24_sync_hash' ); }
@@ -172,6 +173,7 @@ class M24_Catalog_Desk_Teile {
 		// Verkauf nur an Gewerbetreibende (Daniel, 11.11.2026): Zeile im Kleinanzeigen-Block (Feed)
 		$gewerbe = ! empty( $b['nur_gewerbe'] );
 		update_post_meta( $id, '_m24_nur_gewerbe', $gewerbe ? '1' : '0' );
+		if ( ! empty( $b['reserviert'] ) ) { update_post_meta( $id, '_m24_reserviert', '1' ); } else { delete_post_meta( $id, '_m24_reserviert' ); }
 		// Daniel 11.11.2026 abends: Gewerbe-Satz vorerst nicht in die Beschreibung (m24/s14), nur Kleinanzeigen-Zeile VERKAUF
 		update_post_meta( $id, '_m24_beschreibung_de', wp_kses_post( wpautop( esc_html( $beschr ) ) ) );
 		if ( isset( $b['teilenummer'] ) ) { update_post_meta( $id, '_m24_bmw_teilenummer', sanitize_text_field( (string) $b['teilenummer'] ) ); }

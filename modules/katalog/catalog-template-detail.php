@@ -539,6 +539,10 @@ class M24_Catalog_Template_Detail {
 					<?php elseif ( $preis_auf_anfrage ) : ?>
 						<div class="m24-preis-anfrage"><?php esc_html_e( 'Preis auf Anfrage', 'm24-plattform' ); ?></div>
 					<?php else :
+						// Reserviert (Desk, Daniel 11.11.2026): Hinweis über dem Preis, Preis bleibt sichtbar
+						if ( '1' === (string) get_post_meta( $id, '_m24_reserviert', true ) ) {
+							echo '<div class="m24-reserviert" style="display:inline-block;margin-bottom:8px;padding:4px 10px;border-radius:8px;background:#fdf1f3;color:#a3122a;font-weight:700;font-size:13px">' . esc_html__( 'Reserviert', 'm24-plattform' ) . '</div>';
+						}
 						$pos_n = count( $pos_list );
 						// Varianten-„ab": mehrere Varianten mit UNTERSCHIEDLICHEN Preisen + keine
 						// Variante gewaehlt (Default „Variante wählen") → „ab {min}". JS schaltet
