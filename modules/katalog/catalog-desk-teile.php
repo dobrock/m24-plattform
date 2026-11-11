@@ -26,6 +26,52 @@ class M24_Catalog_Desk_Teile {
 
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'ping_js' ) );
+	}
+
+	/* ── Statistik (Daniel, 11.11.2026): Aufrufe je Teil auf m24, cache-sicher per Beacon wie bei Fahrzeugen ── */
+	public static function ping_js() {
+		if ( ! is_singular( self::PT ) || ( is_user_logged_in() && current_user_can( 'edit_posts' ) ) ) { return; }
+		$url = esc_url_raw( rest_url( self::NS . '/teil-ping' ) );
+		$id  = (int) get_queried_object_id();
+		echo '<script>(function(){try{if(sessionStorage.getItem("m24tp' . $id . '"))return;sessionStorage.setItem("m24tp' . $id . '","1");}catch(e){}var d=JSON.stringify({post_id:' . $id . '});if(navigator.sendBeacon){navigator.sendBeacon(' . wp_json_encode( $url ) . ',new Blob([d],{type:"application/json"}));}else{fetch(' . wp_json_encode( $url ) . ',{method:"POST",headers:{"Content-Type":"application/json"},body:d,keepalive:true});}})();</script>';
+	}
+
+	public static function rest_ping( WP_REST_Request $r ) {
+		$pid = absint( $r['post_id'] ?? 0 );
+		if ( ! $pid || self::PT !== get_post_type( $pid ) ) { return new WP_REST_Response( array( 'counted' => false ), 400 ); }
+		$ua = strtolower( (string) ( $_SERVER['HTTP_USER_AGENT'] ?? '' ) );
+		if ( '' === $ua || preg_match( '/bot|crawl|spider|slurp|bing|google|facebookexternalhit|embedly|preview|monitor|pingdom|lighthouse/i', $ua ) ) {
+			return new WP_REST_Response( array( 'counted' => false, 'reason' => 'bot' ), 200 );
+		}
+		$ck = 'm24tp_' . $pid;
+		if ( isset( $_COOKIE[ $ck ] ) ) { return new WP_REST_Response( array( 'counted' => false, 'reason' => 'dup' ), 200 ); }
+		setcookie( $ck, '1', time() + 6 * HOUR_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/' );
+		$n = (int) get_post_meta( $pid, '_m24_views', true ) + 1;
+		update_post_meta( $pid, '_m24_views', $n );
+		$tag = (array) get_post_meta( $pid, '_m24_views_tage', true ); // letzte 60 Tage: {Y-m-d: n}
+		$heute = current_time( 'Y-m-d' );
+		$tag[ $heute ] = (int) ( $tag[ $heute ] ?? 0 ) + 1;
+		ksort( $tag );
+		update_post_meta( $pid, '_m24_views_tage', array_slice( $tag, -60, null, true ) );
+		return new WP_REST_Response( array( 'counted' => true ), 200 );
+	}
+
+	/** Desk ← m24: Aufrufe und Online-Daten je Teil. ?ids=1,2,3 */
+	public static function rest_statistik( WP_REST_Request $r ) {
+		$ids = array_slice( array_filter( array_map( 'absint', explode( ',', (string) $r->get_param( 'ids' ) ) ) ), 0, 200 );
+		$out = array();
+		foreach ( $ids as $id ) {
+			if ( self::PT !== get_post_type( $id ) ) { continue; }
+			$out[ $id ] = array(
+				'aufrufe'     => (int) get_post_meta( $id, '_m24_views', true ),
+				'online_seit' => get_post_time( 'c', true, $id ),
+				'status'      => (string) get_post_meta( $id, '_m24_status', true ) ?: 'aktiv',
+				's14_id'      => (int) get_post_meta( $id, '_m24_s14_id', true ),
+				'ka_id'       => (string) get_post_meta( $id, '_m24_ka_id', true ),
+			);
+		}
+		return new WP_REST_Response( array( 'ok' => true, 'teile' => $out ), 200 );
 	}
 
 	public static function routes() {
@@ -33,6 +79,16 @@ class M24_Catalog_Desk_Teile {
 			'methods'             => 'POST',
 			'permission_callback' => array( 'M24_Catalog_Plattformen', 'feed_token_ok' ),
 			'callback'            => array( __CLASS__, 'rest' ),
+		) );
+		register_rest_route( self::NS, '/desk-teil-statistik', array(
+			'methods'             => 'GET',
+			'permission_callback' => array( 'M24_Catalog_Plattformen', 'feed_token_ok' ),
+			'callback'            => array( __CLASS__, 'rest_statistik' ),
+		) );
+		register_rest_route( self::NS, '/teil-ping', array(
+			'methods'             => 'POST',
+			'permission_callback' => '__return_true',
+			'callback'            => array( __CLASS__, 'rest_ping' ),
 		) );
 	}
 
