@@ -685,12 +685,12 @@ class M24_Catalog_Template_Detail {
 				?>
 				<div class="tabpanel" data-panel="warranty" hidden>
 					<div class="m24-gw">
-						<a class="m24-gw-label" href="<?php echo esc_url( $gw_pdf ); ?>" target="_blank" rel="noopener" title="EU-Mitteilung zur gesetzlichen Gewährleistung als PDF öffnen">
+						<a class="m24-gw-label" href="<?php echo esc_url( $gw_pdf ); ?>" target="_blank" rel="noopener" onclick="window.open(this.href,'_blank','noopener');return false;" title="EU-Mitteilung zur gesetzlichen Gewährleistung als PDF in neuem Tab öffnen">
 							<img src="<?php echo esc_url( $gw_img ); ?>" alt="EU-Mitteilung: Gesetzliche Gewährleistung – mindestens zwei Jahre für Waren, die in der Europäischen Union verkauft werden" loading="lazy" width="910" height="1287">
 						</a>
 						<div class="m24-gw-text">
 							<p><strong>Gesetzliche Gewährleistung</strong></p>
-							<p>Für diesen Artikel gelten die gesetzlichen Mängelrechte. Die EU-Mitteilung links fasst Ihre Rechte als Verbraucher zusammen; ein Klick öffnet sie als PDF.</p>
+							<p>Für diesen Artikel gelten die gesetzlichen Mängelrechte. Die EU-Mitteilung links fasst Ihre Rechte als Verbraucher zusammen; ein Klick öffnet sie als PDF in einem neuen Tab.</p>
 							<?php if ( 'gebraucht' === $typ ) : ?>
 								<p class="m24-gw-hinweis"><strong>Gebrauchtteil:</strong> Mit Verbrauchern vereinbaren wir vor dem Kauf ausdrücklich und gesondert eine Verjährungsfrist für Mängelansprüche von einem Jahr ab Lieferung. Ohne diese Vereinbarung gilt die gesetzliche Frist von zwei Jahren.</p>
 							<?php endif; ?>

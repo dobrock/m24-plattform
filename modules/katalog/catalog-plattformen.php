@@ -392,6 +392,9 @@ jQuery(function($){
 			update_post_meta( $id, '_m24_ka_url', esc_url_raw( (string) ( $r['ka_url'] ?: 'https://www.kleinanzeigen.de/s-anzeige/' . $kaid ) ) );
 			update_post_meta( $id, '_m24_kleinanzeigen', '1' );
 		}
+		// 12.11.2026: „pausiert" = die Erweiterung hat die Anzeige eines verkauften/gelöschten Teils deaktiviert.
+		if ( 'pausiert' === (string) ( $r['aktion'] ?? '' ) ) { update_post_meta( $id, '_m24_ka_aus', '1' ); }
+		else { delete_post_meta( $id, '_m24_ka_aus' ); }
 		update_post_meta( $id, '_m24_ka_stand', current_time( 'mysql' ) );
 		update_post_meta( $id, '_m24_ka_offen', '0' );
 		self::log( $id, 'Kleinanzeigen: ' . ( $kaid ? 'Anzeige ' . $kaid . ' ' : '' ) . (string) ( $r['aktion'] ?? 'aktualisiert' ) );
@@ -414,7 +417,33 @@ jQuery(function($){
 			$item['status'] = self::status( $id );
 			$out[] = $item;
 		}
-		return new WP_REST_Response( array( 'ok' => true, 'anzahl' => count( $out ), 'teile' => $out ), 200 );
+		return new WP_REST_Response( array( 'ok' => true, 'anzahl' => count( $out ), 'teile' => $out, 'runter' => self::ka_runter() ), 200 );
+	}
+
+	/**
+	 * Anzeigen, die von Kleinanzeigen runter müssen (Daniel, 12.11.2026: „soll automatisch über das System passieren"):
+	 * Teil hat eine Anzeigen-Nummer, ist aber verkauft oder im Papierkorb –
+	 * und die Erweiterung hat das Deaktivieren noch nicht gemeldet (_m24_ka_aus). „Ausgeblendet" und Entwürfe
+	 * bleiben bewusst unberührt.
+	 */
+	public static function ka_runter(): array {
+		$ids = get_posts( array( 'post_type' => self::PT, 'post_status' => array( 'publish', 'trash' ), 'fields' => 'ids', 'numberposts' => 50, 'meta_query' => array(
+			array( 'key' => '_m24_ka_id', 'value' => '', 'compare' => '!=' ),
+			array( 'relation' => 'OR', array( 'key' => '_m24_ka_aus', 'compare' => 'NOT EXISTS' ), array( 'key' => '_m24_ka_aus', 'value' => '1', 'compare' => '!=' ) ),
+		) ) );
+		$out = array();
+		foreach ( $ids as $id ) {
+			$kaid = preg_replace( '/\D+/', '', (string) get_post_meta( $id, '_m24_ka_id', true ) );
+			if ( ! $kaid ) { continue; }
+			$trash = 'trash' === get_post_status( $id );
+			$verk  = 'verkauft' === (string) self::m( $id, '_m24_status', 'aktiv' );
+			// Nur verkauft oder gelöscht. Ein bloß abgeschalteter Kleinanzeigen-Schalter löst (noch) nichts aus –
+			// sonst würden von Hand hinterlegte Anzeigen-Nummern alter Anzeigen ungefragt deaktiviert.
+			if ( ! $trash && ! $verk ) { continue; }
+			$titel = html_entity_decode( (string) get_the_title( $id ), ENT_QUOTES, 'UTF-8' );
+			$out[] = array( 'id' => (int) $id, 'ka_id' => $kaid, 'titel' => preg_replace( '/__trashed$/', '', $titel ), 'grund' => $trash ? 'geloescht' : 'verkauft' );
+		}
+		return $out;
 	}
 }
 
