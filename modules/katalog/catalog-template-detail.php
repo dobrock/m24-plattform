@@ -376,6 +376,11 @@ class M24_Catalog_Template_Detail {
 		.m24det .tab.active{color:var(--ink);border-bottom-color:var(--blue)}
 		.m24det .tabpanel{padding:20px 2px;font-size:14px;line-height:1.65}
 		.m24det .tabpanel[data-panel="desc"],.m24det .tabpanel[data-panel="fit"],.m24det .tabpanel[data-panel="manufacture"]{font-size:18px;line-height:1.75;max-width:none}
+		.m24det .m24-gw{display:grid;grid-template-columns:220px minmax(0,1fr);gap:28px;align-items:start;font-size:17px;line-height:1.7}
+		.m24det .m24-gw-label img{display:block;width:100%;height:auto;border:1px solid #e3e6ea;border-radius:6px}
+		.m24det .m24-gw-text p{margin:0 0 1em}
+		.m24det .m24-gw-hinweis{background:#fff7e0;border:1px solid #ecd9a0;border-radius:8px;padding:12px 16px;margin:0}
+		@media(max-width:760px){.m24det .m24-gw{grid-template-columns:1fr}.m24det .m24-gw-label{max-width:260px}}
 		.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="fit"] p,.m24det .tabpanel[data-panel="manufacture"] p{margin:0 0 1.1em}
 		.m24det .tabpanel[data-panel="desc"] ul,.m24det .tabpanel[data-panel="desc"] ol,.m24det .tabpanel[data-panel="fit"] ul,.m24det .tabpanel[data-panel="fit"] ol{margin:0 0 1.1em;padding-left:1.5em}
 		.m24det .tabpanel[data-panel="desc"] li,.m24det .tabpanel[data-panel="fit"] li{margin:0 0 .4em}
@@ -645,6 +650,7 @@ class M24_Catalog_Template_Detail {
 					<?php if ( $has_fit ) : ?>
 						<button type="button" class="tab" data-tab="fit">Passend für</button>
 					<?php endif; ?>
+					<button type="button" class="tab" data-tab="warranty">Gewährleistung</button>
 					<?php if ( $leichtbau ) : ?>
 						<button type="button" class="tab" data-tab="manufacture">Herstellungshinweise</button>
 					<?php endif; ?>
@@ -670,6 +676,27 @@ class M24_Catalog_Template_Detail {
 						</div>
 					</div>
 				<?php endif; ?>
+				<?php
+				// Reiter „Gewährleistung" (Daniel, 12.11.2026, Variante A): offizielle EU-Mitteilung zur gesetzlichen
+				// Gewährleistung (Pflicht seit 27.09.2026, farbig, vor Vertragsschluss sichtbar) + bei Gebrauchtteilen
+				// der ausdrückliche Hinweis auf die gesondert vereinbarte einjährige Verjährungsfrist (§ 476 Abs. 2 BGB).
+				$gw_img = plugins_url( 'assets/img/eu-gewaehrleistung-de.png', M24_PLATTFORM_FILE );
+				$gw_pdf = plugins_url( 'assets/docs/eu-gewaehrleistung-de.pdf', M24_PLATTFORM_FILE );
+				?>
+				<div class="tabpanel" data-panel="warranty" hidden>
+					<div class="m24-gw">
+						<a class="m24-gw-label" href="<?php echo esc_url( $gw_pdf ); ?>" target="_blank" rel="noopener" title="EU-Mitteilung zur gesetzlichen Gewährleistung als PDF öffnen">
+							<img src="<?php echo esc_url( $gw_img ); ?>" alt="EU-Mitteilung: Gesetzliche Gewährleistung – mindestens zwei Jahre für Waren, die in der Europäischen Union verkauft werden" loading="lazy" width="910" height="1287">
+						</a>
+						<div class="m24-gw-text">
+							<p><strong>Gesetzliche Gewährleistung</strong></p>
+							<p>Für diesen Artikel gelten die gesetzlichen Mängelrechte. Die EU-Mitteilung links fasst Ihre Rechte als Verbraucher zusammen; ein Klick öffnet sie als PDF.</p>
+							<?php if ( 'gebraucht' === $typ ) : ?>
+								<p class="m24-gw-hinweis"><strong>Gebrauchtteil:</strong> Mit Verbrauchern vereinbaren wir vor dem Kauf ausdrücklich und gesondert eine Verjährungsfrist für Mängelansprüche von einem Jahr ab Lieferung. Ohne diese Vereinbarung gilt die gesetzliche Frist von zwei Jahren.</p>
+							<?php endif; ?>
+						</div>
+					</div>
+				</div>
 				<?php if ( $leichtbau ) : ?>
 					<div class="tabpanel" data-panel="manufacture" hidden>
 						<p style="margin:0"><?php echo esc_html( m24_leichtbau_hinweis() ); ?></p>
