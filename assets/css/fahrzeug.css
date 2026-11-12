@@ -58,7 +58,7 @@
 .m24fz-views{color:var(--mut);font-size:13px;margin:2px 0 0}
 /* Händler-Info jetzt IN der Preisbox unter einer Trennlinie (Aufrufe-Zeile entfernt) */
 .m24fz-seller{display:flex;flex-direction:column;gap:4px;border-top:1px solid #ececec;margin-top:6px;padding-top:14px}
-.m24fz-seller strong{font-size:16px;font-weight:700;color:#1a1d22}.m24fz-seller span{color:#9aa0a8;font-size:14px}
+.m24fz-seller strong{font-size:16px;font-weight:700;color:#9aa0a8}.m24fz-seller span{color:#9aa0a8;font-size:14px}.m24fz-seller strong span{font-size:inherit}
 
 /* 4. Bilder — linke Kachel = Höhe(rechts oben)+Gap+Höhe(rechts unten), Böden bündig */
 .m24fz-photos{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:14px;align-items:stretch}
