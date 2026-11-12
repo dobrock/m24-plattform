@@ -199,7 +199,9 @@ class M24_Catalog_Feed {
 			$ist25a ? 'RECHNUNG · Differenzbesteuerung nach § 25a UStG, MwSt. wird nicht gesondert ausgewiesen.' : 'RECHNUNG · mit ausgewiesener MwSt. (inkl. 19 %, netto ' . $netto_de . ').',
 			'VERFÜGBARKEIT · solange online.',
 			'VERSAND · weltweit – Lieferanschrift senden, wir nennen die genauen Transportkosten.' . ( $abholung ? ' ABHOLUNG · optional in 37589 Kalefeld.' : '' ),
-			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtware 1 Jahr (siehe Zustandshinweise).' : '',
+			// 12.11.2026 (Daniel): ausdrücklicher Hinweis statt „Gebrauchtware 1 Jahr“ – die Verkürzung gilt gegenüber Verbrauchern nur
+			// mit Hinweis vor dem Kauf UND gesonderter Vereinbarung (§ 476 Abs. 2 BGB); der Text sagt genau das.
+			'gebraucht' === $typ ? 'GEWÄHRLEISTUNG · Gebrauchtteil: Mit Verbrauchern vereinbaren wir vor dem Kauf ausdrücklich und gesondert eine Verjährungsfrist für Mängelansprüche von einem Jahr ab Lieferung. Ohne diese Vereinbarung gilt die gesetzliche Frist von zwei Jahren.' : '',
 			'gebraucht' === $typ ? 'EINBAU · Fachwerkstatt empfohlen.' : '',
 			'1' === $g( '_m24_nur_gewerbe' ) && false === mb_stripos( $beschr, 'an Gewerbetreibende' ) ? 'VERKAUF · ausschließlich an Gewerbetreibende, nicht an Privatpersonen.' : '',
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 für ein Angebot inkl. Verpackung und versichertem Versand.' : '',
@@ -210,7 +212,7 @@ class M24_Catalog_Feed {
 			$ist25a ? 'INVOICE · margin scheme (§ 25a UStG), no VAT shown separately.' : 'INVOICE · 19% German VAT shown (net ' . $netto_en . '), net export possible.',
 			'AVAILABILITY · while online.',
 			'SHIPPING · worldwide – send your delivery address for an exact quote.' . ( $abholung ? ' PICKUP · optional in 37589 Kalefeld, Germany.' : '' ),
-			'gebraucht' === $typ ? 'WARRANTY · used items 1 year (see condition notes).' : '',
+			'gebraucht' === $typ ? 'WARRANTY · used part: with consumers we expressly and separately agree, before purchase, a one-year limitation period for defect claims from delivery. Without this agreement the statutory two-year period applies.' : '',
 			'gebraucht' === $typ ? 'INSTALLATION · by a specialist workshop recommended.' : '',
 			'1' === $g( '_m24_nur_gewerbe' ) ? 'SALE · to businesses only, not to private individuals.' : '',
 			$wa ? 'WHATSAPP · +49 (0)30 692014090 for a quote including packaging and insured shipping.' : '',
