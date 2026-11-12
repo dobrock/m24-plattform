@@ -29,6 +29,13 @@ class M24_Native_Sitemap {
 	const REWRITE_FLAG = 'm24_native_sitemap_rw_v2'; // v2: /sitemap.xml-Regel entfernt → Re-Flush
 	const CACHE_PREFIX = 'm24_smap_';
 	const CACHE_TTL    = 12 * HOUR_IN_SECONDS;
+	const RC_TTL       = 7 * DAY_IN_SECONDS;     // Redirect-Prüfung je URL: eigene Laufzeit, unabhängig vom Salt
+	const VERIFY_BUDGET = 8;                     // Sekunden HTTP-Prüfung je Sitemap-Build, danach ungeprüft weiter
+	const HTTP_GEPRUEFT = array( 'categories', 'pages', 'blog' );
+
+	/** true, wenn der laufende Build das Zeitbudget der Redirect-Prüfung überschritten hat. */
+	private static $teilweise = false;
+	private static $verify_start = 0.0;
 
 	/** Typisierte Unter-Sitemaps: key => Builder-Methode. */
 	private static function submaps(): array {
@@ -69,7 +76,7 @@ class M24_Native_Sitemap {
 		add_filter( 'rocket_cache_reject_uri', array( __CLASS__, 'rocket_reject' ) );
 
 		// Cache-Invalidierung bei Inhaltsänderungen.
-		add_action( 'save_post', array( __CLASS__, 'flush_cache' ) );
+		add_action( 'save_post', array( __CLASS__, 'flush_on_save' ), 10, 2 );
 		add_action( 'deleted_post', array( __CLASS__, 'flush_cache' ) );
 		add_action( 'edited_term', array( __CLASS__, 'flush_cache' ) );
 		// … und an „Cache leeren" (WP Rocket) + einen generischen Hook + manuellen Rebuild.
@@ -126,9 +133,31 @@ class M24_Native_Sitemap {
 		update_option( self::REWRITE_FLAG, self::REWRITE_FLAG, false );
 	}
 
-	/** Globale Invalidierung: Salt hochzählen → alle salt-tragenden Transients (Unter-Sitemaps + rc-Checks) verwaisen. */
+	/**
+	 * Post-Typen, deren Speichern die Sitemap wirklich ändert. Alles andere (Revisionen, Autosaves, Angebote,
+	 * Anfragen, Menüs …) lässt den Cache stehen — vorher warf JEDES save_post die komplette Sitemap weg
+	 * (12.11.2026: Index lief dadurch dauerhaft in den Timeout, weil der Desk-Sync ständig speichert).
+	 */
+	public static function flush_on_save( $post_id, $post = null ) {
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) { return; }
+		$typ   = is_object( $post ) ? (string) $post->post_type : (string) get_post_type( $post_id );
+		$typen = (array) apply_filters( 'm24_sitemap_flush_post_types', array( 'post', 'page', 'm24_teil', 'm24_fahrzeug', 'm24_modellhub' ) );
+		if ( ! in_array( $typ, $typen, true ) ) { return; }
+		if ( is_object( $post ) && 'auto-draft' === $post->post_status ) { return; }
+		self::flush_cache();
+	}
+
+	/**
+	 * Globale Invalidierung: Salt hochzählen → Index + Unter-Sitemaps werden neu gebaut. Die Redirect-Prüfungen
+	 * je URL (rc) hängen NICHT mehr am Salt (eigene Laufzeit) — sonst kostet jede Inhaltsänderung wieder
+	 * hunderte HTTP-Prüfungen. Die Transients des alten Salts werden gelöscht statt zu verwaisen.
+	 */
 	public static function flush_cache() {
-		update_option( 'm24_smap_salt', (string) ( (int) get_option( 'm24_smap_salt', '1' ) + 1 ), false );
+		$alt = self::salt();
+		foreach ( array_merge( array( 'index' ), array_keys( self::submaps() ) ) as $key ) {
+			delete_transient( self::CACHE_PREFIX . $alt . '_' . $key );
+		}
+		update_option( 'm24_smap_salt', (string) ( (int) $alt + 1 ), false );
 	}
 
 	/* ── Serving ──────────────────────────────────────────────────────────── */
@@ -167,8 +196,11 @@ class M24_Native_Sitemap {
 		$tk  = self::CACHE_PREFIX . self::salt() . '_' . $key; // salt im Key → flush_cache() invalidiert global
 		$hit = get_transient( $tk );
 		if ( is_string( $hit ) && '' !== $hit ) { return $hit; }
+		self::$teilweise = false;
 		$xml = (string) call_user_func( $builder );
-		set_transient( $tk, $xml, self::CACHE_TTL );
+		// Lief die Redirect-Prüfung ins Zeitbudget, ist die Liste noch ungeprüft-vollständig: nur kurz cachen,
+		// der nächste Abruf prüft mit warmem rc-Cache weiter.
+		set_transient( $tk, $xml, self::$teilweise ? 10 * MINUTE_IN_SECONDS : self::CACHE_TTL );
 		return $xml;
 	}
 
@@ -178,11 +210,19 @@ class M24_Native_Sitemap {
 		$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 		$xml .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 		foreach ( array_keys( self::submaps() ) as $key ) {
-			$entries = self::cached( $key, array( __CLASS__, self::submaps()[ $key ] ) );
-			// Leere Unter-Sitemap (nur urlset-Rahmen, kein <url>) nicht in den Index aufnehmen.
-			if ( false === strpos( $entries, '<url>' ) ) { continue; }
+			// Der Index darf nie an den HTTP-geprüften Unter-Sitemaps (Seiten/Blog/Kategorien) hängen: die werden
+			// nur aus dem Cache gelesen und sonst ungebaut gelistet (12.11.2026: Index lief >35 s in den Timeout).
+			if ( in_array( $key, self::HTTP_GEPRUEFT, true ) ) {
+				$hit     = get_transient( self::CACHE_PREFIX . self::salt() . '_' . $key );
+				$entries = is_string( $hit ) ? $hit : '';
+				if ( '' !== $entries && false === strpos( $entries, '<url>' ) ) { continue; }
+			} else {
+				$entries = self::cached( $key, array( __CLASS__, self::submaps()[ $key ] ) );
+				// Leere Unter-Sitemap (nur urlset-Rahmen, kein <url>) nicht in den Index aufnehmen.
+				if ( false === strpos( $entries, '<url>' ) ) { continue; }
+			}
 			$loc     = home_url( '/sitemap-m24-' . $key . '.xml' );
-			$lastmod = self::extract_latest_lastmod( $entries );
+			$lastmod = '' !== $entries ? self::extract_latest_lastmod( $entries ) : '';
 			$xml    .= "\t<sitemap>\n\t\t<loc>" . esc_url( $loc ) . "</loc>\n";
 			if ( '' !== $lastmod ) { $xml .= "\t\t<lastmod>" . esc_html( $lastmod ) . "</lastmod>\n"; }
 			$xml    .= "\t</sitemap>\n";
@@ -217,6 +257,7 @@ class M24_Native_Sitemap {
 		$hl   = (bool) apply_filters( 'm24_sitemap_hreflang', true );
 		$xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' . ( $hl ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' : '' ) . '>' . "\n";
 		$seen = array();
+		self::$verify_start = microtime( true );
 		foreach ( $urls as $u ) {
 			$loc = isset( $u['loc'] ) ? (string) $u['loc'] : '';
 			if ( '' === $loc || ( ! $allow_params && false !== strpos( $loc, '?' ) ) ) { continue; }   // Regel 3: keine Param-URLs (Ausnahme: self-canonical Modell-Übersichten)
@@ -289,14 +330,16 @@ class M24_Native_Sitemap {
 	 * Transiente Fehler/Timeouts → KEIN Redirect angenommen (echte Inhalte nicht wegen Netzflackern verlieren).
 	 */
 	private static function http_redirects( string $url ): bool {
-		$ck  = 'm24_smap_rc_' . self::salt() . '_' . md5( $url );
+		$ck  = 'm24_smap_rc_' . md5( $url );
 		$hit = get_transient( $ck );
 		if ( '3' === $hit ) { return true; }
 		if ( '2' === $hit ) { return false; }
-		$res  = wp_remote_head( $url, array( 'timeout' => 5, 'redirection' => 0, 'sslverify' => true ) );
+		// Zeitbudget: ein Kalt-Build prüft sonst hunderte URLs nacheinander und läuft in den Timeout.
+		if ( ( microtime( true ) - self::$verify_start ) > self::VERIFY_BUDGET ) { self::$teilweise = true; return false; }
+		$res  = wp_remote_head( $url, array( 'timeout' => 3, 'redirection' => 0, 'sslverify' => true ) );
 		$code = is_wp_error( $res ) ? 0 : (int) wp_remote_retrieve_response_code( $res );
 		$is_redir = ( $code >= 300 && $code < 400 );
-		if ( 0 !== $code ) { set_transient( $ck, $is_redir ? '3' : '2', self::CACHE_TTL ); } // Fehler (0) nicht cachen
+		if ( 0 !== $code ) { set_transient( $ck, $is_redir ? '3' : '2', self::RC_TTL ); } // Fehler (0) nicht cachen
 		return $is_redir;
 	}
 
@@ -332,16 +375,21 @@ class M24_Native_Sitemap {
 
 	/* ── Builder: M24-Typen (exakte SSoT) ─────────────────────────────────── */
 
+	/** Ausgeblendete Teile liefern öffentlich 404 (catalog-template-detail) → gehören nicht in die Sitemap. */
+	private static function teil_oeffentlich( $id ): bool {
+		return 'ausgeblendet' !== (string) get_post_meta( (int) $id, '_m24_status', true );
+	}
+
 	public static function build_products(): string {
 		return self::urlset( self::collect_posts( 'm24_teil', static function ( $id ) {
-			return 'neu' === get_post_meta( $id, '_m24_typ', true )
+			return 'neu' === get_post_meta( $id, '_m24_typ', true ) && self::teil_oeffentlich( $id )
 				&& class_exists( 'M24_Catalog_SEO' ) && M24_Catalog_SEO::is_indexable_teil( $id );
 		} ) );
 	}
 
 	public static function build_gebrauchtteile(): string {
 		return self::urlset( self::collect_posts( 'm24_teil', static function ( $id ) {
-			return 'neu' !== get_post_meta( $id, '_m24_typ', true )
+			return 'neu' !== get_post_meta( $id, '_m24_typ', true ) && self::teil_oeffentlich( $id )
 				&& class_exists( 'M24_Catalog_SEO' ) && M24_Catalog_SEO::is_indexable_teil( $id );
 		} ) );
 	}
