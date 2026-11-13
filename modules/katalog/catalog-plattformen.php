@@ -39,6 +39,7 @@ class M24_Catalog_Plattformen {
 		add_action( 'added_post_meta', array( __CLASS__, 'meta_geaendert' ), 10, 4 );
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_action( 'wp_ajax_m24_plattform_senden', array( __CLASS__, 'ajax_senden' ) );
+		add_action( 'admin_init', array( __CLASS__, 'neuteile_von_s14_loesen' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
 	}
 
@@ -268,7 +269,10 @@ jQuery(function($){
 		if ( $h === (string) get_post_meta( $id, '_m24_sync_hash', true ) && 'manuell' !== $anlass ) { return; }
 		update_post_meta( $id, '_m24_sync_hash', $h );
 
-		if ( '1' === (string) self::m( $id, '_m24_pub_s14', '0' ) ) {
+		// s14.de führt nur Gebrauchtteile (Daniel, 13.11.2026): Neuteile gehen nie dorthin, auch nicht zum Ausblenden.
+		if ( 'neu' === (string) get_post_meta( $id, '_m24_typ', true ) ) {
+			// nichts an s14
+		} elseif ( '1' === (string) self::m( $id, '_m24_pub_s14', '0' ) ) {
 			self::an_s14( $id, $n );
 		} elseif ( get_post_meta( $id, '_m24_s14_id', true ) ) {
 			$n['status'] = 'ausgeblendet';   // Schalter s14 aus → dort als Entwurf, nicht löschen
@@ -277,6 +281,25 @@ jQuery(function($){
 		if ( '1' === (string) self::m( $id, '_m24_kleinanzeigen', '0' ) && get_post_meta( $id, '_m24_ka_id', true ) ) {
 			update_post_meta( $id, '_m24_ka_offen', '1' );
 			self::log( $id, 'Kleinanzeigen: Änderung vorgemerkt (' . $anlass . ')' );
+		}
+	}
+
+	/**
+	 * Einmalig (13.11.2026): Neuteile vom s14-Abgleich lösen. Am Abend waren versehentlich 175 Neuteile nach s14.de
+	 * übertragen und wieder zurückgenommen worden; die Inserate dort sind gelöscht. Hier werden Schalter und
+	 * s14-Verweise der Neuteile entfernt, damit nichts erneut übertragen wird und der Feed sie nicht als „auf s14" meldet.
+	 */
+	public static function neuteile_von_s14_loesen() {
+		if ( '1' === get_option( 'm24_neu_s14_geloest' ) ) { return; }
+		update_option( 'm24_neu_s14_geloest', '1', false );
+		$ids = get_posts( array( 'post_type' => self::PT, 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'meta_key' => '_m24_typ', 'meta_value' => 'neu' ) );
+		foreach ( $ids as $id ) {
+			$id = (int) $id;
+			if ( '1' !== (string) get_post_meta( $id, '_m24_pub_s14', true ) && ! get_post_meta( $id, '_m24_s14_id', true ) ) { continue; }
+			update_post_meta( $id, '_m24_pub_s14', '0' );
+			delete_post_meta( $id, '_m24_s14_id' );
+			delete_post_meta( $id, '_m24_s14_url' );
+			update_post_meta( $id, '_m24_s14_link', array( 't' => time(), 'u' => '' ) );
 		}
 	}
 
@@ -303,8 +326,11 @@ jQuery(function($){
 		if ( ! empty( $body['s14_id'] ) ) {
 			update_post_meta( $id, '_m24_s14_id', (int) $body['s14_id'] );
 			update_post_meta( $id, '_m24_s14_url', esc_url_raw( (string) ( $body['url'] ?? '' ) ) );
-			update_post_meta( $id, '_m24_pub_s14', '1' );
-			if ( ! empty( $body['url'] ) ) { update_post_meta( $id, '_m24_s14_link', array( 't' => time(), 'u' => (string) $body['url'] ) ); }
+			// Nur beim Einschalten merken. Wird ein Teil auf s14 ausgeblendet (Schalter aus), darf die Antwort den
+			// Schalter nicht wieder auf „an" stellen – genau das passierte am 13.11.2026 bei 171 Neuteilen.
+			$versteckt = 'ausgeblendet' === (string) ( $n['status'] ?? '' );
+			if ( ! $versteckt ) { update_post_meta( $id, '_m24_pub_s14', '1' ); }
+			if ( ! empty( $body['url'] ) && ! $versteckt ) { update_post_meta( $id, '_m24_s14_link', array( 't' => time(), 'u' => (string) $body['url'] ) ); }
 		}
 		update_post_meta( $id, '_m24_s14_stand', current_time( 'mysql' ) );
 		self::log( $id, 's14: ' . (string) ( $body['aktion'] ?? 'aktualisiert' ) . ( ! empty( $body['hinweis'] ) ? ' – ' . $body['hinweis'] : '' ) );
