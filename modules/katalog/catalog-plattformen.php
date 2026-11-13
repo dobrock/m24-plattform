@@ -103,7 +103,9 @@ class M24_Catalog_Plattformen {
 	}
 
 	public static function hash( array $n ): string {
-		return sha1( wp_json_encode( array( $n['titel'], $n['beschreibung'], $n['preis'], $n['status'], $n['zustand'], $n['steuer'], ! empty( $n['reserviert'] ) ) ) );
+		// 13.11.2026: Bilder gehören in den Hash – im Desk wird das Teil erst angelegt und das Bild danach hochgeladen;
+		// ohne die Bilder blieb der Hash gleich und s14.de bekam das Inserat ohne Bild und nie wieder eine Übertragung.
+		return sha1( wp_json_encode( array( $n['titel'], $n['beschreibung'], $n['preis'], $n['status'], $n['zustand'], $n['steuer'], ! empty( $n['reserviert'] ), array_values( (array) ( $n['bilder'] ?? array() ) ) ) ) );
 	}
 
 	public static function log( int $id, string $text ): void {
