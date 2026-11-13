@@ -682,12 +682,17 @@ class M24_Catalog_Template_Detail {
 				// der ausdrückliche Hinweis auf die gesondert vereinbarte einjährige Verjährungsfrist (§ 476 Abs. 2 BGB).
 				$gw_img = plugins_url( 'assets/img/eu-gewaehrleistung-de.png', M24_PLATTFORM_FILE );
 				$gw_pdf = plugins_url( 'assets/docs/eu-gewaehrleistung-de.pdf', M24_PLATTFORM_FILE );
+				// Englische Seiten (/en/, GTranslate): Text übersetzt GTranslate selbst, Bild und PDF nicht – deshalb die
+				// amtliche englische EU-Fassung per JS einsetzen. Serverseitig ist /en/ im Proxy-Modus nicht sicher erkennbar.
+				$gw_img_en = plugins_url( 'assets/img/eu-gewaehrleistung-en.png', M24_PLATTFORM_FILE );
+				$gw_pdf_en = plugins_url( 'assets/docs/eu-gewaehrleistung-en.pdf', M24_PLATTFORM_FILE );
 				?>
 				<div class="tabpanel" data-panel="warranty" hidden>
 					<div class="m24-gw">
-						<a class="m24-gw-label" href="<?php echo esc_url( $gw_pdf ); ?>" target="_blank" rel="noopener" onclick="window.open(this.href,'_blank','noopener');return false;" title="EU-Mitteilung zur gesetzlichen Gewährleistung als PDF in neuem Tab öffnen">
+						<a class="m24-gw-label" href="<?php echo esc_url( $gw_pdf ); ?>" data-en-pdf="<?php echo esc_url( $gw_pdf_en ); ?>" data-en-img="<?php echo esc_url( $gw_img_en ); ?>" target="_blank" rel="noopener" onclick="window.open(this.href,'_blank','noopener');return false;" title="EU-Mitteilung zur gesetzlichen Gewährleistung als PDF in neuem Tab öffnen">
 							<img src="<?php echo esc_url( $gw_img ); ?>" alt="EU-Mitteilung: Gesetzliche Gewährleistung – mindestens zwei Jahre für Waren, die in der Europäischen Union verkauft werden" loading="lazy" width="910" height="1287">
 						</a>
+						<script>(function(){if(!/^\/en(\/|$)/.test(location.pathname))return;var a=document.querySelector('.m24-gw-label');if(!a)return;a.href=a.getAttribute('data-en-pdf');a.title='Open the EU notice on the legal guarantee as PDF in a new tab';var i=a.querySelector('img');if(i){i.src=a.getAttribute('data-en-img');i.alt='EU notice: legal guarantee – minimum two years for goods sold in the European Union';}})();</script>
 						<div class="m24-gw-text">
 							<p><strong>Gesetzliche Gewährleistung</strong></p>
 							<p>Für diesen Artikel gelten die gesetzlichen Mängelrechte. Die EU-Mitteilung links fasst Ihre Rechte als Verbraucher zusammen; ein Klick öffnet sie als PDF in einem neuen Tab.</p>
