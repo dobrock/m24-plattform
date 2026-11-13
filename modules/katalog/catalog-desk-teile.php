@@ -262,7 +262,17 @@ class M24_Catalog_Desk_Teile {
 		}
 	}
 
+	/**
+	 * Seiten-Cache des Teils leeren (Daniel, 13.11.2026): nach einer Änderung aus dem Desk zeigte die öffentliche
+	 * Seite Besuchern weiter den alten Stand (z. B. „inkl. 19 % MwSt." statt § 25a), weil WP Rocket die Seite hielt.
+	 */
+	private static function cache_leeren( int $id ): void {
+		clean_post_cache( $id );
+		if ( function_exists( 'rocket_clean_post' ) ) { rocket_clean_post( $id ); }
+	}
+
 	private static function antwort( int $id ): array {
+		self::cache_leeren( $id );
 		return array(
 			'ok'            => true,
 			'm24_id'        => $id,
