@@ -4,7 +4,7 @@
  *
  * KK Automobile legt Gebrauchtteile im Desk an (Teile-Modul). Der Desk schickt jedes Stück hierher:
  *   POST m24/v1/desk-teil   (Feed-Token wie Teile-Feed/Kleinanzeigen-Warteschlange, oder Admin)
- *   {desk_id, m24_id?, aktion: speichern|verkauft|ausblenden|loeschen, titel, beschreibung, preis_brutto,
+ *   {desk_id, m24_id?, aktion: speichern|verkauft|ausblenden|loeschen|endgueltig, titel, beschreibung, preis_brutto,
  *    typ, lagernr, teilenummer, baureihe, standort, s14, ka, bilder_neu: [{name, mime, data(base64)}],
  *    bilder_weg: [attachment-id …]}
  * Antwort: {ok, m24_id, url, artikelnummer, status, bilder: {name: attachment-id}, s14_url, ka_url}
@@ -113,7 +113,7 @@ class M24_Catalog_Desk_Teile {
 	public static function rest( WP_REST_Request $r ) {
 		$b       = (array) $r->get_json_params();
 		$desk_id = absint( $b['desk_id'] ?? 0 );
-		$aktion  = in_array( (string) ( $b['aktion'] ?? '' ), array( 'speichern', 'verkauft', 'ausblenden', 'loeschen' ), true ) ? (string) $b['aktion'] : 'speichern';
+		$aktion  = in_array( (string) ( $b['aktion'] ?? '' ), array( 'speichern', 'verkauft', 'ausblenden', 'loeschen', 'endgueltig' ), true ) ? (string) $b['aktion'] : 'speichern';
 		if ( ! $desk_id && empty( $b['m24_id'] ) ) { return new WP_REST_Response( array( 'ok' => false, 'meldung' => 'desk_id fehlt' ), 400 ); }
 		self::als_admin();
 		$id = self::finden( $desk_id, absint( $b['m24_id'] ?? 0 ) );
@@ -140,6 +140,17 @@ class M24_Catalog_Desk_Teile {
 		// Status-Aktionen an einem vorhandenen Teil
 		if ( 'speichern' !== $aktion ) {
 			if ( ! $id ) { return new WP_REST_Response( array( 'ok' => true, 'm24_id' => 0, 'meldung' => 'nicht auf m24 – nichts zu tun' ), 200 ); }
+			if ( 'endgueltig' === $aktion ) {
+				// Endgültig löschen (Desk, 7 Tage nach dem Löschen – Daniel, 13.11.2026): nur aus dem Papierkorb heraus,
+				// und mit dem Teil auch seine eigenen Bilder (Anhänge dieses Beitrags), damit Speicherplatz frei wird.
+				if ( 'trash' !== get_post_status( $id ) ) { return new WP_REST_Response( array( 'ok' => false, 'meldung' => 'Teil liegt nicht im Papierkorb' ), 409 ); }
+				$bilder = 0;
+				foreach ( get_children( array( 'post_parent' => $id, 'post_type' => 'attachment', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids' ) ) as $att ) {
+					if ( wp_delete_attachment( (int) $att, true ) ) { $bilder++; }
+				}
+				wp_delete_post( $id, true );
+				return new WP_REST_Response( array( 'ok' => true, 'm24_id' => 0, 'bilder_geloescht' => $bilder, 'meldung' => 'endgültig gelöscht' ), 200 );
+			}
 			if ( 'loeschen' === $aktion ) {
 				// erst ausblenden (geht an s14 weiter), dann Papierkorb
 				M24_Catalog_Admin_List::set_status( $id, 'ausgeblendet' );
