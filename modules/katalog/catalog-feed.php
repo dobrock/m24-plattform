@@ -272,8 +272,10 @@ class M24_Catalog_Feed {
 			// Für den Desk-Import (03.11.2026): Rohtext ohne Kleinanzeigen-Blöcke, Baureihen-Slugs, Plattform-Stand, Status.
 			'beschreibung_roh' => $beschr,
 			'modelle_slugs' => array_values( array_filter( (array) wp_get_post_terms( $id, M24_Catalog_CPT::TAXONOMY, array( 'fields' => 'slugs' ) ), 'is_string' ) ),
-			's14'           => '1' === (string) get_post_meta( $id, '_m24_pub_s14', true ),
-			's14_url'       => (string) get_post_meta( $id, '_m24_s14_url', true ),
+			// 13.11.2026: Teile, die s14.de selbst herübergezogen hat, tragen kein _m24_pub_s14 – dort zählt der s14-Link
+			// (wie in der Plattform-Box im Editor). Nur ein ausdrücklich gesetztes „0" heißt: auf s14 ausgeschaltet.
+			's14'           => '1' === (string) get_post_meta( $id, '_m24_pub_s14', true ) || ( '0' !== (string) get_post_meta( $id, '_m24_pub_s14', true ) && '' !== self::s14_link( $id, $url ) ),
+			's14_url'       => (string) get_post_meta( $id, '_m24_s14_url', true ) ?: self::s14_link( $id, $url ),
 			'ka_url'        => (string) get_post_meta( $id, '_m24_ka_url', true ),
 			'status'        => $g( '_m24_status' ) ?: 'aktiv',
 			'preis_auf_anfrage' => '1' === $g( '_m24_preis_auf_anfrage' ),
