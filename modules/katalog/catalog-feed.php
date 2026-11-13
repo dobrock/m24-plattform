@@ -314,7 +314,8 @@ class M24_Catalog_Feed {
 		$offen = array();
 		foreach ( $posts as $p ) {
 			$c = get_post_meta( $p->ID, '_m24_s14_link', true );
-			if ( is_array( $c ) && isset( $c['t'] ) && time() - (int) $c['t'] < DAY_IN_SECONDS ) { continue; }
+			// „s14 hat das Teil nicht“ nur 1 Stunde merken – sonst fehlt ein frisch herübergezogenes Teil einen Tag lang (13.11.2026).
+			if ( is_array( $c ) && isset( $c['t'] ) && time() - (int) $c['t'] < ( '' === (string) ( $c['u'] ?? '' ) ? HOUR_IN_SECONDS : DAY_IN_SECONDS ) ) { continue; }
 			$offen[ (string) get_permalink( $p ) ] = (int) $p->ID;
 		}
 		if ( ! $offen ) { return; }
