@@ -379,6 +379,11 @@ class M24_Brevo_Client {
 	}
 
 	/** Test-Versand einer Kampagne an konkrete Adressen (QA, ohne echte Listen-Zustellung). */
+	/** Die in Brevo angelegten Absender (GET /v3/senders) — für die Wahl eines aktiven Alert-Absenders (14.11.2026). */
+	public static function senders() {
+		return self::request( 'GET', '/senders' );
+	}
+
 	public static function send_campaign_test( $campaign_id, $emails ) {
 		return self::request( 'POST', '/emailCampaigns/' . (int) $campaign_id . '/sendTest', array( 'emailTo' => array_values( (array) $emails ) ) );
 	}

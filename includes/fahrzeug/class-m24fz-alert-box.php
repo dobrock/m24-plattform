@@ -284,6 +284,27 @@ class M24FZ_Alert_Box {
 		 * m24_alert_test_recipient nur in der Datenbank setzen. POST { "adresse": "…" } schaltet den Testmodus ein,
 		 * eine leere Adresse schaltet ihn aus. Nur Administratoren.
 		 */
+		// Absender des Alerts: Liste der Brevo-Absender lesen und einen aktiven festlegen. Nur Administratoren.
+		register_rest_route( self::NS, '/alert-absender', array(
+			'methods'             => 'POST',
+			'permission_callback' => function ( $req ) {
+				$n = $req->get_header( 'X-WP-Nonce' );
+				return is_string( $n ) && wp_verify_nonce( $n, 'wp_rest' ) && current_user_can( 'manage_options' );
+			},
+			'callback'            => function ( WP_REST_Request $req ) {
+				$res   = M24_Brevo_Client::senders();
+				$liste = array();
+				foreach ( (array) ( $res['data']['senders'] ?? array() ) as $s ) {
+					$liste[] = array( 'name' => (string) ( $s['name'] ?? '' ), 'email' => (string) ( $s['email'] ?? '' ), 'aktiv' => ! empty( $s['active'] ) );
+				}
+				$adr = sanitize_email( (string) $req->get_param( 'adresse' ) );
+				$gesetzt = false;
+				if ( '' !== $adr ) {
+					foreach ( $liste as $s ) { if ( $s['aktiv'] && 0 === strcasecmp( $s['email'], $adr ) ) { update_option( 'm24_alert_sender_email', $adr, false ); $gesetzt = true; } }
+				}
+				return rest_ensure_response( array( 'ok' => ! empty( $res['ok'] ), 'meldung' => (string) ( $res['msg'] ?? '' ), 'absender' => $liste, 'gesetzt' => $gesetzt, 'aktuell' => (string) get_option( 'm24_alert_sender_email', '' ) ) );
+			},
+		) );
 		register_rest_route( self::NS, '/alert-testempfaenger', array(
 			'methods'             => 'POST',
 			'permission_callback' => function ( $req ) {
@@ -411,9 +432,12 @@ class M24FZ_Alert_Box {
 		if ( '' === $host ) {
 			$host = 'motorsport24.de';
 		}
+		// Fester Alert-Absender (Option m24_alert_sender_email), falls gesetzt: Brevo nimmt nur Absender an, die dort
+		// angelegt und bestätigt sind — noreply@… war es am 14.11.2026 nicht („Sender is invalid / inactive").
+		$fest = sanitize_email( (string) get_option( 'm24_alert_sender_email', '' ) );
 		return apply_filters( 'm24_alert_sender', array(
 			'name'  => 'MOTORSPORT24',
-			'email' => apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host ),
+			'email' => is_email( $fest ) ? $fest : apply_filters( 'm24fz_mail_from_email', 'noreply@' . $host ),
 		), $id );
 	}
 
