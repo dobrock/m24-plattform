@@ -497,8 +497,7 @@ class M24FZ_Alert_Box {
 	 */
 	public static function build_teaser( $id, $tags, $lang = 'de' ) {
 		$en = 'en' === $lang;
-		// Beschriftungen je Sprache. Titel, Kurztext und die Punkte aus „Auf einen Blick" gibt es auf motorsport24.de
-		// nur deutsch — in der englischen Fassung entfallen Kurztext und Punkte, statt deutsch zu erscheinen.
+		// Beschriftungen je Sprache. Titel, Kurztext und Punkte der englischen Fassung: siehe Übersetzung weiter unten.
 		$L = $en
 			? array( 'neu' => 'New at MOTORSPORT24: ', 'kicker' => 'New in stock', 'Baujahr' => 'Year', 'Leistung' => 'Power', 'Laufleistung' => 'Mileage', 'Hubraum' => 'Displacement', 'Getriebe' => 'Transmission', 'Laufleistung Motor' => 'Engine running time', 'anfrage' => 'Price on request', 'knopf' => 'View vehicle', 'weil' => 'You are receiving this e-mail because you subscribed to “%s”.', 'ab1' => 'No longer interested? ', 'ab2' => 'Unsubscribe here', 'std' => 'our vehicle alerts' )
 			: array( 'neu' => 'Neu bei MOTORSPORT24: ', 'kicker' => 'Neu im Bestand', 'Baujahr' => 'Baujahr', 'Leistung' => 'Leistung', 'Laufleistung' => 'Laufleistung', 'Hubraum' => 'Hubraum', 'Getriebe' => 'Getriebe', 'Laufleistung Motor' => 'Laufleistung Motor', 'anfrage' => 'Preis auf Anfrage', 'knopf' => 'Fahrzeug ansehen', 'weil' => 'Sie erhalten diese E-Mail, weil Sie „%s" abonniert haben.', 'ab1' => 'Kein Interesse mehr? ', 'ab2' => 'Hier abmelden', 'std' => 'unsere Fahrzeug-Benachrichtigungen' );
@@ -542,7 +541,36 @@ class M24FZ_Alert_Box {
 			$intro = rtrim( $intro, ':' );
 		}
 		$punkte = array_slice( array_values( array_filter( array_map( 'trim', array_map( 'strval', (array) get_post_meta( $id, '_m24fz_keyfacts', true ) ) ) ) ), 0, 3 );
-		if ( $en ) { $intro = ''; $punkte = array(); }
+		/*
+		 * ENGLISCHE FASSUNG GLEICH AUSFÜHRLICH (Daniel, 14.11.2026: „Bei der englischen Version ist die Beschreibung
+		 * nicht so ausführlich wie bei der deutschen"). Titel, Kurztext und Punkte werden per DeepL übersetzt und am
+		 * Fahrzeug gemerkt (_m24fz_alert_en, Hash der deutschen Vorlage) — neu übersetzt wird nur, wenn sich der
+		 * deutsche Text ändert. Ohne DeepL-Schlüssel oder bei Fehler: wie bisher deutscher Titel, ohne Kurztext/Punkte.
+		 */
+		if ( $en ) {
+			$quelle = array_merge( array( $title, $intro ), $punkte );
+			$hash   = md5( wp_json_encode( $quelle ) );
+			$merk   = get_post_meta( $id, '_m24fz_alert_en', true );
+			$uebers = ( is_array( $merk ) && ( $merk['src'] ?? '' ) === $hash && is_array( $merk['t'] ?? null ) ) ? $merk['t'] : null;
+			if ( null === $uebers && class_exists( 'M24_DeepL' ) && M24_DeepL::is_configured() ) {
+				$idx = array_keys( array_filter( $quelle, 'strlen' ) );
+				$res = M24_DeepL::translate_batch( array_values( array_intersect_key( $quelle, array_flip( $idx ) ) ) );
+				if ( is_array( $res ) ) {
+					$uebers = array_fill( 0, count( $quelle ), '' );
+					foreach ( $idx as $n => $i ) { $uebers[ $i ] = trim( (string) $res[ $n ] ); }
+					update_post_meta( $id, '_m24fz_alert_en', array( 'src' => $hash, 't' => $uebers ) );
+				}
+			}
+			if ( is_array( $uebers ) && count( $uebers ) === count( $quelle ) && '' !== $uebers[0] ) {
+				$title   = $uebers[0];
+				$intro   = $uebers[1];
+				$punkte  = array_values( array_filter( array_slice( $uebers, 2 ), 'strlen' ) );
+				$subject = $L['neu'] . $title;
+			} else {
+				$intro  = '';
+				$punkte = array();
+			}
+		}
 
 		// Preis.
 		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) {
