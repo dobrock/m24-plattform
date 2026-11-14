@@ -96,6 +96,61 @@ class M24_Brevo_IL {
 	 * Hook-Callback für `m24fz_interessent_submitted`.
 	 * $contact: name, email, kundentyp, tel, modelle[], kategorien[].
 	 */
+	/**
+	 * Sprache eines neuen Interessenten (14.11.2026). Bisher kam vom Formular fast nie eine Sprache mit, also stand
+	 * jeder als „de" in der Liste. Reihenfolge: ausdrücklich „en" vom Formular → Lieferland (D/A/CH deutsch, jedes
+	 * andere englisch) → Sprache des Browsers (alles außer Deutsch = englisch) → deutsch.
+	 */
+	public static function detect_lang( $contact ) {
+		if ( 'en' === strtolower( (string) ( $contact['lang'] ?? '' ) ) ) { return 'en'; }
+		$land = strtolower( trim( (string) ( $contact['lieferland'] ?? '' ) ) );
+		if ( '' !== $land ) {
+			return preg_match( '/^(de|at|ch|d|a|deutschland|germany|österreich|oesterreich|austria|schweiz|switzerland|liechtenstein|li)$/u', $land ) ? 'de' : 'en';
+		}
+		$al = strtolower( (string) ( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ); // phpcs:ignore
+		if ( '' !== $al ) { return 0 === strpos( $al, 'de' ) ? 'de' : 'en'; }
+		return 'de';
+	}
+
+	/**
+	 * Sprache eines vorhandenen Interessenten setzen: Spiegel-Tabelle, offene Anmeldung (Pending) und — für
+	 * bestätigte Kontakte — Brevo (Attribut SPRACHE, richtige Sprachliste, aus der anderen heraus).
+	 */
+	public static function set_language( $email, $lang ) {
+		global $wpdb;
+		$email = sanitize_email( (string) $email );
+		$lang  = 'en' === strtolower( (string) $lang ) ? 'en' : 'de';
+		if ( ! is_email( $email ) ) { return array( 'ok' => false, 'msg' => 'Ungültige E-Mail' ); }
+		$out  = array( 'ok' => true, 'email' => M24_Brevo_Client::mask_email( $email ), 'sprache' => $lang, 'spiegel' => false, 'pending' => false, 'brevo' => '' );
+		$main = M24_Database::table( 'il_interessenten' );
+		$row  = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM $main WHERE email = %s", $email ), ARRAY_A );
+		if ( $row ) {
+			$wpdb->update( $main, array( 'sprache' => $lang, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => (int) $row['id'] ) );
+			$out['spiegel'] = true;
+		}
+		$store = self::load();
+		foreach ( $store as $tok => $rec ) {
+			if ( 0 === strcasecmp( (string) ( $rec['email'] ?? '' ), $email ) ) {
+				$store[ $tok ]['lang'] = $lang;
+				if ( isset( $store[ $tok ]['attributes'] ) && is_array( $store[ $tok ]['attributes'] ) ) { $store[ $tok ]['attributes']['SPRACHE'] = strtoupper( $lang ); }
+				$out['pending'] = true;
+			}
+		}
+		if ( $out['pending'] ) { self::save( $store ); }
+		if ( $row && 'aktiv' === (string) $row['status'] && M24_Brevo_Client::is_configured() ) {
+			$ll   = M24_Brevo_Client::lang_list_ids( true );
+			$body = array( 'attributes' => (object) array( 'SPRACHE' => strtoupper( $lang ) ) );
+			if ( $ll ) {
+				$body['listIds']       = array( (int) $ll[ $lang ] );
+				$body['unlinkListIds'] = array( (int) $ll[ 'en' === $lang ? 'de' : 'en' ] );
+			}
+			$res          = M24_Brevo_Client::update_contact( $email, $body );
+			$out['brevo'] = $res['ok'] ? 'ok' : (string) $res['msg'];
+			if ( ! $res['ok'] ) { $out['ok'] = false; }
+		}
+		return $out;
+	}
+
 	public static function on_submitted( $context_id, $contact ) {
 		$email = sanitize_email( (string) ( $contact['email'] ?? '' ) );
 		$name  = sanitize_text_field( (string) ( $contact['name'] ?? '' ) );
@@ -110,6 +165,9 @@ class M24_Brevo_IL {
 			) );
 			return;
 		}
+
+		// Sprache bestimmen, bevor Attribute und DOI-Mail entstehen (14.11.2026).
+		$contact['lang'] = self::detect_lang( $contact );
 
 		$attributes = self::attributes_for( $contact );
 
@@ -267,6 +325,13 @@ class M24_Brevo_IL {
 			array( M24_Brevo_Client::LIST_ID ),
 			M24_Brevo_Client::alert_list_ids_for_tags( $tags )
 		) ) );
+
+		// Sprachliste (DE oder EN) — über sie trennt der Alert den Versand nach Sprache (14.11.2026).
+		$ll = M24_Brevo_Client::lang_list_ids( true );
+		if ( $ll ) {
+			$list_ids[] = (int) $ll[ ( 'en' === strtolower( (string) ( $rec['lang'] ?? '' ) ) ) ? 'en' : 'de' ];
+			$list_ids   = array_values( array_unique( array_filter( $list_ids ) ) );
+		}
 
 		// Off-Market-Anmeldung → zusätzlich in die Off-Market-Liste (sofern konfiguriert).
 		if ( ! empty( $rec['offmarket'] ) ) {
