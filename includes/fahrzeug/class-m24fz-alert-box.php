@@ -470,6 +470,32 @@ class M24FZ_Alert_Box {
 		$km = (int) get_post_meta( $id, '_m24fz_laufleistung', true );
 		if ( $km > 0 ) { $facts['Laufleistung'] = number_format( $km, 0, ',', '.' ) . ' km'; }
 
+		/*
+		 * MEHR INHALT (Daniel, 14.11.2026: „Die Mail ist etwas mager … ein paar Eckdaten … zwei Zeilen aus dem Text",
+		 * gewählt: Vorschlag A). Zusätzlich Hubraum, Getriebe und die Laufzeit des Motors als Eckdaten (höchstens fünf
+		 * Zeilen), darüber der Anfang der Zusammenfassung, darunter bis zu drei Punkte aus „Auf einen Blick".
+		 * Es steht nur, was am Fahrzeug gepflegt ist — leere Felder entfallen.
+		 */
+		$hub = trim( (string) get_post_meta( $id, '_m24fz_hubraum', true ) );
+		if ( '' !== $hub ) { $facts['Hubraum'] = $hub; }
+		$getr = trim( (string) get_post_meta( $id, '_m24fz_getriebe', true ) );
+		if ( '' !== $getr ) { $facts['Getriebe'] = $getr; }
+		$lm = trim( (string) get_post_meta( $id, '_m24fz_lauf_motor', true ) );
+		if ( '' !== $lm && class_exists( 'M24FZ_Telemetry' ) ) {
+			$lv = M24FZ_Telemetry::lauf_value( $lm, (string) get_post_meta( $id, '_m24fz_lauf_motor_unit', true ) );
+			if ( '' !== $lv ) { $facts['Laufleistung Motor'] = $lv; }
+		}
+		$facts = array_slice( $facts, 0, 5, true );
+
+		$intro = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( (string) get_post_meta( $id, '_m24fz_zusammenfassung', true ) ) ) );
+		if ( mb_strlen( $intro ) > 190 ) {
+			$kurz  = mb_substr( $intro, 0, 190 );
+			$punkt = max( (int) mb_strrpos( $kurz, '. ' ), (int) mb_strrpos( $kurz, ': ' ) );
+			$intro = $punkt > 60 ? mb_substr( $kurz, 0, $punkt + 1 ) : rtrim( mb_substr( $kurz, 0, (int) mb_strrpos( $kurz, ' ' ) ), ' ,;:' ) . ' …';
+			$intro = rtrim( $intro, ':' );
+		}
+		$punkte = array_slice( array_values( array_filter( array_map( 'trim', array_map( 'strval', (array) get_post_meta( $id, '_m24fz_keyfacts', true ) ) ) ) ), 0, 3 );
+
 		// Preis.
 		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) {
 			$preis = 'Preis auf Anfrage';
@@ -497,6 +523,12 @@ class M24FZ_Alert_Box {
 				. '<td style="padding:4px 0;text-align:right;font-weight:600;font-size:13px;color:#14161a;">' . esc_html( $v ) . '</td></tr>';
 		}
 
+		$punkte_html = '';
+		foreach ( $punkte as $pk ) {
+			$punkte_html .= '<p style="margin:0 0 6px;font-size:14px;line-height:1.45;color:#3d4a60;"><span style="color:#9a7b3f;font-weight:700;">&#10003;</span>&nbsp; ' . esc_html( $pk ) . '</p>';
+		}
+		if ( '' !== $punkte_html ) { $punkte_html .= '<div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>'; }
+
 		$html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
 			. '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
 			. 'body,table,td,h1,div,a,p{' . $stack . '}</style></head>'
@@ -507,17 +539,20 @@ class M24FZ_Alert_Box {
 			. '<span style="color:#fff;font-weight:700;letter-spacing:1px;font-size:14px;">MOTORSPORT24</span></td></tr>';
 
 		if ( $img ) {
-			$html .= '<tr><td style="padding:0;"><img src="' . esc_url( $img ) . '" alt="' . esc_attr( $title ) . '" width="600" style="display:block;width:100%;height:auto;border:0;"></td></tr>';
+			$html .= '<tr><td style="padding:0;"><a href="' . esc_url( $url ) . '"><img src="' . esc_url( $img ) . '" alt="' . esc_attr( $title ) . '" width="600" style="display:block;width:100%;height:auto;border:0;"></a></td></tr>';
 		}
 
 		$html .= '<tr><td style="padding:22px 24px 8px;">'
 			. '<p style="margin:0 0 4px;color:#9a7b3f;font-size:12px;letter-spacing:.5px;text-transform:uppercase;">Neu im Bestand</p>'
 			. '<h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#10243a;">' . esc_html( $title ) . '</h1>'
+			. ( '' !== $intro ? '<p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#3d4a60;">' . esc_html( $intro ) . '</p>' : '' )
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef0f3;border-bottom:1px solid #eef0f3;margin:0 0 14px;">' . $facts_html . '</table>'
-			. '<p style="margin:0 0 18px;font-size:20px;font-weight:800;color:#9a7b3f;">' . esc_html( $preis ) . '</p>'
-			. '<p style="margin:0 0 6px;text-align:center;">'
-			. '<a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:700;padding:14px 30px;border-radius:8px;font-size:15px;">Fahrzeug ansehen</a>'
-			. '</p>'
+			. $punkte_html
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 6px;"><tr>'
+			. '<td style="font-size:22px;font-weight:800;color:#9a7b3f;white-space:nowrap;">' . esc_html( $preis ) . '</td>'
+			. '<td style="text-align:right;">'
+			. '<a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:8px;font-size:15px;white-space:nowrap;">Fahrzeug ansehen</a>'
+			. '</td></tr></table>'
 			. '</td></tr>'
 			. '<tr><td style="padding:14px 24px;border-top:1px solid #e6e9ee;font-size:11px;color:#9aa3b0;line-height:1.6;">'
 			. 'Sie erhalten diese E-Mail, weil Sie „' . esc_html( $tag_label ) . '" abonniert haben.<br>'
