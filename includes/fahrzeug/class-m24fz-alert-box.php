@@ -381,6 +381,16 @@ class M24FZ_Alert_Box {
 			delete_transient( $lock );
 			if ( ! $send['ok'] ) {
 				M24_Logger::error( 'brevo', 'Alert TEST-Versand fehlgeschlagen (Inserat #' . $id . ')', array( 'campaign' => $camp['id'], 'msg' => $send['msg'] ) );
+				/*
+				 * 14.11.2026: Brevo schickt Testmails nur an Adressen, die dort als Kontakt in einer Liste stehen
+				 * („Test emails cannot be sent to non-existent … users"). Damit die Ansicht trotzdem möglich ist, geht
+				 * derselbe Inhalt (Betreff + HTML der Kampagne) dann über den Mailversand der Seite an die Testadresse.
+				 * Das prüft Aussehen und Inhalt, nicht die Zustellung über Brevo.
+				 */
+				$ok = wp_mail( $test, '[TEST] ' . (string) $teaser['subject'], (string) $teaser['html'], array( 'Content-Type: text/html; charset=UTF-8', 'From: ' . $sender['name'] . ' <' . $sender['email'] . '>' ) );
+				if ( $ok ) {
+					return rest_ensure_response( array( 'ok' => true, 'test' => true, 'weg' => 'seite', 'message' => 'Test-Versand an ' . $test . ' über den Mailversand der Seite (Brevo: ' . $send['msg'] . ').' ) );
+				}
 				return new WP_Error( 'm24_test', 'Test-Versand fehlgeschlagen: ' . $send['msg'], array( 'status' => 502 ) );
 			}
 			M24_Logger::warning( 'brevo', 'Alert gesendet [TEST]: Inserat #' . $id . ', nur an ' . M24_Brevo_Client::mask_email( $test ) . ', campaign #' . $camp['id'], array(
