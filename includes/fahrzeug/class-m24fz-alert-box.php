@@ -278,6 +278,24 @@ class M24FZ_Alert_Box {
 			'permission_callback' => array( __CLASS__, 'perm' ),
 			'callback'            => array( __CLASS__, 'handle_send' ),
 		) );
+		/*
+		 * QA-Modus schalten (Daniel, 14.11.2026: „Bitte sende diese Interessenten-Mail vorerst nur an die
+		 * service@motorsport24.de, damit ich mir das Ergebnis einmal angucken kann."). Bisher ließ sich die Option
+		 * m24_alert_test_recipient nur in der Datenbank setzen. POST { "adresse": "…" } schaltet den Testmodus ein,
+		 * eine leere Adresse schaltet ihn aus. Nur Administratoren.
+		 */
+		register_rest_route( self::NS, '/alert-testempfaenger', array(
+			'methods'             => 'POST',
+			'permission_callback' => function ( $req ) {
+				$n = $req->get_header( 'X-WP-Nonce' );
+				return is_string( $n ) && wp_verify_nonce( $n, 'wp_rest' ) && current_user_can( 'manage_options' );
+			},
+			'callback'            => function ( WP_REST_Request $req ) {
+				$adr = sanitize_email( (string) $req->get_param( 'adresse' ) );
+				if ( '' === $adr ) { delete_option( self::TEST_OPTION ); } else { update_option( self::TEST_OPTION, $adr, false ); }
+				return rest_ensure_response( array( 'ok' => true, 'testmodus' => '' !== $adr, 'adresse' => $adr ) );
+			},
+		) );
 	}
 
 	public static function perm( $req ) {
