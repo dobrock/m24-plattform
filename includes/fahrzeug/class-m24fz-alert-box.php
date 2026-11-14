@@ -284,6 +284,19 @@ class M24FZ_Alert_Box {
 		 * m24_alert_test_recipient nur in der Datenbank setzen. POST { "adresse": "…" } schaltet den Testmodus ein,
 		 * eine leere Adresse schaltet ihn aus. Nur Administratoren.
 		 */
+		// Sprache vorhandener Interessenten setzen: { "zuordnung": { "mail@…": "en", … } }. Nur Administratoren.
+		register_rest_route( self::NS, '/il-sprache', array(
+			'methods'             => 'POST',
+			'permission_callback' => function ( $req ) {
+				$n = $req->get_header( 'X-WP-Nonce' );
+				return is_string( $n ) && wp_verify_nonce( $n, 'wp_rest' ) && current_user_can( 'manage_options' );
+			},
+			'callback'            => function ( WP_REST_Request $req ) {
+				$erg = array();
+				foreach ( (array) $req->get_param( 'zuordnung' ) as $mail => $sp ) { $erg[] = M24_Brevo_IL::set_language( (string) $mail, (string) $sp ); }
+				return rest_ensure_response( array( 'ok' => true, 'listen' => M24_Brevo_Client::lang_list_ids( false ), 'ergebnis' => $erg ) );
+			},
+		) );
 		// Absender des Alerts: Liste der Brevo-Absender lesen und einen aktiven festlegen. Nur Administratoren.
 		register_rest_route( self::NS, '/alert-absender', array(
 			'methods'             => 'POST',
@@ -355,7 +368,6 @@ class M24FZ_Alert_Box {
 		$tags     = (array) $data['tags'];
 		$list_ids = M24_Brevo_Client::alert_list_ids_for_tags( $tags );
 
-		$teaser = self::build_teaser( $id, $tags );
 		$sender = self::sender( $id );
 		if ( '' === (string) $sender['email'] ) {
 			delete_transient( $lock );
@@ -365,41 +377,28 @@ class M24FZ_Alert_Box {
 		$test    = trim( (string) get_option( self::TEST_OPTION, '' ) );
 		$test_on = is_email( $test );
 
-		// Kampagne anlegen. Für den Test brauchen wir gültige recipients.listIds — Fallback Liste 3.
-		$camp_lists = ! empty( $list_ids ) ? $list_ids : array( M24_Brevo_Client::LIST_ID );
-		$name       = 'M24 Alert #' . $id . ' — ' . current_time( 'Y-m-d H:i' ) . ( $test_on ? ' [TEST]' : '' );
-		$camp       = M24_Brevo_Client::create_campaign( $name, $teaser['subject'], $teaser['html'], $camp_lists, $sender );
+		/*
+		 * NACH SPRACHE GETRENNT (Daniel, 14.11.2026: „damit die Leute … ihre Alerts in der richtigen Sprache bekommen").
+		 * Es gibt zwei Sprachlisten in Brevo; jeder Interessent steht in genau einer. Die deutsche Kampagne geht an
+		 * die Ziel-Listen und schließt die EN-Liste aus, die englische schließt die DE-Liste aus. Fehlen die
+		 * Sprachlisten, bleibt es beim bisherigen einen (deutschen) Versand.
+		 */
+		$sprachlisten = M24_Brevo_Client::lang_list_ids( true );
+		$sprachen     = $sprachlisten ? array( 'de', 'en' ) : array( 'de' );
+		$je_sprache   = self::lang_counts( $tags );
 
-		if ( ! $camp['ok'] ) {
-			delete_transient( $lock );
-			M24_Logger::error( 'brevo', 'Alert: Kampagne anlegen fehlgeschlagen (Inserat #' . $id . ')', array( 'msg' => $camp['msg'] ) );
-			return new WP_Error( 'm24_camp', 'Kampagne konnte nicht angelegt werden: ' . $camp['msg'], array( 'status' => 502 ) );
-		}
-
+		// TESTMODUS: beide Fassungen über den Mailversand der Seite an die Testadresse — keine Kampagne in Brevo,
+		// kein Re-Send-Vermerk. (Brevo verschickt Testmails nur an Adressen, die dort Kontakt einer Liste sind.)
 		if ( $test_on ) {
-			$send = M24_Brevo_Client::send_campaign_test( $camp['id'], array( $test ) );
 			delete_transient( $lock );
-			if ( ! $send['ok'] ) {
-				M24_Logger::error( 'brevo', 'Alert TEST-Versand fehlgeschlagen (Inserat #' . $id . ')', array( 'campaign' => $camp['id'], 'msg' => $send['msg'] ) );
-				/*
-				 * 14.11.2026: Brevo schickt Testmails nur an Adressen, die dort als Kontakt in einer Liste stehen
-				 * („Test emails cannot be sent to non-existent … users"). Damit die Ansicht trotzdem möglich ist, geht
-				 * derselbe Inhalt (Betreff + HTML der Kampagne) dann über den Mailversand der Seite an die Testadresse.
-				 * Das prüft Aussehen und Inhalt, nicht die Zustellung über Brevo.
-				 */
-				$ok = wp_mail( $test, '[TEST] ' . (string) $teaser['subject'], (string) $teaser['html'], array( 'Content-Type: text/html; charset=UTF-8', 'From: ' . $sender['name'] . ' <' . $sender['email'] . '>' ) );
-				if ( $ok ) {
-					return rest_ensure_response( array( 'ok' => true, 'test' => true, 'weg' => 'seite', 'message' => 'Test-Versand an ' . $test . ' über den Mailversand der Seite (Brevo: ' . $send['msg'] . ').' ) );
-				}
-				return new WP_Error( 'm24_test', 'Test-Versand fehlgeschlagen: ' . $send['msg'], array( 'status' => 502 ) );
+			$ok = 0;
+			foreach ( $sprachen as $sp ) {
+				$t = self::build_teaser( $id, $tags, $sp );
+				if ( wp_mail( $test, '[TEST ' . strtoupper( $sp ) . '] ' . (string) $t['subject'], (string) $t['html'], array( 'Content-Type: text/html; charset=UTF-8', 'From: ' . $sender['name'] . ' <' . $sender['email'] . '>' ) ) ) { $ok++; }
 			}
-			M24_Logger::warning( 'brevo', 'Alert gesendet [TEST]: Inserat #' . $id . ', nur an ' . M24_Brevo_Client::mask_email( $test ) . ', campaign #' . $camp['id'], array(
-				'mode'     => 'TEST',
-				'campaign' => $camp['id'],
-				'tags'     => $tags,
-			) );
-			// TEST zählt NICHT als echter Versand (kein Re-Send-Meta).
-			return rest_ensure_response( array( 'ok' => true, 'test' => true, 'message' => 'Test-Versand an ' . $test . ' ausgelöst.' ) );
+			if ( ! $ok ) { return new WP_Error( 'm24_test', 'Test-Versand fehlgeschlagen.', array( 'status' => 502 ) ); }
+			M24_Logger::warning( 'brevo', 'Alert gesendet [TEST]: Inserat #' . $id . ', nur an ' . M24_Brevo_Client::mask_email( $test ), array( 'mode' => 'TEST', 'sprachen' => $sprachen, 'tags' => $tags ) );
+			return rest_ensure_response( array( 'ok' => true, 'test' => true, 'weg' => 'seite', 'sprachen' => $sprachen, 'message' => 'Test-Versand an ' . $test . ' (' . implode( ' + ', array_map( 'strtoupper', $sprachen ) ) . ').' ) );
 		}
 
 		// Echter Versand.
@@ -407,32 +406,73 @@ class M24FZ_Alert_Box {
 			delete_transient( $lock );
 			return new WP_Error( 'm24_nolists', 'Keine Ziel-Listen vorhanden — bitte erst „Alert-Listen anlegen/prüfen".', array( 'status' => 409 ) );
 		}
-		$send = M24_Brevo_Client::send_campaign_now( $camp['id'] );
+		$gesendet = array();
+		$fehler   = array();
+		foreach ( $sprachen as $sp ) {
+			// Eine Sprache ohne Empfänger überspringen (Brevo lehnt den Versand an null Kontakte ab).
+			if ( $sprachlisten && empty( $je_sprache[ $sp ] ) ) { continue; }
+			$t    = self::build_teaser( $id, $tags, $sp );
+			$excl = $sprachlisten ? array( (int) $sprachlisten[ 'en' === $sp ? 'de' : 'en' ] ) : array();
+			$name = 'M24 Alert #' . $id . ' ' . strtoupper( $sp ) . ' — ' . current_time( 'Y-m-d H:i' );
+			$camp = M24_Brevo_Client::create_campaign( $name, $t['subject'], $t['html'], $list_ids, $sender, $excl );
+			if ( ! $camp['ok'] ) {
+				$fehler[] = strtoupper( $sp ) . ': ' . $camp['msg'];
+				M24_Logger::error( 'brevo', 'Alert: Kampagne anlegen fehlgeschlagen (Inserat #' . $id . ', ' . $sp . ')', array( 'msg' => $camp['msg'] ) );
+				continue;
+			}
+			$send = M24_Brevo_Client::send_campaign_now( $camp['id'] );
+			if ( ! $send['ok'] ) {
+				$fehler[] = strtoupper( $sp ) . ': ' . $send['msg'];
+				M24_Logger::error( 'brevo', 'Alert sendNow fehlgeschlagen (Inserat #' . $id . ', ' . $sp . ')', array( 'campaign' => $camp['id'], 'msg' => $send['msg'] ) );
+				continue;
+			}
+			$gesendet[ $sp ] = array( 'campaign' => (int) $camp['id'], 'count' => $sprachlisten ? (int) $je_sprache[ $sp ] : (int) $data['total'] );
+		}
 		delete_transient( $lock );
-		if ( ! $send['ok'] ) {
-			M24_Logger::error( 'brevo', 'Alert sendNow fehlgeschlagen (Inserat #' . $id . ')', array( 'campaign' => $camp['id'], 'msg' => $send['msg'] ) );
-			return new WP_Error( 'm24_send', 'Versand fehlgeschlagen: ' . $send['msg'], array( 'status' => 502 ) );
+		if ( ! $gesendet ) {
+			return new WP_Error( 'm24_send', 'Versand fehlgeschlagen: ' . implode( ' · ', $fehler ), array( 'status' => 502 ) );
 		}
 
-		$now = time();
+		$now   = time();
+		$summe = (int) array_sum( wp_list_pluck( $gesendet, 'count' ) );
+		$erste = reset( $gesendet );
 		update_post_meta( $id, self::META_AT, $now );
-		update_post_meta( $id, self::META_COUNT, (int) get_post_meta( $id, self::META_COUNT, true ) + (int) $data['total'] );
-		update_post_meta( $id, self::META_CAMP, (int) $camp['id'] );
+		update_post_meta( $id, self::META_COUNT, (int) get_post_meta( $id, self::META_COUNT, true ) + $summe );
+		update_post_meta( $id, self::META_CAMP, (int) $erste['campaign'] );
 
-		M24_Logger::info( 'brevo', 'Alert gesendet: Inserat #' . $id . ', ' . (int) $data['total'] . ' Empfänger, campaign #' . $camp['id'], array(
-			'recipients' => (int) $data['total'],
+		M24_Logger::info( 'brevo', 'Alert gesendet: Inserat #' . $id . ', ' . $summe . ' Empfänger', array(
+			'recipients' => $summe,
 			'listIds'    => array_values( $list_ids ),
 			'tags'       => $tags,
-			'campaign'   => $camp['id'],
+			'sprachen'   => $gesendet,
+			'fehler'     => $fehler,
 		) );
 
 		return rest_ensure_response( array(
-			'ok'      => true,
-			'test'    => false,
-			'sent_at' => wp_date( 'd.m.Y H:i', $now ),
-			'count'   => (int) $data['total'],
-			'message' => 'An ' . (int) $data['total'] . ' Interessenten gesendet.',
+			'ok'       => true,
+			'test'     => false,
+			'sent_at'  => wp_date( 'd.m.Y H:i', $now ),
+			'count'    => $summe,
+			'sprachen' => $gesendet,
+			'fehler'   => $fehler,
+			'message'  => 'An ' . $summe . ' Interessenten gesendet.' . ( $fehler ? ' Fehler: ' . implode( ' · ', $fehler ) : '' ),
 		) );
+	}
+
+	/** Aktive Interessenten der Ziel-Tags je Sprache (Spiegel-Tabelle). @return array ['de'=>int,'en'=>int] */
+	public static function lang_counts( $tags ) {
+		$out = array( 'de' => 0, 'en' => 0 );
+		if ( empty( $tags ) ) { return $out; }
+		global $wpdb;
+		$main = M24_Database::table( 'il_interessenten' );
+		$rel  = M24_Database::table( 'il_interessenten_tags' );
+		$ph   = implode( ',', array_fill( 0, count( $tags ), '%s' ) );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT i.sprache AS s, COUNT(DISTINCT t.email) AS c FROM $rel t JOIN $main i ON i.email = t.email WHERE i.status = 'aktiv' AND t.tag IN ($ph) GROUP BY i.sprache",
+			$tags
+		), ARRAY_A );
+		foreach ( (array) $rows as $r ) { $out[ 'en' === strtolower( (string) $r['s'] ) ? 'en' : 'de' ] += (int) $r['c']; }
+		return $out;
 	}
 
 	/* ── Absender & Teaser ───────────────────────────────────────────────── */
@@ -455,20 +495,27 @@ class M24FZ_Alert_Box {
 	 * Mail-Teaser (HTML, CI). Auto-befüllt aus dem Fahrzeug.
 	 * @return array ['subject'=>string,'html'=>string]
 	 */
-	public static function build_teaser( $id, $tags ) {
+	public static function build_teaser( $id, $tags, $lang = 'de' ) {
+		$en = 'en' === $lang;
+		// Beschriftungen je Sprache. Titel, Kurztext und die Punkte aus „Auf einen Blick" gibt es auf motorsport24.de
+		// nur deutsch — in der englischen Fassung entfallen Kurztext und Punkte, statt deutsch zu erscheinen.
+		$L = $en
+			? array( 'neu' => 'New at MOTORSPORT24: ', 'kicker' => 'New in stock', 'Baujahr' => 'Year', 'Leistung' => 'Power', 'Laufleistung' => 'Mileage', 'Hubraum' => 'Displacement', 'Getriebe' => 'Transmission', 'Laufleistung Motor' => 'Engine running time', 'anfrage' => 'Price on request', 'knopf' => 'View vehicle', 'weil' => 'You are receiving this e-mail because you subscribed to “%s”.', 'ab1' => 'No longer interested? ', 'ab2' => 'Unsubscribe here', 'std' => 'our vehicle alerts' )
+			: array( 'neu' => 'Neu bei MOTORSPORT24: ', 'kicker' => 'Neu im Bestand', 'Baujahr' => 'Baujahr', 'Leistung' => 'Leistung', 'Laufleistung' => 'Laufleistung', 'Hubraum' => 'Hubraum', 'Getriebe' => 'Getriebe', 'Laufleistung Motor' => 'Laufleistung Motor', 'anfrage' => 'Preis auf Anfrage', 'knopf' => 'Fahrzeug ansehen', 'weil' => 'Sie erhalten diese E-Mail, weil Sie „%s" abonniert haben.', 'ab1' => 'Kein Interesse mehr? ', 'ab2' => 'Hier abmelden', 'std' => 'unsere Fahrzeug-Benachrichtigungen' );
+		$getr_en = array( 'Sequentiell' => 'Sequential', 'Manuell' => 'Manual', 'Automatik' => 'Automatic' );
 		$title   = get_the_title( $id );
 		$url     = get_permalink( $id );
 		$img     = get_the_post_thumbnail_url( $id, 'large' );
-		$subject = 'Neu bei MOTORSPORT24: ' . $title;
+		$subject = $L['neu'] . $title;
 
 		// Key-Facts.
 		$facts = array();
 		$bj    = (int) get_post_meta( $id, '_m24fz_baujahr', true );
-		if ( $bj > 0 ) { $facts['Baujahr'] = (string) $bj; }
+		if ( $bj > 0 ) { $facts[ $L['Baujahr'] ] = (string) $bj; }
 		$ps = trim( (string) get_post_meta( $id, '_m24fz_leistung_ps', true ) );
-		if ( '' !== $ps ) { $facts['Leistung'] = $ps . ' PS'; }
+		if ( '' !== $ps ) { $facts[ $L['Leistung'] ] = $ps . ' PS'; }
 		$km = (int) get_post_meta( $id, '_m24fz_laufleistung', true );
-		if ( $km > 0 ) { $facts['Laufleistung'] = number_format( $km, 0, ',', '.' ) . ' km'; }
+		if ( $km > 0 ) { $facts[ $L['Laufleistung'] ] = number_format( $km, 0, $en ? '.' : ',', $en ? ',' : '.' ) . ' km'; }
 
 		/*
 		 * MEHR INHALT (Daniel, 14.11.2026: „Die Mail ist etwas mager … ein paar Eckdaten … zwei Zeilen aus dem Text",
@@ -477,13 +524,13 @@ class M24FZ_Alert_Box {
 		 * Es steht nur, was am Fahrzeug gepflegt ist — leere Felder entfallen.
 		 */
 		$hub = trim( (string) get_post_meta( $id, '_m24fz_hubraum', true ) );
-		if ( '' !== $hub ) { $facts['Hubraum'] = $hub; }
+		if ( '' !== $hub ) { $facts[ $L['Hubraum'] ] = $en ? str_replace( ',', '.', $hub ) : $hub; }
 		$getr = trim( (string) get_post_meta( $id, '_m24fz_getriebe', true ) );
-		if ( '' !== $getr ) { $facts['Getriebe'] = $getr; }
+		if ( '' !== $getr ) { $facts[ $L['Getriebe'] ] = $en ? ( $getr_en[ $getr ] ?? $getr ) : $getr; }
 		$lm = trim( (string) get_post_meta( $id, '_m24fz_lauf_motor', true ) );
 		if ( '' !== $lm && class_exists( 'M24FZ_Telemetry' ) ) {
 			$lv = M24FZ_Telemetry::lauf_value( $lm, (string) get_post_meta( $id, '_m24fz_lauf_motor_unit', true ) );
-			if ( '' !== $lv ) { $facts['Laufleistung Motor'] = $lv; }
+			if ( '' !== $lv ) { $facts[ $L['Laufleistung Motor'] ] = $lv; }
 		}
 		$facts = array_slice( $facts, 0, 5, true );
 
@@ -495,24 +542,25 @@ class M24FZ_Alert_Box {
 			$intro = rtrim( $intro, ':' );
 		}
 		$punkte = array_slice( array_values( array_filter( array_map( 'trim', array_map( 'strval', (array) get_post_meta( $id, '_m24fz_keyfacts', true ) ) ) ) ), 0, 3 );
+		if ( $en ) { $intro = ''; $punkte = array(); }
 
 		// Preis.
 		if ( (int) get_post_meta( $id, '_m24fz_preis_auf_anfrage', true ) ) {
-			$preis = 'Preis auf Anfrage';
+			$preis = $L['anfrage'];
 		} else {
 			$p = (int) get_post_meta( $id, '_m24fz_preis', true );
 			if ( $p > 0 ) {
 				$cur   = class_exists( 'M24FZ_Telemetry' ) ? M24FZ_Telemetry::currency_symbol( get_post_meta( $id, '_m24fz_waehrung', true ) ) : '€';
-				$preis = number_format( $p, 0, ',', '.' ) . ' ' . $cur;
+				$preis = $en ? $cur . ' ' . number_format( $p, 0, '.', ',' ) : number_format( $p, 0, ',', '.' ) . ' ' . $cur;
 			} else {
-				$preis = 'Preis auf Anfrage';
+				$preis = $L['anfrage'];
 			}
 		}
 
 		// Tag-Label für die Fußzeile (spezifischster = erster Tag).
 		$tax       = class_exists( 'M24_Alert_Taxonomie' ) ? M24_Alert_Taxonomie::tags() : array();
 		$first     = ! empty( $tags ) ? reset( $tags ) : '';
-		$tag_label = ( $first && isset( $tax[ $first ] ) ) ? $tax[ $first ]['label'] : 'unsere Fahrzeug-Benachrichtigungen';
+		$tag_label = ( $first && isset( $tax[ $first ] ) ) ? $tax[ $first ]['label'] : $L['std'];
 
 		$font_url = plugins_url( 'assets/fonts/saira-latin.woff2', M24_PLATTFORM_FILE );
 		$stack    = "font-family:'Saira', Arial, Helvetica, sans-serif;";
@@ -529,7 +577,7 @@ class M24FZ_Alert_Box {
 		}
 		if ( '' !== $punkte_html ) { $punkte_html .= '<div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>'; }
 
-		$html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">'
+		$html = '<!DOCTYPE html><html lang="' . ( $en ? 'en' : 'de' ) . '"><head><meta charset="utf-8">'
 			. '<style>@font-face{font-family:\'Saira\';src:url(\'' . esc_url( $font_url ) . '\') format(\'woff2\');font-weight:100 900;font-style:normal;font-display:swap;}'
 			. 'body,table,td,h1,div,a,p{' . $stack . '}</style></head>'
 			. '<body style="margin:0;padding:0;background:#f2f4f7;' . $stack . '">'
@@ -543,7 +591,7 @@ class M24FZ_Alert_Box {
 		}
 
 		$html .= '<tr><td style="padding:22px 24px 8px;">'
-			. '<p style="margin:0 0 4px;color:#9a7b3f;font-size:12px;letter-spacing:.5px;text-transform:uppercase;">Neu im Bestand</p>'
+			. '<p style="margin:0 0 4px;color:#9a7b3f;font-size:12px;letter-spacing:.5px;text-transform:uppercase;">' . esc_html( $L['kicker'] ) . '</p>'
 			. '<h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#10243a;">' . esc_html( $title ) . '</h1>'
 			. ( '' !== $intro ? '<p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#3d4a60;">' . esc_html( $intro ) . '</p>' : '' )
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef0f3;border-bottom:1px solid #eef0f3;margin:0 0 14px;">' . $facts_html . '</table>'
@@ -551,12 +599,12 @@ class M24FZ_Alert_Box {
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 6px;"><tr>'
 			. '<td style="font-size:22px;font-weight:800;color:#9a7b3f;white-space:nowrap;">' . esc_html( $preis ) . '</td>'
 			. '<td style="text-align:right;">'
-			. '<a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:8px;font-size:15px;white-space:nowrap;">Fahrzeug ansehen</a>'
+			. '<a href="' . esc_url( $url ) . '" style="display:inline-block;background:#1f74c4;background:linear-gradient(135deg,#1f74c4 0%,#0e447e 100%);color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:8px;font-size:15px;white-space:nowrap;">' . esc_html( $L['knopf'] ) . '</a>'
 			. '</td></tr></table>'
 			. '</td></tr>'
 			. '<tr><td style="padding:14px 24px;border-top:1px solid #e6e9ee;font-size:11px;color:#9aa3b0;line-height:1.6;">'
-			. 'Sie erhalten diese E-Mail, weil Sie „' . esc_html( $tag_label ) . '" abonniert haben.<br>'
-			. 'Kein Interesse mehr? <a href="{{ unsubscribe }}" style="color:#1f74c4;">Hier abmelden</a>. · MOTORSPORT24 GmbH'
+			. esc_html( sprintf( $L['weil'], $tag_label ) ) . '<br>'
+			. esc_html( $L['ab1'] ) . '<a href="{{ unsubscribe }}" style="color:#1f74c4;">' . esc_html( $L['ab2'] ) . '</a>. · MOTORSPORT24 GmbH'
 			. '</td></tr>'
 			. '</table></td></tr></table></body></html>';
 

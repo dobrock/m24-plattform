@@ -359,7 +359,7 @@ class M24_Brevo_Client {
 	 *
 	 * @param array $sender  ['name'=>string,'email'=>string] (verifizierter Brevo-Absender)
 	 */
-	public static function create_campaign( $name, $subject, $html, $list_ids, $sender ) {
+	public static function create_campaign( $name, $subject, $html, $list_ids, $sender, $exclude_list_ids = array() ) {
 		$body = array(
 			'name'        => (string) $name,
 			'subject'     => (string) $subject,
@@ -368,6 +368,9 @@ class M24_Brevo_Client {
 			'htmlContent' => (string) $html,
 			'recipients'  => array( 'listIds' => array_values( array_map( 'intval', (array) $list_ids ) ) ),
 		);
+		// Sprachtrennung (14.11.2026): Kontakte der anderen Sprachliste ausschließen.
+		$excl = array_values( array_filter( array_map( 'intval', (array) $exclude_list_ids ) ) );
+		if ( $excl ) { $body['recipients']['exclusionListIds'] = $excl; }
 		$res = self::request( 'POST', '/emailCampaigns', $body );
 		$id  = ( $res['ok'] && is_array( $res['data'] ) && isset( $res['data']['id'] ) ) ? (int) $res['data']['id'] : 0;
 		return array( 'ok' => $res['ok'] && $id > 0, 'id' => $id, 'msg' => $res['msg'] );
@@ -379,6 +382,40 @@ class M24_Brevo_Client {
 	}
 
 	/** Test-Versand einer Kampagne an konkrete Adressen (QA, ohne echte Listen-Zustellung). */
+	const LANG_LIST_IDS_OPTION = 'm24_alert_lang_list_ids';
+
+	/**
+	 * Die beiden Sprachlisten („M24 Alert · Sprache DE" / „… EN") — jeder Interessent steht in genau einer.
+	 * Über sie trennt der Alert den Versand: die deutsche Kampagne schließt die EN-Liste aus und umgekehrt
+	 * (Daniel, 14.11.2026: „wir müssen unbedingt wissen, wer deutsch- und englischsprachig ist").
+	 *
+	 * @param bool $anlegen Fehlende Listen in Brevo anlegen.
+	 * @return array ['de'=>int,'en'=>int] oder leer, wenn (noch) nicht vorhanden.
+	 */
+	public static function lang_list_ids( $anlegen = false ) {
+		$m = get_option( self::LANG_LIST_IDS_OPTION, array() );
+		if ( is_array( $m ) && ! empty( $m['de'] ) && ! empty( $m['en'] ) ) {
+			return array( 'de' => (int) $m['de'], 'en' => (int) $m['en'] );
+		}
+		if ( ! $anlegen || ! self::is_configured() ) { return array(); }
+		$namen = array( 'de' => 'M24 Alert · Sprache DE', 'en' => 'M24 Alert · Sprache EN' );
+		$da    = self::get_all_lists();
+		$ids   = array();
+		foreach ( (array) $da['lists'] as $l ) {
+			foreach ( $namen as $k => $n ) { if ( $l['name'] === $n ) { $ids[ $k ] = (int) $l['id']; } }
+		}
+		$ordner = class_exists( 'M24_Alert_Taxonomie' ) ? self::ensure_folder( M24_Alert_Taxonomie::FOLDER_NAME ) : 0;
+		foreach ( $namen as $k => $n ) {
+			if ( empty( $ids[ $k ] ) && $ordner ) {
+				$r = self::create_list( $n, $ordner );
+				if ( $r['ok'] ) { $ids[ $k ] = (int) $r['id']; }
+			}
+		}
+		if ( empty( $ids['de'] ) || empty( $ids['en'] ) ) { return array(); }
+		update_option( self::LANG_LIST_IDS_OPTION, $ids, false );
+		return array( 'de' => (int) $ids['de'], 'en' => (int) $ids['en'] );
+	}
+
 	/** Die in Brevo angelegten Absender (GET /v3/senders) — für die Wahl eines aktiven Alert-Absenders (14.11.2026). */
 	public static function senders() {
 		return self::request( 'GET', '/senders' );
