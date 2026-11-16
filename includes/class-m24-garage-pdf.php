@@ -359,6 +359,8 @@ class M24_Garage_PDF {
 		foreach ( $items as $it ) { // nur Teile (oben gefiltert); leer → Hinweis statt Tabelle (siehe $body)
 			$is_veh = ( 'm24_fahrzeug' === $it['post_type'] );
 			$diff   = $is_veh && ! (int) get_post_meta( (int) $it['post_id'], '_m24fz_mwst_ausweisbar', true );
+			$netto  = $is_veh && (int) get_post_meta( (int) $it['post_id'], '_m24fz_preis_netto', true ); // Preis IST bereits netto
+			if ( $netto ) { $diff = false; }
 			$unit_g = $it['unit'];       // Brutto (numerisch) oder null = „Preis auf Anfrage"
 			$line_g = $it['line_total']; // Brutto (numerisch) oder null
 			$mark   = '';
@@ -369,6 +371,10 @@ class M24_Garage_PDF {
 				$unit_out = esc_html( $fmt( $unit_g ) ); $line_out = esc_html( $fmt( $line_g ) );
 				$mark = '<div class="tax-diff">§25a · differenzbesteuert, keine ausweisbare USt</div>';
 				$diff_sum += (float) $line_g;
+			} elseif ( $netto ) {
+				// Fahrzeug mit Nettopreis: unverändert ausweisen, nicht durch 1,19 teilen.
+				$unit_out = esc_html( $fmt( $unit_g ) ); $line_out = esc_html( $fmt( $line_g ) );
+				$net19_sum += (float) $line_g;
 			} else {
 				// 19 %: Netto ausweisen.
 				$unit_out = esc_html( $fmt( $unit_g / 1.19 ) ); $line_out = esc_html( $fmt( $line_g / 1.19 ) );
@@ -559,7 +565,9 @@ class M24_Garage_PDF {
 			$preis_fmt = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::format( (float) $preis_val ) : ( number_format( $preis_val, 2, ',', '.' ) . ' €' );
 			// Steuer-/Netto-Hinweis exakt wie die Fahrzeugseite (preis_html) über _m24fz_mwst_ausweisbar.
 			$ausweisbar = (int) get_post_meta( $pid, '_m24fz_mwst_ausweisbar', true );
-			if ( $ausweisbar ) {
+			if ( (int) get_post_meta( $pid, '_m24fz_preis_netto', true ) ) {
+				$tax_note = 'Preis versteht sich netto';
+			} elseif ( $ausweisbar ) {
 				$netto     = (float) $preis_val / 1.19;
 				$netto_fmt = class_exists( 'M24_Catalog_Pricing' ) ? M24_Catalog_Pricing::format( $netto ) : ( number_format( $netto, 2, ',', '.' ) . ' €' );
 				$tax_note  = 'inkl. 19 % MwSt. · Netto ' . $netto_fmt;

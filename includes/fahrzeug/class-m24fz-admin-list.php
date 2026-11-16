@@ -235,6 +235,7 @@ class M24FZ_Admin_List {
 		} elseif ( $preis > 0 ) {
 			printf( '<span class="val%s">%s&nbsp;%s</span>', $sold ? ' sold' : '', esc_html( number_format( $preis, 0, ',', '.' ) ), esc_html( $cur ) );
 			$note = (int) get_post_meta( $id, '_m24fz_mwst_ausweisbar', true ) ? 'inkl. 19&nbsp;% MwSt.' : 'Differenzbest. §25a';
+			if ( (int) get_post_meta( $id, '_m24fz_preis_netto', true ) ) { $note = 'netto'; }
 			echo '<span class="mwst">' . $note . '</span>'; // phpcs:ignore
 		} else {
 			echo '<span class="val muted">—</span>';
