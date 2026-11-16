@@ -487,7 +487,7 @@ class M24FZ_Editor_Screen {
 								$ids = (array) get_post_meta( $id, $key, true ); ?>
 								<div class="fz-galbox" data-galkey="<?php echo esc_attr( $key ); ?>">
 									<strong><?php echo esc_html( $label ); ?></strong>
-									<span class="fz-galhint">Ziehen zum Sortieren — Bild 1 steht im Inserat vorn. (Titelbild = Beitragsbild oben.)</span>
+									<span class="fz-galhint">Ziehen zum Sortieren oder in eine andere Kategorie — Bild 1 steht im Inserat vorn. (Titelbild = Beitragsbild oben.)</span>
 									<div class="fz-gal"><?php $gi = 0; foreach ( $ids as $aid ) {
 										$u = wp_get_attachment_image_url( $aid, 'medium' ); if ( ! $u ) { continue; }
 										$gi++;
@@ -732,7 +732,8 @@ class M24FZ_Editor_Screen {
 .fz-galbox{margin:10px 0;padding:10px 0;border-top:1px solid #f0f0ee}
 .fz-galbox strong{display:block;font-size:13px;margin-bottom:2px}
 .fz-galhint{display:block;color:#8a9099;font-size:11px;margin-bottom:8px}
-.fz-gal{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;min-height:12px;align-items:flex-end}
+.fz-gal{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;min-height:12px;align-items:flex-end;border-radius:8px}
+.fz-gal.fz-gal-drop{min-height:70px;outline:2px dashed #d9c9ad;outline-offset:4px;background:#fbf8f2}
 .fz-gal span{position:relative;display:block;cursor:grab;transition:transform .1s,box-shadow .1s}
 .fz-gal span:active{cursor:grabbing}
 .fz-gal span:before{content:'⠿⠿';position:absolute;top:5px;left:6px;color:#fff;font-size:12px;letter-spacing:-2px;text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:0;transition:.12s;z-index:1;pointer-events:none}
@@ -847,12 +848,15 @@ jQuery(function($){
 	// Galerien.
 	function syncGal(box){ var ids=[]; box.find('.fz-gal span').each(function(){ ids.push($(this).data('id')); }); box.find('input[type=hidden]').val(ids.join(',')); }
 	// Erste 3 Außen-Thumbs nummerieren (Teaser-3er-Block); nur die Außen-Box.
-	function reTeaser(box){ if(box.data('galkey')!=='_m24fz_gal_aussen'){ return; }
+	function reTeaser(box){ if(box.data('galkey')!=='_m24fz_gal_aussen'){ box.find('.fz-gal span').removeClass('is-teaser').find('.tnum').remove(); return; }
 		box.find('.fz-gal span').each(function(i){ var s=$(this);
 			if(i<3){ s.addClass('is-teaser'); if(!s.find('.tnum').length){ s.append('<i class="tnum"></i>'); } s.find('.tnum').text(i+1); }
 			else { s.removeClass('is-teaser'); s.find('.tnum').remove(); } }); }
 	function afterChange(box){ syncGal(box); reTeaser(box); }
-	$('.fz-gal').sortable({ placeholder:'fz-gal-ph', forcePlaceholderSize:true, cursor:'grabbing', tolerance:'pointer', opacity:.85, update:function(){ afterChange($(this).closest('[data-galkey]')); } });
+	// connectWith (16.11.2026): Bilder lassen sich auch in eine andere Kategorie ziehen; update feuert auf Quelle UND Ziel.
+	$('.fz-gal').sortable({ connectWith:'.fz-gal', placeholder:'fz-gal-ph', forcePlaceholderSize:true, cursor:'grabbing', tolerance:'pointer', opacity:.85,
+		start:function(){ $('.fz-gal').addClass('fz-gal-drop'); }, stop:function(){ $('.fz-gal').removeClass('fz-gal-drop'); },
+		update:function(){ afterChange($(this).closest('[data-galkey]')); } });
 	$(document).on('click','.fz-gal .rm',function(){ var box=$(this).closest('[data-galkey]'); $(this).closest('span').remove(); afterChange(box); });
 	$('.fz-gal-add').on('click',function(e){ e.preventDefault();
 		var box=$(this).closest('[data-galkey]'), gal=box.find('.fz-gal');
