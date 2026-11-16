@@ -421,6 +421,7 @@ class M24FZ_Editor_Screen {
 						</div>
 						<div class="fz-row fz-toggles">
 							<?php self::toggle( $id, '_m24fz_mwst_ausweisbar', 'MwSt. ausweisbar (inkl. 19 %)' ); ?>
+							<?php self::toggle( $id, '_m24fz_preis_netto', 'Netto (Preis versteht sich netto)' ); ?>
 							<label class="fz-toggle"><input type="checkbox" name="_m24fz_preis_auf_anfrage" <?php checked( 1, $paf ); ?>><span></span> Preis nur auf Anfrage</label>
 						</div>
 
@@ -590,7 +591,10 @@ class M24FZ_Editor_Screen {
 		update_post_meta( $id, '_m24fz_fahrbereit', empty( $_POST['_m24fz_fahrbereit'] ) ? 0 : 1 );
 		update_post_meta( $id, '_m24fz_zugelassen', empty( $_POST['_m24fz_zugelassen'] ) ? 0 : 1 );
 		update_post_meta( $id, '_m24fz_matching_numbers', empty( $_POST['_m24fz_matching_numbers'] ) ? 0 : 1 );
-		update_post_meta( $id, '_m24fz_mwst_ausweisbar', empty( $_POST['_m24fz_mwst_ausweisbar'] ) ? 0 : 1 );
+		// Netto (16.11.2026): dritte Preisoption. Schließt „MwSt. ausweisbar (inkl. 19 %)" aus — Netto gewinnt.
+		$netto_opt = empty( $_POST['_m24fz_preis_netto'] ) ? 0 : 1;
+		update_post_meta( $id, '_m24fz_preis_netto', $netto_opt );
+		update_post_meta( $id, '_m24fz_mwst_ausweisbar', ( empty( $_POST['_m24fz_mwst_ausweisbar'] ) || $netto_opt ) ? 0 : 1 );
 		update_post_meta( $id, '_m24fz_zustand', self::clean_slugs( $_POST['_m24fz_zustand'] ?? array(), M24FZ_Telemetry::zustand_options() ) );
 		// Ausstattung = Freitext-Repeater (kein Slug-Whitelist mehr); leere Zeilen verwerfen.
 		$ausst = array();
@@ -791,6 +795,9 @@ jQuery(function($){
 	function toggleStoff(){ var sel=$('#_m24fz_innenmaterial'); var show=sel.length && sel.is(':visible') && sel.val()==='Stoff'; $('.fz-stoff-only').toggle(!!show); }
 	$('#_m24fz_innenmaterial').on('change',toggleStoff);
 	$('input[name=_m24fz_template_typ]').on('change',toggleRenn); toggleRenn();
+	// Netto und „MwSt. ausweisbar (inkl. 19 %)" schließen sich aus.
+	$('input[name=_m24fz_preis_netto]').on('change',function(){ if(this.checked){ $('input[name=_m24fz_mwst_ausweisbar]').prop('checked',false); } });
+	$('input[name=_m24fz_mwst_ausweisbar]').on('change',function(){ if(this.checked){ $('input[name=_m24fz_preis_netto]').prop('checked',false); } });
 	// Zustand/Ausstattung Toggle-Chips.
 	$(document).on('change','.fz-chip input',function(){ $(this).closest('.fz-chip').toggleClass('on',this.checked); });
 	// Laufleistung: nur Ziffern, max 7 (≤ 9.999.999).

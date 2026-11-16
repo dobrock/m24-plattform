@@ -137,6 +137,7 @@ class M24FZ_Template {
 		$fmt = function ( $v ) use ( $cur ) { return esc_html( number_format( $v, 0, ',', '.' ) ) . '&nbsp;' . esc_html( $cur ); };
 		// E) Steuerhinweis abhängig von „MwSt. ausweisbar".
 		$note = (int) get_post_meta( $id, '_m24fz_mwst_ausweisbar', true ) ? 'Preis inkl. 19&nbsp;% MwSt.' : 'Differenzbesteuert nach §25a UStG';
+		if ( (int) get_post_meta( $id, '_m24fz_preis_netto', true ) ) { $note = 'Preis versteht sich netto'; }
 		$alt  = ( $red > 0 && $red < $p ) ? '<span class="m24fz-preis-alt">' . $fmt( $p ) . '</span>' : '';
 		$main = ( $red > 0 && $red < $p ) ? $red : $p;
 		return $alt . '<span class="m24fz-preis">' . $fmt( $main ) . '</span><span class="m24fz-preis-note">' . $note . '</span>';
