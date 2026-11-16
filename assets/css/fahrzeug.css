@@ -266,7 +266,7 @@
 	.m24fz-tel-cell .k{color:var(--brass)}
 	.m24fz-tel-cell .v{color:var(--ink);white-space:normal}
 	/* Zusammenfassung größer */
-	.m24fz-zus,.m24fz-zus p,.m24fz-desc-body,.m24fz-desc-body p{font-size:21px!important;line-height:1.55!important}
+	.m24fz-zus,.m24fz-zus p,.m24fz-desc-body,.m24fz-desc-body p{font-size:20px!important;line-height:1.55!important}
 	/* Mosaik-Gap mobil filigran (~2px) — einheitlich Zeilen/Spalten/gestapelt */
 	.m24fz-tg-preview,.m24fz-tg-full,.m24fz-mz-wrap,.m24fz-mz-row,.m24fz-mz-side{gap:2px}
 	/* 3er-Teaser als Mosaik OHNE weiße Karte: volle Content-Breite, kein Padding/BG; links groß (2fr, 2 Reihen), rechts Bild 2+3 gestapelt (1fr); eckig */
