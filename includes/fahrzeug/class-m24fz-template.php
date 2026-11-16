@@ -208,6 +208,19 @@ class M24FZ_Template {
 		$row = 0;
 		$out = '';
 		while ( $i < $n ) {
+			// Reststücke ohne leere Felder (16.11.2026): bleibt 1 Bild → eine volle Zeile; bleiben 2 oder 4
+			// → Zeilen mit zwei gleich großen Kacheln. Ebenso, wenn eine Hochformat-Gegenkachel genau 1 Bild übrig ließe.
+			$r = $n - $i;
+			if ( 1 === $r ) {
+				$out .= '<div class="m24fz-mz-row solo">' . self::mz_tile( $ids[ $i ], $idx_base + $i, 'big' ) . '</div>';
+				$i++; $row++;
+				continue;
+			}
+			if ( 2 === $r || 4 === $r || ( 3 === $r && 'portrait' === self::orient( $ids[ $i + 1 ] ) ) ) {
+				$out .= '<div class="m24fz-mz-row duo">' . self::mz_tile( $ids[ $i ], $idx_base + $i, 'big' ) . self::mz_tile( $ids[ $i + 1 ], $idx_base + $i + 1, 'big' ) . '</div>';
+				$i += 2; $row++;
+				continue;
+			}
 			$big = self::mz_tile( $ids[ $i ], $idx_base + $i, 'big' ); $i++;
 			$side = '';
 			$cnt  = 0;

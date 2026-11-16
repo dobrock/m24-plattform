@@ -93,6 +93,9 @@
 .m24fz-mz-wrap{display:flex;flex-direction:column;gap:3px}
 .m24fz-mz-row{display:grid;grid-template-columns:2fr 1fr;gap:3px;align-items:stretch}
 .m24fz-mz-row.right{grid-template-columns:1fr 2fr}
+.m24fz-mz-row.duo{grid-template-columns:1fr 1fr}
+.m24fz-mz-row.solo{grid-template-columns:1fr}
+.m24fz-mz-row.solo .m24fz-mz-big{aspect-ratio:2/1}
 .m24fz-mz-side{display:grid;gap:3px;min-height:0}
 .m24fz-mz-side.two{grid-template-rows:1fr 1fr}
 .m24fz-mz-tile{position:relative;display:block;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:#ededea;cursor:pointer}
