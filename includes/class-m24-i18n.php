@@ -140,6 +140,24 @@ class M24_I18n {
     }
 
     /**
+     * Eine einzelne Phrase (z. B. Hersteller-Farbbezeichnung „Indischrot") im HTML vor GTranslate schützen.
+     * script/style bleiben unberührt. Leere oder sehr kurze Phrasen werden ignoriert.
+     */
+    public static function protect_phrase( string $html, string $phrase ): string {
+        $phrase = trim( $phrase );
+        if ( '' === $html || mb_strlen( $phrase ) < 3 ) { return $html; }
+        $stash = array();
+        $html  = (string) preg_replace_callback( '#<(script|style|textarea)\b[^>]*>.*?</\1>#is', function ( $m ) use ( &$stash ) {
+            $key = "\0M24STASH" . count( $stash ) . "\0";
+            $stash[ $key ] = $m[0];
+            return $key;
+        }, $html );
+        $out = self::nt_wrap_literal( $html, esc_html( $phrase ) );
+        if ( null === $out ) { $out = $html; }
+        return empty( $stash ) ? $out : strtr( $out, $stash );
+    }
+
+    /**
      * Literale Phrase in Text-Knoten mit <span class="notranslate"> kapseln. SICHER: nur zwischen >…< (Text),
      * NICHT in Tags/Attributen (Lookahead (?![^<]*>)) und NICHT doppelt (Lookbehind auf translate="no">).
      */
