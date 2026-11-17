@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 get_header();
 
 $id    = get_queried_object_id();
+ob_start(); // Hersteller-Farbbezeichnung vor der maschinellen Übersetzung schützen (siehe Ende der Datei).
 $typ   = ( 'renn' === get_post_meta( $id, '_m24fz_template_typ', true ) ) ? 'renn' : 'strasse';
 $title = get_the_title( $id );
 $sold  = M24FZ_CPT::is_sold( $id );
@@ -228,4 +229,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 	<?php M24FZ_Anfrage::il_modal_html( $id ); // „Auf die Interessentenliste"-Modal (getrennt) ?>
 	<?php M24FZ_Anfrage::park_modal_html( $id ); // „Fahrzeug parken"-Modal (No-Account-DOI) ?>
 </div>
-<?php get_footer();
+<?php
+// Hersteller-Farbbezeichnungen bleiben deutsch („Indischrot", nicht „Guards Red").
+echo M24_I18n::protect_phrase( (string) ob_get_clean(), (string) get_post_meta( $id, '_m24fz_farbbez_hersteller', true ) ); // phpcs:ignore WordPress.Security.EscapeOutput
+get_footer();
