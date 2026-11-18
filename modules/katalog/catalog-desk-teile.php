@@ -95,6 +95,20 @@ class M24_Catalog_Desk_Teile {
 			update_post_meta( $id, '_m24_artikelnummer_alt', (string) get_post_meta( $id, '_m24_artikelnummer', true ) );
 			update_post_meta( $id, '_m24_artikelnummer', $artnr ); $geaendert[] = 'artikelnummer';
 		}
+		// Bildreihenfolge umkehren (Import hat die Reihenfolge bei einzelnen Teilen verdreht): Hauptbild + Galerie.
+		if ( ! empty( $b['bilder_umkehren'] ) ) {
+			$feat = (int) get_post_thumbnail_id( $id );
+			$alle = $feat ? array( $feat ) : array();
+			foreach ( array_filter( array_map( 'absint', explode( ',', (string) get_post_meta( $id, '_m24_galerie', true ) ) ) ) as $gid ) {
+				if ( ! in_array( $gid, $alle, true ) ) { $alle[] = $gid; }
+			}
+			if ( count( $alle ) > 1 ) {
+				$neu = array_reverse( $alle );
+				set_post_thumbnail( $id, $neu[0] );
+				update_post_meta( $id, '_m24_galerie', implode( ',', $neu ) );
+				$geaendert[] = 'bilder';
+			}
+		}
 		if ( $geaendert ) {
 			clean_post_cache( $id );
 			if ( function_exists( 'rocket_clean_post' ) ) { rocket_clean_post( $id ); }
