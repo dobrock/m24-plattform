@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.708
+ * Version:           0.11.709
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -229,6 +229,7 @@ require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-rewrites.php';
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-share-bar.php';       // Teilen-Leiste (E-Mail · WhatsApp · Link kopieren)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-logo-vorschau.php';   // Logo-Vorschau „SINCE 2006“ (?logo=neu)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-footer.php';   // Fußbereich + mitlaufende Hauptnavigation
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-seo-meta.php';   // Google-Titel/Beschreibung für 3 Seiten + Standard-Vorschaubild
 require_once M24_PLATTFORM_DIR . 'modules/katalog/shop-redirects.php';    // 301-Weiche motorsport24.shop → .de (Shop-Abschaltung, 04.11.2026)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-assets.php';      // Zentrales CI-Stylesheet (Tokens + geteilte Karte)
 require_once M24_PLATTFORM_DIR . 'modules/katalog/catalog-template-archive.php';
@@ -405,6 +406,7 @@ add_action( 'plugins_loaded', function() {
     M24_Search_Frontend::init();
     M24_Logo_Vorschau::init();
     M24_Footer::init();
+    M24_Seo_Meta::init();
     // Verkauft-Ansicht: Assets (Inline-Block-CSS + Desktop-Lightbox) auf verkauften Teilen.
     M24_Sold_Lightbox::init();
     // Hintergrund-Import: AS-Action-Handler registrieren (Cron + Web-Kontext).
