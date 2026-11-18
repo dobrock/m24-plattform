@@ -377,10 +377,16 @@ class M24_Catalog_Template_Detail {
 		   Element INNERHALB der sticky Preisbox (.m24-right-inner), direkt unter den Buttons —
 		   kompakt mit ~16px Abstand, scrollt sticky mit (kein margin-top:auto, kein Geschwister). */
 		.m24det.m24-kopf-unten .m24-detail-head{display:block}
-		.m24det .m24-pbr-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-		.m24det .m24-pbr-row .m24-detail-logo{flex:0 0 auto;display:flex;align-items:center}
-		.m24det .m24-pbr-row .m24-detail-logo img{max-height:36px;max-width:130px;width:auto;height:auto;display:block}
-		.m24det .m24-pbr-row .m24-original-badge{flex:0 0 auto}
+		.m24det .m24-pbr-row{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:8px}
+		.m24det .m24-pbr-row .pbr{flex:0 0 auto;white-space:nowrap}
+		.m24det .m24-pbr-row .m24-detail-logo{flex:0 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;height:auto}
+		.m24det .m24-pbr-row .m24-detail-logo img{max-height:30px;max-width:112px;width:auto;height:auto;display:block}
+		.m24det .m24-pbr-row .m24-original-badge{flex:0 0 auto;margin-left:auto;padding:6px 9px;gap:6px;border-radius:7px;white-space:nowrap}
+		.m24det .m24-pbr-row .m24-original-badge__icon{width:15px;height:15px}
+		.m24det .m24-pbr-row .m24-original-badge__text{font-size:13px;letter-spacing:0}
+		.m24det .m24-pbr-row.m24-pbr-eng .m24-original-badge{padding:5px 7px;gap:4px}
+		.m24det .m24-pbr-row.m24-pbr-eng .m24-original-badge__text{font-size:12px}
+		.m24det .m24-pbr-row.m24-pbr-eng .m24-detail-logo img{max-width:88px}
 		.m24det .m24-share{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
 		.m24det .m24-share-b{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:9px 4px;border:1px solid var(--line);border-radius:8px;background:#fff;color:inherit;font:inherit;font-size:13px;line-height:1.2;text-decoration:none;cursor:pointer;min-height:44px}
 		.m24det .m24-share-b:hover{border-color:#9aa3ad}
@@ -511,8 +517,8 @@ class M24_Catalog_Template_Detail {
 				<?php endif; ?>
 			</div>
 
-			<?php // Vorschau (18.11.2026): mit ?kopf=unten rutscht Badge/Logo mobil neben den Preis, der Titel läuft über die volle Breite. Desktop unverändert. ?>
-			<script>(function(){if(!/[?&]kopf=unten(&|$)/.test(location.search)||!window.matchMedia('(max-width:760px)').matches)return;document.addEventListener('DOMContentLoaded',function(){var h=document.querySelector('.m24det .m24-detail-head'),p=document.querySelector('.m24det .pbr');if(!h||!p)return;var b=h.querySelector('.m24-original-badge,.m24-detail-logo');if(!b)return;var r=document.createElement('div');r.className='m24-pbr-row';p.parentNode.insertBefore(r,p);r.appendChild(p);r.appendChild(b);document.querySelector('.m24det').classList.add('m24-kopf-unten');});})();</script>
+			<?php // Mobil (18.11.2026, von Daniel freigegeben): Badge/Logo steht neben dem Preis, der Titel läuft über die volle Breite. Desktop unverändert. ?>
+			<script>(function(){if(!window.matchMedia('(max-width:760px)').matches)return;document.addEventListener('DOMContentLoaded',function(){var h=document.querySelector('.m24det .m24-detail-head'),p=document.querySelector('.m24det .pbr');if(!h||!p)return;var b=h.querySelector('.m24-original-badge,.m24-detail-logo');if(!b)return;var r=document.createElement('div');r.className='m24-pbr-row';p.parentNode.insertBefore(r,p);r.appendChild(p);r.appendChild(b);document.querySelector('.m24det').classList.add('m24-kopf-unten');if(r.scrollWidth>r.clientWidth+1){r.classList.add('m24-pbr-eng');}});})();</script>
 			<div class="row">
 				<div class="left">
 					<?php if ( $imgs ) : ?>
