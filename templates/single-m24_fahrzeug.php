@@ -64,6 +64,7 @@ $badge = $sold ? 'VERKAUFT' : ( $resv ? 'RESERVIERT' : '' );
 			<?php if ( '' !== $eyebrow ) : ?><div class="m24fz-mh-eyebrow"><?php echo esc_html( $eyebrow ); ?></div><?php endif; ?>
 			<h1 class="m24fz-mh-title"><?php echo esc_html( $title ); ?></h1>
 			<div class="m24fz-pricebox"><?php echo M24FZ_Template::pricebox_html( $id ); // phpcs:ignore — Status-Pill/Preis/CTAs (geteilte, getestete Logik) ?></div>
+			<?php echo M24_Share_Bar::render( (string) get_permalink( $id ), (string) $title, 'm24fz-sharebar' ); // phpcs:ignore — Teilen-Leiste, nur im Mobil-Kopf ?>
 		</section>
 
 		<!-- 2. TELEMETRIE (eckig, Messing-Oberlinie) -->
