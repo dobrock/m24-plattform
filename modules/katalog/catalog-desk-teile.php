@@ -88,11 +88,18 @@ class M24_Catalog_Desk_Teile {
 		if ( isset( $b['teilenummer'] ) && '' !== trim( (string) $b['teilenummer'] ) ) {
 			update_post_meta( $id, '_m24_bmw_teilenummer', sanitize_text_field( (string) $b['teilenummer'] ) ); $geaendert[] = 'teilenummer';
 		}
+		// Neue Artikelnummer nach laufendem Schema (z. B. wenn die alte beim Import zerstört wurde).
+		$artnr = '';
+		if ( ! empty( $b['artikelnummer_neu'] ) && class_exists( 'M24_Catalog_Artnr' ) ) {
+			$artnr = (string) M24_Catalog_Artnr::consume_next();
+			update_post_meta( $id, '_m24_artikelnummer_alt', (string) get_post_meta( $id, '_m24_artikelnummer', true ) );
+			update_post_meta( $id, '_m24_artikelnummer', $artnr ); $geaendert[] = 'artikelnummer';
+		}
 		if ( $geaendert ) {
 			clean_post_cache( $id );
 			if ( function_exists( 'rocket_clean_post' ) ) { rocket_clean_post( $id ); }
 		}
-		return new WP_REST_Response( array( 'ok' => true, 'id' => $id, 'geaendert' => $geaendert, 'url' => get_permalink( $id ) ), 200 );
+		return new WP_REST_Response( array( 'ok' => true, 'id' => $id, 'geaendert' => $geaendert, 'artikelnummer' => $artnr, 'url' => get_permalink( $id ) ), 200 );
 	}
 
 	public static function routes() {

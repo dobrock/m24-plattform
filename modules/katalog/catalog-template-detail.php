@@ -376,6 +376,10 @@ class M24_Catalog_Template_Detail {
 		/* Trust-Zeile: zwei zentrierte Icon-Text-Paare, per feiner Linie abgesetzt. Liegt als LETZTES
 		   Element INNERHALB der sticky Preisbox (.m24-right-inner), direkt unter den Buttons —
 		   kompakt mit ~16px Abstand, scrollt sticky mit (kein margin-top:auto, kein Geschwister). */
+		.m24det .m24-share{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+		.m24det .m24-share-b{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:9px 4px;border:1px solid var(--line);border-radius:8px;background:#fff;color:inherit;font:inherit;font-size:13px;line-height:1.2;text-decoration:none;cursor:pointer;min-height:44px}
+		.m24det .m24-share-b:hover{border-color:#9aa3ad}
+		.m24det .m24-share-b svg{width:20px;height:20px;color:var(--mut)}
 		.m24det .m24-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 		.m24det .m24-trust-i{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 		.m24det .m24-trust-svg{width:15px;height:15px;flex:0 0 auto}
@@ -636,6 +640,16 @@ class M24_Catalog_Template_Detail {
 							<?php endif; ?>
 						</div>
 						</div>
+						<?php // Teilen-Leiste (Variante A, 18.11.2026): E-Mail · WhatsApp · Link kopieren.
+						$share_url   = get_permalink( $id );
+						$share_title = get_the_title( $id );
+						?>
+						<div class="m24-share" data-url="<?php echo esc_url( $share_url ); ?>">
+							<a class="m24-share-b" href="<?php echo esc_url( 'mailto:?subject=' . rawurlencode( $share_title ) . '&body=' . rawurlencode( $share_title . "\n" . $share_url ) ); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>E-Mail</span></a>
+							<a class="m24-share-b" href="<?php echo esc_url( 'https://wa.me/?text=' . rawurlencode( $share_title . ' ' . $share_url ) ); ?>" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/></svg><span>WhatsApp</span></a>
+							<button type="button" class="m24-share-b m24-share-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15l6-6"/><path d="M11 6l.46-.54a5 5 0 0 1 7.07 7.07L18 13"/><path d="M13 18l-.4.53a5 5 0 0 1-7.12-7.03L6 11"/></svg><span class="m24-share-copy-t">Link kopieren</span></button>
+						</div>
+						<script>(function(){var w=document.querySelector('.m24-share');if(!w)return;var b=w.querySelector('.m24-share-copy'),t=w.querySelector('.m24-share-copy-t');if(!b||!t)return;var en=/^\/en(\/|$)/.test(location.pathname);b.addEventListener('click',function(){var u=location.href.split('#')[0],alt=t.textContent,ok=function(){t.textContent=en?'Copied':'Kopiert';setTimeout(function(){t.textContent=alt;},1800);};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(ok,function(){});}else{var i=document.createElement('input');i.value=u;document.body.appendChild(i);i.select();try{document.execCommand('copy');ok();}catch(e){}document.body.removeChild(i);}});})();</script>
 						<div class="m24-trust">
 							<span class="m24-trust-i"><svg class="m24-trust-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-2.8L17 22l-1.6-9.6"/></svg> seit 2006</span>
 							<span class="m24-trust-dot" aria-hidden="true">·</span>
