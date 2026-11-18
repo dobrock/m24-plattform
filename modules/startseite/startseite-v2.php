@@ -281,13 +281,13 @@ class M24_Startseite_V2 {
 		foreach ( $models as $key => $m ) {
 			$terms     = self::model_terms( $m[1] );
 			$all_terms = array_merge( $all_terms, $terms );
-			$ids       = self::parts( $typ, $terms, false, ( 'neu' === $typ ) ? 9 : 6 ); // Gebrauchtteile: 2 Zeilen
+			$ids       = self::parts( $typ, $terms, false, 12 ); // 12 Artikel: Desktop 2 Zeilen zum seitlichen Durchblättern, mobil begrenzt das CSS
 			if ( $ids ) { $add( $key, $m[0], $ids, $m[2], 'Alle Teile für ' . $m[0] ); }
 		}
 		// M3/M4 G8x: Artikel folgen – Chip sichtbar, aber noch nicht klickbar.
 		$chips .= '<span class="m24s-opt m24s-opt--chip is-soon" aria-disabled="true" title="Artikel folgen in Kürze">M3/M4 G8x</span>';
 		return sprintf(
-			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-fb__side"><div class="m24s-fb__lbl">2 · Modell</div><div class="m24s-chips">%3$s</div><div class="m24s-fb__more">%5$s</div></div><div class="m24s-parts__res">%4$s</div></div>',
+			'<div class="m24s-parts" data-panel="%1$s"%2$s><div class="m24s-fb__side"><div class="m24s-fb__lbl">2 · Modell</div><div class="m24s-chips">%3$s</div><div class="m24s-fb__more">%5$s</div></div><div class="m24s-parts__res"><div class="m24s-parr"><button type="button" data-pdir="-1" aria-label="Zurück">←</button><button type="button" data-pdir="1" aria-label="Weiter">→</button></div>%4$s</div></div>',
 			esc_attr( $typ ),
 			$active ? '' : ' hidden',
 			$chips,

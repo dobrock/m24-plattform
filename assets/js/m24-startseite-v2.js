@@ -30,7 +30,18 @@
 				var panel = m.closest('.m24s-parts');
 				var k = m.getAttribute('data-model');
 				panel.querySelectorAll('[data-model]').forEach(function (x) { x.classList.toggle('is-on', x === m); });
-				panel.querySelectorAll('[data-grid]').forEach(function (g) { g.hidden = g.getAttribute('data-grid') !== k; });
+				panel.querySelectorAll('[data-grid]').forEach(function (g) { g.hidden = g.getAttribute('data-grid') !== k; if (!g.hidden) { g.scrollLeft = 0; } });
+			});
+		});
+		/* Teile-Raster seitlich blättern (Desktop) */
+		root.querySelectorAll('.m24s-parr button').forEach(function (b) {
+			b.addEventListener('click', function () {
+				var res = b.closest('.m24s-parts__res');
+				var g = res ? res.querySelector('.m24s-grid:not([hidden])') : null;
+				if (!g) { return; }
+				var card = g.querySelector('.m24s-prod');
+				var step = card ? card.getBoundingClientRect().width + 3 : 300;
+				g.scrollBy({ left: step * parseInt(b.getAttribute('data-pdir'), 10), behavior: 'smooth' });
 			});
 		});
 	}
