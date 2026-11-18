@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.706
+ * Version:           0.11.707
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -25,6 +25,11 @@ define( 'M24_PLATTFORM_FILE',        __FILE__ );
  * Updater und Asset-Cache-Busting können NICHT mehr auseinanderlaufen. get_file_data() ist zu
  * diesem Zeitpunkt (Plugin-Load nach wp-includes) verfügbar; Fallback nur als Sicherheitsnetz.
  */
+// Mobil-Vorschau am Desktop: mit ?m24mobil=1 liefert die Seite das Mobil-Theme aus (zum Prüfen der Handy-Ansicht).
+// Muss vor dem Mobil-Theme-Plugin greifen, deshalb direkt beim Laden; ändert nur diese eine Anfrage.
+if ( isset( $_GET['m24mobil'] ) && '1' === $_GET['m24mobil'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+}
 if ( ! defined( 'M24_PLATTFORM_VERSION' ) ) {
     $m24_hdr = function_exists( 'get_file_data' )
         ? get_file_data( __FILE__, array( 'v' => 'Version' ) )
