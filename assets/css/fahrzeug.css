@@ -253,6 +253,8 @@
 	/* Title→Preis: viel Luft über dem Preis (Title mb 32), Steuerhinweis direkt unter dem Preis */
 	.m24fz-mh-title{font-size:22px;font-weight:700;line-height:1.24;color:var(--ink);margin:0 0 96px}
 	.m24fz-mhead .m24fz-preis{line-height:1.05;margin-bottom:0}
+	/* Preis und Steuerhinweis im Mobil-Kopf rechtsbündig (18.11.2026); Desktop unverändert */
+	.m24fz-mhead .m24fz-preis,.m24fz-mhead .m24fz-preis-note{text-align:right;align-self:stretch}
 	/* Steuerhinweis klebt am Preis: den 10px-Flex-Gap der Pricebox per negativem Margin ausgleichen (~1px) */
 	.m24fz-mhead .m24fz-preis-note{margin:-9px 0 0}
 	/* Desktop-Pricebox-Aside ausblenden (Inhalt steckt im Mobile-Head) */
