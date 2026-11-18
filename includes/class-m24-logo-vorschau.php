@@ -15,6 +15,7 @@ class M24_Logo_Vorschau {
 	}
 
 	public static function aktiv() {
+		if ( isset( $_GET['footer'] ) && 'neu' === sanitize_key( wp_unslash( $_GET['footer'] ) ) ) { return true; }
 		return isset( $_GET['logo'] ) && 'neu' === sanitize_key( wp_unslash( $_GET['logo'] ) );
 	}
 
