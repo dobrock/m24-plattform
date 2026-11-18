@@ -34,7 +34,8 @@
 	function isVisible(el) { return !!el && (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)); }
 	function mobileHeaderActive() {
 		try { if (window.matchMedia && window.matchMedia('(max-width:1018px)').matches) { return true; } } catch (e) {}
-		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || isVisible(document.querySelector('.tdb_mobile_search')));
+		// Mobil-Theme von tagDiv (td-composer/mobile, eigener Kopf mit #td-header-search-button) zählt ebenfalls als mobil (18.11.2026).
+		return !!(isVisible(document.querySelector('.td-header-mobile-wrap')) || isVisible(document.querySelector('.tdb_mobile_search')) || document.querySelector('link[href*="td-composer/mobile/"]'));
 	}
 	function inMobile(el) { return !!(el && el.closest && el.closest('.tdb_mobile_search, .tdb-header-search-button-mob, .tdb-mobile-search-icon, .td-header-mobile-wrap, #td-mobile-nav, .td-mobile-content')); }
 	// Desktop-Platzierung SUCH-VERANKERT (1:1 aus m24-header-login.js, das nachweislich neben der Lupe landet):
@@ -46,7 +47,7 @@
 			for (var j = 0; j < nodes.length; j++) {
 				var ic = nodes[j];
 				if (!isVisible(ic) || inMobile(ic)) { continue; }
-				var btn = (ic.closest && (ic.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap') || ic)) || ic;
+				var btn = (ic.closest && (ic.closest('.tdb-head-search-btn, .tdb_header_search, .tdb-header-search-wrap, .td-search-icon, #td-header-search-button') || ic)) || ic;
 				if (!btn || !btn.parentNode) { continue; }
 				if (btn.closest && btn.closest('.tdb_header_logo')) { continue; } // NIE in den Logo-Block (Ursache des Doppel-/Logo-Bugs)
 				return btn;
@@ -90,7 +91,10 @@
 				if (!isVisible(cand)) { continue; }
 				// <i>-Treffer (.tdb-search-icon/.td-icon-search) auf den äußeren klickbaren Button auflösen — sonst
 				// landet das Icon IN den Such-Button statt daneben.
-				var anchor = (cand.closest && cand.closest('.tdb-head-search-btn, .tdb-header-search-button-mob')) || cand;
+				var anchor = (cand.closest && cand.closest('.tdb-head-search-btn, .tdb-header-search-button-mob, #td-header-search-button, #td-header-search-button-mob')) || cand;
+				// Mobil-Theme: die Lupe steckt in <div class="td-search-icon"><span id="td-header-search-button"> — das Icon gehört
+				// NEBEN diesen Block. Im Such-Knopf selbst öffnete jeder Tipp auf „Anmelden" die Suche (Daniel, 18.11.2026).
+				if (anchor.parentNode && anchor.parentNode.classList && anchor.parentNode.classList.contains('td-search-icon')) { anchor = anchor.parentNode; }
 				if (!anchor || !anchor.parentNode) { continue; }
 				if (anchor.closest && anchor.closest('.tdb_header_logo')) { continue; } // nie in den Logo-Block
 				return anchor;

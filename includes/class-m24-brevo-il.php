@@ -582,7 +582,7 @@ class M24_Brevo_IL {
 
 	/** Fallback-Mail an service@, falls der Brevo-Upsert nach Bestätigung scheitert (Lead-Rettung). */
 	private static function send_fail_fallback( $rec, $res ) {
-		$to   = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
+		$to   = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', 'service@motorsport24.de' ) );
 		$attr = (array) ( $rec['attributes'] ?? array() );
 
 		$body  = "Brevo-Upsert nach DOI-Bestätigung FEHLGESCHLAGEN — Lead bitte manuell in Liste 3 eintragen.\n\n";

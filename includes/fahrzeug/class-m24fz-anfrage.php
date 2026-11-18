@@ -85,7 +85,7 @@ class M24FZ_Anfrage {
 
 		$title = get_the_title( $pid );
 		$url   = get_permalink( $pid );
-		$to    = apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) );
+		$to    = apply_filters( 'm24fz_anfrage_to', 'service@motorsport24.de' );
 
 		// Kundentyp auf das Template-Vokabular normalisieren (→ „Geschäftlich (B2B)" / „Privat", wie die Teileanfrage).
 		$kt_norm = ( 'Geschäftskunde' === $kundentyp ) ? 'business' : 'private';
@@ -350,7 +350,7 @@ class M24FZ_Anfrage {
 		if ( $notify_on ) {
 			$title = get_the_title( $context_id );
 			$url   = get_permalink( $context_id );
-			$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', get_option( 'admin_email' ) ) );
+			$to    = apply_filters( 'm24fz_interessent_to', apply_filters( 'm24fz_anfrage_to', 'service@motorsport24.de' ) );
 
 			$body  = "Neuer Interessentenlisten-Eintrag (Marketing-Opt-in)\n\n";
 			$body .= "Auslösendes Inserat/Teil: {$title}\n{$url}\nID: {$context_id}\n\n";
