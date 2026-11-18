@@ -1,28 +1,25 @@
 <?php
 /**
- * M24 Plattform — Footer-Vorschau (Daniel 18.11.2026)
+ * M24 Plattform — Fußbereich der Seite + mitlaufende Hauptnavigation (Daniel 18.11.2026)
  *
- * Nur zum Ansehen: mit ?footer=neu in der Adresse wird der bisherige Fußbereich ausgeblendet und der
- * neue gezeigt (Logo „SINCE 2006“ und Links in einer Kopfzeile, darunter drei Spalten: Text,
- * Fahrzeuge + Versand, Kontakt). Ohne den Parameter bleibt alles unverändert. Interne Links behalten
- * den Parameter, damit man sich durch die Seite klicken kann.
+ * Ersetzt den bisherigen Theme-Fußbereich (wird ausgeblendet) durch den neuen: Logo „SINCE 2006“ und
+ * Links in einer Kopfzeile, darunter drei Spalten (Text, Fahrzeuge + Versand, Kontakt). Die englische
+ * Fassung übersetzt GTranslate wie den Rest der Seite.
+ * Außerdem: Die Hauptnavigation bleibt am Desktop beim Scrollen oben stehen (die schmale Leiste
+ * darüber scrollt weg). Mobil bleibt der Kopf unverändert.
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-class M24_Footer_Vorschau {
+class M24_Footer {
 
 	public static function init() {
 		add_action( 'wp_head', array( __CLASS__, 'stil' ), 99 );
 		add_action( 'wp_footer', array( __CLASS__, 'ausgabe' ), 5 );
 	}
 
-	public static function aktiv() {
-		return isset( $_GET['footer'] ) && 'neu' === sanitize_key( wp_unslash( $_GET['footer'] ) );
-	}
-
 	public static function stil() {
-		if ( is_admin() || ! self::aktiv() ) { return; }
-		echo '<style id="m24-footer-vorschau">'
+		if ( is_admin() ) { return; }
+		echo '<style id="m24-footer">'
 			. '.tdc-footer-wrap{display:none!important}'
 			. '.m24ft{background:#4f4f4f;color:#eaeaea;font-family:Saira,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.6;clear:both}'
 			. '.m24ft *{box-sizing:border-box}'
@@ -48,11 +45,12 @@ class M24_Footer_Vorschau {
 			. '.m24ft-spalten{grid-template-columns:1fr;gap:8px}'
 			. '.m24ft h3{font-size:22px;margin-top:12px}'
 			. '}'
+			. '@media(min-width:1019px){body{overflow-x:clip!important;overflow-y:visible!important}.td-header-template-wrap{position:sticky!important;top:-21px;z-index:9990!important}.admin-bar .td-header-template-wrap{top:11px}}'
 			. '</style>' . "\n";
 	}
 
 	public static function ausgabe() {
-		if ( is_admin() || ! self::aktiv() ) { return; }
+		if ( is_admin() ) { return; }
 		$logo  = esc_url( M24_PLATTFORM_URL . 'assets/img/m24-logo-weiss-since2006.png?v=' . M24_PLATTFORM_VERSION );
 		$u     = function ( $pfad ) { return esc_url( home_url( $pfad ) ); };
 		$links = array(
@@ -89,8 +87,5 @@ class M24_Footer_Vorschau {
 			. '</div>';
 		echo '</div></div>';
 		echo '<div class="m24ft-cp">© MOTORSPORT24 2006-' . esc_html( gmdate( 'Y' ) ) . '</div></footer>' . "\n";
-		echo '<script>document.addEventListener("DOMContentLoaded",function(){'
-			. 'document.querySelectorAll("a[href]").forEach(function(a){try{var u=new URL(a.href);if(u.host===location.host&&!u.searchParams.has("footer")&&!/wp-admin|wp-login/.test(u.pathname)){u.searchParams.set("footer","neu");a.href=u.toString();}}catch(e){}});'
-			. '});</script>' . "\n";
 	}
 }
