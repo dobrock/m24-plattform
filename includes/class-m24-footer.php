@@ -45,7 +45,7 @@ class M24_Footer {
 			. '.m24ft-spalten{grid-template-columns:1fr;gap:8px}'
 			. '.m24ft h3{font-size:22px;margin-top:12px}'
 			. '}'
-			. '@media(min-width:1019px){body{overflow-x:clip!important;overflow-y:visible!important}.td-header-template-wrap{position:sticky!important;top:-21px;z-index:9990!important}.admin-bar .td-header-template-wrap{top:11px}}'
+			. '@media(min-width:1019px){body,#td-outer-wrap{overflow-x:clip!important;overflow-y:visible!important}.td-header-template-wrap{position:sticky!important;top:-27px;z-index:9990!important}.admin-bar .td-header-template-wrap{top:5px}}'
 			. '</style>' . "\n";
 	}
 
@@ -87,5 +87,7 @@ class M24_Footer {
 			. '</div>';
 		echo '</div></div>';
 		echo '<div class="m24ft-cp">© MOTORSPORT24 2006-' . esc_html( gmdate( 'Y' ) ) . '</div></footer>' . "\n";
+		// Mitlaufende Navigation: Höhe der schmalen Leiste messen, damit genau sie wegscrollt (Desktop).
+		echo '<script>(function(){function m(){var w=document.querySelector(".td-header-template-wrap"),r=document.querySelector(".td-header-desktop-wrap .tdc-row");if(!w||!r||window.innerWidth<1019){if(w){w.style.top="";}return;}var h=r.getBoundingClientRect().height,a=document.getElementById("wpadminbar");if(h>0&&h<60){w.style.top=((a?a.offsetHeight:0)-Math.round(h))+"px";}}m();window.addEventListener("load",m);window.addEventListener("resize",m);setTimeout(m,1500);})();</script>' . "\n";
 	}
 }
