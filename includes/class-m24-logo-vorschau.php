@@ -16,7 +16,7 @@ class M24_Logo_Vorschau {
 	public static function ausgabe() {
 		if ( is_admin() ) { return; }
 		$url = esc_url( M24_PLATTFORM_URL . 'assets/img/m24-logo-weiss-since2006.png?v=' . M24_PLATTFORM_VERSION );
-		echo '<style id="m24-logo-vorschau">.tdb-logo-img-wrap{background-image:url("' . $url . '")!important}</style>' . "\n";
+		echo '<style id="m24-logo-vorschau">.tdb-logo-img-wrap{background-image:url("' . $url . '")!important}.td-header-wrap a.td-mobile-logo{background-image:url("' . $url . '")!important;transform:scale(1.2);transform-origin:center center}</style>' . "\n";
 		echo '<script>document.addEventListener("DOMContentLoaded",function(){'
 			. 'document.querySelectorAll("img.tdb-logo-img, img[src*=\"MOTORSPORT24-Logo_negativ\"], img[data-src*=\"MOTORSPORT24-Logo_negativ\"]").forEach(function(i){i.removeAttribute("srcset");i.removeAttribute("data-srcset");i.removeAttribute("data-src");i.removeAttribute("data-retina");i.src=location.origin+"/"+"' . esc_js( ltrim( (string) wp_parse_url( M24_PLATTFORM_URL, PHP_URL_PATH ), '/' ) ) . 'assets/img/m24-logo-weiss-since2006.png?v=' . esc_js( M24_PLATTFORM_VERSION ) . '";});'
 			. '});</script>' . "\n";
