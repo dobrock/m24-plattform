@@ -15,6 +15,17 @@ class M24_Footer {
 	public static function init() {
 		add_action( 'wp_head', array( __CLASS__, 'stil' ), 99 );
 		add_action( 'wp_footer', array( __CLASS__, 'ausgabe' ), 5 );
+		add_action( 'init', array( __CLASS__, 'cache_nach_update_leeren' ), 99 );
+	}
+
+	/**
+	 * Nach einem Plugin-Update den Seiten-Cache (WP Rocket) einmal leeren – sonst sehen nicht angemeldete
+	 * Besucher weiter die alten, zwischengespeicherten Seiten (alter Fußbereich, altes Logo).
+	 */
+	public static function cache_nach_update_leeren() {
+		if ( get_option( 'm24_cache_version' ) === M24_PLATTFORM_VERSION ) { return; }
+		update_option( 'm24_cache_version', M24_PLATTFORM_VERSION, false );
+		if ( function_exists( 'rocket_clean_domain' ) ) { rocket_clean_domain(); }
 	}
 
 	public static function stil() {
@@ -46,7 +57,7 @@ class M24_Footer {
 			. '.m24ft h3{font-size:22px;margin-top:12px}'
 			. '}'
 			. '@media(min-width:1019px){body,#td-outer-wrap{overflow-x:clip!important;overflow-y:visible!important}.td-header-template-wrap{position:sticky!important;top:-27px;z-index:9990!important}.admin-bar .td-header-template-wrap{top:5px}}'
-			. '</style>' . "\n";
+			. '@media(min-width:1019px){.td-header-template-wrap{pointer-events:none}.td-header-template-wrap .tdc-row{pointer-events:auto}.td-header-desktop-wrap .m24-navrow [class*=rand_style],.td-header-desktop-wrap .m24-navrow .vc_column,.td-header-desktop-wrap .m24-navrow .tdb_header_logo,.td-header-desktop-wrap .m24-navrow .tdb-menu>li>a,.td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transition:transform .2s ease,height .2s ease}body.m24-stuck .td-header-desktop-wrap .m24-navrow [class*=rand_style]{height:64px!important;bottom:auto!important}body.m24-stuck .td-header-desktop-wrap .m24-navrow{height:64px}body.m24-stuck .td-header-desktop-wrap .m24-navrow .vc_column{transform:translateY(-8px)}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_logo{transform:scale(.8);transform-origin:left center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>a{transform:scale(.8);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transform:scale(.8);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>ul,body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>.sub-menu{margin-top:-8px}}</style>' . "\n";
 	}
 
 	public static function ausgabe() {
@@ -88,6 +99,6 @@ class M24_Footer {
 		echo '</div></div>';
 		echo '<div class="m24ft-cp">© MOTORSPORT24 2006-' . esc_html( gmdate( 'Y' ) ) . '</div></footer>' . "\n";
 		// Mitlaufende Navigation: Höhe der schmalen Leiste messen, damit genau sie wegscrollt (Desktop).
-		echo '<script>(function(){function m(){var w=document.querySelector(".td-header-template-wrap"),r=document.querySelector(".td-header-desktop-wrap .tdc-row");if(!w||!r||window.innerWidth<1019){if(w){w.style.top="";}return;}var h=r.getBoundingClientRect().height,a=document.getElementById("wpadminbar");if(h>0&&h<60){w.style.top=((a?a.offsetHeight:0)-Math.round(h))+"px";}}m();window.addEventListener("load",m);window.addEventListener("resize",m);setTimeout(m,1500);})();</script>' . "\n";
+		echo '<script>(function(){function m(){var w=document.querySelector(".td-header-template-wrap"),r=document.querySelector(".td-header-desktop-wrap .tdc-row");if(!w||!r||window.innerWidth<1019){if(w){w.style.top="";}return;}var h=r.getBoundingClientRect().height,a=document.getElementById("wpadminbar");if(h>0&&h<60){w.style.top=((a?a.offsetHeight:0)-Math.round(h))+"px";}}m();window.addEventListener("load",m);window.addEventListener("resize",m);setTimeout(m,1500);function t(){var rs=document.querySelectorAll(".td-header-desktop-wrap .tdc-row");if(rs.length>1&&!rs[1].classList.contains("m24-navrow")){rs[1].classList.add("m24-navrow");}var y=window.pageYOffset||0,b=document.body,on=b.classList.contains("m24-stuck");if(window.innerWidth<1019){b.classList.remove("m24-stuck");return;}if(!on&&y>140){b.classList.add("m24-stuck");}else if(on&&y<60){b.classList.remove("m24-stuck");}}t();window.addEventListener("scroll",t,{passive:true});window.addEventListener("resize",t);setTimeout(t,1500);})();</script>' . "\n";
 	}
 }
