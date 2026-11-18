@@ -57,7 +57,7 @@ class M24_Footer {
 			. '.m24ft h3{font-size:22px;margin-top:12px}'
 			. '}'
 			. '@media(min-width:1019px){body,#td-outer-wrap{overflow-x:clip!important;overflow-y:visible!important}.td-header-template-wrap{position:sticky!important;top:-27px;z-index:9990!important}.admin-bar .td-header-template-wrap{top:5px}}'
-			. '@media(min-width:1019px){.td-header-template-wrap{pointer-events:none}.td-header-template-wrap .tdc-row{pointer-events:auto}.td-header-desktop-wrap .m24-navrow [class*=rand_style],.td-header-desktop-wrap .m24-navrow .vc_column,.td-header-desktop-wrap .m24-navrow .tdb_header_logo,.td-header-desktop-wrap .m24-navrow .tdb-menu>li>a,.td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transition:transform .2s ease,height .2s ease}body.m24-stuck .td-header-desktop-wrap .m24-navrow [class*=rand_style]{height:64px!important;bottom:auto!important}body.m24-stuck .td-header-desktop-wrap .m24-navrow{height:64px}body.m24-stuck .td-header-desktop-wrap .m24-navrow .vc_column{transform:translateY(-8px)}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_logo{transform:scale(.8);transform-origin:left center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>a{transform:scale(.8);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transform:scale(.8);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>ul,body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>.sub-menu{margin-top:-8px}}</style>' . "\n";
+			. '@media(min-width:1019px){.td-header-template-wrap{pointer-events:none}.td-header-template-wrap .tdc-row{pointer-events:auto}.td-header-desktop-wrap .m24-navrow [class*=rand_style],.td-header-desktop-wrap .m24-navrow .vc_column,.td-header-desktop-wrap .m24-navrow .tdb_header_logo,.td-header-desktop-wrap .m24-navrow .tdb-menu>li>a,.td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transition:transform .2s ease,height .2s ease}body.m24-stuck .td-header-desktop-wrap .m24-navrow [class*=rand_style]{height:72px!important;bottom:auto!important}body.m24-stuck .td-header-desktop-wrap .m24-navrow{height:72px}body.m24-stuck .td-header-desktop-wrap .m24-navrow .vc_column{transform:translateY(-4px)}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_logo{transform:scale(.9);transform-origin:left center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>a{transform:scale(.9);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb_header_search .tdb-block-inner>*{transform:scale(.9);transform-origin:center center}body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>ul,body.m24-stuck .td-header-desktop-wrap .m24-navrow .tdb-menu>li>.sub-menu{margin-top:-4px}}</style>' . "\n";
 	}
 
 	public static function ausgabe() {
@@ -79,10 +79,10 @@ class M24_Footer {
 		echo '</nav></div>';
 		echo '<div class="m24ft-spalten">';
 		echo '<div>'
-			. '<p>Seit 2006 vertreibt MOTORSPORT24 hochwertige <b>Rennsport Teile</b> von KK Automobile an anspruchsvolle Kunden weltweit.</p>'
+			. '<p>MOTORSPORT24 vertreibt seit 2006 hochwertige <b>Rennsport-Teile</b> von KK Automobile an anspruchsvolle Kunden weltweit.</p>'
 			. '<p>Wir sind Ihr Ansprechpartner für den Bau von Clubsport- und Rennfahrzeugen, sowie im Bereich von Restauration und Neuaufbauten von historischen Serien- und Rennwagen nach Gruppe A, DTM, GTR oder STW Stand.</p>'
 			. '<p>Die Internetpräsenz MOTORSPORT24.de steht in keinem Zusammenhang mit den auf dieser Webseite abgebildeten oder benannten Fahrzeugherstellern.</p>'
-			. '<p>Bei uns finden Sie eine große Auswahl an <a href="' . $u( '/rennsport-teile/' ) . '">Rennsport Teilen</a> und <a href="' . $u( '/gebrauchtteile/' ) . '">gebrauchten Original BMW Teilen</a>.</p>'
+			. '<p>Bei uns finden Sie eine große Auswahl an <a href="' . $u( '/rennsport-teile/' ) . '">Rennsport-Teilen</a> und <a href="' . $u( '/gebrauchtteile/' ) . '">gebrauchten Original BMW Teilen</a>.</p>'
 			. '</div>';
 		echo '<div>'
 			. '<h3>Fahrzeuge</h3>'
