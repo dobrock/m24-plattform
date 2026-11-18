@@ -31,7 +31,7 @@ class M24_Footer {
 	public static function stil() {
 		if ( is_admin() ) { return; }
 		echo '<style id="m24-footer">'
-			. '.tdc-footer-wrap{display:none!important}'
+			. '.tdc-footer-wrap,.td-footer-wrapper,.td-sub-footer-container,.td-footer-wrap,.td-sub-footer-wrap,.td-mobile-footer-wrap,.td-mobile-sub-footer-wrap{display:none!important}'
 			. '.m24ft{background:#4f4f4f;color:#eaeaea;font-family:Saira,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.6;clear:both}'
 			. '.m24ft *{box-sizing:border-box}'
 			. '.m24ft-in{max-width:1180px;margin:0 auto;padding:44px 24px 26px}'
