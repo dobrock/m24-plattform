@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class M24_Startseite_V2 {
 
-	const CACHE_KEY = 'm24_startseite_v2_html_22';
+	const CACHE_KEY = 'm24_startseite_v2_html_23';
 
 	private static $initialized = false;
 
