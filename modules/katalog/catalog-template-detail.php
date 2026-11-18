@@ -135,6 +135,16 @@ class M24_Catalog_Template_Detail {
 		// sonst erster Term (Auto-Fallback).
 		$primary      = (int) get_post_meta( $id, '_m24_primary_modell', true );
 		$primary_term = ( $terms && ! is_wp_error( $terms ) && isset( $terms[0] ) ) ? $terms[0] : null;
+		// Ohne explizite Hauptrubrik das echte Modell bevorzugen („M4 F82" statt „BMW 4er" / „Sonstige …"):
+		// erster Term mit Baureihen-Code (E46, F82, G80 …), sonst erster Term ohne „Sonstige".
+		if ( $terms && ! is_wp_error( $terms ) && count( $terms ) > 1 ) {
+			$echt = null; $ohne_sonstige = null;
+			foreach ( $terms as $t ) {
+				if ( null === $echt && preg_match( '/\b[EFG]\d{2}\b|\b[EFG]\dx\b/i', (string) $t->name ) ) { $echt = $t; }
+				if ( null === $ohne_sonstige && false === stripos( (string) $t->name, 'sonstige' ) ) { $ohne_sonstige = $t; }
+			}
+			if ( $echt ) { $primary_term = $echt; } elseif ( $ohne_sonstige ) { $primary_term = $ohne_sonstige; }
+		}
 		if ( $primary > 0 && $terms && ! is_wp_error( $terms ) ) {
 			foreach ( $terms as $t ) { if ( (int) $t->term_id === $primary ) { $primary_term = $t; break; } }
 		}
@@ -380,7 +390,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .m24-gw-label img{display:block;width:100%;height:auto;border:1px solid #e3e6ea;border-radius:6px}
 		.m24det .m24-gw-text p{margin:0 0 1em}
 		.m24det .m24-gw-hinweis{background:#fff7e0;border:1px solid #ecd9a0;border-radius:8px;padding:12px 16px;margin:0}
-		@media(max-width:760px){.m24det .m24-gw{grid-template-columns:1fr}.m24det .m24-gw-label{max-width:260px}}
+		@media(max-width:760px){.m24det .m24-gw{grid-template-columns:1fr}.m24det .m24-gw-label{max-width:260px;margin:0 auto}}
 		.m24det .tabpanel[data-panel="desc"] p,.m24det .tabpanel[data-panel="fit"] p,.m24det .tabpanel[data-panel="manufacture"] p{margin:0 0 1.1em}
 		.m24det .tabpanel[data-panel="desc"] ul,.m24det .tabpanel[data-panel="desc"] ol,.m24det .tabpanel[data-panel="fit"] ul,.m24det .tabpanel[data-panel="fit"] ol{margin:0 0 1.1em;padding-left:1.5em}
 		.m24det .tabpanel[data-panel="desc"] li,.m24det .tabpanel[data-panel="fit"] li{margin:0 0 .4em}

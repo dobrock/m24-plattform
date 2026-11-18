@@ -76,6 +76,25 @@ class M24_Catalog_Desk_Teile {
 		return new WP_REST_Response( array( 'ok' => true, 'teile' => $out ), 200 );
 	}
 
+	/** {id, beschreibung?: HTML, teilenummer?: string} – ändert nur die übergebenen Felder. */
+	public static function rest_text( WP_REST_Request $r ) {
+		$b  = (array) $r->get_json_params();
+		$id = absint( $b['id'] ?? 0 );
+		if ( ! $id || self::PT !== get_post_type( $id ) ) { return new WP_REST_Response( array( 'ok' => false, 'meldung' => 'Teil nicht gefunden' ), 404 ); }
+		$geaendert = array();
+		if ( isset( $b['beschreibung'] ) && '' !== trim( (string) $b['beschreibung'] ) ) {
+			update_post_meta( $id, '_m24_beschreibung_de', wp_kses_post( (string) $b['beschreibung'] ) ); $geaendert[] = 'beschreibung';
+		}
+		if ( isset( $b['teilenummer'] ) && '' !== trim( (string) $b['teilenummer'] ) ) {
+			update_post_meta( $id, '_m24_bmw_teilenummer', sanitize_text_field( (string) $b['teilenummer'] ) ); $geaendert[] = 'teilenummer';
+		}
+		if ( $geaendert ) {
+			clean_post_cache( $id );
+			if ( function_exists( 'rocket_clean_post' ) ) { rocket_clean_post( $id ); }
+		}
+		return new WP_REST_Response( array( 'ok' => true, 'id' => $id, 'geaendert' => $geaendert, 'url' => get_permalink( $id ) ), 200 );
+	}
+
 	public static function routes() {
 		register_rest_route( self::NS, '/desk-teil', array(
 			'methods'             => 'POST',
@@ -86,6 +105,12 @@ class M24_Catalog_Desk_Teile {
 			'methods'             => 'GET',
 			'permission_callback' => array( 'M24_Catalog_Plattformen', 'feed_token_ok' ),
 			'callback'            => array( __CLASS__, 'rest_statistik' ),
+		) );
+		// Admin: Beschreibung / BMW-Teilenummer eines bestehenden Teils setzen (Nachpflege ohne Editor-Maske).
+		register_rest_route( self::NS, '/teil-text', array(
+			'methods'             => 'POST',
+			'permission_callback' => function () { return current_user_can( 'manage_options' ); },
+			'callback'            => array( __CLASS__, 'rest_text' ),
 		) );
 		register_rest_route( self::NS, '/teil-ping', array(
 			'methods'             => 'POST',
