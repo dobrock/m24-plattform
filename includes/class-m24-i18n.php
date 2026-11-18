@@ -93,6 +93,9 @@ class M24_I18n {
 .m24langsw--topbar .m24langsw-lnk:hover,.m24langsw--topbar .m24langsw-lnk:focus{color:inherit;opacity:1}
 .m24langsw--topbar .m24langsw-lnk.is-active{opacity:1;font-weight:700;border-bottom:2px solid #9a6b25}
 .m24langsw-tip{display:none!important}
+.m24langsw-li{align-items:flex-start!important}
+.m24langsw--topbar{align-items:baseline;line-height:11px}
+.m24langsw--topbar .m24langsw-lnk{padding:0 1px 2px;line-height:11px}
 </style>
         <?php
     }
