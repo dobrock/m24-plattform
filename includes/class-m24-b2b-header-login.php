@@ -93,6 +93,9 @@ class M24_B2B_Header_Login {
 			if ( current_user_can( 'manage_options' ) ) {
 				$items .= '<a class="m24hl-item" href="' . esc_url( admin_url() ) . '">WP-Admin</a>';
 			}
+			if ( class_exists( 'M24_Passkey' ) ) {
+				$items .= '<a class="m24hl-item" href="' . esc_url( home_url( '/haendler-login/' ) ) . '">' . esc_html( $en ? 'Set up fingerprint' : 'Fingerabdruck einrichten' ) . '</a>';
+			}
 			$items  .= '<a class="m24hl-item m24hl-item-logout" href="' . esc_url( $logout ) . '">' . esc_html( $en ? 'Log out' : 'Abmelden' ) . '</a>';
 			echo '<div class="m24hl-acct is-in">'
 				. '<button type="button" class="m24hl-accbtn" data-m24hl-menu aria-haspopup="true" aria-expanded="false">'
