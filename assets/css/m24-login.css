@@ -17,6 +17,8 @@
    Mobilgerät wieder entfernen. */
 .m24lg-micon{color:#fff!important;position:relative;top:-5px;left:13px;display:inline-flex;align-items:center;vertical-align:middle;padding:0;margin:0 4px 0 0;background:none;border:0;cursor:pointer;line-height:1}
 .m24lg-micon svg{width:24px;height:24px;transform-origin:right bottom}
+/* Mobil-Theme (td-composer/mobile): Kopf #td-header-menu, Lupe absolut rechts (62px breit) — Icon direkt links neben die Lupe, nicht neben das Logo (19.11.2026) */
+#td-header-menu > .m24lg-micon{position:absolute!important;top:18px!important;left:auto!important;right:54px!important;margin:0!important}
 /* Farbe/Füllung hart absichern gegen Theme-Blau/-Fill (kein currentColor-Erben) */
 .m24lg-micon svg,.m24lg-micon svg path,.m24lg-micon svg circle{fill:none!important;stroke:#fff!important}
 .m24lg-micon:hover{opacity:.75}
