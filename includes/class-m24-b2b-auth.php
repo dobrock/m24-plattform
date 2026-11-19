@@ -533,12 +533,49 @@ class M24_B2B_Auth {
             return (string) ob_get_clean();
         }
         ?>
+        <?php // Daniel 19.11.2026: „Login" stand dreimal da (Brotkrumen, Seitentitel, Karte) – nur die Karte bleibt.
+        // phpcs:disable WordPress.Security.NonceVerification
+        $pw_fehler = isset( $_GET['fehler'] ) && 'pw' === $_GET['fehler'];
+        $pw_auf    = $pw_fehler || ! empty( $_GET['pw'] );
+        $rt        = isset( $_GET['redirect_to'] ) ? (string) wp_unslash( $_GET['redirect_to'] ) : '';
+        $rt        = ( '' !== $rt && wp_validate_redirect( $rt, '' ) ) ? $rt : '';
+        // phpcs:enable
+        $pk   = class_exists( 'M24_Passkey' );
+        $en   = 'en' === $lg;
+        ?>
+        <style>body.haendler-login .td-crumb-container,body.haendler-login .td-page-header{display:none}
+        .m24b2b .m24pk-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:20px 16px;font-size:18px}
+        .m24b2b .m24pk-btn svg{width:28px;height:28px;flex:0 0 28px}
+        .m24b2b .m24pk-note{margin:14px 0 22px;text-align:center;color:#6b7785;font-size:14px}
+        .m24b2b .m24pk-alt{display:block;border-top:1px solid #e6eaee;padding-top:18px;text-align:center}</style>
         <h2><?php echo esc_html( $t( 'login_h1' ) ); ?></h2>
-        <p class="sub"><?php echo esc_html( $t( 'login_sub' ) ); ?></p>
+        <?php if ( $pk && is_user_logged_in() ) : ?>
+            <div id="m24pkEin">
+                <p class="sub"><?php echo esc_html( $en ? 'You are signed in. Set up fingerprint or Face ID sign-in for this device.' : 'Du bist angemeldet. Richte hier die Anmeldung per Fingerabdruck oder Face ID für dieses Gerät ein.' ); ?></p>
+                <button type="button" class="m24b2b-btn m24pk-btn" id="m24pkEinBtn"><?php echo esc_html( $en ? 'Set up fingerprint on this device' : 'Fingerabdruck auf diesem Gerät einrichten' ); ?></button>
+                <div id="m24pkEinMsg" hidden></div>
+            </div>
+            <?php echo M24_Passkey::skript(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <script>(function(){var b=document.getElementById('m24pkEinBtn');if(b){b.addEventListener('click',function(){window.m24Passkey.einrichten(document.getElementById('m24pkEinMsg'));});}})();</script>
+            <?php
+            echo '</div></div>';
+            return (string) ob_get_clean();
+        endif; ?>
+        <?php if ( $pk ) : ?>
+            <div id="m24pkBox" hidden>
+                <p class="sub"><?php echo esc_html( $en ? 'Sign in with fingerprint or Face ID.' : 'Melde dich mit Fingerabdruck oder Face ID an.' ); ?></p>
+                <button type="button" class="m24b2b-btn m24pk-btn" id="m24pkBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 11v3a8 8 0 0 1-1.2 4.2M8.5 20.5A12 12 0 0 0 9 14v-3a3 3 0 0 1 6 0v2a14 14 0 0 1-.7 5M6 17a10 10 0 0 0 .3-3v-3a5.7 5.7 0 0 1 9-4.6M17.7 9.5a5.6 5.6 0 0 1 .3 1.5v2.5a17 17 0 0 1-.4 4M3.8 13.5V11a8.2 8.2 0 0 1 12.7-6.8M19 6.6a8 8 0 0 1 1.2 3.4"/></svg><?php echo esc_html( $en ? 'Sign in with fingerprint' : 'Mit Fingerabdruck anmelden' ); ?></button>
+                <div id="m24pkMsg" hidden></div>
+                <p class="m24pk-note"><?php echo esc_html( $en ? 'You stay signed in for 30 days.' : 'Du bleibst 30 Tage angemeldet.' ); ?></p>
+                <a href="#" class="m24b2b-pwlink m24pk-alt" id="m24pkAlt"><?php echo esc_html( $en ? 'Sign in with email and password' : 'Mit E-Mail und Passwort anmelden' ); ?></a>
+            </div>
+        <?php endif; ?>
+        <div id="m24altBox">
+        <p class="sub" id="m24linkSub"<?php echo $pw_auf ? ' hidden' : ''; ?>><?php echo esc_html( $t( 'login_sub' ) ); ?></p>
         <?php if ( isset( $_GET['fehler'] ) && 'link' === $_GET['fehler'] ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
             <div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_link' ) ); ?></div>
         <?php endif; ?>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="m24linkForm"<?php echo $pw_auf ? ' hidden' : ''; ?>>
             <input type="hidden" name="action" value="m24_haendler_login">
             <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
             <?php wp_nonce_field( 'm24_haendler_login' ); ?>
@@ -547,19 +584,13 @@ class M24_B2B_Auth {
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_login' ) ); ?></button>
         </form>
-        <?php // phpcs:disable WordPress.Security.NonceVerification
-        // ?pw=1 (z. B. von wp-login.php) öffnet das Passwort-Formular direkt; redirect_to (nur eigene Seite) wird nach dem Login angesteuert.
-        $pw_auf = ( isset( $_GET['fehler'] ) && 'pw' === $_GET['fehler'] ) || ! empty( $_GET['pw'] );
-        $rt     = isset( $_GET['redirect_to'] ) ? (string) wp_unslash( $_GET['redirect_to'] ) : '';
-        $rt     = ( '' !== $rt && wp_validate_redirect( $rt, '' ) ) ? $rt : '';
-        // phpcs:enable ?>
         <a href="#" class="m24b2b-pwlink" id="m24pwAuf"<?php echo $pw_auf ? ' hidden' : ''; ?>><?php echo esc_html( $t( 'login_pw_link' ) ); ?></a>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="m24pwForm" class="m24b2b-pw"<?php echo $pw_auf ? '' : ' hidden'; ?>>
             <input type="hidden" name="action" value="m24_haendler_login_pw">
             <input type="hidden" name="m24_lang" value="<?php echo esc_attr( $lg ); ?>">
             <?php if ( $rt ) : ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $rt ); ?>"><?php endif; ?>
             <?php wp_nonce_field( 'm24_haendler_login_pw' ); ?>
-            <?php if ( $pw_auf ) : ?><div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_pw' ) ); ?></div><?php endif; ?>
+            <?php if ( $pw_fehler ) : ?><div class="m24b2b-err"><?php echo esc_html( $t( 'login_err_pw' ) ); ?></div><?php endif; ?>
             <label for="m24pwmail"><?php echo esc_html( $t( 'f_email' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
             <input type="email" id="m24pwmail" name="email" required autocomplete="username">
             <label for="m24pw"><?php echo esc_html( $t( 'f_passwort' ) ); ?> <span class="req"><?php echo esc_html( $t( 'req' ) ); ?></span></label>
@@ -569,11 +600,20 @@ class M24_B2B_Auth {
             <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_pw' ) ); ?></button>
             <a href="#" class="m24b2b-pwlink" id="m24pwZu"><?php echo esc_html( $t( 'login_pw_zu' ) ); ?></a>
         </form>
-        <script>(function(){var a=document.getElementById('m24pwAuf'),z=document.getElementById('m24pwZu'),f=document.getElementById('m24pwForm'),l=document.querySelector('.m24b2b-card form:not(#m24pwForm)');
-        function auf(e){if(e){e.preventDefault();}f.hidden=false;a.hidden=true;if(l){l.hidden=true;}try{localStorage.setItem('m24_login_pw','1');}catch(x){}var m=document.getElementById('m24loginmail');if(m&&m.value){document.getElementById('m24pwmail').value=m.value;}document.getElementById('m24pwmail').focus();}
-        function zu(e){e.preventDefault();f.hidden=true;a.hidden=false;if(l){l.hidden=false;}try{localStorage.removeItem('m24_login_pw');}catch(x){}}
+        </div>
+        <?php if ( $pk ) { echo M24_Passkey::skript(); } // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <script>(function(){var a=document.getElementById('m24pwAuf'),z=document.getElementById('m24pwZu'),f=document.getElementById('m24pwForm'),l=document.getElementById('m24linkForm'),ls=document.getElementById('m24linkSub');
+        var box=document.getElementById('m24pkBox'),alt=document.getElementById('m24altBox'),VON_ADMIN=<?php echo ! empty( $_GET['pw'] ) ? 'true' : 'false'; // phpcs:ignore WordPress.Security.NonceVerification ?>,FEHLER=<?php echo $pw_fehler ? 'true' : 'false'; ?>,RT=<?php echo wp_json_encode( $rt ); ?>;
+        function auf(e){if(e){e.preventDefault();}f.hidden=false;a.hidden=true;if(l){l.hidden=true;}if(ls){ls.hidden=true;}var m=document.getElementById('m24loginmail');if(m){if(m.value){document.getElementById('m24pwmail').value=m.value;}}document.getElementById('m24pwmail').focus();}
+        function zu(e){e.preventDefault();f.hidden=true;a.hidden=false;if(l){l.hidden=false;}if(ls){ls.hidden=false;}}
         if(a){a.addEventListener('click',auf);}if(z){z.addEventListener('click',zu);}
-        try{if(!f.hidden){return;}if(localStorage.getItem('m24_login_pw')==='1'){auf();}}catch(x){}})();</script>
+        // Vorschlag A: Fingerabdruck zuerst – auf Geräten, die schon eingerichtet sind, und beim Weg über wp-admin.
+        var kennt=false;try{kennt=localStorage.getItem('m24_pk')==='1';}catch(x){}
+        var pk=window.m24Passkey;
+        if(box){if(pk){if(pk.kann){if(!FEHLER){if(kennt||VON_ADMIN){box.hidden=false;alt.hidden=true;}}}}
+          document.getElementById('m24pkBtn').addEventListener('click',function(){pk.anmelden(document.getElementById('m24pkMsg'),RT);});
+          document.getElementById('m24pkAlt').addEventListener('click',function(e){e.preventDefault();box.hidden=true;alt.hidden=false;auf();});}
+        })();</script>
         <?php
         echo '</div></div>';
         return (string) ob_get_clean();
