@@ -205,24 +205,34 @@
 	}
 
 	/* ── Dropdown (eingeloggt) ── */
+	// 19.11.2026 (Daniel: „wenn ich auf Mein Konto klicke, passiert nichts"): Das Menü wurde am gemerkten Element
+	// `trigger` gesucht – im Kopf sitzt aber ein neu gebautes Element. Jetzt zählt immer das Element, auf das geklickt wurde.
 	function closeMenu() {
-		var dd = trigger.querySelector('[data-m24lg-dropdown]');
-		var b = trigger.querySelector('[data-m24lg-menu]');
-		if (dd) { dd.hidden = true; }
-		if (b) { b.setAttribute('aria-expanded', 'false'); }
+		var alle = document.querySelectorAll('[data-m24lg-dropdown]');
+		for (var i = 0; i < alle.length; i++) { alle[i].hidden = true; }
+		var bs = document.querySelectorAll('[data-m24lg-menu]');
+		for (var j = 0; j < bs.length; j++) { bs[j].setAttribute('aria-expanded', 'false'); }
 		document.removeEventListener('click', onDocClick);
 	}
-	function onDocClick(e) { if (!trigger.contains(e.target)) { closeMenu(); } }
+	function onDocClick(e) { if (!(e.target.closest && e.target.closest('.m24lg-acct'))) { closeMenu(); } }
 
 	document.addEventListener('click', function (e) {
-		if (e.target.closest && e.target.closest('[data-m24lg-open]')) { e.preventDefault(); openModal(); return; }
+		if (e.target.closest && e.target.closest('[data-m24lg-open]')) {
+			e.preventDefault();
+			// Gerät mit eingerichtetem Fingerabdruck: direkt zur Login-Seite (großer Fingerabdruck-Knopf) statt zum Login-Link-Fenster.
+			var pk = false; try { pk = localStorage.getItem('m24_pk') === '1'; } catch (x) {}
+			if (pk) { location.href = '/haendler-login/'; return; }
+			openModal(); return;
+		}
 		if (e.target.closest && e.target.closest('[data-m24lg-close]')) { e.preventDefault(); closeModal(); return; }
 		var menuBtn = e.target.closest && e.target.closest('[data-m24lg-menu]');
 		if (menuBtn) {
 			e.preventDefault();
-			var dd = trigger.querySelector('[data-m24lg-dropdown]');
+			var wurzel = menuBtn.closest('.m24lg-acct') || trigger;
+			var dd = wurzel.querySelector('[data-m24lg-dropdown]');
 			if (!dd) { return; }
 			var open = dd.hidden;
+			closeMenu();
 			dd.hidden = !open;
 			menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
 			if (open) { document.addEventListener('click', onDocClick); } else { document.removeEventListener('click', onDocClick); }
