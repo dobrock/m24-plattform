@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.713
+ * Version:           0.11.714
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -160,6 +160,7 @@ require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-pdf.php';  // Meine 
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-garage-alerts.php'; // Meine Garage Etappe 3: per-Fahrzeug-Änderungs-Alerts (Flag-gated)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-i18n.php';         // i18n-Fundament (DE/EN): String-Registry + Sprachauflösung
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-admin-bar.php';    // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
+require_once M24_PLATTFORM_DIR . 'includes/class-m24-passkey.php';      // Anmeldung per Fingerabdruck / Face ID (Passkey), 19.11.2026
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-login.php';        // Passwordless Magic-Link-Login „D" (flag-gated, Default aus)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-user-activity.php'; // Nutzer-Aktivität & Herkunft: _m24_last_login + _m24_signup_source (Tracking)
 require_once M24_PLATTFORM_DIR . 'includes/class-m24-account.php';      // Konto-/Einstellungsseite (Entwurf 1) im Benachrichtigungen-Tab
@@ -431,6 +432,7 @@ add_action( 'plugins_loaded', function() {
     M24_Garage_Alerts::init(); // Meine Garage Etappe 3: per-Fahrzeug-Änderungs-Alerts (Flag-gated)
     add_action( 'init', [ 'M24_I18n', 'init' ], 1 ); // Sprach-Cookie aus ?lang (früh, vor Ausgabe)
     M24_Admin_Bar::init(); // Admin-Bar: Direktlink zum korrekten M24-Editor je CPT
+    M24_Passkey::init(); // Passkey-Routen (Einrichten nur angemeldet, Anmelden öffentlich)
     M24_Login::init(); // Passwordless Magic-Link-Login „D" (flag-gated)
     M24_User_Activity::init(); // Last-Login (wp_login) + Herkunft (user_register → „manuell")
     M24_Account::init(); // Konto-/Einstellungsseite (Entwurf 1); Löschung/Export/Brevo-DOI via m24_account_danger_enabled
