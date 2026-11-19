@@ -554,6 +554,7 @@ class M24_B2B_Auth {
                 <p class="sub"><?php echo esc_html( $en ? 'You are signed in. Set up fingerprint or Face ID sign-in for this device.' : 'Du bist angemeldet. Richte hier die Anmeldung per Fingerabdruck oder Face ID für dieses Gerät ein.' ); ?></p>
                 <button type="button" class="m24b2b-btn m24pk-btn" id="m24pkEinBtn"><?php echo esc_html( $en ? 'Set up fingerprint on this device' : 'Fingerabdruck auf diesem Gerät einrichten' ); ?></button>
                 <div id="m24pkEinMsg" hidden></div>
+                <p class="m24pk-note" style="margin-bottom:0"><a href="<?php echo esc_url( current_user_can( 'edit_posts' ) ? admin_url() : home_url( '/' ) ); ?>"><?php echo esc_html( $en ? 'Continue' : 'Weiter' ); ?></a> &nbsp;·&nbsp; <a href="<?php echo esc_url( wp_logout_url( self::login_page_url() ) ); ?>"><?php echo esc_html( $en ? 'Log out' : 'Abmelden' ); ?></a></p>
             </div>
             <?php echo M24_Passkey::skript(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <script>(function(){var b=document.getElementById('m24pkEinBtn');if(b){b.addEventListener('click',function(){window.m24Passkey.einrichten(document.getElementById('m24pkEinMsg'));});}})();</script>
@@ -584,6 +585,7 @@ class M24_B2B_Auth {
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <button type="submit" class="m24b2b-btn"><?php echo esc_html( $t( 'submit_login' ) ); ?></button>
         </form>
+        <?php if ( $pk ) : ?><a href="#" class="m24b2b-pwlink" id="m24pkZeig" hidden><?php echo esc_html( $en ? 'Sign in with fingerprint or Face ID' : 'Mit Fingerabdruck oder Face ID anmelden' ); ?></a><?php endif; ?>
         <a href="#" class="m24b2b-pwlink" id="m24pwAuf"<?php echo $pw_auf ? ' hidden' : ''; ?>><?php echo esc_html( $t( 'login_pw_link' ) ); ?></a>
         <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="m24pwForm" class="m24b2b-pw"<?php echo $pw_auf ? '' : ' hidden'; ?>>
             <input type="hidden" name="action" value="m24_haendler_login_pw">
@@ -613,6 +615,7 @@ class M24_B2B_Auth {
         if(box){if(pk){if(pk.kann){if(!FEHLER){if(kennt||VON_ADMIN){box.hidden=false;alt.hidden=true;}}}}
           document.getElementById('m24pkBtn').addEventListener('click',function(){pk.anmelden(document.getElementById('m24pkMsg'),RT);});
           document.getElementById('m24pkAlt').addEventListener('click',function(e){e.preventDefault();box.hidden=true;alt.hidden=false;auf();});}
+        var zg=document.getElementById('m24pkZeig');if(zg){if(pk){if(pk.kann){zg.hidden=false;zg.addEventListener('click',function(e){e.preventDefault();box.hidden=false;alt.hidden=true;pk.anmelden(document.getElementById('m24pkMsg'),RT);});}}}
         })();</script>
         <?php
         echo '</div></div>';
