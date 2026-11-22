@@ -391,8 +391,8 @@ class M24_Startseite_V2 {
 <section class="m24s-hero" style="--m24s-bg:url('<?php echo esc_url( $J ); ?>')">
 	<div class="m24s-hero__in">
 		<div class="m24s-eb m24s-eb--light">Seit 2001 · s14motorsport.de · MOTORSPORT24</div>
-		<div class="m24s-hero__25 m24s-gold">25</div>
-		<h2 class="m24s-hero__h">Jahre Erfahrung in BMW Rennsport &amp; Klassik</h2>
+		<?php // H1 (Daniel, 22.11.2026: „unbedingt nachholen"): Zahl und Schriftzug bilden zusammen die eine Hauptüberschrift der Startseite. Optik unverändert (CSS .m24s-hero__h1). ?>
+		<h1 class="m24s-hero__h1"><span class="m24s-hero__25 m24s-gold">25</span> <span class="m24s-hero__h">Jahre Erfahrung in BMW Rennsport &amp; Klassik</span></h1>
 		<p class="m24s-hero__lead">Klassische BMW, Rennfahrzeuge und Rennsport-Teile passend für BMW M Modelle – international seit 2006.</p>
 		<div class="m24s-hero__btns"><a class="m24s-btn m24s-btn--hero" href="#m24s-angebot">Fahrzeuge ansehen</a><a class="m24s-btn m24s-btn--glass m24s-btn--hero" href="#m24s-teile">Teile finden</a></div>
 	</div>

@@ -45,6 +45,9 @@ body:has(#m24-startseite) .td-main-content-wrap{padding-bottom:0}
 .m24s-hero__in{position:relative;z-index:1;padding:44px 20px 0;color:#fff}
 .m24s-hero__25{font:800 clamp(120px,12vw,180px)/.85 Saira,sans-serif;letter-spacing:-.03em;margin-top:6px;filter:drop-shadow(0 18px 40px rgba(0,0,0,.5))}
 .m24s-hero__h{font:800 clamp(26px,2.8vw,38px)/1.12 Saira,sans-serif;color:#fff;margin:6px auto 12px!important}
+/* H1 der Startseite: reiner Träger, die Optik kommt von den beiden Zeilen darin (22.11.2026). */
+.m24s-hero__h1{all:unset;display:block;margin:0!important;padding:0!important}
+.m24s-hero__h1>span{display:block}
 .m24s-hero__lead{font-size:15.5px;line-height:1.6;color:#d3d6db;max-width:640px;margin:0 auto!important}
 .m24s-hero__btns{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap}
 .m24s-cats{position:relative;z-index:3;margin-top:-40px!important;display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);margin-bottom:var(--sec)!important}
