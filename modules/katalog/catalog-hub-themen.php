@@ -202,7 +202,8 @@ class M24_Hub_Themen {
 		$t = self::fuer( $hub )[ $thema ] ?? array();
 		if ( empty( $t ) ) { return false; }
 		if ( 'teile' === $t['art'] ) { return (bool) self::teile_ids( $hub, $thema ); }
-		if ( 'fahrzeuge' === $t['art'] ) { return (bool) self::fahrzeuge( $hub, $thema ); }
+		// Fahrzeuge-Reiter nur, wenn aktuell ein Fahrzeug zum Verkauf steht (Daniel 22.11.2026) – sonst kein Reiter, noindex, nicht in der Sitemap.
+		if ( 'fahrzeuge' === $t['art'] ) { return (bool) array_filter( self::fahrzeuge( $hub, $thema ), function ( $f ) { return 'verkauft' !== $f[1]; } ); }
 		return true;
 	}
 
