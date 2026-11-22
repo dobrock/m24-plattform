@@ -26,7 +26,7 @@ if ( ! function_exists( 'm24_anfrage_mail_html' ) ) {
 		$rest = array();
 		$im_kopf = true;
 		foreach ( preg_split( '/\r\n|\r|\n/', (string) $notes ) as $z ) {
-			if ( $im_kopf && preg_match( '/^(Thema|Ich bin|Lieferland|Teilenummer \/ Artikel|Teilenummer|Kundentyp)\s*:\s*(.*)$/u', trim( $z ), $m ) ) {
+			if ( $im_kopf && preg_match( '/^(Gesendet von Seite|Thema|Ich bin|Lieferland|Teilenummer \/ Artikel|Teilenummer|Kundentyp)\s*:\s*(.*)$/u', trim( $z ), $m ) ) {
 				$kopf[ $m[1] ] = trim( $m[2] );
 				continue;
 			}
@@ -176,6 +176,17 @@ if ( ! function_exists( 'm24_anfrage_mail_html' ) ) {
 					. '<div style="color:#56636f;font-size:13px;">' . $e( $a['preis'] ) . ( $a['menge'] > 1 ? ' · Menge ' . (int) $a['menge'] : '' ) . '</div>' . $link . '</td>'
 					. '</tr></table></td></tr></table></td></tr>';
 			}
+		}
+
+		// Herkunftsseite der Kontaktanfrage (Daniel 22.11.2026): „Titel – Adresse" aus der Notiz.
+		$von = trim( (string) ( $kopf['Gesendet von Seite'] ?? '' ) );
+		if ( '' !== $von ) {
+			$von_url = ''; $von_txt = $von;
+			if ( preg_match( '#^(.*?)(?:\s+–\s+)?(https?://\S+)$#u', $von, $vm ) ) { $von_txt = '' !== trim( $vm[1] ) ? trim( $vm[1] ) : $vm[2]; $von_url = $vm[2]; }
+			$h .= '<tr><td style="padding:12px 14px 0;"><div style="border:1px solid #e2e6ea;border-radius:8px;padding:10px 12px;font-size:13.5px;">'
+				. '<div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a95a1;">Gesendet von Seite</div>'
+				. ( '' !== $von_url ? '<a href="' . esc_url( $von_url ) . '" style="color:#2c5aa0;font-weight:700;font-size:14px;text-decoration:none;">' . $e( $von_txt ) . '</a><div style="color:#56636f;font-size:12px;word-break:break-all;">' . $e( $von_url ) . '</div>' : '<b>' . $e( $von_txt ) . '</b>' )
+				. '</div></td></tr>';
 		}
 
 		// Kontaktzeile + Fuß
