@@ -415,6 +415,10 @@ class M24_Native_Sitemap {
 				$loc     = M24_Catalog_Hub::url( $slug );
 				$lastmod = isset( $reg[ $slug ] ) ? (string) get_post_modified_time( 'c', true, (int) $reg[ $slug ] ) : '';
 				$urls[]  = array( 'loc' => $loc, 'lastmod' => $lastmod );
+				// Themenseiten des Hubs (/teile/<hub>/<thema>/, 22.11.2026) – nur solche mit Inhalt. Diese Sitemap ist die, die ausgeliefert wird.
+				if ( class_exists( 'M24_Hub_Themen' ) ) {
+					foreach ( M24_Hub_Themen::sitemap_urls( $slug ) as $tloc ) { $urls[] = array( 'loc' => $tloc, 'lastmod' => $lastmod ); }
+				}
 			}
 		}
 		return self::urlset( $urls );
