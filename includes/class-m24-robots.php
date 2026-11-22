@@ -44,7 +44,10 @@ class M24_Robots {
 			'',
 			'Sitemap: ' . esc_url_raw( home_url( '/sitemap-m24-index.xml' ) ),
 		);
-		$news = apply_filters( 'm24_robots_news_sitemap', esc_url_raw( home_url( '/news-sitemap.xml' ) ) );
+		// 22.11.2026: Jetpack schreibt seine Sitemap-Zeilen über die Aktion do_robotstxt selbst in die Ausgabe (nicht über
+		// diesen Filter) – die News-Zeile stand dadurch doppelt in robots.txt. Ist das Jetpack-Sitemap-Modul aktiv, lassen wir sie hier weg.
+		$jetpack_news = class_exists( 'Jetpack' ) && method_exists( 'Jetpack', 'is_module_active' ) && Jetpack::is_module_active( 'sitemaps' );
+		$news = apply_filters( 'm24_robots_news_sitemap', $jetpack_news ? '' : esc_url_raw( home_url( '/news-sitemap.xml' ) ) );
 		if ( ! empty( $news ) ) { $lines[] = 'Sitemap: ' . $news; }
 
 		return implode( "\n", $lines ) . "\n";

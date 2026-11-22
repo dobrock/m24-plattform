@@ -197,7 +197,26 @@ class M24_SEO_Frontfixes {
 			);
 		}
 
-		return implode( '', $teile );
+		$html = implode( '', $teile );
+
+		// (2c) Interne Links auf alte Hub-Adressen gleich auf die gültige schreiben (22.11.2026): Menü und Texte
+		// zeigten noch auf /teile/bmw-m3-e30/ usw., das leitet auf /teile/e30/ weiter – jeder Klick und jeder
+		// Crawler-Abruf lief über eine Weiterleitung. Nur eigene Adressen, nur bekannte alte Hub-Slugs.
+		if ( class_exists( 'M24_Catalog_Hub' ) && method_exists( 'M24_Catalog_Hub', 'alias_map' ) ) {
+			$alias = M24_Catalog_Hub::alias_map();
+			if ( $alias ) {
+				$host = preg_quote( (string) wp_parse_url( home_url(), PHP_URL_HOST ), '#' );
+				$html = preg_replace_callback(
+					'#(\\bhref\\s*=\\s*["\'])((?:https?://' . $host . ')?)/' . M24_Catalog_Hub::BASE . '/(' . implode( '|', array_map( 'preg_quote', array_keys( $alias ) ) ) . ')(?=[/"\'?\#])#i',
+					static function ( $m ) use ( $alias ) {
+						return $m[1] . $m[2] . '/' . M24_Catalog_Hub::BASE . '/' . $alias[ strtolower( $m[3] ) ];
+					},
+					$html
+				);
+			}
+		}
+
+		return $html;
 	}
 
 	/** Schmuckbild? Dann bleibt alt leer. */
