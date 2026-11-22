@@ -85,6 +85,19 @@ class M24_Catalog_Hub_Sitemap {
 				$xml .= $alt . "\t</url>\n\t<url>\n\t\t<loc>" . esc_url( $en ) . "</loc>\n" . $alt;
 			}
 			$xml .= "\t</url>\n";
+
+			// Themenseiten des Hubs (/teile/<hub>/<thema>/, 22.11.2026) – nur solche mit Inhalt.
+			if ( class_exists( 'M24_Hub_Themen' ) ) {
+				foreach ( M24_Hub_Themen::sitemap_urls( $slug ) as $tloc ) {
+					$xml .= "\t<url>\n\t\t<loc>" . esc_url( $tloc ) . "</loc>\n";
+					$ten = class_exists( 'M24_Native_Sitemap' ) ? M24_Native_Sitemap::en_url( $tloc ) : '';
+					if ( $ten ) {
+						$talt = "\t\t<xhtml:link rel=\"alternate\" hreflang=\"de-de\" href=\"" . esc_url( $tloc ) . "\"/>\n\t\t<xhtml:link rel=\"alternate\" hreflang=\"en\" href=\"" . esc_url( $ten ) . "\"/>\n\t\t<xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"" . esc_url( $tloc ) . "\"/>\n";
+						$xml .= $talt . "\t</url>\n\t<url>\n\t\t<loc>" . esc_url( $ten ) . "</loc>\n" . $talt;
+					}
+					$xml .= "\t</url>\n";
+				}
+			}
 		}
 
 		$xml .= '</urlset>' . "\n";
