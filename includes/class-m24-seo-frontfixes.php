@@ -159,15 +159,77 @@ class M24_SEO_Frontfixes {
 			$html
 		);
 
-		// (2b) <img …> ohne alt-Attribut → alt="" ergänzen (kein Bild bleibt ganz ohne alt; a11y-Baseline).
-		$html = preg_replace_callback(
-			'#<img\b([^>]*)>#i',
-			static function ( $m ) {
-				return preg_match( '/\balt\s*=/i', $m[1] ) ? $m[0] : '<img' . $m[1] . ' alt="">';
+		// (2b) Alt-Texte nachziehen und Bilder unterhalb des Seitenkopfs verzögert laden (Daniel, 22.11.2026:
+		// „überall Alt-Texte nachziehen – wichtig"). Stichprobe davor: S63-Motor 43 von 51 Bildern ohne
+		// Beschreibung, Rennwagen-Übersicht 42 von 55, dort kein einziges Bild mit loading="lazy".
+		//  - Fehlendes ODER leeres alt wird gefüllt: erst aus dem title-Attribut des Bildes, dann aus dem
+		//    Dateinamen („BMW-M3-E30-Track-Tool-12.jpg" → „BMW M3 E30 Track Tool"), auf Einzelseiten zuletzt
+		//    aus dem Seitentitel mit laufender Nummer. Ein gesetztes alt bleibt immer, wie es ist.
+		//  - Schmuckbilder (Logo, Icon, Flagge, Zählpixel, role=presentation, aria-hidden, sehr klein) behalten
+		//    alt="" — ein erfundener Text wäre dort für Vorleseprogramme nur Lärm.
+		//  - loading="lazy" + decoding="async" für alles ab dem fünften Bild, das noch kein loading trägt; die
+		//    ersten vier (Logo, Kopf, Aufmacher) laden sofort, damit das größte sichtbare Bild nicht wartet.
+		$seitentitel = is_singular() ? trim( wp_strip_all_tags( (string) get_the_title( (int) get_queried_object_id() ) ) ) : '';
+		$nr          = 0;
+		$bildnr      = 0;
+		// Skriptblöcke bleiben unangetastet: steht dort ein <img …> in einer Zeichenkette, würde ein
+		// eingefügtes Attribut mit Anführungszeichen das Skript zerbrechen.
+		$teile = preg_split( '#(<script\b.*?</script>)#is', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+		if ( ! is_array( $teile ) ) { return $html; }
+		foreach ( $teile as $i => $teil ) {
+			if ( $i % 2 ) { continue; } // ungerade = <script>…</script>
+			$teile[ $i ] = preg_replace_callback(
+			'#<img\b([^>]*?)\s*/?>#i',
+			static function ( $m ) use ( $seitentitel, &$nr, &$bildnr ) {
+				$a = $m[1];
+				$nr++;
+				$hat_alt = preg_match( '/\balt\s*=\s*(["\'])(.*?)\1/is', $a, $am );
+				if ( ! $hat_alt || '' === trim( (string) $am[2] ) ) {
+					$alt = self::alt_vorschlag( $a, $seitentitel, $bildnr );
+					$neu = ' alt="' . esc_attr( $alt ) . '"';
+					$a   = $hat_alt ? preg_replace( '/\s*\balt\s*=\s*(["\']).*?\1/is', $neu, $a, 1 ) : $a . $neu;
+				}
+				if ( $nr > 4 && ! preg_match( '/\bloading\s*=/i', $a ) ) { $a .= ' loading="lazy"'; }
+				if ( $nr > 4 && ! preg_match( '/\bdecoding\s*=/i', $a ) ) { $a .= ' decoding="async"'; }
+				return '<img' . $a . '>';
 			},
-			$html
-		);
+			(string) $teil
+			);
+		}
 
-		return $html;
+		return implode( '', $teile );
+	}
+
+	/** Schmuckbild? Dann bleibt alt leer. */
+	private static function ist_schmuck( string $attribute ): bool {
+		if ( preg_match( '/\brole\s*=\s*["\']presentation|\baria-hidden\s*=\s*["\']true/i', $attribute ) ) { return true; }
+		if ( preg_match( '/\b(?:src|class)\s*=\s*["\'][^"\']*(?:logo|icon|flag|flagge|emoji|avatar|spinner|pixel|blank\.)/i', $attribute ) ) { return true; }
+		if ( preg_match( '/\bwidth\s*=\s*["\']?(\d+)/i', $attribute, $w ) && (int) $w[1] > 0 && (int) $w[1] <= 48 ) { return true; }
+		return false;
+	}
+
+	/** Alt-Vorschlag für ein Bild ohne Beschreibung; '' für Schmuckbilder und wenn nichts Brauchbares da ist. */
+	private static function alt_vorschlag( string $attribute, string $seitentitel, int &$bildnr ): string {
+		if ( self::ist_schmuck( $attribute ) ) { return ''; }
+		if ( preg_match( '/\btitle\s*=\s*(["\'])(.*?)\1/is', $attribute, $t ) && '' !== trim( $t[2] ) ) {
+			return mb_substr( trim( wp_strip_all_tags( html_entity_decode( $t[2], ENT_QUOTES, 'UTF-8' ) ) ), 0, 125 );
+		}
+		$name = '';
+		// Echte Quelle zuerst: Nachlade-Skripte legen sie in data-src ab, in src steht dann nur ein Platzhalter.
+		if ( preg_match( '/\b(?:data-src|data-lazy-src)\s*=\s*(["\'])(.*?)\1/is', $attribute, $s ) || preg_match( '/\bsrc\s*=\s*(["\'])(?!data:)(.*?)\1/is', $attribute, $s ) ) {
+			$name = (string) pathinfo( (string) wp_parse_url( html_entity_decode( $s[2] ), PHP_URL_PATH ), PATHINFO_FILENAME );
+			$name = rawurldecode( $name );
+			$name = preg_replace( '/-\d+x\d+$|-scaled$|-e\d{6,}$/i', '', $name );          // WP-Größen, „-scaled", Bearbeitungsstempel
+			$name = trim( preg_replace( '/[\s_\-.]+/', ' ', $name ) );
+			$name = trim( preg_replace( '/\s+\d{1,4}$/', '', $name ) );                     // laufende Nummer am Ende
+		}
+		// Kamera-/Zufallsnamen sind keine Beschreibung: IMG 1234, DSC0042, reine Ziffern, Hash-Namen.
+		$brauchbar = '' !== $name
+			&& ! preg_match( '/^(?:img|dsc|dscn|dscf|pxl|photo|bild|image|foto|screenshot|whatsapp|unnamed)(?![a-zäöü])/iu', $name )
+			&& ! preg_match( '/^[0-9a-f\s]{12,}$/i', $name )
+			&& preg_match( '/\p{L}{3,}/u', $name );
+		if ( $brauchbar ) { return mb_substr( $name, 0, 125 ); }
+		if ( '' !== $seitentitel ) { $bildnr++; return mb_substr( $seitentitel, 0, 110 ) . ' – Bild ' . $bildnr; }
+		return '';
 	}
 }
