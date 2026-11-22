@@ -13,6 +13,10 @@ $hub    = M24_Catalog_Hub::current();
 $cfg    = M24_Catalog_Hub::config( $hub );
 $modell = $cfg['modell'] ?? '';
 $h1     = M24_Catalog_Hub::h1( $hub );
+// Themenseiten (catalog-hub-themen.php, 22.11.2026): eigene H1 und Einleitung je Reiter; $h1_hub bleibt für Brotkrumen/JSON-LD.
+$h1_hub = $h1;
+$h1     = (string) apply_filters( 'm24_hub_view_h1', $h1, $hub );
+$cfg    = (array) apply_filters( 'm24_hub_view_cfg', $cfg, $hub );
 $count  = M24_Catalog_Hub::count( $hub );                  // Live-Zähler (aktiv) — Telemetrie
 $images = M24_Catalog_Hub::images( $hub );                 // Term-Meta-Bilder (leer ⇒ Platzhalter)
 $ph     = max( 1, (int) apply_filters( 'm24_hub_slide_count', 3, $hub ) ); // Platzhalter-Anzahl ohne Bilder
@@ -34,7 +38,7 @@ $kat_labels = array( 'alle' => 'Alle', 'karosserie' => 'Karosserie', 'rennsport'
 $cross  = ! empty( $cfg['cross_links'] ) ? (array) $cfg['cross_links'] : array();
 
 // Breadcrumb-/JSON-LD-Label = H1 ohne „Gebrauchtteile/Gebrauchte Teile passend für ".
-$crumb_label = trim( preg_replace( '/^Gebraucht(?:e Teile|teile) passend für\s+/u', '', $h1 ) );
+$crumb_label = trim( preg_replace( '/^Gebraucht(?:e Teile|teile) passend für\s+/u', '', $h1_hub ) );
 if ( '' === $crumb_label ) { $crumb_label = $modell; }
 // Baureihe englisch, aber nur das Muster „<Ziffer>er" (Befund 15.09.2026: GTranslate machte
 // aus „2er" die Ordinalzahl „2st"). Modellcodes bleiben unberuehrt.
@@ -203,6 +207,8 @@ $ld = array(
 		<div class="m24hub-tcell"><div class="k"><span class="m24hub-livedot"></span>Aktuell verfügbar</div><div class="v" id="m24hub-live"><?php echo esc_html( sprintf( _n( '%s Teil', '%s Teile', $live, 'm24-plattform' ), number_format_i18n( $live ) ) ); ?></div></div>
 	</div></div>
 
+	<?php do_action( 'm24_hub_nach_telem', $hub ); // Reiterleiste der Themenseiten ?>
+
 	<?php if ( ! empty( $cfg['intro_html'] ) ) : ?>
 	<section class="m24hub-intro"><div class="m24hub-wrap">
 		<?php if ( ! empty( $cfg['intro_h2'] ) ) : ?><h2><?php echo esc_html( $cfg['intro_h2'] ); ?></h2><?php endif; ?>
@@ -217,6 +223,7 @@ $ld = array(
 		<div class="it"><span class="ic">&#9737;</span><div><div class="tt">55.000+ Community</div><div class="ts">Werkstätten &amp; Sammler</div></div></div>
 	</div></div>
 
+	<?php if ( apply_filters( 'm24_hub_view_eigene_teile', false, $hub ) ) : do_action( 'm24_hub_view_teile', $hub ); else : // Themenseite bringt ihren Inhalt selbst mit ?>
 	<section class="m24hub-parts"><div class="m24hub-wrap">
 		<div class="head">
 			<h2>Teile passend für BMW <?php echo $modell_html; // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt ?></h2>
@@ -261,6 +268,7 @@ $ld = array(
 		<div class="m24hub-grid view-4" id="m24hub-grid"><?php echo M24_Catalog_Hub::cards_html( $list ); /* phpcs:ignore WordPress.Security.EscapeOutput */ ?></div>
 		<div id="m24hub-pagerwrap"><?php echo M24_Catalog_Hub::pager_html( $list, $hub_url ); /* phpcs:ignore WordPress.Security.EscapeOutput */ ?></div>
 	</div></section>
+	<?php endif; ?>
 
 	<?php
 	// SEO-Textblock (editierbar im CPT; Fallback wie Mockup). Über dem Markenhinweis.
