@@ -83,7 +83,7 @@
 			kundentyp: val(form, 'kundentyp'), lieferland: val(form, 'lieferland'),
 			teilenummer: val(form, 'teilenummer'), nachricht: val(form, 'nachricht'),
 			consent: c && c.checked ? '1' : '', website_confirm: val(form, 'website_confirm'),
-			form_url: location.href.split('#')[0]
+			form_url: location.href.split('#')[0], seite: document.title
 		};
 		function showErr(msg) {
 			if (err) { err.textContent = msg || T.err || 'Fehler'; err.hidden = false; }

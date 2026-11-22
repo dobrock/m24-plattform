@@ -258,8 +258,13 @@ class M24_Kontakt_Form {
 		}
 		if ( '' === $form_url ) { $form_url = home_url( '/kontakt/' ); }
 
+		// Von welcher Seite kam die Anfrage? (Daniel 22.11.2026) – Seitentitel aus dem Browser, Adresse nur von der eigenen Domain.
+		$seite = mb_substr( sanitize_text_field( (string) ( $p['seite'] ?? '' ) ), 0, 160 );
+		$seite = trim( (string) preg_replace( '/\s*[|–-]\s*MOTORSPORT24.*$/u', '', $seite ) );
+
 		// Kopfzeilen in die Notiz → erscheinen in der Info-Mail (Block „Nachricht") und als notes im Desk.
-		$kopf  = 'Thema: ' . $thema_label . "\n";
+		$kopf  = 'Gesendet von Seite: ' . ( '' !== $seite ? $seite . ' – ' : '' ) . $form_url . "\n";
+		$kopf .= 'Thema: ' . $thema_label . "\n";
 		$kopf .= 'Ich bin: ' . $kunden[ $kund ] . "\n";
 		$kopf .= 'Lieferland: ' . $land_name . "\n";
 		if ( '' !== $tnr ) { $kopf .= 'Teilenummer / Artikel: ' . $tnr . "\n"; }
