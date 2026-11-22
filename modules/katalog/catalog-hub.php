@@ -86,6 +86,33 @@ class M24_Catalog_Hub {
 
 	public static function flush_registry() { self::$registry = null; }
 
+	/**
+	 * Frühere Adressen der Hubs (22.11.2026): alter Slug => heutiger Slug, aus den von WordPress gemerkten alten
+	 * Beitragsnamen (_wp_old_slug). Die alten Adressen (/teile/bmw-m3-e30/) leiten zwar weiter, stehen aber noch in
+	 * Menüs und Texten – jeder Klick ging über eine Weiterleitung, teils über zwei. Damit lassen sich interne Links
+	 * gleich auf die gültige Adresse schreiben (M24_SEO_Frontfixes) und Ketten vermeiden (legacy_redirect).
+	 */
+	public static function alias_map() {
+		static $map = null;
+		if ( null !== $map ) { return $map; }
+		$map = array();
+		foreach ( self::registry() as $slug => $id ) {
+			foreach ( (array) get_post_meta( $id, '_wp_old_slug' ) as $alt ) {
+				$alt = sanitize_title( (string) $alt );
+				if ( '' !== $alt && $alt !== $slug && ! isset( self::$registry[ $alt ] ) ) { $map[ $alt ] = $slug; }
+			}
+		}
+		return $map;
+	}
+
+	/** Pfad „/teile/<alter-slug>…" auf den heutigen Slug umschreiben; sonst unverändert. */
+	public static function aktueller_pfad( $pfad ) {
+		if ( ! preg_match( '#^/' . self::BASE . '/([a-z0-9-]+)(/.*)?$#i', (string) $pfad, $m ) ) { return $pfad; }
+		$map = self::alias_map();
+		$alt = strtolower( $m[1] );
+		return isset( $map[ $alt ] ) ? '/' . self::BASE . '/' . $map[ $alt ] . ( $m[2] ?? '' ) : $pfad;
+	}
+
 	public static function post_id( $hub ) { $r = self::registry(); return isset( $r[ $hub ] ) ? (int) $r[ $hub ] : 0; }
 
 	public static function init() {
@@ -261,7 +288,7 @@ class M24_Catalog_Hub {
 		$norm     = strtolower( trim( rawurldecode( $path ), '/' ) );
 		$reclaims = self::legacy_reclaims();
 		if ( isset( $reclaims[ $norm ] ) ) {
-			wp_safe_redirect( home_url( $reclaims[ $norm ] ), 301 );
+			wp_safe_redirect( home_url( self::aktueller_pfad( $reclaims[ $norm ] ) ), 301 );
 			exit;
 		}
 
@@ -273,7 +300,7 @@ class M24_Catalog_Hub {
 				if ( '' === $tail ) { $tail = '/'; }
 				$qs = ( isset( $_SERVER['QUERY_STRING'] ) && '' !== $_SERVER['QUERY_STRING'] )
 					? '?' . preg_replace( '/[^A-Za-z0-9_\-=&%\.]/', '', wp_unslash( $_SERVER['QUERY_STRING'] ) ) : '';
-				wp_safe_redirect( home_url( $new . $tail . $qs ), 301 );
+				wp_safe_redirect( home_url( self::aktueller_pfad( $new . $tail ) . $qs ), 301 ); // ohne Zwischenstopp auf einer alten Hub-Adresse
 				exit;
 			}
 		}
