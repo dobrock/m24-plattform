@@ -221,6 +221,7 @@ class M24_Hub_Themen {
 		$cfg['intro_h2']      = $d['h2'];
 		$cfg['intro_html']    = $d['text'];
 		$cfg['seo_text_html'] = '';
+		$cfg['cross_links']   = array(); // sonst hängt die Ansicht den allgemeinen „laufend wechselnder Bestand"-Text unter die Themenseite (Befund live 22.11.2026)
 		return $cfg;
 	}
 
