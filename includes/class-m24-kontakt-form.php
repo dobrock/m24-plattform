@@ -44,6 +44,14 @@ class M24_Kontakt_Form {
 		);
 	}
 
+	/** Alle zulässigen Themen: die Standard-Themen plus Themen, die nur einzelne Seiten anbieten (Shortcode-Attribut themen=""). */
+	public static function alle_themen() {
+		return self::topics() + array(
+			'revision' => 'Revision Motor / Getriebe',
+			'aufbau'   => 'Komplettaufbau',
+		);
+	}
+
 	/** „Ich bin" (Wert => Label). Wert „Privat" wie im Teile-Modal → gleicher EU-Hinweis-Check. */
 	public static function kundentypen() {
 		return array(
@@ -103,6 +111,13 @@ class M24_Kontakt_Form {
 		wp_enqueue_script( 'm24-kontakt' );
 
 		$topics    = self::topics();
+		// Eigene Themenauswahl einer Seite: [m24_kontakt themen="revision,aufbau,teile,sonstiges"] – Reihenfolge wie angegeben.
+		$wahl = array_filter( array_map( 'sanitize_key', explode( ',', (string) ( is_array( $atts ) && isset( $atts['themen'] ) ? $atts['themen'] : '' ) ) ) );
+		if ( $wahl ) {
+			$alle = self::alle_themen(); $eig = array();
+			foreach ( $wahl as $k ) { if ( isset( $alle[ $k ] ) ) { $eig[ $k ] = $alle[ $k ]; } }
+			if ( $eig ) { $topics = $eig; }
+		}
 		$kunden    = self::kundentypen();
 		$countries = function_exists( 'm24_inquiry_countries' ) ? m24_inquiry_countries() : array();
 		$first     = (string) key( $topics );
@@ -206,7 +221,7 @@ class M24_Kontakt_Form {
 			return new WP_REST_Response( array( 'ok' => true ), 200 );
 		}
 
-		$topics  = self::topics();
+		$topics  = self::alle_themen();
 		$kunden  = self::kundentypen();
 		$thema   = sanitize_key( (string) ( $p['thema'] ?? '' ) );
 		$thema   = isset( $topics[ $thema ] ) ? $thema : (string) key( $topics );
