@@ -216,6 +216,27 @@ class M24_SEO_Frontfixes {
 			}
 		}
 
+		// (2d) Ungenutzte Skripte weglassen (Daniel, 22.11.2026: „dringend schlanker machen ohne Qualitätsverlust").
+		// Slider Revolution (sr7.js + tptools.js) und Jetpacks „Ähnliche Beiträge" luden auf JEDER Seite mit, auch wenn
+		// dort weder ein Slider noch der Beitragsblock steht (gemessen an Teileseiten: kein einziges Element). Entfernt
+		// wird nur, wenn das zugehörige Element im fertigen HTML fehlt – steht ein Slider auf der Seite, bleibt alles.
+		// Abschalten: add_filter( 'm24_seo_strip_unused_assets', '__return_false' );
+		if ( apply_filters( 'm24_seo_strip_unused_assets', true ) ) {
+			$weg = array();
+			if ( ! preg_match( '#<(?:sr7-module|rs-module)\\b|class=["\'][^"\']*\\b(?:rev_slider|wpb_revslider_element)\\b#i', $html ) ) {
+				$weg[] = 'sr7-js'; $weg[] = 'tp-tools-js'; $weg[] = 'sr7css-css'; $weg[] = 'sr7css';
+			}
+			if ( false === stripos( $html, 'jp-relatedposts' ) ) {
+				$weg[] = 'jetpack_related-posts-js'; $weg[] = 'jetpack_related-posts-css';
+			}
+			if ( $weg ) {
+				$ids  = implode( '|', array_map( 'preg_quote', $weg ) );
+				$html = preg_replace( '#<script\\b[^>]*\\bid=["\'](?:' . $ids . ')["\'][^>]*\\bsrc=[^>]*>\\s*</script>\\s*#i', '', $html );
+				$html = preg_replace( '#<script\\b[^>]*\\bsrc=[^>]*\\bid=["\'](?:' . $ids . ')["\'][^>]*>\\s*</script>\\s*#i', '', (string) $html );
+				$html = preg_replace( '#<link\\b[^>]*\\bid=["\'](?:' . $ids . ')["\'][^>]*>\\s*#i', '', (string) $html );
+			}
+		}
+
 		return $html;
 	}
 
