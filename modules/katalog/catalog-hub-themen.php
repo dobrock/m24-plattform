@@ -125,6 +125,7 @@ class M24_Hub_Themen {
 		add_filter( 'm24_hub_view_eigene_teile', array( __CLASS__, 'view_eigen' ), 10, 2 );
 		add_action( 'm24_hub_nach_telem', array( __CLASS__, 'reiter' ) );
 		add_action( 'm24_hub_view_teile', array( __CLASS__, 'inhalt' ) );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'formular_assets' ), 30 );
 		// SEO – nach der Hub-Klasse (99)
 		add_filter( 'wpseo_set_title',     array( __CLASS__, 'seo_title' ), 100 );
 		add_filter( 'wpseo_set_desc',      array( __CLASS__, 'seo_desc' ), 100 );
@@ -229,6 +230,18 @@ class M24_Hub_Themen {
 	public static function view_eigen( $eigen, $hub ) { return '' !== self::aktiv() ? true : $eigen; }
 
 	/** Reiterleiste unter der Datenzeile – auf der Übersicht und auf jeder Themenseite. */
+	/** Themenseite mit Anfrageformular: Stil/Skript des Kontaktformulars früh einbinden (kein ungestylter Aufbau). */
+	public static function formular_assets() {
+		$t = self::aktiv();
+		if ( '' === $t ) { return; }
+		$d = self::fuer( M24_Catalog_Hub::current() )[ $t ] ?? array();
+		if ( empty( $d ) || 'seite' !== $d['art'] ) { return; }
+		foreach ( array( 'm24-inquiry-fields', 'm24-kontakt' ) as $h ) {
+			if ( wp_style_is( $h, 'registered' ) ) { wp_enqueue_style( $h ); }
+			if ( wp_script_is( $h, 'registered' ) ) { wp_enqueue_script( $h ); }
+		}
+	}
+
 	public static function reiter( $hub ) {
 		$themen = self::fuer( $hub );
 		if ( ! $themen ) { return; }
@@ -239,6 +252,8 @@ class M24_Hub_Themen {
 		echo '<style>.m24hub-reiter{border-bottom:2px solid #15181d;margin:26px 0 0}.m24hub-reiter .m24hub-wrap{display:flex;gap:0;overflow-x:auto;scrollbar-width:none}.m24hub-reiter a{padding:14px 20px;font-weight:700;font-size:14px;line-height:1;color:#15181d;text-decoration:none;white-space:nowrap;border-radius:6px 6px 0 0}.m24hub-reiter a:hover{background:#eceef1}.m24hub-reiter a.an{background:#15181d;color:#fff}'
 			. '.m24hub-fz{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}.m24hub-fz a{display:block;background:#fff;border:1px solid #e3e6ea;border-radius:8px;overflow:hidden;text-decoration:none;color:#15181d}.m24hub-fz a:hover{border-color:#b8892d}.m24hub-fz .b{display:block;aspect-ratio:3/2;background:#e9ecef center/cover no-repeat;position:relative}.m24hub-fz .s{position:absolute;left:10px;top:10px;background:#15181d;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 8px;border-radius:3px}.m24hub-fz .s.da{background:#b8892d}.m24hub-fz .t{display:block;padding:14px 14px 16px;font-weight:700;font-size:15px;line-height:1.3}.m24hub-fz-h{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7a828c;margin:34px 0 14px}.m24hub-fz-h:first-child{margin-top:0}'
 			. '.m24hub-cta{background:#15181d;color:#fff;border-radius:8px;padding:26px 28px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}.m24hub-cta b{font-size:19px}.m24hub-cta span{display:block;color:#aeb6bf;font-size:14px;margin-top:4px}.m24hub-cta a{background:#b8892d;color:#fff;font-weight:700;padding:13px 20px;border-radius:5px;text-decoration:none;white-space:nowrap}'
+			. '.m24hub-aq{margin-top:40px;background:#15181d;border-radius:10px;padding:44px 44px 44px 48px;display:grid;grid-template-columns:5fr 6fr;gap:48px;align-items:start;color:#fff;scroll-margin-top:110px}.m24hub-aq>*{min-width:0}.m24hub-aq small{display:block;font-size:12px;font-weight:700;letter-spacing:.14em;color:#b8892d;text-transform:uppercase}.m24hub-aq h2{color:#fff;font-size:30px;line-height:1.15;margin:12px 0 14px}.m24hub-aq p{color:#c3cad2;font-size:16px;line-height:1.6;margin:0 0 20px}.m24hub-aq ul{list-style:none!important;margin:0 0 24px!important;padding:0!important}.m24hub-aq li{position:relative;margin:0!important;padding:9px 0 9px 30px;border-top:1px solid #2a2f37;font-size:15px;color:#fff;list-style:none!important}.m24hub-aq li:before{content:"\\2713";position:absolute;left:0;color:#b8892d;font-weight:700}.m24hub-aq .ml{font-size:14px;color:#aeb6bf}.m24hub-aq .ml a{color:#fff;font-weight:700}.m24hub-aq .fk{background:#fff;border-radius:8px;padding:28px 28px 22px;color:#15181d}.m24hub-aq .fk .m24kf{margin:0;max-width:none}'
+			. '@media(max-width:900px){.m24hub-aq{grid-template-columns:1fr;gap:28px;padding:30px 22px}.m24hub-aq h2{font-size:25px}.m24hub-aq .fk{padding:20px 16px}}'
 			. '@media(max-width:900px){.m24hub-fz{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.m24hub-fz{grid-template-columns:1fr}.m24hub-reiter a{padding:13px 14px}}</style>';
 		echo '<nav class="m24hub-reiter" aria-label="Themen"><div class="m24hub-wrap">';
 		foreach ( $punkte as $p ) {
@@ -277,7 +292,13 @@ class M24_Hub_Themen {
 			$gruppe( 'Aktuell im Angebot', array_values( array_filter( $fz, function ( $f ) { return 'verkauft' !== $f[1]; } ) ) );
 			$gruppe( 'Bereits vermittelt', array_values( array_filter( $fz, function ( $f ) { return 'verkauft' === $f[1]; } ) ) );
 		}
-		if ( 'teile' !== $d['art'] ) {
+		if ( 'seite' === $d['art'] && class_exists( 'M24_Kontakt_Form' ) ) {
+			// Anfrage-Block mit Formular direkt auf der Seite (Daniel 22.11.2026, Vorschlag A).
+			echo '<div class="m24hub-aq" id="anfrage"><div><small>Anfrage</small><h2>Revision oder Teile anfragen</h2><p>Sagen Sie uns, was Sie vorhaben – Motor- oder Getrieberevision, Komplettaufbau oder ein bestimmtes Teil. Wir antworten persönlich.</p>'
+				. '<ul><li>Motorrevision P65 und komplette Motoren</li><li>Getrieberevision und komplette Getriebe</li><li>Komplettaufbau von Fahrzeugen</li><li>Teile aus unserem Bestand, auch nicht online gelistete</li></ul>'
+				. '<div class="ml">Lieber per E-Mail? <a href="mailto:service@motorsport24.de">service@motorsport24.de</a></div></div>'
+				. '<div class="fk">' . M24_Kontakt_Form::shortcode( array( 'themen' => 'revision,aufbau,teile,sonstiges' ) ) . '</div></div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+		} elseif ( 'teile' !== $d['art'] ) {
 			$kontakt = home_url( '/kontakt/' );
 			echo '<div class="m24hub-cta" style="margin-top:34px"><div><b>' . esc_html( 'seite' === $d['art'] ? 'Projekt besprechen' : 'Sie suchen einen bestimmten Z4 GT3?' ) . '</b><span>Schreiben Sie uns – wir antworten persönlich.</span></div><a href="' . esc_url( $kontakt ) . '">Anfrage senden</a></div>';
 		}
