@@ -100,8 +100,74 @@ class M24_Hub_Themen {
 				),
 			),
 		);
+		$a['e30'] = self::modell_themen( 'M3 E30', '/m3.{0,12}e30|e30.{0,12}m3/i', array(
+			'karosserie' => '<p>Unsere Stoßstangen vorn und hinten sowie die Seitenschweller sind Nachbauten der DTM-Version von 1992; die Heckstoßstange passt auch für Gruppe-A-Aufbauten. Die Stoßstangen brauchen keinen Innenrahmen: Der Konushalter wird direkt an der Karosserie befestigt, die Stoßstange am Konushalter. Zur Frontstoßstange gibt es einen passenden Splitter, den Heckflügel auch in der Gruppe-A-Version ohne Flap.</p>',
+			'fahrwerk'   => '<p>Bei den Rädern führen wir eine eigene Gruppe-A-Felge in 17 Zoll, mit Lochkreis 5×120 passend für den M3 E30.</p>',
+		) );
+		$a['e36'] = self::modell_themen( 'M3 E36', '/m3.{0,12}e36|e36.{0,12}m3/i', array(
+			'karosserie' => '<p>Zum Programm gehören Bodykits und Einzelteile in den Rennsport-Ausführungen DTM, STW und GTR – vom Stoßfänger über die Dachhaut bis zum Heckflügel.</p>',
+		) );
 		$a = (array) apply_filters( 'm24_hub_themen', $a );
 		return $a;
+	}
+
+	/**
+	 * Themen-Satz für ein Modell nach dem Muster des Z4 GT3 (Daniel 23.11.2026): Fahrzeuge, Karosserie, Motor & Antrieb,
+	 * Fahrwerk/Bremse/Räder, Interieur. $extra: zusätzlicher Absatz je Thema (nur gesicherte Angaben).
+	 */
+	private static function modell_themen( $m, $re_fz, array $extra = array() ) {
+		$x  = function ( $k ) use ( $extra ) { return isset( $extra[ $k ] ) ? $extra[ $k ] : ''; };
+		$faq_versand = '<p><strong>Versenden Sie ins Ausland?</strong><br>Ja, weltweit und versichert – große Teile per Spedition.</p>';
+		$faq_liste   = '<p><strong>Ich finde ein Teil nicht in der Liste – gibt es das trotzdem?</strong><br>Fragen Sie an. Nicht alles aus unserem Bestand ist online gelistet.</p>';
+		return array(
+			'fahrzeuge' => array(
+				'art' => 'fahrzeuge', 'label' => 'Fahrzeuge', 're' => $re_fz,
+				'h1'    => 'BMW ' . $m . ' kaufen – Fahrzeuge im Angebot',
+				'title' => 'BMW ' . $m . ' kaufen – Fahrzeuge im Angebot | MOTORSPORT24',
+				'desc'  => 'BMW ' . $m . ' zu verkaufen: aktuelle und bereits vermittelte Fahrzeuge bei MOTORSPORT24 – Rennfahrzeuge und Klassiker mit bekannter Historie. Seit 2006.',
+				'h2'    => 'BMW ' . $m . ' zu verkaufen',
+				'text'  => '<p>Hier stehen die BMW ' . $m . ', die wir aktuell anbieten, und darunter Fahrzeuge, die wir bereits vermittelt haben. Zu jedem Fahrzeug gehören die bekannte Historie und der Stand der Technik zum Zeitpunkt des Angebots.</p><p>Kein passendes Fahrzeug dabei? Schreiben Sie uns, welchen ' . $m . ' Sie suchen – nicht jedes Fahrzeug steht öffentlich im Angebot.</p>',
+			),
+			'karosserie' => array(
+				'art' => 'teile', 'label' => 'Karosserie & Bodykit', 'baugruppe' => 'karosserie',
+				're'    => '/bodykit|sto(?:ß|ss)(?:f(?:ä|ae)nger|stange)|frontsch(?:ü|ue)rze|hecksch(?:ü|ue)rze|motorhaube|heckklappe|heckdeckel|\\bdach|diffusor|\\bt(?:ü|ue)r(?:en)?\\b|splitter|schweller|kotfl(?:ü|ue)gel|heckfl(?:ü|ue)gel|fl(?:ü|ue)gelwerk|spoiler|spiegel|lexan|makrolon|heckscheibe|seitenscheibe|frontscheibe|seitenteil|verbreiterung|radhaus|schiebedach|dachhaut|\\blippe|scheinwerfer|lufteinl|\\bflap/iu',
+				'h1'    => 'Karosserieteile & Bodykit passend für BMW ' . $m,
+				'title' => 'BMW ' . $m . ' Karosserieteile & Bodykit kaufen | MOTORSPORT24',
+				'desc'  => 'Karosserieteile und Bodykit passend für BMW ' . $m . ': Stoßstangen, Schweller, Kotflügel, Motorhaube, Türen, Dach, Splitter und Heckflügel für den Rennsport. Weltweiter Versand.',
+				'h2'    => 'Karosserie und Bodykit für den ' . $m,
+				'text'  => '<p>Karosserieteile für den Rennsport passend für den BMW ' . $m . ': Stoßstangen, Schweller, Kotflügel, Motorhaube, Türen, Dach, Splitter und Heckflügel – einzeln oder als Paket.</p>' . $x( 'karosserie' ),
+				'unten' => '<h2>Karosserieteile für den ' . $m . ': einzeln oder als Paket</h2><p>Nach einem Schaden reicht oft ein einzelnes Teil. Bei einem Neuaufbau ist ein Paket die bessere Wahl, weil alle Teile zueinander passen. Schreiben Sie uns, was an Ihrem Fahrzeug vorhanden ist und was fehlt – wir stellen den passenden Umfang zusammen und nennen Ihnen einen Gesamtpreis.</p><h3>Neuteile und Gebrauchtteile</h3><p>Neben neuen Rennsport-Teilen führen wir geprüfte Gebrauchtteile, darunter originale Türen und Anbauteile. Zustand und Artikelnummer stehen beim jeweiligen Teil.</p><h3>Häufige Fragen</h3><p><strong>Sind die Teile lackiert?</strong><br>Das steht beim jeweiligen Teil. Fragen Sie im Zweifel nach der Ausführung, bevor Sie bestellen.</p>' . $faq_liste . $faq_versand,
+			),
+			'motor-antrieb' => array(
+				'art' => 'teile', 'label' => 'Motor & Antrieb',
+				're'    => '/\\bmotor\\b|motorblock|motorlager|\\bs14\\b|\\bs50|\\bs52|airbox|zylinder|pleuel|kolben|nockenwelle|kurbelwelle|(?:ö|oe)lpumpe|(?:ö|oe)lwanne|kr(?:ü|ue)mmer|auspuff|abgas|k(?:ü|ue)hler|getriebe|kupplung|schwungrad|differential|(?:ü|ue)bersetzung|tellerrad|kardan|antriebswelle|drosselklappe|einspritz|steuerger|\\becu\\b|schaltweg|schalthebel|\\btank|einf(?:ü|ue)llstutzen|trockensumpf|schalld(?:ä|ae)mpfer|kraftstoff/iu',
+				'h1'    => 'Motor, Getriebe & Antrieb passend für BMW ' . $m,
+				'title' => 'BMW ' . $m . ' Motor, Getriebe & Differential – Teile | MOTORSPORT24',
+				'desc'  => 'Motor- und Antriebsteile passend für BMW ' . $m . ': Motoren und Motorteile, Airbox, Abgasanlage, Getriebe, Kupplung, Differential und Achsübersetzungen. Weltweiter Versand.',
+				'h2'    => 'Antrieb des ' . $m . ': Motor, Getriebe, Differential',
+				'text'  => '<p>Alles rund um den Antrieb passend für den BMW ' . $m . ': Motoren und Motorteile, Ansaugung und Abgasanlage, Getriebe, Kupplung sowie Differential und Achsübersetzungen.</p><p>Sie suchen ein bestimmtes Teil? Fragen Sie gezielt an – nicht alles aus unserem Bestand steht online.</p>' . $x( 'motor' ),
+				'unten' => '<h2>Motor und Antrieb des ' . $m . ': Teil oder komplettes Aggregat</h2><p>Wir führen einzelne Teile für die eigene Werkstatt ebenso wie komplette Aggregate. Welcher Weg sinnvoll ist, hängt vom Zustand Ihres Motors oder Getriebes ab.</p><h3>Was wir für Ihre Anfrage brauchen</h3><p>Je genauer die Angaben, desto schneller die Antwort: Teilenummer, falls vorhanden, ein Foto des gesuchten oder defekten Teils und ein kurzer Hinweis, ob es um Ersatz, Vorrat oder einen Aufbau geht.</p><h3>Häufige Fragen</h3><p><strong>Sind gebrauchte Teile geprüft?</strong><br>Ja. Gebrauchtteile werden vor dem Verkauf kontrolliert. Zustand und Teilenummer stehen beim jeweiligen Teil.</p>' . $faq_liste . $faq_versand,
+			),
+			'fahrwerk-bremse' => array(
+				'art' => 'teile', 'label' => 'Fahrwerk, Bremse & Räder',
+				're'    => '/brems|radtr(?:ä|ae)ger|radnabe|felge|radsatz|lenkung|lenkgetriebe|spurstange|sto(?:ß|ss)d(?:ä|ae)mpfer|querlenker|stabilisator|fahrwerk|federbein|domlager|vorderachs|hinterachstr|achstr(?:ä|ae)ger|achsschenkel|zentralverschluss|pedal|servolenkung|schnellhebe|standbein|hinterachse/iu',
+				'h1'    => 'Fahrwerk, Bremse & Räder passend für BMW ' . $m,
+				'title' => 'BMW ' . $m . ' Fahrwerk, Bremse & Felgen – Teile | MOTORSPORT24',
+				'desc'  => 'Fahrwerks- und Bremsenteile passend für BMW ' . $m . ': Bremsanlagen, Radträger, Lenkung, Fahrwerk und Felgen für den Rennsport. Weltweiter Versand.',
+				'h2'    => 'Fahrwerk, Bremse und Räder für den ' . $m,
+				'text'  => '<p>Teile rund um Achsen, Bremse, Lenkung und Räder passend für den BMW ' . $m . ': Bremsanlagen, Radträger, Lenkungsteile, Fahrwerk und Felgen.</p>' . $x( 'fahrwerk' ),
+				'unten' => '<h2>Fahrwerk, Bremse und Räder des ' . $m . '</h2><p>Wer eine Achse überholt oder ein Fahrzeug aufbaut, braucht selten nur ein Teil. Schicken Sie uns Ihre Liste – wir prüfen den Bestand und machen ein Angebot für den gesamten Umfang, auch für Teile, die nicht online stehen.</p><h3>Herkunft und Zustand</h3><p>Neben neuen Rennsport-Teilen führen wir geprüfte Gebrauchtteile. Zustand und Teilenummer stehen beim jeweiligen Teil; auf Wunsch schicken wir weitere Fotos.</p><h3>Häufige Fragen</h3><p><strong>Wofür sind die Bremsanlagen gedacht?</strong><br>Für den Rennsport.</p>' . $faq_liste . $faq_versand,
+			),
+			'interieur' => array(
+				'art' => 'teile', 'label' => 'Interieur',
+				're'    => '/interieur|armaturenbrett|tacho|kombiinstrument|\\bsitz|lenkrad|gurt|k(?:ä|ae)fig|(?:ü|ue)berrollb|innenausstattung|t(?:ü|ue)rverkleidung|hutablage|mittelkonsole|lautsprecher/iu',
+				'h1'    => 'Interieur & Instrumente passend für BMW ' . $m,
+				'title' => 'BMW ' . $m . ' Interieur, Armaturenbrett & Instrumente | MOTORSPORT24',
+				'desc'  => 'Interieur-Teile passend für BMW ' . $m . ': Innenausstattungen, Armaturenbrett und Kombiinstrumente – neu und geprüft gebraucht. Weltweiter Versand.',
+				'h2'    => 'Interieur für den ' . $m,
+				'text'  => '<p>Teile für den Innenraum passend für den BMW ' . $m . ': Innenausstattungen, Armaturenbrett und Kombiinstrumente. Zustand und Artikelnummer stehen beim jeweiligen Teil.</p>',
+			),
+		);
 	}
 
 	public static function fuer( $hub ) { $a = self::alle(); return isset( $a[ $hub ] ) ? $a[ $hub ] : array(); }
@@ -199,6 +265,13 @@ class M24_Hub_Themen {
 			$st = class_exists( 'M24FZ_CPT' ) ? (string) M24FZ_CPT::status( $id ) : 'gelistet';
 			if ( 'verkauft' === $st ) { $weg[] = array( (int) $id, $st ); } else { $da[] = array( (int) $id, $st ); }
 		}
+		// Früher vermittelte Fahrzeuge stehen als Beiträge mit „SOLD: …" im Titel (Daniel 23.11.2026) – unter „Bereits vermittelt" zeigen.
+		$alt = get_posts( array( 'post_type' => 'post', 'post_status' => 'publish', 's' => 'SOLD', 'posts_per_page' => 200, 'orderby' => 'date', 'order' => 'DESC', 'fields' => 'ids', 'no_found_rows' => true ) );
+		foreach ( $alt as $id ) {
+			$titel = html_entity_decode( get_the_title( $id ), ENT_QUOTES, 'UTF-8' );
+			if ( ! preg_match( '/^\s*SOLD\b/i', $titel ) || ! preg_match( $t['re'], $titel ) || ! has_post_thumbnail( $id ) ) { continue; }
+			$weg[] = array( (int) $id, 'verkauft' );
+		}
 		return $cache[ $k ] = array_merge( $da, $weg );
 	}
 
@@ -290,7 +363,7 @@ class M24_Hub_Themen {
 					$bild = get_the_post_thumbnail_url( $f[0], 'medium_large' );
 					$da   = 'verkauft' !== $f[1];
 					printf( '<a href="%s"><span class="b" style="background-image:url(%s)"><span class="s%s">%s</span></span><span class="t">%s</span></a>',
-						esc_url( get_permalink( $f[0] ) ), esc_url( (string) $bild ), $da ? ' da' : '', esc_html( 'reserviert' === $f[1] ? 'Reserviert' : ( $da ? 'Verfügbar' : 'Verkauft' ) ), esc_html( get_the_title( $f[0] ) ) );
+						esc_url( get_permalink( $f[0] ) ), esc_url( (string) $bild ), $da ? ' da' : '', esc_html( 'reserviert' === $f[1] ? 'Reserviert' : ( $da ? 'Verfügbar' : 'Verkauft' ) ), esc_html( trim( (string) preg_replace( '/^\s*SOLD\s*[:–-]\s*/i', '', html_entity_decode( get_the_title( $f[0] ), ENT_QUOTES, 'UTF-8' ) ) ) ) );
 				}
 				echo '</div>';
 			};
