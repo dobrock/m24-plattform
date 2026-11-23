@@ -101,11 +101,11 @@ class M24_Hub_Themen {
 			),
 		);
 		$a['e30'] = self::modell_themen( 'M3 E30', '/m3.{0,12}e30|e30.{0,12}m3/i', array(
-			'karosserie' => '<p>Unsere Stoßstangen vorn und hinten sowie die Seitenschweller sind Nachbauten der DTM-Version von 1992; die Heckstoßstange passt auch für Gruppe-A-Aufbauten. Die Stoßstangen brauchen keinen Innenrahmen: Der Konushalter wird direkt an der Karosserie befestigt, die Stoßstange am Konushalter. Zur Frontstoßstange gibt es einen passenden Splitter, den Heckflügel auch in der Gruppe-A-Version ohne Flap.</p>',
+			'karosserie' => self::text_leichtbau(),
 			'fahrwerk'   => '<p>Bei den Rädern führen wir eine eigene Gruppe-A-Felge in 17 Zoll, mit Lochkreis 5×120 passend für den M3 E30.</p>',
 		) );
 		$a['e36'] = self::modell_themen( 'M3 E36', '/m3.{0,12}e36|e36.{0,12}m3/i', array(
-			'karosserie' => '<p>Zum Programm gehören Bodykits und Einzelteile in den Rennsport-Ausführungen DTM, STW und GTR – vom Stoßfänger über die Dachhaut bis zum Heckflügel.</p>',
+			'karosserie' => self::text_leichtbau(),
 		) );
 		$a = (array) apply_filters( 'm24_hub_themen', $a );
 		return $a;
@@ -115,6 +115,12 @@ class M24_Hub_Themen {
 	 * Themen-Satz für ein Modell nach dem Muster des Z4 GT3 (Daniel 23.11.2026): Fahrzeuge, Karosserie, Motor & Antrieb,
 	 * Fahrwerk/Bremse/Räder, Interieur. $extra: zusätzlicher Absatz je Thema (nur gesicherte Angaben).
 	 */
+	/** Allgemeiner Absatz zu Leichtbau und Fertigung (Daniel 23.11.2026: generell beschreiben, keine einzelnen Teile). */
+	private static function text_leichtbau() {
+		return '<p>Im Rennsport zählt jedes Kilogramm: Weniger Gewicht verbessert Beschleunigung, Bremsen und Kurvenverhalten – und an der Karosserie lässt sich besonders viel einsparen. Unsere neuen Rennsport-Karosserieteile fertigen wir deshalb ausschließlich in Carbon, nicht in GFK. Carbon ist bei gleicher Festigkeit deutlich leichter und bleibt formstabil.</p>'
+			. '<p>Gefertigt wird in Deutschland. Made in Germany heißt für uns: saubere Passform, gleichmäßige Oberflächen und ein Qualitätsstandard, der für den Renneinsatz ausgelegt ist.</p>';
+	}
+
 	private static function modell_themen( $m, $re_fz, array $extra = array() ) {
 		$x  = function ( $k ) use ( $extra ) { return isset( $extra[ $k ] ) ? $extra[ $k ] : ''; };
 		$faq_versand = '<p><strong>Versenden Sie ins Ausland?</strong><br>Ja, weltweit und versichert – große Teile per Spedition.</p>';
