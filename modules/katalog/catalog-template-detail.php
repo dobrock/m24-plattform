@@ -456,7 +456,7 @@ class M24_Catalog_Template_Detail {
 		.m24det .related-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:12px}
 		.m24det .related-cols-4{grid-template-columns:repeat(4,1fr)}.m24det .related-cols-3{grid-template-columns:repeat(3,1fr)}.m24det .related-cols-2{grid-template-columns:repeat(2,1fr)}
 		.m24det .ritem{border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit;display:block}
-		.m24det .ritem .rimg{position:relative;overflow:hidden;aspect-ratio:4/3;background:#ededea}
+		.m24det .ritem .rimg{position:relative;overflow:hidden;aspect-ratio:3/2;background:#ededea}
 		.m24det .ritem .rimg img{width:100%;height:100%;object-fit:cover;display:block}
 		.m24det .ritem .rb{padding:10px 12px}
 		.m24det .ritem h4{font-family:'Saira',sans-serif;font-weight:500;font-size:13.5px;margin:0 0 5px;line-height:1.25}

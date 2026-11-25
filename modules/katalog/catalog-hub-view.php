@@ -144,7 +144,7 @@ $ld = array(
 @media(prefers-reduced-motion:reduce){.m24hub .m24hub-grid.anim .m24-card{animation:none}}
 /* Listenansicht: Bild links, Text rechts */
 .m24hub .m24hub-grid.view-list .m24-card__link{flex-direction:row;align-items:stretch}
-.m24hub .m24hub-grid.view-list .m24-card__media{flex:0 0 200px;width:200px;aspect-ratio:4/3}
+.m24hub .m24hub-grid.view-list .m24-card__media{flex:0 0 200px;width:200px;aspect-ratio:3/2}
 @media(max-width:560px){.m24hub .m24hub-grid.view-list .m24-card__media{flex:0 0 120px;width:120px}}
 .m24hub .m24hub-grid.view-list .m24-card__body{justify-content:center}
 .m24hub .m24hub-grid.view-list .m24-card__title{min-height:0}

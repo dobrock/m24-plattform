@@ -137,7 +137,7 @@ echo '<script type="application/ld+json">' . wp_json_encode( $schema ) . '</scri
 /* .m24-card* (Komponente) zentral in assets/css/m24-ci.css — hier nur Listen-Overrides. */
 /* Listenansicht: horizontal */
 .m24-archiv__grid--list .m24-card__link{flex-direction:row;align-items:stretch;}
-.m24-archiv__grid--list .m24-card__media{width:200px;flex:0 0 200px;aspect-ratio:4/3;}
+.m24-archiv__grid--list .m24-card__media{width:200px;flex:0 0 200px;aspect-ratio:3/2;}
 .m24-archiv__grid--list .m24-card__body{justify-content:center;}
 /* Beschreibung: nur in der Listenansicht, hart auf 2 Zeilen geklemmt. */
 .m24-card__desc{display:none;}
