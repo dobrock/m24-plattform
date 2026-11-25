@@ -49,7 +49,7 @@
 .m24-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--m24-radius); overflow: hidden; transition: box-shadow .18s, transform .18s; }
 .m24-card:hover { box-shadow: 0 8px 24px rgba(20,22,26,.12); transform: translateY(-2px); }
 .m24-card__link { display: flex; flex-direction: column; text-decoration: none; color: inherit; height: 100%; }
-.m24-card__media { position: relative; display: block; aspect-ratio: 4/3; background: var(--surface); overflow: hidden; }
+.m24-card__media { position: relative; display: block; aspect-ratio: 3/2; background: var(--surface); overflow: hidden; }
 .m24-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* ── Quick-Add-Chip auf der Kachel ──────────────────────────────────────────
