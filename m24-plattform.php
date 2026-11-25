@@ -3,7 +3,7 @@
  * Plugin Name:       M24 Plattform
  * Plugin URI:        https://www.motorsport24.de
  * Description:       B2B-Sammelanfragen, Händler-Auth, Bestand, Katalog. Pusht Anfragen an M24 Desk.
- * Version:           0.11.728
+ * Version:           0.11.729
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            MOTORSPORT24 GmbH
@@ -105,7 +105,7 @@ function m24_leichtbau_hinweis() {
  * `m24_noimg_placeholder`. Wird ueberall als CSS-Background eingesetzt (kein <img> →
  * nicht in Image-Sitemap / nicht als Produktbild indexiert).
  */
-define( 'M24_NOIMG_PLACEHOLDER', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/bild-folgt.png' );
+define( 'M24_NOIMG_PLACEHOLDER', 'https://www.motorsport24.de/wp-content/rennsport-teile-bilder/2026/06/Coming-Soon_0500-1-scaled.jpg' );
 
 function m24_noimg_placeholder_url() {
     return apply_filters( 'm24_noimg_placeholder', M24_NOIMG_PLACEHOLDER );
