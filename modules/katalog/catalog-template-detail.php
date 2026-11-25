@@ -494,9 +494,17 @@ class M24_Catalog_Template_Detail {
 				<?php if ( $crumb_term ) : // Modell des Navigations-Kontexts (?from=Hub) → Fallback Primaer-Term. ?>
 					<span>›</span><a href="<?php echo esc_url( add_query_arg( 'm24_modell', $crumb_term->slug, $typ_url ) ); ?>"><?php
 						// notranslate: sonst wird „2er" zu „2st" und „2 Series" beim naechsten Durchlauf weiterverdreht.
-						echo function_exists( 'm24_model_label_html' )
-							? m24_model_label_html( $crumb_term->name ) // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt
-							: esc_html( $crumb_term->name );
+						// Daniel 25.11.2026: In der Breadcrumb immer das echte Modell („M3 E36"), nicht das
+						// Anzeige-Label „3er (E36)". Nur „BMW " entfernen; „Sonstige …" bleibt beim Label.
+						$crumb_name = (string) $crumb_term->name;
+						if ( preg_match( '/^M3 E(\d{2}|\dx)$/i', $crumb_name ) ) {
+							$crumb_lbl = class_exists( 'M24_I18n' ) ? M24_I18n::modell_label( $crumb_name ) : $crumb_name;
+							echo '<span class="notranslate" translate="no">' . esc_html( $crumb_lbl ) . '</span>';
+						} else {
+							echo function_exists( 'm24_model_label_html' )
+								? m24_model_label_html( $crumb_name ) // phpcs:ignore WordPress.Security.EscapeOutput — enthaelt nur esc_html-Inhalt
+								: esc_html( $crumb_name );
+						}
 					?></a>
 				<?php endif; ?>
 				<span>›</span><span><?php echo esc_html( get_the_title( $id ) ); ?></span>
